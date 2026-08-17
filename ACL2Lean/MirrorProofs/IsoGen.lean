@@ -40,16 +40,27 @@ DIVERGE there is no commuting square to state, so the template fails
 CLOSED — which is the honest outcome, not a proof failure to work
 around.
 
-Ruled as the frame's next instance, and NOT BUILT: for a CLOSED ENUM in
-a `.fixed` position, a once-per-datatype constructor↦ACL2-value table
-(the finite sibling of `Acl2Embed`), off which the square generator
-would ENUMERATE the constructors and emit one square per constructor
-with the mapped ACL2 literal on the waypoint side. It is not built
-because its acceptance witness does not close: see W3 in
-`MirrorProofs/Sorting.lean` for the measurement (the waypoint reading
-`filterL` dispatches on a runtime symbol comparison that the fixed
-ladder cannot evaluate) and the ingredients a ruling would have to
-admit.
+Ruled as the frame's next instance, and NOT BUILT AS RULED: for a CLOSED
+ENUM in a `.fixed` position, a once-per-datatype constructor↦ACL2-value
+table (the finite sibling of `Acl2Embed`), off which the square generator
+would ENUMERATE the constructors and emit one square per constructor with
+the mapped ACL2 literal on the WAYPOINT side. That form does not close,
+and wave 0 measured why: the waypoint reading `filterL` dispatches on a
+RUNTIME symbol comparison, so specialising the ARGUMENT VALUE leaves the
+dispatch in place and the fixed ladder cannot evaluate it (W3 stage 3,
+`MirrorProofs/Sorting.lean`).
+
+WHAT WAS BUILT INSTEAD (R4 wave 2a, the standing `(b)` ruling): the same
+per-constructor family, keyed off the MIRROR side rather than generated
+from a value table — `vars` takes a CONSTRUCTOR LITERAL (below), the
+registry is KEYED by it, and the WAYPOINT side is a reading that never
+dispatches (`Imported/SortingModeReadings.lean`, four own-definitions,
+each validated by `derive_sim%` against the real exec at its literal
+mode). The frame is unchanged and the fail-closed properties are the
+ruled ones — a constructor CARRYING DATA is a hard error, a duplicate key
+is refused, and an unkeyed square cannot join a family — but the
+declaration is per square rather than once per datatype, which is what
+the measurement supports.
 
 ## WHY THESE MUST BE GENERATED (the thin-Lean ruling, at the mirror level)
 
@@ -222,6 +233,15 @@ Concretely:
   It relates no two operations, mentions no mirror definition, and
   says nothing about any recursion — so it cannot rescue a misaligned
   square; it can only delete a `decide`/`= true` coercion.
+  `Bool.false_eq_true` (`(false = true) = False`, R4 wave 2a) is the
+  SAME family and joins it under the SAME clause — the `Bool` `false`
+  and the `Prop` `False` are two spellings of one thing, it relates no
+  operations and mentions no definition. It is a LEMMA rung, not a
+  capability, so it is inside the criterion as already written rather
+  than a new ruling; its consumer is W3's `filterRel_map_hom`, whose
+  whole residual after the order field had done its work was
+  `⊢ … = if false = true then … else …` (measured at R4 wave 1 stage 4
+  and REPRODUCED VERBATIM at wave 2a before this rung was added).
 
 Admitted, each `rfl` rung pinned by the examples directly below (so the
 criterion cannot rot silently):
@@ -235,6 +255,7 @@ criterion cannot rot silently):
 | `ite_true`/`ite_false` | `ite`'s own two cases    | `if_pos`/`if_neg`, `List.map_eq_nil_iff`, any conditional-rewrite discharge |
 | `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
 | `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, `Bool.and_eq_true`, …) |
+| `Bool.false_eq_true` | the same family: `false`/`False` | as above — still nothing that relates two operations |
 
 `ite_true`/`ite_false` (R4 wave 1, 2026-08-14) are the `ite` twin of the
 already-admitted `cond` pair and are admitted under the SAME clause of
@@ -248,14 +269,16 @@ and these two rungs finish the branch. Measured on
 `insertOrd_map_hom`: without them the two cases survive as
 `⊢ … = if True then … else …` and its `False` twin, verbatim.
 
-THE LINE THIS EXECUTOR HELD (R4 wave 1): the kit grows by LEMMA rungs
-that meet the criterion (`rfl`-lemmas, the two plumbing families);
-the closer never grows a CAPABILITY. A capability — ground evaluation
-(W3's stage-3 record), or a CASE SPLIT on an argument the mirror
-definition's own equation left undestructured (W4's record, the
-`merge2` frontier) — is new in kind, outside the criterion as written,
-and is a ruling. Both are measured and recorded on the witness page
-rather than taken.
+THE LINE (R4 wave 1, AMENDED by ruling R-6/W7 of 2026-08-16): the kit
+grows by LEMMA rungs that meet the criterion (`rfl`-lemmas, the two
+plumbing families), and **the closer's ONE structural capability beyond
+the lemma kit is the definition-directed case split (ruled 2026-08-16):
+it case-splits ONLY arguments the squared definition's own match leaves
+undestructured — it reads the definition, it never searches** (see "the
+definition-directed case split" below for how the argument is read and
+where it fails closed). Everything else stays outside the line: GROUND
+EVALUATION (W3's stage-3 record) is still NOT taken and is still a
+ruling if it is ever wanted.
 
 (`Acl2Embed` has exactly two fields, `enc` and `inj`; there is no order
 field, so an element-position square that needs the embedding to RESPECT
@@ -340,7 +363,89 @@ addition ruled on at merge):
 The gate stays fail-closed in both directions: `embed` on an `agree`
 square is a hard error (that statement has no embedding binder at all),
 a non-structure or a structure that does not extend `Acl2Embed` is a
-hard error, and a name that is not a field of `S` is a hard error. -/
+hard error, and a name that is not a field of `S` is a hard error.
+
+AND, PLAINLY (the A1-F9 amendment, ruled 2026-08-16): those four checks
+are STRUCTURAL — they check that `S` is a richer embedding and that the
+named fields are its own. **The CONTENT of an extra field is not checked
+by anything, and cannot be: a field is whatever its declaration says, so
+a field proved machinery-side can be carried into a square's closer.**
+`ord` is honest because it is a fact about the EMBEDDING alone (it
+mentions no mirror definition and relates no two operations) and is a
+HYPOTHESIS of the square's statement — but that judgement is made at
+REVIEW TIME, by reading the field, not by this generator. Extra embed
+fields are therefore REVIEW-TIME CONTENT-CHECKED. This is the audit's
+recorded second route past the unfold gate (A1-F9,
+`docs/audits/2026-08-16_eob-audit-a1-tcb-trust.md`), and the bound is
+A1-F1's: PROVENANCE only — such a square is still kernel-true, so no
+false mirror is reachable. DO NOT HARDEN this with semantic classifiers;
+the per-book provenance audit is the backstop.
+
+## THE DEFINITION-DIRECTED CASE SPLIT (ruled 2026-08-16 — R4 wave 2a/W7)
+
+The one structural capability the closer has. Its consumer is the
+BOOK-FAITHFUL UNDESTRUCTURED ARM: the mirror `merge2` renders the book's
+`(if (consp x) (if (consp y) … x) y)` exactly, so its second arm does not
+destructure the first list (`| xs, [] => xs`), and Lean emits that
+equation GUARDED —
+
+    Sorting.merge2.eq_2 : ∀ {α} [TotalOrder α] (x : List α),
+      (x = [] → False) → Sorting.merge2 x [] = x
+
+— handing the template a case whose scrutinee is a bare variable plus a
+guard. Neither square could get past it (the residuals are on the witness
+page, `MirrorProofs/Sorting.lean` W7), and the measured distance was ONE
+case split on that argument plus the EXISTING kit.
+
+WHAT THE CAPABILITY IS, exactly:
+
+* the ARGUMENT IS READ OFF THE DEFINITION, never off the goal and never
+  by search. `undestructuredArgPos?` below walks the definition's OWN
+  equations; an equation with a GUARD hypothesis (`v = <pat> → False`)
+  names the variable the arm left undestructured, and that variable's
+  POSITION IN THAT EQUATION'S OWN LEFT-HAND SIDE is the argument index.
+  A definition with no guarded equation yields no index and the emitted
+  script is EXACTLY the pre-ruling one (which is why every pre-existing
+  square's proof term is unchanged).
+* it fires ONLY where the kit alone failed: the emitted script is
+  `first | (close; done) | (split <;> close)`, so a case the ladder
+  closes is closed by the ladder, unsplit.
+* it is ONE split of ONE argument by the argument's OWN constructors —
+  not a `split` of whatever `match`/`ite` happens to be in the residual,
+  and not a search for something to case on. Two DIFFERENT undestructured
+  positions across the equations is a HARD ERROR, not two splits.
+* it fails closed at the goal too: if the definition's application in the
+  goal carries a non-variable at that position, the tactic hard-errors
+  rather than guessing.
+
+WHY IT IS NOT A CONTENT CHANNEL. A case split introduces no lemma and no
+fact: it replaces one goal by the goal at each constructor of a type,
+which is definitional case analysis on data the definition ITSELF
+analyses in another arm. It cannot relate two operations, so it cannot
+supply a definitional correspondence that is not there — the misaligned
+reading still fails (probed: a `merge2` square declared against a
+deliberately wrong reading still hard-errors, see the witness page).
+
+## THE `fun_cases` FALLBACK (ruled 2026-08-16 — R4 wave 2a/W9)
+
+`fun_induction` needs a functional INDUCTION principle, and Lean derives
+none for a NON-RECURSIVE definition, so the template used to fail before
+any goal existed ("No functional induction theorem for `Sorting.odds`").
+That bound is general, not an `odds` quirk (`relMode` and `permWitness`
+are non-recursive spec definitions too).
+
+The fallback is mechanical and decided at ELABORATION time, off the
+definition, exactly like the split: if a functional induction principle
+EXISTS for the definition (`Lean.Tactic.FunInd.isFunInductName` on
+`<fn>.induct` — true exactly for structurally/well-founded recursive
+definitions), the template emits `fun_induction`, UNCHANGED; otherwise it
+emits `fun_cases`, which supplies the definition's own case analysis with
+NO induction hypotheses. It is NOT a `first | fun_induction | fun_cases`
+combinator: a recursive definition can never take the fallback, so a
+`fun_induction` failure for any OTHER reason still hard-errors instead of
+being silently swallowed. And `fun_cases` adds no capability of its own —
+it is the same "the definition's own case analysis" the induction
+principle carries, minus the IHs. -/
 
 section LadderPins
 
@@ -367,6 +472,11 @@ example (x y : α) : (if False then x else y) = y := rfl
     `Bool`, and nothing more. -/
 example (b : Bool) : decide (b = true) = b := Bool.decide_eq_true
 
+/-- The same family's second member (R4 wave 2a), pinned the same way:
+    it says exactly that the `Bool` `false` and the `Prop` `False` are
+    two spellings of one thing. -/
+example : (false = true) = False := Bool.false_eq_true
+
 end LadderPins
 
 open Lean.Parser.Tactic in
@@ -380,7 +490,106 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
           Bool.cond_true, Bool.cond_false, ite_true, ite_false,
-          enc_inj_iff, Bool.decide_eq_true, $xs,*]))
+          enc_inj_iff, Bool.decide_eq_true, Bool.false_eq_true, $xs,*]))
+
+/-- The CONSTRUCTOR that the definition's OWN match leaves an argument
+    UNDESTRUCTURED against, in a GUARDED equation — `none` when no
+    equation of `fnName` carries a guard, which is the ordinary case and
+    leaves the emitted script exactly as it was before the 2026-08-16
+    ruling.
+
+    Read off the DEFINITION, never off the goal (see "the
+    definition-directed case split"): Lean emits an undestructured arm as
+    an equation with a guard hypothesis `(v = <pat> → False)` — for
+    `merge2.eq_2`, `(x = [] → False)` — and the pattern's head
+    CONSTRUCTOR is what identifies that guard again in the case
+    `fun_induction` builds from that very equation. (The equation's
+    ARGUMENT POSITION is not usable for this: `fun_induction` UNFOLDS the
+    definition in the goal, so by the time the closer runs there may be
+    no application of it left to count arguments in.) Fail-closed: two
+    DIFFERENT guard constructors across the equations is a hard error —
+    the ruled capability is ONE split. -/
+private def undestructuredGuardCtor? (fnName : Name) :
+    MetaM (Option Name) := do
+  let some eqns ← getEqnsFor? fnName | return none
+  let mut found : Option Name := none
+  for eqn in eqns do
+    let ci ← getConstInfo eqn
+    let ctor? ← forallTelescopeReducing ci.type fun xs body => do
+      let some (_, lhs, _) := body.eq? | return (none : Option Name)
+      unless lhs.getAppFn.isConstOf fnName do return none
+      for x in xs do
+        let .forallE _ dom bod _ ← inferType x | continue
+        unless bod.isConstOf ``False do continue
+        let some (_, gl, gr) := dom.eq? | continue
+        unless gl.isFVar do continue
+        let .const c _ := gr.getAppFn | continue
+        unless (← getConstInfo c).isCtor do continue
+        return some c
+      return none
+    if let some c := ctor? then
+      match found with
+      | none => found := some c
+      | some d =>
+        unless c == d do
+          throwError "mirror_iso%: {fnName}'s own equations leave \
+            arguments undestructured against TWO DIFFERENT constructors \
+            (`{d}` and `{c}`). The ruled closer capability is ONE \
+            definition-directed case split, so this definition is outside \
+            it (fail-closed — a second split would be a new capability, \
+            i.e. a ruling)."
+  return found
+
+open Lean Elab Tactic Meta in
+/-- THE DEFINITION-DIRECTED CASE SPLIT (ruled 2026-08-16), as a tactic.
+    `guard c` is the constructor `undestructuredGuardCtor?` read off the
+    definition's own guarded equation; `fun_induction` puts THAT
+    equation's guard into the case's context, so the tactic finds it by
+    its shape (`v = c … → False`, `v` a variable) and case-splits `v`.
+
+    It does not search: it matches ONE hypothesis shape, the one the
+    definition's own equation contributes, and requires EXACTLY ONE
+    match — zero or several is a hard error rather than a choice. -/
+elab "mirror_definition_split " fnId:ident " guard " ctorId:ident :
+    tactic => do
+  let fnName ← realizeGlobalConstNoOverloadWithInfo fnId
+  let ctor ← realizeGlobalConstNoOverloadWithInfo ctorId
+  let goal ← getMainGoal
+  let hits ← goal.withContext do
+    let mut hits : Array FVarId := #[]
+    for d in ← getLCtx do
+      if d.isImplementationDetail then continue
+      let .forallE _ dom bod _ ← instantiateMVars d.type | continue
+      unless bod.isConstOf ``False do continue
+      let some (_, gl, gr) := dom.eq? | continue
+      unless gl.isFVar && gr.getAppFn.isConstOf ctor do continue
+      hits := hits.push gl.fvarId!
+    pure hits
+  unless hits.size == 1 do
+    throwError "mirror_definition_split: this case carries \
+        {hits.size} guard hypotheses of the shape `<var> = {ctor} … → \
+        False` — the shape `{fnName}`'s own undestructured equation \
+        contributes, and the split needs EXACTLY ONE (fail-closed: it \
+        never picks among candidates, and it never manufactures one)"
+  let subs ← goal.cases hits[0]!
+  replaceMainGoal (subs.map (·.mvarId)).toList
+
+open Lean.Parser.Tactic in
+/-- The square closer WITH the definition-directed case split available
+    (emitted only for a definition whose own match leaves an argument
+    undestructured — see `undestructuredGuardCtor?`).
+
+    The ladder is unchanged and runs FIRST: the split fires only where
+    the kit alone did not CLOSE the case (`; done` is what makes that
+    true — a partial simplification must not count as success and hide
+    the case). -/
+macro "mirror_square_close_split " fnId:ident " guard " c:ident
+    " [" xs:simpLemma,* "]" : tactic =>
+  `(tactic|
+    (first
+      | (mirror_square_close [$xs,*]; done)
+      | (mirror_definition_split $fnId guard $c <;>
+          mirror_square_close [$xs,*])))
 
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton
@@ -436,12 +645,24 @@ inductive SquareClass where
   | homScalar
   deriving BEq, Inhabited
 
+/-- One registered AGREEMENT square: the theorem, and the CONSTRUCTOR
+    LITERAL its statement is specialized at (`.anonymous` = the general,
+    unkeyed square). -/
+structure SquareEntry where
+  /-- the generated theorem -/
+  thmName : Name
+  /-- the `vars` constructor literal this square is stated at -/
+  key : Name := .anonymous
+  deriving Inhabited, BEq
+
 /-- The squares registered for one mirror definition. -/
 structure MirrorSquares where
   /-- the mirror definition -/
   fnName : Name
-  /-- its agreement square (`.anonymous` = none registered) -/
-  agreeName : Name := .anonymous
+  /-- its agreement square(s): either ONE unkeyed entry, or a
+      PER-CONSTRUCTOR FAMILY whose members are at DISTINCT literals
+      (`[]` = none registered) -/
+  agree : List SquareEntry := []
   /-- its homomorphism/invariance square (`.anonymous` = none) -/
   homName : Name := .anonymous
   /-- `true` when `homName` is the SCALAR (invariance) form -/
@@ -468,20 +689,63 @@ def currentSquares (env : Environment) : List MirrorSquares :=
   (mirrorSquareExt.getState env).foldl (init := []) fun acc e =>
     if acc.any (·.fnName == e.fnName) then acc else acc ++ [e]
 
+/-- Every AGREEMENT square registered for `fn`: the single general one,
+    or the whole per-constructor family.
+
+    Handing a closer the whole family cannot redirect a rewrite the way a
+    second GENERAL square would, because each member's statement is at a
+    DISTINCT constructor literal and so matches only its own occurrences —
+    which is exactly why the keyed family is the only shape in which
+    multiple agreement squares may exist (ruled 2026-08-16).
+
+    "A lookup matches exactly one" is an INVARIANT OF THE REGISTRY, not a
+    separate lookup function: `registerSquare` refuses a duplicate key, so
+    at most one entry carries any given key, and there is deliberately no
+    key-directed lookup here because no consumer wants one — a caller's
+    closer wants the whole family (its own body carries the literals). -/
+def agreeSquares (env : Environment) (fn : Name) : List Name :=
+  match findSquares env fn with
+  | none => []
+  | some s => s.agree.map (·.thmName)
+
 /-- Attach a square to its mirror definition, refusing a second square of
     the same class (fail-closed: with first-match lookup a re-registration
-    would silently redirect every later closer). -/
-def registerSquare (fn : Name) (cls : SquareClass) (thm : Name) :
-    CommandElabM Unit := do
+    would silently redirect every later closer).
+
+    THE ONE EXCEPTION (ruled 2026-08-16): agreement squares may form a
+    PER-CONSTRUCTOR FAMILY — several squares for one definition, each
+    stated at a distinct `vars` constructor literal. That is still
+    fail-closed in every direction: a duplicate key is refused, a keyed
+    square cannot join an unkeyed one, and an unkeyed square cannot join a
+    family. -/
+def registerSquare (fn : Name) (cls : SquareClass) (thm : Name)
+    (key : Name := .anonymous) : CommandElabM Unit := do
   let cur := (findSquares (← getEnv) fn).getD { fnName := fn }
   let next ←
     match cls with
     | .agree =>
-      unless cur.agreeName == .anonymous do
-        throwError "mirror_iso%: {fn} already has an agreement square \
-            ({cur.agreeName}) — a second one would silently redirect the \
-            crossing's rewrite set (fail-closed)"
-      pure { cur with agreeName := thm }
+      if key == .anonymous then
+        unless cur.agree.isEmpty do
+          throwError "mirror_iso%: {fn} already has an agreement square \
+              ({cur.agree.map (·.thmName)}) — a second UNKEYED one would \
+              silently redirect the crossing's rewrite set (fail-closed). \
+              Several agreement squares for one definition exist ONLY as a \
+              PER-CONSTRUCTOR FAMILY: state each at its own constructor \
+              literal in `vars`."
+        pure { cur with agree := [{ thmName := thm }] }
+      else
+        if cur.agree.any (·.key == .anonymous) then
+          throwError "mirror_iso%: {fn} already has an UNKEYED agreement \
+              square ({cur.agree.map (·.thmName)}), which speaks for EVERY \
+              value of the position `{key}` specializes — a keyed family \
+              cannot join it (fail-closed)"
+        if cur.agree.any (·.key == key) then
+          throwError "mirror_iso%: {fn} already has an agreement square at \
+              `{key}` ({(cur.agree.filter (·.key == key)).map (·.thmName)}) \
+              — a second one at the same literal would make the family's \
+              lookup ambiguous, and a lookup must match EXACTLY ONE \
+              (fail-closed)"
+        pure { cur with agree := cur.agree ++ [{ thmName := thm, key := key }] }
     | .homList | .homScalar =>
       unless cur.homName == .anonymous do
         throwError "mirror_iso%: {fn} already has a homomorphism square \
@@ -502,7 +766,7 @@ syntax "hom " &"scalar" : mirrorSquareSpec
 
 syntax (name := mirrorIsoCmd)
   (docComment)? "mirror_iso% " ident &" for " ident
-  &" vars " "[" ident,* "]"
+  &" vars " "[" term,* "]"
   &" square " mirrorSquareSpec
   (&" embed " ident &" via " "[" ident,* "]")?
   (&" unfold " "[" ident,* "]")? : command
@@ -546,6 +810,16 @@ private inductive ArgReading where
       `Nat`, …) — the argument passes through both sides of the square
       unchanged, at its own type. -/
   | fixed (ty : Term)
+
+/-- One `vars` entry: a BINDER (an atomic identifier, quantified in the
+    square's statement) or a fixed CONSTRUCTOR LITERAL (R4 wave 2a — it
+    enters the statement as itself, binds nothing, and KEYS the square in
+    the registry's per-constructor family). -/
+private inductive VarEntry where
+  /-- an atomic identifier: the statement quantifies over it -/
+  | binder (id : Ident)
+  /-- a nullary constructor literal at a `.fixed` position -/
+  | lit (stx : Term) (ctor : Name)
 
 /-- The mirror definition's shape, as the generator must read it: the
     per-binder READING VECTOR of its explicit arguments (in order), and
@@ -683,7 +957,7 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
     if stx[0].getNumArgs > 0 then some ⟨stx[0][0]⟩ else none
   let thmId : Ident := ⟨stx[2]⟩
   let fnId : Ident := ⟨stx[4]⟩
-  let vars : Array Ident := stx[7].getSepArgs.map (⟨·⟩)
+  let varStxs : Array Term := stx[7].getSepArgs.map (⟨·⟩)
   let specStx := stx[10]
   -- the ORDER-RESPECT route (R4 wave 1): an optional RICHER EMBEDDING for
   -- THIS square, plus the fields of it the closer may use. See "the
@@ -706,12 +980,70 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         template (which inducts on ONE definition's recursion)"
   let (readings, resIsList, instClasses) ←
     liftTermElabM <| mirrorFnShape fnName di.type
-  unless vars.size == readings.size do
+  unless varStxs.size == readings.size do
     throwError "mirror_iso%: {fnName} takes {readings.size} explicit \
-        arguments but {vars.size} vars were given"
-  if vars.any (·.getId == `e) then
-    throwError "mirror_iso%: `e` is the embedding binder's reserved name — \
-        rename the var"
+        arguments but {varStxs.size} vars were given"
+  -- THE `vars` ENTRIES (R4 wave 2a): an ATOMIC IDENTIFIER is a BINDER, as
+  -- it always was; anything else is a CONSTRUCTOR LITERAL, admitted ONLY
+  -- at a `.fixed` position (a closed type the embedding does not act on)
+  -- and only as a NULLARY constructor of that type — it enters the
+  -- statement as that literal and binds nothing. That literal is the
+  -- registry KEY, which is what lets a definition carry a PER-CONSTRUCTOR
+  -- FAMILY of agreement squares instead of one general one. The split
+  -- is purely syntactic (an atomic ident is a binder, a dotted or applied
+  -- term is a literal) so a declaration cannot mean one and read as the
+  -- other; a NON-atomic identifier is a hard error naming the dot form.
+  let mut vars : Array VarEntry := #[]
+  let mut litKeys : Array Name := #[]
+  for (v, r) in varStxs.zip readings do
+    if v.raw.isIdent then
+      unless v.raw.getId.isAtomic do
+        throwError "mirror_iso%: the `vars` entry `{v.raw.getId}` is a \
+            QUALIFIED identifier. A `vars` binder is an atomic identifier; \
+            a CONSTRUCTOR LITERAL must be written in dot form (`.lt`), so \
+            that a literal can never be read as a binder name \
+            (fail-closed)."
+      if v.raw.getId == `e then
+        throwError "mirror_iso%: `e` is the embedding binder's reserved \
+            name — rename the var"
+      vars := vars.push (.binder ⟨v.raw⟩)
+    else
+      let .fixed tyStx := r
+        | throwError "mirror_iso%: a `vars` CONSTRUCTOR LITERAL was given \
+            at an argument position whose reading is not `.fixed` — a \
+            literal specializes a CLOSED-TYPE (pass-through) position, \
+            the one kind of argument the embedding does not act on. At a \
+            `List α` or `α` position there is nothing for a literal to \
+            specialize (fail-closed)."
+      let ctor ← liftTermElabM do
+        let tyE ← Term.elabType tyStx
+        let e ← instantiateMVars (← Term.elabTerm v (some tyE))
+        let .const c _ := e
+          | throwError "mirror_iso%: the `vars` literal `{v}` does not \
+              elaborate to a NULLARY CONSTRUCTOR of `{tyE}` (it is \
+              `{e}`). The per-constructor family is a DATA REFINEMENT of a \
+              closed enum position: each member is one constructor, and a \
+              constructor CARRYING DATA — or any other term — is outside \
+              it (fail-closed, and widening it is a ruling)."
+        let .ctorInfo ci ← getConstInfo c
+          | throwError "mirror_iso%: the `vars` literal `{v}` elaborates \
+              to `{c}`, which is not a CONSTRUCTOR (fail-closed)"
+        unless ci.numFields == 0 do
+          throwError "mirror_iso%: the `vars` literal `{v}` is the \
+              constructor `{c}`, which CARRIES DATA ({ci.numFields} \
+              fields) — outside the per-constructor family, which \
+              enumerates a closed enum (fail-closed; hard-fail by design \
+              until a real witness demands more)"
+        pure c
+      vars := vars.push (.lit v ctor)
+      litKeys := litKeys.push ctor
+  if litKeys.size > 1 then
+    throwError "mirror_iso%: {litKeys.size} `vars` CONSTRUCTOR LITERALS \
+        were given ({litKeys.toList}). A square is keyed by AT MOST ONE \
+        literal — the registry's family is per-constructor over ONE enum \
+        position, and two keys would make the family's lookup ambiguous \
+        (fail-closed)."
+  let squareKey : Name := litKeys[0]?.getD .anonymous
   -- the declared unfoldings: DEFINITIONS ONLY (a lemma here would be the
   -- content channel the template gate exists to close)
   let unfoldNames ← unfolds.mapM fun u => do
@@ -801,15 +1133,24 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   let alphaId : Ident := mkIdent `α
   let eId : Ident := mkIdent `e
   let fnC : Term := mkCIdent fnName
-  let varsR : Array (Ident × ArgReading) := vars.zip readings
-  let plainApp : Term := Syntax.mkApp fnC (vars.map (fun v => (v : Term)))
+  let varsR : Array (VarEntry × ArgReading) := vars.zip readings
+  -- a LITERAL entry enters every position as itself (it is a `.fixed`
+  -- argument: the same value on both sides of the square), and binds
+  -- nothing
+  let varTerms : Array Term := vars.map fun
+    | .binder id => (id : Term)
+    | .lit s _ => s
+  let plainApp : Term := Syntax.mkApp fnC varTerms
   let binders : Array (TSyntax ``bracketedBinderF) ← do
     match cls with
-    | .agree => varsR.mapM fun (v, r) =>
-        match r with
-        | .list => `(bracketedBinderF| ($v:ident : $sexprTy))
-        | .elem => `(bracketedBinderF| ($v:ident : $sexprC))
-        | .fixed ty => `(bracketedBinderF| ($v:ident : $ty))
+    | .agree => varsR.filterMapM fun (v, r) =>
+        match v with
+        | .lit _ _ => pure none
+        | .binder v =>
+          match r with
+          | .list => do pure (some (← `(bracketedBinderF| ($v:ident : $sexprTy))))
+          | .elem => do pure (some (← `(bracketedBinderF| ($v:ident : $sexprC))))
+          | .fixed ty => do pure (some (← `(bracketedBinderF| ($v:ident : $ty))))
     | _ =>
       -- the definition's OWN instance binders, re-bound at the user's
       -- element type (see `mirrorFnShape`): at `α` there is nothing to
@@ -818,17 +1159,26 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         `(bracketedBinderF| [$(Syntax.mkApp (mkCIdent c) #[alphaId]):term])
       let eB ← `(bracketedBinderF|
         ($eId:ident : $(Syntax.mkApp (mkCIdent embedStruct) #[alphaId])))
-      let vB ← varsR.mapM fun (v, r) =>
-        match r with
-        | .list => `(bracketedBinderF| ($v:ident : List $alphaId:ident))
-        | .elem => `(bracketedBinderF| ($v:ident : $alphaId:ident))
-        | .fixed ty => `(bracketedBinderF| ($v:ident : $ty))
+      let vB ← varsR.filterMapM fun (v, r) =>
+        match v with
+        | .lit _ _ => pure none
+        | .binder v =>
+          match r with
+          | .list => do
+            pure (some (← `(bracketedBinderF| ($v:ident : List $alphaId:ident))))
+          | .elem => do
+            pure (some (← `(bracketedBinderF| ($v:ident : $alphaId:ident))))
+          | .fixed ty => do
+            pure (some (← `(bracketedBinderF| ($v:ident : $ty))))
       pure (iB ++ #[eB] ++ vB)
   let encoded : Array Term ← varsR.mapM fun (v, r) =>
-    match r with
-    | .list => `(List.map ($eId:ident).enc $v:ident)
-    | .elem => `(($eId:ident).enc $v:ident)
-    | .fixed _ => pure v
+    match v with
+    | .lit s _ => pure s
+    | .binder v =>
+      match r with
+      | .list => `(List.map ($eId:ident).enc $v:ident)
+      | .elem => `(($eId:ident).enc $v:ident)
+      | .fixed _ => pure v
   let reading : Term := ⟨specStx[1]⟩
   let stmt : Term ←
     match cls with
@@ -841,14 +1191,17 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
       `($lhs = $plainApp)
   -- the closer's lemmas: the definition's own equations, the declared
   -- unfoldings, and the registered squares of the definition's callees
+  -- (an agreement callee may carry a whole PER-CONSTRUCTOR FAMILY; each
+  -- member is stated at a distinct literal, so the family cannot redirect
+  -- a rewrite the way a second GENERAL square would — see `agreeSquares`)
   let calleeSquares : List Name :=
-    di.value.getUsedConstants.toList.filterMap fun c =>
-      match findSquares env c with
-      | some s =>
-        match cls with
-        | .agree => if s.agreeName == .anonymous then none else some s.agreeName
-        | _ => if s.homName == .anonymous then none else some s.homName
-      | none => none
+    di.value.getUsedConstants.toList.flatMap fun c =>
+      match cls with
+      | .agree => agreeSquares env c
+      | _ =>
+        match findSquares env c with
+        | some s => if s.homName == .anonymous then [] else [s.homName]
+        | none => []
   let lemmaNames : Array Name :=
     #[fnName] ++ unfoldNames ++ calleeSquares.eraseDups.toArray
   let mut lemmas ← lemmaNames.mapM fun n =>
@@ -858,8 +1211,27 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
   for f in embedFacts do
     lemmas := lemmas.push (← `(Lean.Parser.Tactic.simpLemma|
       $(Syntax.mkApp (mkCIdent f) #[eId]):term))
-  let proof ← `(by
-      fun_induction $plainApp <;> mirror_square_close [$lemmas,*])
+  -- THE INDUCTION (W9's fallback, ruled 2026-08-16): a recursive
+  -- definition keeps `fun_induction`, byte-for-byte; a NON-RECURSIVE one
+  -- has no functional induction principle at all, and takes the
+  -- definition's own case analysis instead. Decided off the DEFINITION,
+  -- not by swallowing a tactic failure.
+  let inductTac : TSyntax `tactic ←
+    if Lean.Tactic.FunInd.isFunInductName env (fnName ++ `induct) then
+      `(tactic| fun_induction $plainApp)
+    else
+      `(tactic| fun_cases $plainApp)
+  -- THE DEFINITION-DIRECTED CASE SPLIT (W7's capability, ruled
+  -- 2026-08-16): emitted ONLY when the definition's own match leaves an
+  -- argument undestructured, so every other square's script — and hence
+  -- its proof term — is exactly what it was.
+  let splitCtor? ← liftTermElabM <| undestructuredGuardCtor? fnName
+  let proof ← match splitCtor? with
+    | none => `(by
+        $inductTac:tactic <;> mirror_square_close [$lemmas,*])
+    | some c => `(by
+        $inductTac:tactic <;>
+          mirror_square_close_split $fnId guard $(mkCIdent c) [$lemmas,*])
   let thm ← `($[$doc?:docComment]? theorem $thmId $binders* : $stmt := $proof)
   elabCommand thm
   -- TEMPLATE FAILURE = HARD ERROR (never a hand-proof fallback)
@@ -913,7 +1285,7 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         bridging fact through a REPLAYED ACL2 BOOK THEOREM. A hand \
         square is NOT the escape (thin-Lean ruling 2026-08-11, at the \
         mirror level)."
-  registerSquare fnName cls thmName
+  registerSquare fnName cls thmName squareKey
 
 /-! ## `mirror_transport%`
 
@@ -993,8 +1365,7 @@ syntax (name := mirrorTransportCmd)
   let bs : Array Ident := binderNames.map mkIdent
   -- the crossing: mirror vocabulary → waypoint vocabulary, then the
   -- replayed-backed waypoint theorem EXACTLY
-  let agreeLemmas ← (currentSquares env).filterMap
-      (fun s => if s.agreeName == .anonymous then none else some s.agreeName)
+  let agreeLemmas ← (currentSquares env).flatMap (·.agree.map (·.thmName))
     |>.toArray.mapM fun n =>
       `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
   let crossProof ← `(by

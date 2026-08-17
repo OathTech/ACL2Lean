@@ -61,4 +61,24 @@ mirror_iso% evil_rev_via_acc for ACL2Lean.Basics.rev
   square agree (Worlds.RevAcc.revAccL xs [])
   unfold [Worlds.RevAcc.revAccL, smuggled]
 
+/-
+  THE SECOND NEGATIVE TEST (R4 wave 2a): `vars` now takes a CONSTRUCTOR
+  LITERAL, which is what lets ONE definition carry a per-constructor
+  FAMILY of agreement squares (the keyed registry). A literal is admitted
+  at a `.fixed` position ONLY — a closed type the embedding does not act
+  on. Handed one at a `List α` position, the generator must refuse BEFORE
+  producing any declaration, so this pin costs no `sorryAx`.
+
+  Same threat model as above: a SPEEDBUMP against the honest mistake
+  (writing `.lt` where a binder was meant, or at the wrong position), not
+  a barrier. If it becomes fragile, delete it.
+-/
+
+/-- error: mirror_iso%: a `vars` CONSTRUCTOR LITERAL was given at an argument position whose reading is not `.fixed` — a literal specializes a CLOSED-TYPE (pass-through) position, the one kind of argument the embedding does not act on. At a `List α` or `α` position there is nothing for a literal to specialize (fail-closed).
+-/
+#guard_msgs in
+mirror_iso% evil_app_at_literal for ACL2Lean.Basics.app
+  vars [.nil, ys]
+  square agree (ys)
+
 end ACL2.Tests.IsoGenGate

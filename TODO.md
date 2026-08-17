@@ -653,6 +653,56 @@ TERMINOLOGY (2026-08-12): 'mirror'/'native mirror' below means the ACL2-like WAY
 > family) the square CLOSES. Regression net: 1455 lines
 > BYTE-IDENTICAL, statements AND proof terms. Sorries 6.
 
+> **R4 WAVE 2a — THE UNBLOCKING BATCH: all four wave-1 frontiers
+> CLOSED, the witness page 8 → 19 live squares (2026-08-17, branch
+> `mdd/r4-wave2`; charter `docs/plans/2026-08-17_r4-wave2-charter.md`;
+> the four decisions are Mike's R-6 endorsements of 2026-08-16).**
+> W7 THE DEFINITION-DIRECTED CASE SPLIT — the closer's ONE structural
+> capability beyond the lemma kit. The argument is read off the
+> definition's OWN GUARDED EQUATION (`merge2.eq_2`'s
+> `(x = [] → False)`), never off the goal and never by search; the
+> split fires only where the ladder alone did not CLOSE the case, and
+> a definition with no guarded equation emits exactly the pre-ruling
+> script (which is why every pre-existing proof term is unchanged).
+> Note for the record: the equation's ARGUMENT POSITION turned out not
+> to be usable, because `fun_induction` UNFOLDS the definition in the
+> goal — the guard hypothesis's CONSTRUCTOR is what identifies the
+> case, and that is equally definition-side. W9 THE `fun_cases`
+> FALLBACK — decided at elaboration time off the definition
+> (`isFunInductName` on `<fn>.induct`), so a recursive definition can
+> never take it and a `fun_induction` failure for any other reason
+> still hard-errors. W9's second gap: the ODDS EXEC KIT +
+> own-definition reading `oddsL`, validated by `derive_sim%`
+> (`Imported/SortingOdds.lean`; `msort`'s own kit untouched). W3 THE
+> PER-MODE ASSEMBLY — four DISPATCH-FREE own-definition readings
+> validated against the real FILTER exec at their literal modes
+> (`Imported/SortingModeReadings.lean`), `vars` taking a CONSTRUCTOR
+> LITERAL, and the KEYED registry (several agreement squares per
+> definition ONLY as a per-constructor family: duplicate key refused,
+> keyed cannot join unkeyed, unkeyed cannot join a family). LADDER:
+> `Bool.false_eq_true` added — a LEMMA rung of the ALREADY-ADMITTED
+> Bool/decide family (pinned in `LadderPins`, table row added), whose
+> consumer is `filterRel_map_hom`; wave 1's stage-4 residual
+> reproduced VERBATIM before it was added. `derive_sim%` gained a
+> `lit` reading (a literal exec argument, not a binder) — a
+> literal-specialized iso is a VALIDATION artifact and is NOT
+> registered on the kit, so callee resolution is untouched. NEW LIVE
+> SQUARES (11): `merge2_agree_merge2L`, `merge2_map_hom`,
+> `msort_agree_msortL`, `msort_map_hom`, `odds_agree_oddsL`,
+> `odds_map_hom`, the four `filterRel_<mode>_agree_*`, and
+> `filterRel_map_hom` — each `#guard_msgs`-pinned. Regression net:
+> the ONLY changed declarations are the machinery deliberately changed
+> (the `MirrorSquares` structure + companions, the two elaborators,
+> `mirrorIsoCmd`, `registerSquare`); every square, reading, iso, spec
+> definition, `Prop` and driver receipt is BYTE-IDENTICAL, statements
+> AND proof terms. Tamper-probed (all hard-error): a swapped `merge2`
+> reading, an `odds`-as-`evens` reading, a duplicate registry key, a
+> literal at a non-`.fixed` position, a misaligned per-mode square, and
+> a misaligned literal-mode `derive_sim%`. NOTE for wave 2b: the two
+> `msort` declarations stand BEFORE the `odds` squares on purpose (the
+> measured route unfolds `odds`); and `IsoGen.lean` is at 1466 lines
+> against the 1500 norm — the next growth splits it.
+
 > **TEMPLATE-GATE FINDING (Basics-closeout increment A, 2026-08-13 —
 > RULED 2026-08-13 by THE VOCABULARY RULE, commit a07d99d: native
 > readings and mirror definitions are OWN-DEFINITIONS, so the leak below

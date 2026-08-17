@@ -1,6 +1,8 @@
 import ACL2Lean.MirrorProofs.IsoGen
 import ACL2Lean.MirrorProofs.OrderBridge
 import ACL2Lean.Mirrors.Sorting
+import ACL2Lean.Imported.SortingOdds
+import ACL2Lean.Imported.SortingModeReadings
 
 /-! # MIRROR PROOFS — the sorting book (the WITNESS PAGE, not yet a proof page)
 
@@ -11,32 +13,54 @@ widening had to land against REAL square declarations read off the sorting
 spec — not against a test fixture (the anti-"infrastructure now, wire it
 later" rule). It is therefore the landing zone for the sorting squares.
 
-After R4 WAVE 1 (2026-08-14) it carries EIGHT declarations — all LIVE
-squares, each `#print axioms`-pinned:
+After R4 WAVE 2a (2026-08-17) it carries NINETEEN declarations — all
+LIVE squares, each `#print axioms`-pinned, and NO frontier left
+undeclared on this page:
 
 | witness | agree | hom |
 | ------- | ----- | --- |
-| W1 `insertOrd` | LIVE (R1-D) | **LIVE (wave 1 — the order dimension)** |
+| W1 `insertOrd` | LIVE (R1-D) | LIVE (wave 1 — the order dimension) |
 | W2 `howMany`   | LIVE (R1-D) | LIVE (R1-D, scalar) |
-| W5 `isort`     | **LIVE**    | **LIVE** |
-| W6 `evens`     | **LIVE**    | **LIVE** |
+| W5 `isort`     | LIVE (wave 1) | LIVE (wave 1) |
+| W6 `evens`     | LIVE (wave 1) | LIVE (wave 1) |
+| W7 `merge2`    | **LIVE (2a — the split)** | **LIVE (2a — the split)** |
+| W8 `msort`     | **LIVE (2a)** | **LIVE (2a)** |
+| W9 `odds`      | **LIVE (2a — kit + `fun_cases`)** | **LIVE (2a — `fun_cases`)** |
+| W3 `filterRel` | **LIVE ×4 (2a — the per-mode family)** | **LIVE (2a)** |
 
-and FOUR RECORDED frontiers with no declaration — W3 `filterRel`, W7
-`merge2`, W8 `msort`, W9 `odds`. Nothing is emitted for a frontier on
-purpose: a closer failure leaves a `sorryAx`-carrying declaration
-behind, which this tree does not accept, so the state lives in this
-docstring (statements verbatim, residuals verbatim, the measured closing
-condition) rather than in a `#guard_msgs` pin.
+Wave 1's four RECORDED frontiers (W3, W7, W8, W9) are all closed by the
+four wave-2a decisions Mike endorsed on 2026-08-16 (the synthesis's R-6).
+Their records are kept below, section by section, because they are what
+each ruling was made on — and because the residuals they quote are the
+acceptance evidence that the fix was the one the frontier named:
 
-The wave-1 machinery both new squares rest on is in `IsoGen`'s "the
-order-respect route" (the `embed S via [...]` clause — an order-using
-definition's homomorphism square is only TRUE for an order-respecting
-embedding, so that hypothesis belongs in its statement) and in
-`OrderBridge`'s `OrderedEmbed`/`intOrderedEmbed`. The ladder also gained
-`ite`'s own two cases, the `rfl` twin of the already-admitted `cond`
-pair; the line wave 1 held is that the closer grows LEMMA rungs that
-meet the pinned criterion and never a CAPABILITY (W7 and W3 record the
-two capabilities that were measured and not taken).
+* **W7 `merge2`** — the DEFINITION-DIRECTED CASE SPLIT (`IsoGen`'s
+  section of that name). Wave 1 measured "ONE case split on the
+  undestructured argument, then the EXISTING kit"; that is exactly what
+  the closer gained, and the three cases that already closed still close
+  by the kit alone.
+* **W8 `msort`** — nothing of its own: wave 1 measured both squares
+  reducing to `merge2`'s, and W7 unblocked them at two four-line
+  declarations, as predicted.
+* **W9 `odds`** — the `fun_cases` FALLBACK for a NON-RECURSIVE spec
+  definition (the hom square), plus the ODDS EXEC KIT and the
+  own-definition reading `oddsL` (`Imported/SortingOdds.lean`) that the
+  agree square needed — the second, independent gap wave 1 separated out.
+* **W3 `filterRel`** — the PER-MODE assembly: four DISPATCH-FREE
+  own-definition readings validated by `derive_sim%` against the real
+  `FILTER` exec at their literal modes
+  (`Imported/SortingModeReadings.lean`), `vars` taking a CONSTRUCTOR
+  LITERAL, and the KEYED registry that lets one definition carry a
+  per-constructor FAMILY of agreement squares. The hom square is wave 1's
+  stage-4 measurement declared, after one more rung of the
+  already-admitted Bool/decide family (`Bool.false_eq_true`).
+
+THE LINE, as amended: the kit still grows only by LEMMA rungs meeting the
+pinned criterion, and the closer has exactly ONE structural capability —
+the definition-directed split, which reads the definition and never
+searches. GROUND EVALUATION (W3 stage 3's other candidate) was NOT taken
+and is not needed: the per-mode readings removed the dispatch it would
+have had to evaluate.
 
 ## What R1-B changed
 
@@ -497,7 +521,40 @@ mirror_iso% evens_map_hom for ACL2Lean.Sorting.evens
 #guard_msgs (whitespace := lax) in
 #print axioms evens_map_hom
 
-/-! ## W7 — `merge2`: RECORDED, not declared (the UNDESTRUCTURED-ARM bound)
+/-! ## W7 — `merge2` (LIVE, both classes) — the undestructured arm
+
+Wave 1 measured this frontier and did not take it; ruling R-6/W7
+(2026-08-16) took it. The distance was ONE definition-directed case
+split, and that is exactly what the closer now has (`IsoGen`'s "the
+definition-directed case split"): the argument is read off `merge2`'s own
+GUARDED equation `merge2.eq_2`, not off the goal, and the split fires
+only in the case the ladder alone did not CLOSE. The three cases that
+closed under the wave-1 kit still close by the kit, unsplit.
+
+The historical record of the frontier — both residuals verbatim, and the
+four measured closing conditions in order of how much they ask for — is
+kept below under "W7's record", because it is what the ruling was made
+on. -/
+
+mirror_iso% merge2_agree_merge2L for ACL2Lean.Sorting.merge2
+  vars [xs, ys]
+  square agree (Worlds.Sorting.merge2L xs ys)
+  unfold [Worlds.Sorting.merge2L, instTotalOrderSExpr]
+
+/-- info: 'ACL2Lean.MirrorProofs.merge2_agree_merge2L' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms merge2_agree_merge2L
+
+mirror_iso% merge2_map_hom for ACL2Lean.Sorting.merge2
+  vars [xs, ys]
+  square hom list
+  embed OrderedEmbed via [ord]
+
+/-- info: 'ACL2Lean.MirrorProofs.merge2_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms merge2_map_hom
+
+/-! ## W7's record — the frontier as wave 1 measured it (the UNDESTRUCTURED-ARM bound)
 
 THREE of the four cases of BOTH squares close with the wave-1 kit.
 Case 2 does not, in either, and it is the same cause in both — the one
@@ -568,7 +625,7 @@ undestructured, the closer may refine that case by the argument's own
 constructors". Per the thin-Lean ruling the escape is never a hand
 square.
 
-## W8 — `msort`: RECORDED, not declared (blocked ONLY on W7)
+## W8 — `msort`'s record (it was blocked ONLY on W7; now LIVE below)
 
 Both `msort` squares reduce, under the wave-1 kit plus the REGISTERED
 `evens` squares and `unfold [ACL2Lean.Sorting.odds]`, to exactly
@@ -606,7 +663,33 @@ own on either route — `unfold [ACL2Lean.Sorting.odds]` carries
 `odds (a :: t)` to `evens t`, which is exactly where `msortL`'s own
 recursion goes. The `odds` SQUARES are a separate frontier, W9.)
 
-## W9 — `odds`: RECORDED, not declared (a NON-RECURSIVE spec definition)
+ORDER MATTERS HERE, and it is deliberate: the two `msort` declarations
+below stand BEFORE W9's `odds` squares, which is the route wave 1
+measured — `unfold [ACL2Lean.Sorting.odds]`, with no `odds` square
+registered yet. Registering `odds_agree_oddsL` first would put a second
+`odds`-shaped rewrite (`odds xs = oddsL xs`) into `msort`'s closer
+alongside `odds`'s own equations. -/
+
+mirror_iso% msort_agree_msortL for ACL2Lean.Sorting.msort
+  vars [xs]
+  square agree (Worlds.Sorting.msortL xs)
+  unfold [Worlds.Sorting.msortL, ACL2Lean.Sorting.odds]
+
+/-- info: 'ACL2Lean.MirrorProofs.msort_agree_msortL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms msort_agree_msortL
+
+mirror_iso% msort_map_hom for ACL2Lean.Sorting.msort
+  vars [xs]
+  square hom list
+  embed OrderedEmbed via [ord]
+  unfold [ACL2Lean.Sorting.odds]
+
+/-- info: 'ACL2Lean.MirrorProofs.msort_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms msort_map_hom
+
+/-! ## W9 — `odds`'s record (a NON-RECURSIVE spec definition; now LIVE below)
 
 `odds` is `| [] => [] | _ :: t => evens t` — the book's `(EVENS (CDR
 L))`, and not recursive. The template inducts with `fun_induction`, and
@@ -647,15 +730,120 @@ but there is no `oddsExec` and no `register_exec_kit% "ODDS"` (the
 `evensExec (Logic.cdr xv)`). So the `odds` AGREE square needs an exec
 kit first; the `odds` HOM square needs only the `fun_cases` fallback.
 
-## W3 — `filterRel`: RECORDED, not declared
+BOTH are now closed, exactly as that reading of the frontier said they
+had to be. The `fun_cases` fallback is ruled and in the template
+(`IsoGen`'s "the `fun_cases` fallback"); the ODDS EXEC KIT + the
+own-definition reading `oddsL` are `Imported/SortingOdds.lean`
+(`derive_exec% oddsExec corr odds_exec_corr` + `derive_sim% oddsExec_enc`
+— the reading is validated against the real exec by the same template
+gate every other reading passes, so it is not a hand correspondence).
+`oddsL` is spelled `| [] => [] | _ :: t => evensL t` — its own match, NOT
+`evensL xs.tail`: `evensL`'s own `List.tail` spelling is the logged
+vocabulary-compliance item (W6), and this reading deliberately does not
+copy it. -/
 
-Nothing is emitted here on purpose. Both of `filterRel`'s squares now
-build their STATEMENTS (the mode reads `.fixed`) and neither closes, and
-a closer failure leaves a `sorryAx`-carrying declaration behind — so the
-state lives in the module docstring above (statements verbatim,
-residuals verbatim, the measured closing condition) rather than in a
-`#guard_msgs` pin. The stage-1 pin that stood here guarded the
-function-argument message; the re-render deleted the function argument,
-so the pin went with it. -/
+mirror_iso% odds_agree_oddsL for ACL2Lean.Sorting.odds
+  vars [xs]
+  square agree (Worlds.Sorting.oddsL xs)
+  unfold [Worlds.Sorting.oddsL]
+
+/-- info: 'ACL2Lean.MirrorProofs.odds_agree_oddsL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms odds_agree_oddsL
+
+mirror_iso% odds_map_hom for ACL2Lean.Sorting.odds
+  vars [xs]
+  square hom list
+
+/-- info: 'ACL2Lean.MirrorProofs.odds_map_hom' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms odds_map_hom
+
+/-! ## W3 — `filterRel`'s record, and the PER-MODE FAMILY (now LIVE below)
+
+The four stages above are the record; this is what closed them, and it
+is the standing `(b)` ruling implemented (R-6, 2026-08-16).
+
+THE AGREE SQUARES — a PER-CONSTRUCTOR FAMILY, one per `RelMode`. Two
+machinery pieces, both in `IsoGen`:
+
+1. **`vars` takes a CONSTRUCTOR LITERAL.** A `vars` entry that is not an
+   atomic identifier is a literal, admitted only at a `.fixed`
+   (closed-type, pass-through) position and only as a NULLARY
+   constructor; it enters the statement as itself and binds nothing.
+2. **The registry is KEYED.** That literal is the square's key, and
+   several agreement squares may exist for one definition ONLY as such a
+   family: a duplicate key is refused, a keyed square cannot join an
+   unkeyed one, and an unkeyed one cannot join a family. The closer of a
+   CALLER gets the whole family, which cannot redirect a rewrite the way
+   a second GENERAL square would — each member's statement is at a
+   distinct literal, so each matches only its own occurrences.
+
+THE READINGS are `Imported/SortingModeReadings.lean`: four
+DISPATCH-FREE own-definitions (`filterLtL`/`filterLteL`/`filterGtL`/
+`filterGteL`), each VALIDATED by `derive_sim%` against the real `FILTER`
+exec at its own literal mode. That is the piece stage 3 said was
+missing — not a way to evaluate `relL`'s ground symbol comparison, but a
+reading that never dispatches. The `symV` privacy blocker stands
+unchanged and is simply routed around: the mode literals are re-spelled
+as values in that module (same values), and three of the four dispatch
+bridges cite the existing `relL_LT`/`relL_LTE`/`relL_GTE` rows directly.
+
+THE HOM SQUARE is stage 4's measurement, declared: `OrderedEmbed`
+discharges the `≤` test, and the one surviving `if false = true then …`
+residual needed one more rung of the ALREADY-ADMITTED Bool/decide
+plumbing family (`Bool.false_eq_true`; see `IsoGen`'s ladder table). The
+mode stays a VARIABLE here — the hom square is UNKEYED, since the
+homomorphism is the same statement at every mode. -/
+
+mirror_iso% filterRel_lt_agree_filterLtL for ACL2Lean.Sorting.filterRel
+  vars [.lt, ev, xs]
+  square agree (Worlds.Sorting.filterLtL ev xs)
+  unfold [Worlds.Sorting.filterLtL, Worlds.Sorting.lexLtB,
+    ACL2Lean.Sorting.relMode, instTotalOrderSExpr, instBEqOfDecidableEq]
+
+/-- info: 'ACL2Lean.MirrorProofs.filterRel_lt_agree_filterLtL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms filterRel_lt_agree_filterLtL
+
+mirror_iso% filterRel_lte_agree_filterLteL for ACL2Lean.Sorting.filterRel
+  vars [.lte, ev, xs]
+  square agree (Worlds.Sorting.filterLteL ev xs)
+  unfold [Worlds.Sorting.filterLteL, ACL2Lean.Sorting.relMode,
+    instTotalOrderSExpr]
+
+/-- info: 'ACL2Lean.MirrorProofs.filterRel_lte_agree_filterLteL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms filterRel_lte_agree_filterLteL
+
+mirror_iso% filterRel_gt_agree_filterGtL for ACL2Lean.Sorting.filterRel
+  vars [.gt, ev, xs]
+  square agree (Worlds.Sorting.filterGtL ev xs)
+  unfold [Worlds.Sorting.filterGtL, ACL2Lean.Sorting.relMode,
+    instTotalOrderSExpr, instBEqOfDecidableEq]
+
+/-- info: 'ACL2Lean.MirrorProofs.filterRel_gt_agree_filterGtL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms filterRel_gt_agree_filterGtL
+
+mirror_iso% filterRel_gte_agree_filterGteL for ACL2Lean.Sorting.filterRel
+  vars [.gte, ev, xs]
+  square agree (Worlds.Sorting.filterGteL ev xs)
+  unfold [Worlds.Sorting.filterGteL, ACL2Lean.Sorting.relMode,
+    instTotalOrderSExpr]
+
+/-- info: 'ACL2Lean.MirrorProofs.filterRel_gte_agree_filterGteL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms filterRel_gte_agree_filterGteL
+
+mirror_iso% filterRel_map_hom for ACL2Lean.Sorting.filterRel
+  vars [fn, ev, xs]
+  square hom list
+  embed OrderedEmbed via [ord]
+  unfold [ACL2Lean.Sorting.relMode]
+
+/-- info: 'ACL2Lean.MirrorProofs.filterRel_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms filterRel_map_hom
 
 end ACL2Lean.MirrorProofs
