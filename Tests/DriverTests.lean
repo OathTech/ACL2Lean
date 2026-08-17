@@ -898,6 +898,53 @@ def covMetaRuleDevelopment : Development :=
 derive_world covMvLetWorld from covMvLetDevelopment
 derive_world covMetaRuleWorld from covMetaRuleDevelopment
 
+/-! ## THE PIN POLICY (ruled 2026-08-16/17 — ruling R-7/B7, off audit
+A6-B7, which found WP3 static pins declined twice on the grounds that the
+golden is "a stronger check")
+
+The framing was overstated, and the policy is now written down. A STATIC
+PIN and a GOLDEN ROW are different instruments: a pin is an independent,
+hand-written statement checked by the build; a golden row is produced by
+the same code a sprint changes and repins. So:
+
+> Wherever a REGISTRY records a POLICY DECISION — which rules may be
+> discharged without replayable evidence, which names are exempt, which
+> constants a carve-out covers — its MEMBERSHIP carries a static pin
+> asserting the set VERBATIM, so that changing the set is a conscious
+> edit to a pin rather than a diff nobody reads. Where the pin would
+> require standing up expensive machinery (parsing a 150k-line log inside
+> `Tests/`), pin the MEMBERSHIP anyway and let the golden live-gate the
+> DISCHARGE; the two are complementary, and the cheap half is never
+> skipped because the expensive half exists.
+
+The two MEMBERSHIP pins follow. They say nothing about whether a rule
+DISCHARGES — that is the WP3 pin below (cheap sources) and the golden
+(the two 150k-line books) — only about WHICH rules the D5 carve-out is
+declared to cover.
+THREAT MODEL (two-standard rule): a speedbump against a policy set
+growing without review. ONE pin, not a census; it is deliberately a
+verbatim literal rather than a count or a predicate, because a literal
+cannot rot into something that passes while meaning less.
+DO NOT HARDEN IT. -/
+
+/-- MEMBERSHIP PIN — the D5 ground-zero `:REWRITE` registry
+(`Driver.d5GzRules`, `Replay/Driver/Provers.lean`). Adding or removing a
+rune here is a carve-out decision (R-3 class 2: extending a ratified
+carve-out to a new KIND is ask-first; adding a MEMBER of an already-ruled
+class stays delegated but must be visible). -/
+example : Driver.d5GzRules.map (·.1) =
+    ["LEXORDER-REFLEXIVE", "LEXORDER-TRANSITIVE", "DEFAULT-CAR",
+     "DEFAULT-CDR", "CONS-CAR-CDR", "FOLD-CONSTS-IN-+",
+     "(+ y x)", "(+ y (+ x z))", "(+ (+ x y) z)", "(+ x (if a b c))",
+     "(equal (if a b c) x)"] := by rfl
+
+/-- MEMBERSHIP PIN — the D5 ground-zero `:LINEAR` registry
+(`Driver.d5GzLinearRules`, `Replay/Driver/Harness.lean`). Its own
+docstring calls it "the reviewable record of WHICH gz rules may be
+discharged without replayable evidence, which is a policy question"
+(A6-B2) — so it is exactly what the pin policy above binds. -/
+example : Driver.d5GzLinearRules = ["ACL2-COUNT-CAR-CDR-LINEAR"] := by rfl
+
 elab "wp3_gz_discharge_pin% " : term => do
   -- every REGISTERED gz rule is pinned against SOME book's EMITTED
   -- snapshot entry (fail-closed: an entry emitted by no source book
@@ -934,6 +981,12 @@ elab "wp3_gz_discharge_pin% " : term => do
     -- `dischargeGzLinearHyp` fires — and additionally needs a telescope
     -- (the fn's `total:` hypothesis), which this pin's ctx-free shape
     -- does not build.
+    -- PIN POLICY (R-7/B7, 2026-08-16/17 — see the block above this
+    -- elab): declining the DISCHARGE pin for these is upheld (the cost
+    -- is real and the golden does live-gate them), but "the golden is a
+    -- stronger check" is retired as a reason — a pin and a golden are
+    -- different instruments. The MEMBERSHIP half is no longer skipped:
+    -- both registries now carry verbatim membership pins above.
     let liveGatedByGolden : List String :=
       ["(+ y x)", "(+ y (+ x z))", "(+ (+ x y) z)", "(+ x (if a b c))",
        "(equal (if a b c) x)"]

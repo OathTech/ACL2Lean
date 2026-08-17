@@ -300,32 +300,15 @@ theorem totality_2_of_body (w : World) (s : Symbol) (formal1 formal2 : Symbol)
 -- and moved every driver call site onto them; the old wrappers were
 -- left behind with zero references anywhere. The μ twins subsume them
 -- exactly: instantiate μ := `SExpr.consCount`.)
-
-/-- Strong induction on the SECOND formal's count, the first universally
-    quantified inside (e.g. `(rm e x)` / `(memb a x)` recurring on `x`) —
-    the second-formal twin of the μ-generic `totality_2_rec_mu`. -/
-theorem totality_2_rec_snd (w : World) (s : Symbol) (formal1 formal2 : Symbol)
-    (body : SExpr)
-    (h_ns : s.isNamed "QUOTE" = false ∧ s.isNamed "IF" = false ∧
-            s.isNamed "LET" = false ∧ s.isNamed "LET*" = false)
-    (h_def : w.defs.get? s = some ([formal1, formal2], body))
-    (step : ∀ av2 : SExpr,
-      (∀ cv : SExpr, cv.consCount < av2.consCount → ∀ bv : SExpr,
-        ∃ N, ∃ v, ∀ f ≥ N,
-          evalOpt f w (bindArgs [formal1, formal2] [bv, cv]) body = some v) →
-      ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
-        evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) :
-    ∀ (env' : Env) (a0 a1 : SExpr),
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a0 = some v) →
-      (∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env' a1 = some v) →
-      ∃ N, ∃ v, ∀ f ≥ N,
-        evalOpt f w env' (.cons (.atom (.symbol s)) (.cons a0 (.cons a1 .nil)))
-          = some v := by
-  have hbody := consCount_strong_induction
-    (fun av2 => ∀ av1 : SExpr, ∃ N, ∃ v, ∀ f ≥ N,
-      evalOpt f w (bindArgs [formal1, formal2] [av1, av2]) body = some v) step
-  exact totality_2_of_body w s formal1 formal2 body h_ns h_def
-    (fun av1 av2 => hbody av2 av1)
+--
+-- (`totality_2_rec_snd` — the THIRD wrapper of that family, the
+-- second-formal twin — DELETED 2026-08-16/17 (residual item 7 of the
+-- rulings batch), same reason and same μ twin story: the driver applies
+-- `totality_2_rec_mu_snd` (Judgments) at `Driver/Provers.lean`. What
+-- kept it looking live was a STALE COMMENT at that call site naming the
+-- non-μ form; the comment named this constant while the code applied
+-- the μ one. Comment references are not consumers — liveness was
+-- build-verified by deleting it.)
 
 -- CONVENTION: convergence is stated in **v-fixed totality** form
 -- `∃ N, ∃ v, ∀ f ≥ N, evalOpt f w env t = some v` — a single definite value `v`

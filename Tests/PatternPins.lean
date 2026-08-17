@@ -193,9 +193,16 @@ elab "r_lane_pattern_pins% " : term => do
   -- R-step's OWN `:RUNES` are `((:DEFINITION SYNP))` — the licensing
   -- `(:CONGRUENCE SAME-LEN2-IMPLIES-EQUAL-LEN-1)` appears only in the
   -- CLAUSE-level `:STEP :RUNES`, so even past SYNP the step-level BUG-023
-  -- anchor the walker uses would find no cited congruence. The queued
-  -- `:CR-RUNE` fork item (brief §Q2) is the tightening that fixes both
-  -- lanes' anchor at the source.
+  -- anchor the walker uses would find no cited congruence. The
+  -- `:CR-RUNE` fork item (brief §Q2 — emit the licensing rune at
+  -- `find-rewriting-equivalence`'s push site) **SHIPPED 2026-08-15 at RT2
+  -- ask 3** (acl2 @ `e8d78e513d`, 361 records corpus-wide; PERM-TLFIX
+  -- reads the exact predicted rune) — it is no longer queued.
+  -- **It did NOT fix THIS lane's anchor** (correction 2026-08-16,
+  -- A3-T2-4 / residual item 7): the SYNP-guarded step above is a
+  -- STORED-RULE rewrite, not a solidify site, so the push `:CR-RUNE`
+  -- rides on never runs here and this step's `:RUNES` still carry only
+  -- `((:DEFINITION SYNP))`. Class D's anchor is still open.
   let (res, _) ← ACL2.Replay.Runner.runBook
     "cov-cong-consume" congConsumeLog none
   unless res.replayed == 3 && res.total == 4 && res.integrityFails.isEmpty do

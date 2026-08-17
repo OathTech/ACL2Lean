@@ -24,7 +24,8 @@
 > OPEN AFTER IT — **BOTH NOW CLOSED** (status added 2026-08-16 by the
 > post-audit repair batch; A3-T1-4): **CD2-BOUND closed at P4b** (the
 > BUG-009 mask discount — `tsAcl2MaskOk` discounts type index 6 and
-> nothing else; J-P4b-d, and see the audit's ruling queue R-2), and
+> nothing else; logged as J-P4b-d, RE-ATTRIBUTED 2026-08-16/17 to
+> **O-1**, an orchestrator decision made in P4b's brief — ruling R-2), and
 > **`tp:QSORT` closed at P5b** (the wired `allTps` path + the
 > hypothesis-carrying conditional stored-rule TP mode). The two items
 > below are kept as the record of what they looked like while open:
@@ -168,9 +169,14 @@
 >   Two widenings measured and REVERTED; the `tp:QSORT` map CORRECTED
 >   and its unwired plumbing REVERTED per the wire-later ban. The
 >   `ACL2LEAN_TP_DIAG` sink landed (a kept condition had been
->   DISCARDING its frontier message). J-P4b-a..g. **Note: J-P4b-d
->   reversed P4a's own out-of-class stop on this question — it is
->   R-2 in the end-of-branch audit's ruling queue.**
+>   DISCARDING its frontier message). J-P4b-a..g. **Note: the BUG-009
+>   mask-discount call, logged here as J-P4b-d, was RULED (R-2,
+>   2026-08-16/17) to be an ORCHESTRATOR decision made in P4b's brief and
+>   is re-attributed as O-1 in the charter ARC LOG. A6's reading that it
+>   "reversed P4a's out-of-class stop one lane later" was an
+>   attribution-gap artifact: P4a's stop WAS the escalation, and it was
+>   answered above the lane. The trade stands; "re-opening a recorded
+>   stop" is now an ask-first escalation trigger (R-3 class 5).**
 > - **P5b (2026-08-16, `01faf39`).** `tp:QSORT` CLOSED at both
 >   occurrences: the wired `allTps` data path + the hypothesis-carrying
 >   CONDITIONAL stored-rule TP mode (`Driver/TpProver.lean`), with the

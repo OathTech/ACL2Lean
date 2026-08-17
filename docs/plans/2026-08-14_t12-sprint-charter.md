@@ -101,6 +101,25 @@ threat to project success, etc).
 
 ## ARC LOG (judgment calls J-numbered)
 
+**NUMBERING CONVENTION (added 2026-08-16/17, ruling R-2).** Two prefixes,
+because the audit round showed that collapsing them hides *who decided*:
+
+- **`J-…` — an EXECUTOR judgment call.** Made inside a lane, by the
+  delegated agent, under the charter's blanket delegation. These are what
+  the delegation contract makes reviewable.
+- **`O-…` — an ORCHESTRATOR decision.** Made *in a lane's brief* (i.e.
+  before/outside the lane), typically with the acceptance condition
+  written into the brief; the lane then implements and verifies it. An
+  `O-` entry is not an executor call and must not be counted or reviewed
+  as one — reviewing it as an executor call produces exactly the
+  "sibling-lane reversal" artifact A6 reported (see O-1 below).
+
+O-numbers are assigned at collection, in the same sequence as the lane
+they were briefed into. Where a decision was originally logged as `J-`
+and is later established to have been an orchestrator decision, the entry
+is RE-ATTRIBUTED in place (never silently renumbered): the old J-number
+stays visible in the heading so prior citations still resolve.
+
 - **J1 (at charter):** G1 design = the brief's recommendation
   (option M + 1a + 2a + `:GENEQV` consumer), adopted as recommended.
   Rationale: corpus-demand-driven minimality; no record demands the
@@ -532,7 +551,26 @@ tp:QSORT + the trio + CD2-BOUND (P4a, in flight).
     "not a positive integer", which is exactly `Logic.zp`'s truth
     condition). (b) the BUG-009 discount, below. (c) the μ-generic TP
     assembly, below — the row then kept `tp:CD2` and needed it.
-  - **J-P4b-d (BUG-009 AT ONE MORE SITE — the guard, decided).**
+  - **O-1 (BUG-009 AT ONE MORE SITE — the guard). RE-ATTRIBUTED
+    2026-08-16/17 (ruling R-2); logged during the sprint as
+    `J-P4b-d`, which is why A6 read it as an executor call.** This was
+    an ORCHESTRATOR decision, taken in P4b's brief — the brief posed the
+    guard question and carried the acceptance condition (the emitted
+    delta must be EXACTLY bit 6 and nothing else; any other bit stays
+    fail-closed), and P4b's job was to implement it and verify the delta
+    against the real emission. So A6-B1's headline reading — "P4b
+    reversed P4a's own out-of-class stop one lane later" — is an
+    ATTRIBUTION-GAP ARTIFACT: P4a stopped and escalated exactly as it
+    should have; the escalation was answered at the orchestrator level,
+    and the answer was then mis-filed under the implementing lane's
+    J-series. What A6 correctly identified as a real gap is the
+    *record*, not the call. HONEST LIMIT on this re-attribution: P4b's
+    brief was a delegation message, not a persisted repo artifact, so a
+    future reader cannot re-derive the attribution from the tree — it
+    rests on the orchestrator's attestation at collection. The fix for
+    next time is the `O-` prefix above, assigned when the brief is
+    written rather than reconstructed at audit.
+    The decision's technical content, unchanged:
     `recogVerdictFromTs`'s cross-check ("ACL2's emitted `:TYPESET` must
     be INSIDE the mask we derived") refused a STRICTLY STRONGER
     derivation: from `(< N '0)` true the model derives 48, ACL2 emits

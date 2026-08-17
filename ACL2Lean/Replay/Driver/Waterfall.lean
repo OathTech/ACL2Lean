@@ -152,8 +152,9 @@ def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
     EvTrue w env' concl`. The stored fields are EMITTED verbatim
     (`(:GROUND-ZERO-LINEAR-RULES …)`); nothing is normalized. Consumed by
     `replayDischargeNode` as a DP-obligation premise; discharged
-    Imported-side (the acl2CountExec-class kits) or kept as an honest
-    D6 condition. -/
+    Imported-side (the per-book exec-correspondence kits) or kept as an
+    honest D6 condition. (Was "the acl2CountExec-class kits" — that kit
+    was deleted 2026-08-16 as dead code, A4 #8.) -/
 def mkLinearHypType (cfg : ReplayConfig) (spec : LinearRuleSpec) :
     MetaM Expr := do
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do

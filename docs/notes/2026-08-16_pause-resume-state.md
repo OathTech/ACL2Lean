@@ -1,5 +1,18 @@
 # Pause/resume state (2026-08-16, compute pause mid-rulings-batch)
 
+**RESUMED AND COMPLETED 2026-08-17.** The owed verification ran first
+(full `lake build ACL2Lean Tests` — GREEN, 3237 jobs, zero warnings, so
+the pause's caveat is discharged), then items 3–7 all landed. Deltas
+against the predictions below: the `corr N` census drop was EXACTLY 8
+(33 → 25) as predicted, `support/other` 47 → 44; hand lines 6630 → 5870
+(−760) and hand-lines-per-native 125 → 110, booked as DELETION;
+`Imported/Sorting.lean` 4165 → 3405 with the ratchet tightened. Item 4
+(R-5) did NOT fit `liftCatalog` — see the RULINGS RECORD R-5 in the
+synthesis for why (the catalog is strictly row-keyed and none of the 15
+is a row); they are catalogued in the companion `extraSeams` /
+alternate-readings shapes instead, both seam-gated. This note is kept as
+the record of the pause, not as live state.
+
 PAUSED between the repair batch (committed e3ea6ba) and the rest of
 the rulings-implementation batch. The pipeline on resume:
 finish items 3-7 below → full `lake build ACL2Lean Tests` + statics →

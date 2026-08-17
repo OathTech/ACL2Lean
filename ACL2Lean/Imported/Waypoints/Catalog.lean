@@ -823,22 +823,138 @@ the seam half by the gate-cruft review, R3)
 Natives whose green row lives OUTSIDE the driver-coverage golden
 (pattern-pin books run by `Tests/PatternPins.lean`) cannot take a
 row-coupled catalog entry, so nothing pairs them with a seam. This
-one-entry list does. Their AXIOMS need no entry here — the wide
+list does. Their AXIOMS need no entry here — the wide
 `_driver` scan in the axiom gate above already covers them.
 THREAT MODEL (two-standard rule): a speedbump against forgetting to
-consume the replayed statement — not a barrier. DO NOT HARDEN. -/
+consume the replayed statement — not a barrier. DO NOT HARDEN.
+
+GREW 2026-08-16/17 (ruling R-5, off audit A4 #9) from one entry to
+three: `p7_dub_len_native_driver` and `p5_dupp_prepend_native_driver`
+are natives of pattern-test books, so they are exactly this shape —
+they had simply never been paired. -/
 open Lean in
 run_cmd Lean.Elab.Command.liftCoreM do
   let extraSeams : List (Name × Name × String) :=
     [(``ACL2.Imported.Waypoints.cons_neq_detail_native_driver,
       ``ACL2.Imported.Waypoints.consNeqDetailReplayed,
-      "Tests/PatternPins.lean p8-clausify-detail")]
+      "Tests/PatternPins.lean p8-clausify-detail"),
+     (``ACL2.Imported.Waypoints.p7_dub_len_native_driver,
+      ``ACL2.Imported.Waypoints.p7TargetReplayedCond,
+      "Tests/PatternPins.lean p7-cong-collapse"),
+     (``ACL2.Imported.Waypoints.p5_dupp_prepend_native_driver,
+      ``ACL2.Imported.Waypoints.duppRepReplayed,
+      "Tests/PatternPins.lean p5-or-shape-flipped")]
   let env ← getEnv
   for (nat, seam, rowSite) in extraSeams do
     unless seamReaches env nat seam do
       throwError "extra-natives seam check: {nat} does not consume its \
         replayed seam {seam} — the ornamental-import antipattern \
         (row: {rowSite})"
+
+/-! ## ALTERNATE READINGS OF A CATALOGUED ROW (ruling R-5, 2026-08-16/17,
+off audit A4 #9)
+
+A4 found 15 declared `_driver` waypoint theorems with no catalog entry
+and correctly called them DELIVERABLES, never cruft — a waypoint's
+kernel-check is its purpose. Cataloguing them surfaced WHY they were
+uncatalogued, which is structural rather than an oversight:
+`liftCatalog` is strictly ROW-KEYED (exactly one decision per green
+golden row, with a build-failing staleness check in BOTH directions),
+and none of these IS a row. They are
+
+  (a) alternative READINGS of a row that already carries its one entry —
+      the Mathlib forms over `List.Perm` / `List.IsChain` of a native
+      stated over `isPerm` / `orderedpRec`; or
+  (b) BUNDLES assembled from several catalogued rows
+      (`isPerm_equivalence_driver` = entries 10/15/16); or
+  (c) natives of pattern-test books with no golden row at all — those
+      went to `extraSeams` above, which is the shape built for them.
+
+Putting (a)/(b) in `liftCatalog` fails the gate either way: a second
+entry on an existing key throws "multiple catalog entries", and an
+invented key throws "matches no green golden row". So they are
+catalogued HERE instead, ANCHORED to the row they read: each entry names
+the `(book, row)` whose native it re-reads, and the entry is bound by
+(1) the row's existence as a catalogued `.native`, and (2) the SAME
+`seamReaches` seam check every native takes — which these pass
+TRANSITIVELY, since a reading is proved from the row's native, which
+consumes the seam. Their axioms are already bounded by the wide
+`_driver` scan in the axiom gate above.
+
+With this list every declared `_driver` theorem is gate-bound, and
+`Waypoints/Validation.lean` no longer scans as consumerless.
+
+THREAT MODEL (two-standard rule): a speedbump against a reading drifting
+loose from the row it claims to re-read — not a barrier against a
+motivated construction, and not a census to keep exhaustive by hand.
+DO NOT HARDEN IT. -/
+open Lean in
+run_cmd Lean.Elab.Command.liftCoreM do
+  -- (reading, anchor book, anchor row, the anchor's seam)
+  let readings : List (Name × String × String × Name) :=
+    [-- the perm book's idiomatic `List.Perm` forms + the defequiv bundle
+     (``ACL2.Imported.Waypoints.perm_cons_native_perm_driver,
+      "sorting/perm", "PERM-CONS",
+      ``ACL2.Imported.Waypoints.permConsReplayedCond),
+     (``ACL2.Imported.Waypoints.perm_symm_perm_driver,
+      "sorting/perm", "PERM-SYMMETRIC",
+      ``ACL2.Imported.Waypoints.permSymmetricReplayed),
+     (``ACL2.Imported.Waypoints.perm_trans_perm_driver,
+      "sorting/perm", "PERM-TRANSITIVE",
+      ``ACL2.Imported.Waypoints.permTransitiveReplayed),
+     (``ACL2.Imported.Waypoints.perm_erase_perm_driver,
+      "sorting/perm", "PERM-RM",
+      ``ACL2.Imported.Waypoints.permRmReplayed),
+     (``ACL2.Imported.Waypoints.mem_transport_perm_driver,
+      "sorting/perm", "PERM-MEMB",
+      ``ACL2.Imported.Waypoints.permMembReplayed),
+     -- the BUNDLE: anchored at the defequiv row it decodes; it also
+     -- reaches PERM-SYMMETRIC's and PERM-TRANSITIVE's seams (entries
+     -- 10/15/16), so the single anchor is the weaker claim of the three
+     (``ACL2.Imported.Waypoints.isPerm_equivalence_driver,
+      "sorting/perm", "PERM-IS-AN-EQUIVALENCE",
+      ``ACL2.Imported.Waypoints.permEquivReplayed),
+     -- the `List.IsChain` sortedness forms
+     (``ACL2.Imported.Waypoints.orderedp_isort_isChain_driver,
+      "sorting/isort", "ORDEREDP-ISORT",
+      ``ACL2.Imported.Waypoints.orderedpIsortReplayedCond),
+     (``ACL2.Imported.Waypoints.orderedp_rm_isChain_driver,
+      "sorting/ordered-perms", "ORDEREDP-RM",
+      ``ACL2.Imported.Waypoints.orderedpRmReplayed),
+     (``ACL2.Imported.Waypoints.orderedp_memb_isChain_driver,
+      "sorting/ordered-perms", "ORDEREDP-MEMB",
+      ``ACL2.Imported.Waypoints.orderedpMembReplayedCond),
+     (``ACL2.Imported.Waypoints.ordered_perms_native_perm_driver,
+      "sorting/ordered-perms", "ORDERED-PERMS",
+      ``ACL2.Imported.Waypoints.orderedPermsCapReplayedCond),
+     (``ACL2.Imported.Waypoints.orderedp_msort_isChain_driver,
+      "sorting/msort", "ORDEREDP-MSORT",
+      ``ACL2.Imported.Waypoints.orderedpMsortReplayedCond),
+     (``ACL2.Imported.Waypoints.perm_qsort_perm_driver,
+      "sorting/qsort", "PERM-QSORT",
+      ``ACL2.Imported.Waypoints.permQsortReplayedCond),
+     (``ACL2.Imported.Waypoints.orderedp_qsort_isChain_driver,
+      "sorting/qsort", "ORDEREDP-QSORT",
+      ``ACL2.Imported.Waypoints.orderedpQsortReplayedCond)]
+  let env ← getEnv
+  for (reading, book, row, seam) in readings do
+    unless env.contains reading do
+      throwError "alternate-reading catalog: {reading} does not exist"
+    -- (1) the anchor must BE a catalogued native row
+    match liftCatalog.filter (fun (cb, cn, _) => cb == book && cn == row) with
+    | [(_, _, .native _ _)] => pure ()
+    | [(_, _, .nativeSorried _ _ _)] => pure ()
+    | [] => throwError "alternate-reading catalog: {reading} anchors on \
+        {book}/{row}, which has no catalog entry"
+    | _ => throwError "alternate-reading catalog: {reading}'s anchor \
+        {book}/{row} is not a catalogued NATIVE row — a reading must \
+        re-read a row whose own native exists"
+    -- (2) the same seam check every native takes (here TRANSITIVE:
+    -- the reading is proved from the anchor's native, which consumes it)
+    unless seamReaches env reading seam do
+      throwError "alternate-reading catalog: {reading} does not reach \
+        the seam {seam} of the row it claims to re-read ({book}/{row}) \
+        — the ornamental-import antipattern (waypoint criterion 2)"
 
 /-! ## DECODE hreplayed-USAGE GATE (ruled 2026-08-11)
 

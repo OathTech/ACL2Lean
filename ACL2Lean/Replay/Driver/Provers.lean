@@ -250,7 +250,9 @@ def proveTotality (cfg : ReplayConfig)
             reflectSymbol f2, reflectSExpr body, hNs, hDef, step]
       else if measuredFormal == f2 then
         -- measured on the SECOND formal (e.g. (rm e x) / (memb a x) on x):
-        -- strong induction on av2's count, av1 inner-∀ (totality_2_rec_snd)
+        -- strong induction on av2's count, av1 inner-∀
+        -- (`totality_2_rec_mu_snd` — the μ-generic form applied below;
+        -- name corrected 2026-08-16, residual item 7)
         let step ← withLocalDeclD `av2 (mkConst ``SExpr) fun av2 => do
           let ihType ← withLocalDeclD `cv (mkConst ``SExpr) fun cv => do
             let lt ← mkAppM ``Nat.lt #[← countOf cv, ← countOf av2]
