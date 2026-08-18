@@ -48,20 +48,10 @@ that list of SIXTEEN, THIRTEEN are theorems on this page:
 | `bsort_howMany` | `bsort_howMany_int` | 2g |
 | `msort_is_isort` | `msort_is_isort_int` | 2g |
 | `qsort_is_isort` | `qsort_is_isort_int` | 2g |
+| `bsort_is_isort` | `bsort_is_isort_int` | close-out arc |
 
-The THREE that are not, with their real distance and no euphemism:
+The ONE that is not, with its real distance and no euphemism:
 
-* **`bsort_is_isort` — the row's REPLAY CARRIES AN ASSUMED dp-fact, and
-  that is the whole cause.** Its two siblings landed this wave, and
-  neither the waypoint module nor the bsort exec kit is missing any
-  more. The golden's own row is the record: `BSORT-IS-ISORT → REPLAYED
-  ✓ [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X),
-  ASSUMED:dp-fact]]`. `driver_replayed%` REFUSES to register a replayed
-  statement carrying `ASSUMED:dp-fact` — deliberately, since such a
-  condition states an obligation over independently-quantified opaques
-  that can be FALSE — so no waypoint native can be built from it while
-  the leaf is assumed. The remedy is at the LEAF'S EMISSION, one layer
-  below this page.
 * **`permWitness_complete` — THE `Prop` IS CORRECT AND THE PRODUCT IS
   STRUCTURALLY UNAVAILABLE (J-2e-6).** Not a to-do. The mirror rung
   needs the element-result homomorphism square, which is FALSE at the
@@ -408,6 +398,21 @@ mirror_transport% qsort_is_isort_int : ACL2Lean.Sorting.qsort_is_isort Int
 /-- info: 'ACL2Lean.MirrorProofs.qsort_is_isort_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms qsort_is_isort_int
+
+/-- **`bsort_is_isort` at `Int`, via ACL2 replay** — BUBBLE SORT AND
+    INSERTION SORT AGREE. The corpus's one CONDITIONAL capstone (the
+    book's `TRUE-LISTP` hypothesis, type-absorbed at the decode by the
+    generic IMPLIES peel). Content enters through the generated crossing
+    `bsort_is_isort_sexpr`, which cites the catalogued BSORT-IS-ISORT
+    native exactly, and nowhere else. -/
+mirror_transport% bsort_is_isort_int : ACL2Lean.Sorting.bsort_is_isort Int
+  embed intOrderedEmbed
+  crossing bsort_is_isort_sexpr
+    from ACL2.Imported.Waypoints.bsort_is_isort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.bsort_is_isort_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms bsort_is_isort_int
 
 /-! ## R4 WAVE 2f — THE REMAINING FRONTIERS, RE-STATED AGAINST THE
 RESHAPED SPEC (each measured this wave; nothing forced)

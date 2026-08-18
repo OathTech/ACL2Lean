@@ -1,11 +1,11 @@
 import ACL2Lean.Imported.SortingBsortKit
 import ACL2Lean.Imported.SortingQsortReading
+import ACL2Lean.Imported.LiftingRel
 
 /-! # Imported: the sorts-equivalent book — THE CAPSTONES
 
-`MSORT-IS-ISORT` and `QSORT-IS-ISORT` (`BSORT-IS-ISORT` is recorded at
-the foot of this file and is NOT built): the corpus's top-level claim
-that the sorts agree. Each is a one-node proof in
+`MSORT-IS-ISORT`, `QSORT-IS-ISORT` and `BSORT-IS-ISORT`: the corpus's
+top-level claim that the sorts agree. Each is a one-node proof in
 ACL2 — a `:USE (:FUNCTIONAL-INSTANCE …)` of the equisort scope's
 constrained-sorter capstone at the concrete pair — so the whole content
 of the row is the functional instantiation, and until R4 wave 2g the
@@ -138,13 +138,77 @@ theorem qsort_is_isort_native_of_replayed (w : World)
   exact native_of_replayed_equal w e listRep (qsortT xT) (isortT xT)
     (qsortOwnL xs) (isortL xs) h_no_equal hqs his (hreplayed e)
 
-/-! ## BSORT-IS-ISORT — NO DECODE HERE, deliberately
+/-! ## BSORT-IS-ISORT
 
-Its replayed statement is not available: the sweep's own row carries an
-ASSUMED dp-fact (`Imported/Waypoints/SortsEquivalent.lean` records the
-golden line verbatim), and `driver_replayed%` refuses to register an
-assumed statement. The decode was WRITTEN and measured to close against
-a hypothetical one, then reverted rather than shipped as machinery with
-no consumer — the banned "infrastructure now, wire it later". -/
+The corpus's one CONDITIONAL capstone: the book states it under a
+`TRUE-LISTP` hypothesis (`bsort` is admitted without a true-list guard,
+so `weak-sortfn1-is-sortfn2` — not the strong twin — is what
+`sorts-equivalent` functionally instantiates for it). The hypothesis is
+type-absorbed here in the standing way: the native quantifies over
+`List SExpr`, every `enc` image IS a true list, and the antecedent is
+discharged by that fact rather than assumed.
+
+So the decode is the UNCONDITIONAL equal-decode composed with the
+generic IMPLIES PEEL (`Lifting.replayed_of_replayed_implies`) — no new
+content, exactly as that transformer was extracted to allow. -/
+
+/-- The BSORT-IS-ISORT replayed-statement formula — the root Goal clause,
+    exactly as the log emits it:
+    `(IMPLIES (TRUE-LISTP X) (EQUAL (BSORT X) (ISORT X)))`. -/
+def bsort_is_isortFormula : SExpr :=
+  impliesT (seTrueListpT xT) (equalT (bsortT xT) (isortT xT))
+
+/-- The `(TRUE-LISTP X)` antecedent, at an ENCODED list, converges to
+    `t` — the hypothesis-absorption step. The content is
+    `Lifting.trueListp_enc`: every `enc` image is a true list. -/
+private theorem conv_seTrueListp_enc (w : World) (e : Env)
+    (h_no_tlp : w.defs.get? ({ name := "TRUE-LISTP" } : Symbol) = none)
+    (t : SExpr) (l : List SExpr)
+    (ht : ∃ N, ∀ f ≥ N, evalOpt f w e t = some (enc l)) :
+    ∃ N, ∀ f ≥ N, evalOpt f w e (seTrueListpT t) = some SExpr.t := by
+  have h := conv_builtin1 w e { name := "TRUE-LISTP" } t (enc l)
+    (Logic.trueListp (enc l)) (by decide) h_no_tlp ht
+    (callBuiltin_true_listp _)
+  rwa [trueListp_enc] at h
+
+/-- BSORT-IS-ISORT, natively: BUBBLE SORT AND INSERTION SORT AGREE. -/
+theorem bsort_is_isort_native_of_replayed (w : World)
+    (h_insert : w.defs.get? seInsertSym = some ([eS, xS], insertBody))
+    (h_isort : w.defs.get? seIsortSym = some ([xS], isortBody))
+    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
+    (h_bsort : w.defs.get? bsort_sym = some ([xS], bsortBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (h_no_tlp : w.defs.get? ({ name := "TRUE-LISTP" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env bsort_is_isortFormula = some v ∧ v ≠ SExpr.nil)
+    (xs : List SExpr) :
+    bsortL xs = isortL xs := by
+  let e : Env := ({} : Env).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = ({} : Env).insert xS (enc xs) from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hbs := bsort_exec_corr w h_bnext h_bsort h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons h_no_lexorder e xT (enc xs) hx
+  rw [bsortExec_enc] at hbs
+  have his := corr_isort_enc w h_insert h_isort h_no_consp h_no_car
+    h_no_cdr h_no_cons h_no_lexorder xs e xT hx
+  -- the peel: the antecedent is `t` on the enc image, so the replayed
+  -- implication IS the replayed equality
+  have hpeel := replayed_of_replayed_implies w e (seTrueListpT xT)
+    (equalT (bsortT xT) (isortT xT))
+    (Logic.equal (enc (bsortL xs)) (enc (isortL xs))) h_no_implies
+    (conv_seTrueListp_enc w e h_no_tlp xT xs hx)
+    (conv_equalT w e (bsortT xT) (isortT xT) _ _ h_no_equal hbs his)
+    (hreplayed e)
+  exact native_of_replayed_equal w e listRep (bsortT xT) (isortT xT)
+    (bsortL xs) (isortL xs) h_no_equal hbs his hpeel
 
 end ACL2.Worlds.Sorting

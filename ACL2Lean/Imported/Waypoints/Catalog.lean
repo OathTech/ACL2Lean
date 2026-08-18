@@ -400,24 +400,17 @@ def liftCatalog : List (String × String × LiftStatus) := [
     .native ``msort_is_isort_native_driver ``msortIsIsortReplayedCond),
   ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
     .native ``qsort_is_isort_native_driver ``qsortIsIsortReplayedCond),
+  -- PROMOTED 2026-08-18 (close-out arc). The `.pending` text this
+  -- replaces was WRONG on its stated cause and the correction is on the
+  -- record (close-out charter ARC LOG J-1-1): it read the `◌ assumed
+  -- cond[…]` of the STANDALONE informational DP probe as the ROW's
+  -- conditions and concluded the N1 guard refuses the row. The row's own
+  -- verdict is `REPLAYED ✓` with NO trailing `cond[…]` — UNCONDITIONAL —
+  -- and the `Goal:preprocess/tau` leaf DISCHARGES by CITING the
+  -- already-replayed TRUE-LISTP-BSORT through the `:TAU-BASIS` slice.
+  -- The accurate half of the old text was the `usefi` observation.
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
-    .pending "NOT a mirror-buildout queue item, and this entry's own \
-      claim is CORRECTED (R4 wave 2g). Its two siblings are `.native` \
-      now; this one is not, and the cause is neither the native nor the \
-      bsort exec kit (which EXISTS since this wave). The golden's own \
-      row says it: `BSORT-IS-ISORT → REPLAYED ✓ [DISCHARGE: \
-      Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), \
-      ASSUMED:dp-fact]]` — the discharge is ASSUMED, which is a \
-      different axis from the KEPT-condition telescope this entry's \
-      earlier text tracked, and `driver_replayed%` REFUSES to register a \
-      replayed statement carrying ASSUMED:dp-fact (the N1 remediation \
-      guard: such a condition states an obligation over \
-      independently-quantified opaques that can be FALSE). The row \
-      additionally failed EARLIER in the waypoint attempt, on its own \
-      dependency (`usefi bridge: consumer discharge of ORDEREDP-BSORT \
-      failed: depReplayedProofAt … (frontier)`). The remedy is at the \
-      LEAF's EMISSION, not in this layer. Statement pin: \
-      Tests/SortingPinsEndgame"),
+    .native ``bsort_is_isort_native_driver ``bsortIsIsortReplayedCond),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),

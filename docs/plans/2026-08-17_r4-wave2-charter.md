@@ -1650,6 +1650,42 @@ succeeds at an earlier alternative.
   assumed dp-fact. No amount of waypoint or mirror machinery reaches
   it, and NO LATER MIRROR WAVE SHOULD CHASE IT: the honest scoreboard
   entry stands until the fork emits more.
+
+  > **CORRECTION (2026-08-18, close-out arc) — THIS ENTRY'S REMEDY LINE
+  > WAS MIS-AIMED, and the diagnosis that supersedes it is in the
+  > close-out arc charter's ARC LOG (J-0-1/J-1-1).** Three of the
+  > statements above are wrong, and the record must say so rather than
+  > quietly re-aim:
+  > 1. *"the fork emits a verdict-only shape"* — IT DOES NOT. The
+  >    `emit/preprocess/tau` site (`acl2/induct.lisp:1456-1476`) has
+  >    carried `:TAU-BASIS` since fork-batch item I (user-ruled
+  >    2026-08-10), and the BSORT leaf's own record carries a populated
+  >    slice naming the `TRUE-LISTP-BSORT` signature rule.
+  > 2. *"the remedy is at the LEAF'S EMISSION / it is a FORK
+  >    ROUND-TRIP"* — NEITHER. Measured with temporary instrumentation
+  >    at the eligibility gate: the slice decodes, `TRUE-LISTP-BSORT`
+  >    IS in `ctx.ruleHyps` with the verbatim-matching spec, the gate
+  >    passes, `oneWayMatch` succeeds, and the leaf DISCHARGES
+  >    (`proveDpFact` succeeded, `dischargeSpine` OK) — in the real
+  >    replay, by CITING the already-replayed dependency theorem. All
+  >    five tau-basis leaves in the sorting corpus behave the same way;
+  >    there were zero fallbacks.
+  > 3. *"`driver_replayed%` refuses to register it (the N1 guard)"* —
+  >    IT CANNOT. The golden line quoted above reads `REPLAYED ✓` with
+  >    NO trailing `cond[…]`, which by the renderer
+  >    (`Runner.lean:301-303` vs `:318-319`) means the replayed
+  >    statement is UNCONDITIONAL: a row whose conds contained
+  >    `ASSUMED:dp-fact` could only render `ASSUMED ◌`. The `cond[…]`
+  >    that was read as the row's is INSIDE the `[DISCHARGE: …]`
+  >    bracket and belongs to the STANDALONE DP PROBE
+  >    (`Runner.lean:855-878`), which the golden's own line 2 labels
+  >    "assumeFact — informational, NOT replay" and which by
+  >    construction (`Totality.lean:479-483`) gets no `ReplayCtx`, so
+  >    it has no rules to cite and ALWAYS reports `◌`.
+  >
+  > What survives: the SECOND observation — the `usefi` bridge failing
+  > on its dependency — was the real blocker, and it is where the
+  > close-out arc's work went.
 * **J-2g-2 — the BSORT-IS-ISORT DECODE was written, measured to close,
   and REVERTED.** Keeping it would be machinery with no consumer (the
   J-2d-6 precedent). Recorded at the foot of

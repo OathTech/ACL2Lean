@@ -31,29 +31,45 @@ broadening) are a separate future arc, deliberately out of scope here.
   concrete instance products (msort/qsort/bsort_is_isort) are and remain
   the book's external face.
 
-## Item 1 — the bsort emission fix (fork round-trip)
+## Item 1 — bsort_is_isort (RETARGETED 2026-08-18: driver-side, NO fork round-trip)
 
-- **The problem (J-2g-1, measured not inferred):** BSORT-IS-ISORT's
-  replayed statement carries `ASSUMED:dp-fact` from a `Goal:preprocess/tau`
-  leaf — the fork emits a verdict with no discharge record, and
-  `driver_replayed%` correctly refuses to register it (the N1 guard).
-  Wave 2g wrote the consuming decode, measured that it closes, and
-  REVERTED it rather than ship it unwired (J-2g-2; preserved in the
-  wave-2g charter record).
-- **The fix is at emission, per the checker-does-no-inference rule:**
-  instrument the tau/preprocess leaf to emit its precisely-stated
-  obligation (the clause, lifted to the Logic primitives, with the
-  emitted type facts) so the replay can discharge it under the RATIFIED
-  DP-leaf carve-out — the same treatment every other verdict-class leaf
-  already gets. TRACE-LOG tagging convention binds (emit/ namespace,
-  round-trip rule); `just check-acl2-tags` after every instrumentation
-  edit.
-- **Fork protocol:** commit the fork BEFORE recapture; recapture the
-  affected book logs; goldens diagnosed ROW-BY-ROW before any repin —
-  the expected movement is confined to the BSORT-IS-ISORT row's discharge
-  annotation, and ANY other row moving is a STOP, not a fix-forward.
-- Then re-land the preserved decode → the bsort_is_isort product,
-  receipts pinned. Scoreboard 14/15.
+**The original framing is withdrawn.** It said the fork emits a
+verdict with no discharge record and the fix is at emission. The
+binding ground-truth pass refuted all three of its load-bearing
+claims (full diagnosis in the ARC LOG, J-1-1; the wave-2g entry it
+came from carries a dated correction):
+
+1. the fork HAS emitted `:TAU-BASIS` at `emit/preprocess/tau` since
+   fork-batch item I (user-ruled 2026-08-10), and the BSORT leaf's
+   slice names the `TRUE-LISTP-BSORT` signature rule;
+2. the citation consumer is LIVE and the leaf DISCHARGES in the real
+   replay by citing that already-replayed dependency theorem
+   (instrumented measurement: gate passes, match succeeds,
+   `proveDpFact` + `dischargeSpine` both OK — for all five tau-basis
+   leaves in the sorting corpus, zero fallbacks);
+3. the N1 guard never fired on this row: the golden's `REPLAYED ✓`
+   with no trailing `cond[…]` means UNCONDITIONAL, and the `cond[…]`
+   that was read as the row's belongs to the standalone informational
+   DP probe, which has no `ReplayCtx` and so always reports `◌`.
+
+**Mike's ruling (2026-08-18, verbatim): "we should ALWAYS replay ACL2
+when we have the material at hand."** Dep-theorem CITATION is the
+route; the DP-leaf carve-out is LAST RESORT, for genuinely
+verdict-only leaves with no proof record. That principle is already
+what the tau-basis path implements, which is why no fix was needed
+there.
+
+- **No fork change, no recapture, no golden repin** — the emission
+  side is complete and the logs are untouched, so the golden must
+  stay byte-identical. ANY golden movement in this item is a STOP.
+- The real blocker is the `usefi` (functional-instance) bridge at the
+  waypoint layer — the second, secondary observation in J-2g-1, which
+  was the accurate one.
+- Then re-land the preserved decode (J-2g-2) → the `bsort_is_isort`
+  product, receipts pinned. Scoreboard 14/15.
+- Records corrected as part of the item: the N1 guard's error text
+  (it advised "fix the leaf's emission", which is what mis-aimed the
+  wave), the wave-2g ARC LOG entry, and this charter.
 
 ## Item 2 — the Option refinement row + permWitness_complete re-spell
 
@@ -95,11 +111,12 @@ drafts return for the bless before landing.
 ## Escape hatch (per the goal-design rule)
 
 Stop and report if:
-- the tau leaf's obligation cannot be stated from what ACL2 itself
-  possesses at emission time (i.e. the fix would require Lean-side
-  inference — an instrumentation gap deeper than this arc);
-- recapture moves ANY golden row beyond the BSORT-IS-ISORT row's
-  expected discharge-annotation change;
+- ~~the tau leaf's obligation cannot be stated from what ACL2 itself
+  possesses at emission time~~ — RESOLVED 2026-08-18: it is stated,
+  emitted, and cited. Replaced by: the `usefi` bridge's gap turns out
+  to need a SECOND fork round-trip or a ratified-boundary change;
+- ANY golden row moves at all in item 1 (there is no recapture, so
+  the golden must be byte-identical);
 - the Option row cannot keep the existing transports byte-identical;
 - the item-0 pre-check contradicts the classification asymmetry;
 - any remaining work gates on a user decision, a ratified design

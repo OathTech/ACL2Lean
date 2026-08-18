@@ -111,30 +111,51 @@ theorem qsort_is_isort_native_driver (xs : List SExpr) :
 
 #print axioms qsort_is_isort_native_driver
 
-/-! ## BSORT-IS-ISORT — NOT BUILT, and the cause is not machinery
+/-! ## BSORT-IS-ISORT
 
-Measured this wave, not inferred. The golden's own row says it:
+The corpus's one CONDITIONAL capstone — the book states it under
+`TRUE-LISTP`, and `sorts-equivalent` instantiates the WEAK twin
+(`WEAK-SORTFN1-IS-SORTFN2`) for it, not the strong one the other two
+use. The decode absorbs the hypothesis in the standing way (every `enc`
+image is a true list) via the generic IMPLIES peel.
 
-```
-BSORT-IS-ISORT → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau ◌ assumed
-  cond[total:(BSORT X), ASSUMED:dp-fact]]
-```
+**Correction to this file's previous record (close-out arc,
+2026-08-18).** What stood here said the row was blocked by an ASSUMED
+dp-fact and that "the remedy is at the LEAF's emission". Both were
+wrong, and the measurement that refutes them is in the close-out
+charter's ARC LOG (J-1-1): the `Goal:preprocess/tau` leaf DISCHARGES in
+the real replay, by CITING the already-replayed `TRUE-LISTP-BSORT`
+through the `:TAU-BASIS` slice the fork has emitted since 2026-08-10.
+The `◌ assumed cond[…]` in the golden line quoted here belongs to the
+STANDALONE informational DP probe (which has no `ReplayCtx`, hence no
+rules to cite, and so can only ever report `◌`); the ROW's own verdict
+is `REPLAYED ✓` with no trailing `cond[…]`, i.e. UNCONDITIONAL. The
+accurate half of the old record was the SECOND observation — the
+`usefi` bridge — which is what this row actually had to cross. -/
 
-The `◌ assumed` marker is an ASSUMED dp-fact — visible `sorryAx`-class
-debt the sweep carries and reports. `driver_replayed%` REFUSES to
-register a replayed statement carrying `ASSUMED:dp-fact` (the N1
-remediation guard, `Waypoints/Macro.lean`: "an ASSUMED:dp-fact condition
-states an obligation over independently-quantified opaques that can be
-FALSE"). So this row cannot become a waypoint native while its leaf is
-assumed, and the remedy is at the LEAF's emission — not here.
+set_option maxHeartbeats 0 in
+set_option maxRecDepth 1000000 in
+/-- The driver's CONDITIONAL replayed statement for BSORT-IS-ISORT. -/
+def bsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
+  "bsort-is-isort" with_termination usefi
+  deps [permDev, convertPermDev, isortDev, bsortDev, orderedPermsDev,
+        equisortDev, msortDev, qsortDev]
 
-The row was additionally observed to fail EARLIER than that guard, on
-its own dependency: `usefi bridge: consumer discharge of ORDEREDP-BSORT
-failed: depReplayedProofAt: dependency ORDEREDP-BSORT's replay failed
-(frontier)`. Both observations are recorded; neither is worked around.
+/-- The unconditional form. -/
+theorem bsortIsIsortReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f sortsEqWorldD env
+      Worlds.Sorting.bsort_is_isortFormula = some v ∧ v ≠ SExpr.nil :=
+  bsortIsIsortReplayedCond env
 
-Its DECODE was written and measured to close against a hypothetical
-replayed statement, then REVERTED rather than left in the tree as
-machinery with no consumer (the J-2d-6 precedent). -/
+/-- ENTRY, PROVED — BSORT-IS-ISORT natively: bubble sort and insertion
+    sort compute the same list. -/
+theorem bsort_is_isort_native_driver (xs : List SExpr) :
+    Worlds.Sorting.bsortL xs = Worlds.Sorting.isortL xs :=
+  Worlds.Sorting.bsort_is_isort_native_of_replayed sortsEqWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    bsortIsIsortReplayed_uncond xs
+
+#print axioms bsort_is_isort_native_driver
 
 end ACL2.Imported.Waypoints

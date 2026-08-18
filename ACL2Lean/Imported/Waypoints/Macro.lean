@@ -186,26 +186,63 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
           let base := String.map (fun c => if c.isAlphanum then c else '_')
             s!"usefi_term_{worldName}_{fn}"
           let mName := Name.mkStr2 "ReplayedTermination" base
+          -- THE COMPANION CONDS CONSTANT (close-out arc, J-1-2), the same
+          -- device `crossBookRegistry` has always used for its own
+          -- termination cache. A cached constant's CONDITION LIST cannot be
+          -- assumed empty and cannot be recovered from the constant alone:
+          -- BSORT's admission is CONDITIONAL (its measure decrease is
+          -- licensed by HOW-MANY-BAD-PAIRS-BNEXT, a `:LINEAR` rule proved
+          -- before the defun), so `usefi_term_…_BSORT` has a premise binder.
+          -- Recording `[]` for it made `thmAt` apply the constant with no
+          -- condition arguments, and the resulting application type mismatch
+          -- surfaced as `depReplayedProofAt: dependency ORDEREDP-BSORT's
+          -- replay failed (frontier)` — an error naming a different theorem
+          -- entirely. Latent until now because the msort/qsort rows never
+          -- need BSORT's totality; the FIRST row that does is
+          -- BSORT-IS-ISORT, and the first pre-pass in a module registers the
+          -- constant that every later row then re-reads.
+          let mCondsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
+          let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
           let clause := (tcp.root.map (·.inputClause)).getD []
-          if (← getEnv).contains mName then
-            termByFn := termByFn ++ [(fn, mName, ([] : List String), clause)]
-          else
-            let transported ← ACL2.Replay.Runner.tryTransportDepAdmission
-              worldName.toString depName depDev.toWorld wVal wExpr fn tcp
-              mName
-            if transported then
-              termByFn := termByFn ++ [(fn, mName, ([] : List String), clause)]
-            else
-              let (status, reg?) ← ACL2.Replay.Runner.replayAdmission depDev
-                wVal wExpr tcp mName (crossTrees := crossTrees)
-              match reg? with
-              | some conds =>
-                unless ACL2.Replay.Runner.admissionCircular fn conds do
-                  termByFn := termByFn ++ [(fn, mName, conds, clause)]
-              | none =>
-                logInfo m!"driver_replayed% usefi: the {depName}/{fn} \
-                  admission pre-pass did not land ({status}) — the \
-                  instantiation will hard-fail if it needs that totality"
+          let conds? : Option (List String) ←
+            if (← getEnv).contains mName then do
+              unless (← getEnv).contains mCondsName do
+                throwError "driver_replayed% usefi: cached {mName} exists \
+                  WITHOUT its companion {mCondsName} (partial cache state \
+                  or sanitizer collision)"
+              some <$> (unsafe Meta.evalExpr (List String) condsTy
+                (mkConst mCondsName))
+            else do
+              let transported ← ACL2.Replay.Runner.tryTransportDepAdmission
+                worldName.toString depName depDev.toWorld wVal wExpr fn tcp
+                mName
+              if transported then
+                -- the transport carries UNCONDITIONAL dep constants only,
+                -- so `[]` is a fact here, not an assumption — recorded
+                -- explicitly so the cache branch above reads it back
+                Lean.addAndCompile (.defnDecl {
+                  name := mCondsName, levelParams := [], type := condsTy,
+                  value := Lean.toExpr ([] : List String), hints := .opaque,
+                  safety := .safe })
+                pure (some ([] : List String))
+              else do
+                let (status, reg?) ← ACL2.Replay.Runner.replayAdmission depDev
+                  wVal wExpr tcp mName (crossTrees := crossTrees)
+                match reg? with
+                | some conds =>
+                  Lean.addAndCompile (.defnDecl {
+                    name := mCondsName, levelParams := [], type := condsTy,
+                    value := Lean.toExpr conds, hints := .opaque,
+                    safety := .safe })
+                  pure (some conds)
+                | none =>
+                  logInfo m!"driver_replayed% usefi: the {depName}/{fn} \
+                    admission pre-pass did not land ({status}) — the \
+                    instantiation will hard-fail if it needs that totality"
+                  pure none
+          if let some conds := conds? then
+            unless ACL2.Replay.Runner.admissionCircular fn conds do
+              termByFn := termByFn ++ [(fn, mName, conds, clause)]
     let libParametric : List (String × Name) :=
       [("WEAK-SORTFN1-IS-SORTFN2",
         "ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric".toName),
@@ -303,7 +340,13 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       throwError "driver_replayed%: the replay is conditional on an \
         ASSUMED hypothesis (an unproved dp-fact, or a self-vacuous kept \
         usefi — audit 2026-08-09 outside D1) — \
-        refusing to register the replayed statement; fix the leaf's emission instead"
+        refusing to register the replayed statement. For a dp-fact the \
+        fix is CITATION, not emission (close-out arc 2026-08-18): the \
+        leaf already emits its :TAU-BASIS slice, and the consumer \
+        (Driver/Discharge.parseTauBasisAllows -> Totality's rule-premise \
+        gate) discharges it by citing the dependency theorem the slice \
+        names. A leaf that lands here needs a slice shape that decode \
+        does not yet cover — extend the decode, fail-closed"
     if let some declName ← Lean.Elab.Term.getDeclName? then
       Lean.modifyEnv fun e =>
         replayedRegistryExt.addEntry e (worldName, cp.name, declName, conds,
