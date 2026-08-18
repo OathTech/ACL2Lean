@@ -1,5 +1,46 @@
 # ACL2Lean — project TODO
 
+> **R4 WAVE 2f — THE BIJECTION LANDS (2026-08-18; branch `mdd/r4-wave2`,
+> ARC LOG in `docs/plans/2026-08-17_r4-wave2-charter.md`, reshape record
+> in `docs/notes/2026-08-18_sorting-spec-reshape.md`).** Mike approved
+> the reshape checkpoint ("Agree on all"). `Mirrors/Sorting.lean`'s
+> target-property section now stands in a **BIJECTION with the sorting
+> corpus's RESULT-TIER theorems** — 16 `Prop`s, 16 book theorems, one
+> citation each — where it had 13 `Prop`s that had never been checked
+> against the corpus in either direction. Mirror PRODUCTS go **11 → 15**:
+> `isort_howMany_int`, `msort_howMany_int`, `qsort_howMany_int`,
+> `permuted_equivalence_int`, plus `ordered_perm_unique_int` re-landed as
+> the `Iff` ORDERED-PERMS literally states.
+> **THE FINDING THAT MATTERS:** three items this arc had recorded as
+> MACHINERY frontiers — `isort_perm`, `perm_iff_howMany`, `sorts_agree`
+> — were SPEC defects: `Prop`s no single book theorem backs. Wave 2e's
+> "single highest-leverage unbuilt thing in the arc" (the COMPOSITION
+> mechanism) is **not needed by any of the sixteen `Prop`s as now
+> stated** (J-2f-1). Conversely two book theorems whose natives were
+> ALREADY BUILT (`HOW-MANY-QSORT`, `PERM-IS-AN-EQUIVALENCE`) had no
+> `Prop`, and both landed the moment they were named.
+> Machinery added, in full: the transport binder table's **SCALAR row**
+> (`∀ a : α` encoded by `e.enc`, hypothesis-free path only, negative
+> test pinned) — the element-binder frontier the charter predicted;
+> `map_inj_iff` (`map_inj`'s `Iff` form) and two closer alternatives;
+> three waypoint decode corollaries in the established class.
+> **OPEN AFTER IT — SEVEN of sixteen, by real cause.** `bsort_ordered`
+> / `bsort_howMany`: natives do not exist + the BSORT exec kit (J-2e-3's
+> corrected shape — the READING is free, the EXEC's arbitrary-`SExpr`
+> termination is not). `msort_is_isort` / `qsort_is_isort` /
+> `bsort_is_isort`: `sorting/sorts-equivalent` has NO waypoint module
+> at all (J-2e-2); the reshape removed their other blocker, so none
+> waits on the other two. `permWitness_complete`: **`Prop` correct,
+> `Int` product STRUCTURALLY UNAVAILABLE** (J-2e-6, re-measured this
+> wave against the unconditional `Prop` — the element-result hom square
+> is false at the junk arm for any embedding of `Int`); the two routes
+> out are a spec/type question and a theorem the corpus does not prove.
+> `sorter_unique`: **`Prop` correct, REACHABILITY OPEN** — it quantifies
+> over an arbitrary Lean `f`, and no construction takes an arbitrary
+> Lean function to an ACL2 world (recorded with the ruling; J-2f-2
+> simplifies route B to `permWitness_complete`'s `←` direction plus a
+> composition step).
+
 > **R4 WAVE 2e — THE QSORT PAIR, AND THE CONVERT-PERM CAPSTONE NATIVE
 > (LANDED 2026-08-18; branch `mdd/r4-wave2`, ARC LOG in
 > `docs/plans/2026-08-17_r4-wave2-charter.md`).** Mirror PRODUCTS go

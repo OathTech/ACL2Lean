@@ -1265,3 +1265,147 @@ arc-exit decision:**
   mechanism rather than on six separate natives.
 * NOT ON THE LIST ANY MORE: the qsort pair (landed) and
   CONVERT-PERM-TO-HOW-MANY (native built, catalogue promoted).
+
+### Wave 2f (2026-08-18) — THE BIJECTION LANDS: the spec's 13 `Prop`s become 16, five of the moved rows land as products (11 → 15), and three of the arc's recorded "machinery frontiers" turn out to have been SPEC defects
+
+Executed in the same isolated worktree; nothing committed there. Mike
+approved the reshape checkpoint ("Agree on all", 2026-08-18) and the
+checkpoint's landing list is what this wave executed. The permanent
+record of the reshape itself is
+`docs/notes/2026-08-18_sorting-spec-reshape.md`; this entry is the
+execution log.
+
+**THE HEADLINE.** `Mirrors/Sorting.lean`'s target-property section now
+stands in a BIJECTION with the sorting corpus's RESULT-TIER theorems —
+16 `Prop`s, 16 book theorems, one docstring citation each. Products go
+**11 → 15**: `isort_howMany_int`, `msort_howMany_int`,
+`qsort_howMany_int`, `permuted_equivalence_int` are new, and
+`ordered_perm_unique_int` RE-LANDED as the `Iff`. The seam gate prints
+15 and pairs every one correctly.
+
+**WHAT THE RESHAPE COST, AND WHAT IT REVEALED.** Five of the ten moved
+rows landed as products in the same wave, on ONE transport-table row
+and ONE plumbing lemma. Three items this arc had recorded on
+`MirrorProofs/Sorting.lean` as MACHINERY frontiers — `isort_perm`
+(wave 2c: "the book does not prove it"), `perm_iff_howMany` (2e: "the
+book does not prove the `∀`-form"), `sorts_agree` (2e: "additionally a
+COMPOSITION") — were each a SPEC defect wearing a machinery costume:
+`Prop`s no single book theorem backed. The composition mechanism that
+wave 2e called "the single highest-leverage unbuilt thing in the arc"
+is not needed by ANY of the sixteen `Prop`s as now stated; it was an
+artifact of the old shapes. Correspondingly, two book theorems with
+NATIVES ALREADY BUILT (`HOW-MANY-QSORT`, `PERM-IS-AN-EQUIVALENCE`) had
+no `Prop` at all, and both landed the moment they were named.
+
+**THE MACHINERY ADDED, IN FULL (three items, all measured before
+built).**
+1. THE SCALAR ROW of `mirror_transport%`'s binder table
+   (`TransportGen`): an `SExpr` (element) binder encoded by `e.enc`
+   where a list binder is encoded by `List.map e.enc`. This is the
+   ELEMENT-BINDER frontier the charter predicted and wave 2c pinned;
+   its first consumers are the three multiplicity mirrors. Fail-closed
+   on the hypothesis-carrying path (a scalar binder plus hypotheses is
+   a hard error — carrying an encoded element through a hypothesis
+   needs an element-position invariance square, a class that does not
+   exist), pinned as the file's FOURTH negative test in
+   `Tests/IsoGenGateTests.lean`.
+2. `map_inj_iff` (`TransportGen`) — `map_inj`'s `Iff` form, exactly as
+   `enc_inj_iff` is to `Acl2Embed.inj`, plus two closer alternatives in
+   `mirror_transport_close_hyps` that use it. Needed because
+   `ordered_perm_unique`'s conclusion is now an `Iff` whose left side is
+   the encoded list equation, and a one-way implication cannot replace a
+   subterm inside an `Iff`. Appended LAST, so every pre-existing
+   transport's proof term is unchanged — net-verified below.
+3. THREE waypoint DECODE corollaries, all in the established class
+   (additive, no statement change to any catalogued native, no content
+   of their own): `ordered_perms_iff_driver` (ORDERED-PERMS as the
+   `Iff` it literally is), `how_many_qsort_own_driver` (HOW-MANY-QSORT
+   at the depth-1 reading), `perm_equivalence_permL_driver`
+   (PERM-IS-AN-EQUIVALENCE in `permL` vocabulary).
+
+**MEASURED, NOT ASSUMED — `permWitness_complete` re-measured against
+the UNCONDITIONAL `Prop`.** Wave 2e's residual was taken against the
+preconditioned one, so it was re-run rather than carried: the CROSSING
+CLOSES with no residual (against a probe-local two-line decode
+corollary of the CONVERT-PERM native, deliberately NOT landed — a
+decode corollary whose only consumer cannot close is unwired
+machinery), and the MIRROR rung's residual is verbatim identical to
+wave 2e's, with `howMany_map_invariant` reported UNUSED. So J-2e-6's
+structural verdict stands for the book-form `Prop` a fortiori: the
+`Prop` is correct, the `Int` product is structurally unavailable, and
+that is an honest scoreboard entry rather than a to-do.
+
+**THE REGRESSION NET (built from a real reverted-source build, not
+argued).** 685 declarations before, 697 after, over
+`ACL2Lean.MirrorProofs`, `ACL2Lean.Sorting`, `ACL2Lean.Basics`,
+`ACL2.Worlds.Sorting`, `ACL2.Worlds.Perm`.
+
+* 17 ADDED — 7 new spec `Prop`s, 4 products + 4 crossings, `map_inj_iff`.
+* 5 REMOVED — `isort_perm`, `msort_perm`, `bsort_perm`, `sorts_agree`,
+  `perm_iff_howMany` (each replaced per the approved adjudication).
+* 1 STATEMENT CHANGED — `ordered_perm_unique_sexpr` (the crossing),
+  implication → `Iff`, entailed by the ruled spec change.
+* 5 VALUE-ONLY CHANGED — the three reshaped-in-place spec `Prop`
+  BODIES (`ordered_perm_unique`, `permWitness_complete`,
+  `sorter_unique`; their signatures are unchanged so the change shows
+  in the value), `elabMirrorTransport` (the generator), and
+  `ordered_perm_unique_int` (the re-landed product).
+* EVERYTHING ELSE BYTE-IDENTICAL — 674 pre-existing declarations,
+  including all five KEEP `Prop`s (`isort_ordered`, `msort_ordered`,
+  `qsort_ordered`, `qsort_perm`, `bsort_ordered`) and every
+  pre-existing PRODUCT except the one that was ruled to change. That
+  is the check that the closer's two new alternatives and the binder
+  table's new row are non-intrusive.
+
+**THE PAGE PRUNING, stated rather than done quietly.**
+`MirrorProofs/Sorting.lean` lost its wave-2c and wave-2d frontier
+sections and wave-2e's `perm_iff_howMany` subsection (653 → 473 lines).
+Every one of those subjects is now either LANDED (the qsort pair, the
+`Permuted` Q1 re-render) or describes a `Prop` THAT NO LONGER EXISTS
+(`isort_perm`, `perm_iff_howMany`, `sorts_agree`), so keeping them
+would point a reader at spec constants they cannot find. The text is
+preserved verbatim in this charter's wave-2c/2d/2e entries above, which
+is where the historical record belongs; the load-bearing measurements
+(J-2e-6's kernel refutation and characterisation, J-2e-3's corrected
+bsort-kit shape, the `sorts-equivalent` module absence) were carried
+forward into the wave-2f section rather than dropped.
+
+**J-2f-1 — THE COMPOSITION MECHANISM IS NOT NEEDED BY THE SPEC AS NOW
+STATED.** Recorded because wave 2e ranked it the arc's highest-leverage
+unbuilt item. Every one of the sixteen `Prop`s is a single book
+theorem, so `mirror_transport%`'s "cite ONE waypoint exactly" is no
+longer a constraint any target `Prop` violates. It remains relevant to
+route B for `sorter_unique` (which is a REASONING route and a ruling,
+not an executor call) and to nothing else in the sorting spec.
+
+**J-2f-2 — `sorter_unique`'s ROUTE B SIMPLIFIED BY THE RESHAPE.** With
+the `Prop` in the equisort capstone's own two-constrained-sorters shape
+and `ordered_perm_unique` landed AS AN IFF, route B's remaining input
+is exactly `permWitness_complete`'s `←` direction plus a composition
+step — it no longer needs `isort_perm` (which no longer exists) or the
+PERM equivalence separately. Its first input is the
+structurally-unavailable product, so the route is blocked there; route
+A's DEEP blocker (an arbitrary Lean `f` is not the `evalOpt` image of
+any `World` defun) is unchanged and is the recorded reachability
+question.
+
+**THE REMAINING SEVEN, by real cause (no euphemism).**
+* `bsort_ordered`, `bsort_howMany` — the waypoint natives do not exist
+  and `bsortL` needs the BSORT exec kit (J-2e-3's corrected shape:
+  the READING is free, the EXEC's arbitrary-`SExpr` termination is not).
+* `msort_is_isort`, `qsort_is_isort`, `bsort_is_isort` —
+  `sorting/sorts-equivalent` has NO waypoint module at all (J-2e-2);
+  the third also needs the bsort kit. The reshape removed the OTHER
+  blocker: three separate `Prop`s need no composition mechanism.
+* `permWitness_complete` — `Prop` correct, product structurally
+  unavailable (J-2e-6).
+* `sorter_unique` — `Prop` correct, reachability open (the recorded
+  ruling).
+
+**VERIFICATION (fast-gate tier in-worktree).** Full `lake build`
+EXIT=0, 6457 jobs, ZERO warnings, re-run after the last edit; seam gate
+15/15 with correct pairings; mirror name check 56 spec names, no
+collisions; the four `#guard_msgs` receipts on the new products are
+trio-clean `[propext, Classical.choice, Quot.sound]`; the new negative
+test's message is pinned; regression net as above from a real
+reverted-source build.

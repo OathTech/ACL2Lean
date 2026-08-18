@@ -129,6 +129,24 @@ theorem isPerm_equivalence_driver :
   symm := fun h => perm_symmetric_native_driver _ _ h
   trans := fun h1 h2 => perm_transitive_native_driver _ _ _ h1 h2
 
+/-- THE BUNDLE in the book's own `PERM` vocabulary (O-6) — the same
+    three facts spelled over the own-definition reading `permL`, which
+    is the shape the `permuted_equivalence` MIRROR's crossing meets. A
+    DECODE-SHAPE corollary in the class this layer already writes
+    (`ordered_perms_eq_driver`, `perm_qsort_own_driver`): it carries no
+    content of its own — the content is entries 10/15/16's, i.e. the
+    replay's. Stated as ACL2's `defequiv` states it, one conjunction
+    over three lists; the `BOOLEANP` conjunct is absorbed by `permL`'s
+    being `Bool`-valued. -/
+theorem perm_equivalence_permL_driver (xs ys zs : List SExpr) :
+    Worlds.Sorting.permL xs xs = true ∧
+    (Worlds.Sorting.permL xs ys = true → Worlds.Sorting.permL ys xs = true) ∧
+    (Worlds.Sorting.permL xs ys = true → Worlds.Sorting.permL ys zs = true →
+      Worlds.Sorting.permL xs zs = true) := by
+  simp only [Worlds.Sorting.permL_eq_isPerm]
+  exact ⟨isPerm_equivalence_driver.refl xs, isPerm_equivalence_driver.symm,
+    fun h1 h2 => isPerm_equivalence_driver.trans h1 h2⟩
+
 /-- The idiomatic `List.Perm` corollaries. -/
 theorem perm_symm_perm_driver {xs ys : List SExpr} (h : xs.Perm ys) :
     ys.Perm xs :=

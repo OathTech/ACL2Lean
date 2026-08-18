@@ -24,6 +24,20 @@ namespace ACL2Lean.MirrorProofs
 
 open Lean Lean.Meta Lean.Elab Lean.Elab.Command Lean.Parser.Term
 
+/-- `IsoGen`'s `map_inj` IN ITS USEFUL FORM, exactly as `enc_inj_iff` is
+    to `Acl2Embed.inj`: a transport whose spec `Prop` concludes in an
+    `Iff` (`ordered_perm_unique`: `xs = ys ↔ Permuted xs ys`) cannot
+    LAND through a one-way implication — the encoded equality sits on
+    one side of an `Iff` and has to be replaced there. The converse is
+    `congrArg`, so this adds nothing: it is the same injectivity
+    plumbing, and like `map_inj` it says nothing about any mirror
+    definition and cannot rescue a misaligned crossing. It lives HERE
+    rather than in the transfer kit because the transport closers are
+    its only consumers (and `IsoGen` is at the module-size cap). -/
+theorem map_inj_iff {α : Type u} (e : Acl2Embed α) {xs ys : List α} :
+    xs.map e.enc = ys.map e.enc ↔ xs = ys :=
+  ⟨map_inj e, fun h => h ▸ rfl⟩
+
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton
     squares, `map_inj`, and `List.map_nil`), and NO content lemma in
@@ -82,7 +96,17 @@ open Lean.Parser.Tactic in
     with a LIST conclusion (which `ordered_perm_unique` has) would
     otherwise fail on the structure's type. It is a structure projection,
     not a lemma, and it only ever fires where the second alternative
-    already failed. -/
+    already failed.
+
+    The fourth and fifth alternatives are the same two landings for a
+    spec `Prop` that concludes in an `Iff` whose LEFT SIDE is the list
+    equation (`ordered_perm_unique`: `xs = ys ↔ Permuted xs ys`). The
+    crossing instance carries `List.map e.enc xs = List.map e.enc ys`
+    there, and an implication cannot replace a subterm inside an `Iff`,
+    so the landing goes through `map_inj_iff` — the same injectivity
+    plumbing in its `Iff` form (above). They fire only where the
+    earlier alternatives already failed, so every pre-existing
+    transport's proof term is unchanged. -/
 macro "mirror_transport_close_hyps" "[" xs:simpLemma,* "]"
     " embed " e:term:max " in " h:ident &" hyps " "[" hs:ident,* "]" : tactic =>
   `(tactic|
@@ -90,7 +114,9 @@ macro "mirror_transport_close_hyps" "[" xs:simpLemma,* "]"
      first
        | exact $h $hs*
        | exact map_inj $e ($h $hs*)
-       | exact map_inj ($e).toAcl2Embed ($h $hs*)))
+       | exact map_inj ($e).toAcl2Embed ($h $hs*)
+       | exact (map_inj_iff $e).symm.trans ($h $hs*)
+       | exact (map_inj_iff ($e).toAcl2Embed).symm.trans ($h $hs*)))
 
 /-! ## `mirror_transport%`
 
@@ -149,22 +175,26 @@ syntax (name := mirrorTransportCmd)
   -- UNFOLDED form (so the generated crossing states what the hand one did)
   let sexprC : Term := mkCIdent ``ACL2.SExpr
   let crossTyStx : Term ← `($(mkCIdent specName) $sexprC)
-  -- THE BINDER WALK. A transported spec `Prop` is a `∀` over DATA
-  -- (`List SExpr` binders, each encoded by `List.map`) optionally
-  -- followed by HYPOTHESES (R4 wave 2d item 5 — `ordered_perm_unique`'s
-  -- `Ordered xs → Ordered ys → Permuted xs ys → …`). The shape is
-  -- DATA-THEN-HYPOTHESES and it is fail-closed in both directions: a
-  -- binder that is neither a `List SExpr` nor a `Prop` is a hard error,
-  -- and so is a data binder AFTER a hypothesis (which would need the
-  -- hypothesis's own binder to be encoded — outside the table).
-  let (crossStmt, binderNames, hypNames) ← liftTermElabM do
+  -- THE BINDER WALK. A transported spec `Prop` is a `∀` over DATA —
+  -- `List SExpr` binders encoded by `List.map e.enc`, and SCALAR
+  -- `SExpr` binders encoded by `e.enc` (the ELEMENT row: R4 wave 2f's
+  -- `∀ (a : α) (xs : List α), howMany a (isort xs) = howMany a xs`) —
+  -- optionally followed by HYPOTHESES (R4 wave 2d item 5 —
+  -- `ordered_perm_unique`'s `Ordered xs → Ordered ys → …`). The shape
+  -- is DATA-THEN-HYPOTHESES and it is fail-closed in every direction: a
+  -- binder that is none of those three is a hard error, so is a data
+  -- binder AFTER a hypothesis (which would need the hypothesis's own
+  -- binder to be encoded — outside the table), and so is a scalar
+  -- binder in a spec that ALSO carries hypotheses (the bound below).
+  let (crossStmt, binderNames, binderIsList, hypNames) ← liftTermElabM do
     let ty ← whnf (← Term.elabType crossTyStx)
     unless ty.isForall do
       throwError "mirror_transport%: {specName} at SExpr is not a \
           quantified statement (frontier — the transported spec is a \
           `∀`-statement over lists)"
-    let (names, hyps) ← forallTelescopeReducing ty fun xs body => do
+    let (names, isList, hyps) ← forallTelescopeReducing ty fun xs body => do
       let mut names : Array Name := #[]
+      let mut isList : Array Bool := #[]
       let mut hyps : Array Name := #[]
       for x in xs do
         let nm := (← x.fvarId!.getDecl).userName
@@ -180,20 +210,43 @@ syntax (name := mirrorTransportCmd)
                 DATA-THEN-HYPOTHESES (the data binders are what get \
                 encoded), and anything else is a named frontier"
           names := names.push nm
+          isList := isList.push true
+        else if t.isConstOf ``ACL2.SExpr then
+          unless hyps.isEmpty do
+            throwError "mirror_transport%: {specName} binds the `SExpr` \
+                argument `{nm}` AFTER {hyps.size} hypothesis binder(s) — \
+                the derived transport table is DATA-THEN-HYPOTHESES (the \
+                data binders are what get encoded), and anything else is \
+                a named frontier"
+          names := names.push nm
+          isList := isList.push false
         else if ← Lean.Meta.isProp raw then
           hyps := hyps.push nm
         else
           throwError "mirror_transport%: {specName} binds `{nm}`, which \
-              is neither a `List SExpr` argument nor a HYPOTHESIS \
-              (`{raw}`) — outside the derived transport table (a named \
-              frontier: every data binder is encoded by `List.map`, and \
-              every hypothesis is carried by the registered INVARIANCE \
-              squares)"
+              is neither a `List SExpr` argument nor an `SExpr` argument \
+              nor a HYPOTHESIS (`{raw}`) — outside the derived transport \
+              table (a list data binder is encoded by `List.map`, a \
+              scalar one by `e.enc`, and every hypothesis is carried by \
+              the registered INVARIANCE squares)"
       if body.isForall then
         throwError "mirror_transport%: {specName}'s body is not an \
             equation between list/scalar terms (frontier)"
-      pure (names, hyps)
-    pure (← PrettyPrinter.delab ty, names, hyps)
+      -- THE SCALAR ROW'S BOUND (see the header): a scalar data binder is
+      -- admitted on the HYPOTHESIS-FREE path only. Where a spec also
+      -- carries hypotheses, the element would have to be carried through
+      -- them by an invariance square at an ELEMENT position, which is a
+      -- different square class and has no consumer — so it fails closed.
+      unless hyps.isEmpty || isList.all (·) do
+        throwError "mirror_transport%: {specName} binds an `SExpr` \
+            (scalar) argument AND {hyps.size} hypothesis binder(s) — the \
+            scalar row of the derived transport table is admitted for \
+            HYPOTHESIS-FREE spec `Prop`s only (a named frontier: \
+            carrying an encoded ELEMENT through a hypothesis needs an \
+            element-position invariance square, which is a class this \
+            layer does not have)"
+      pure (names, isList, hyps)
+    pure (← PrettyPrinter.delab ty, names, isList, hyps)
   let bs : Array Ident := binderNames.map mkIdent
   -- The hypotheses are ANONYMOUS binders in the spec (`Ordered xs → …`),
   -- so their `userName`s are all the same inaccessible `a✝` and using
@@ -252,7 +305,11 @@ syntax (name := mirrorTransportCmd)
     else pure (some (← `(Lean.Parser.Tactic.simpLemma|
       $(mkCIdent s.homName):term)))
   let hId : Ident := mkIdent `h
-  let encArgs ← bs.mapM fun b => `(List.map ($embedStx).enc $b:ident)
+  -- each data binder is encoded ACCORDING TO ITS KIND: a list by
+  -- `List.map e.enc`, a scalar element by `e.enc`
+  let encArgs ← (bs.zip binderIsList).mapM fun (b, isL) =>
+    if isL then `(List.map ($embedStx).enc $b:ident)
+    else `(($embedStx).enc $b:ident)
   let crossApp := Syntax.mkApp crossId encArgs
   let mainProof ←
     if hs.isEmpty then

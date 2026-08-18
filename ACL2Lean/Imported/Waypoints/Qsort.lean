@@ -407,6 +407,15 @@ theorem orderedp_qsort_native_driver (xs : List SExpr) :
     (by decide) (by decide) (by decide) (by decide)
     orderedpQsortReplayed_uncond xs
 
+/-- HOW-MANY-QSORT at the DEPTH-1 reading — the same theorem, read
+    through `qsortOwnL_eq_qsortL`; see `perm_qsort_own_driver` for the
+    class. -/
+theorem how_many_qsort_own_driver (ev : SExpr) (xs : List SExpr) :
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.qsortOwnL xs)
+      = Worlds.Sorting.howManyL ev xs := by
+  rw [Worlds.Sorting.qsortOwnL_eq_qsortL]
+  exact how_many_qsort_native_driver ev xs
+
 /-- ORDEREDP-QSORT at the DEPTH-1 reading (R4 wave 2e) — the same
     theorem, read through `qsortOwnL_eq_qsortL`; see
     `perm_qsort_own_driver` for the class. -/

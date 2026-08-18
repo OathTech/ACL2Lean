@@ -37,32 +37,31 @@ idiom is FULLY QUALIFIED (`List.find?`, `List.length`) or an own
 device; operator notation (`++`) is permitted as unambiguous; names are
 collision-linted (Tests/MirrorNameCheck).
 
-THE 2026-08-18 RE-RENDERS (Mike's rulings Q1/Q2 of the R4 wave-2
-climb, both to close the gap between a spec body and the BOOK it
-mirrors — the same "closeness to the book beats Lean-idiom polish"
-line as the FILTER re-render):
-* `Permuted` renders `PERM` through the own-definitions `memb`/`rm`
-  and destructures the second list in the base arm exactly as
-  `(if (consp y) nil t)` does, where it previously used library `∈`
-  and `List.erase` and stated the base case as `ys = []`. It is the
-  SAME RELATION (checked by proving the two bodies equivalent); the
-  `Prop`s that name it are untouched.
-* `bsort` renders `BSORT`'s FIXPOINT recursion
-  (`(if (equal (bnext x) x) x (bsort (bnext x)))`) on the book's own
-  bad-pair measure, where it previously ran `length`-many passes as a
-  `List.foldl`. That is a DIFFERENT definition with the same intent,
-  and it is the book's.
-* `permWitness` renders `PERM-COUNTER-EXAMPLE`'s own ERASE-WALK
-  (`(if (memb (car x) y) (pce (cdr x) (rm (car x) y)) (car x))`,
-  `(car y)` when `x` is exhausted) and returns a VALUE, where it
-  previously ran a `List.find?` multiplicity scan returning
-  `Option α` — a DIFFERENT ALGORITHM, and the old one made the
-  correspondence square FALSE at `xs = ys = []`. Two consequences are
-  stated plainly rather than smoothed over: the definition needs an
-  `[Inhabited α]` binder (for `(CAR Y)` on an exhausted list, where
-  ACL2 has `nil`), and `permWitness_complete` is restated as the
-  book's own SINGLE EQUIVALENCE — the only target `Prop` this wave
-  changes. (Ruling Q3, 2026-08-18; landed R4 wave 2d.)
+THE BIJECTION INVARIANT — the rule that decides what belongs in the
+target-property section at the bottom of this file. The `Prop`s there
+stand in a BIJECTION with the ACL2 sorting corpus's RESULT-TIER
+theorems: every result-tier book theorem has EXACTLY ONE `Prop`, and
+every `Prop` names EXACTLY ONE book theorem in its docstring. The
+RESULT TIER is what each book proves about its OWN TOP-LEVEL function
+— the four sorts, `PERM`, the permutation witness, the equisort
+capstone — as against the internal lemmas about helper functions
+(`BNEXT`, `MERGE2`, `EVENS`, `RM`, `MEMB`, `FILTER`, `ALL-REL`,
+`TLFIX`), which are steps inside those proofs and not results. So the
+section states nothing the books do not prove, and leaves nothing they
+prove at that tier unstated; a `Prop` with no book theorem behind it is
+a statement the replay could never deliver, and a book result with no
+`Prop` is a hole in the definition of done.
+
+THE TYPE-ABSORBED CLASS — the one place a book theorem legitimately
+has no `Prop`, because Lean's TYPES already carry it. The corpus's
+`TRUE-LISTP-ISORT` / `-MSORT` / `-QSORT` / `-BSORT` / `-BNEXT` / `-RM`
+say the result is a proper list, which here is the type `List α` the
+definitions return; the `BOOLEANP` conjunct of `PERM-IS-AN-EQUIVALENCE`
+says the relation is two-valued, which here is `Permuted`'s being a
+`Prop`. Absorbing those into the type discipline is the faithful
+rendering of an untyped logic in a typed one, not a gap — and each
+absorption is noted in one clause on the `Prop` that carries the rest
+of its book.
 
 CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
 would write as a reasonably close Lean analog of the ACL2 theorem —
@@ -97,10 +96,9 @@ therefore taken from the ACL2 BOOK, Lean-cased (`isort`, `msort`,
 `howMany`, and — with the 2026-08-14 FILTER re-render — `relMode`,
 `RelMode`, `filterRel`, where the bare book names `REL`/`Rel` and
 `FILTER`/`filter` are both taken by the libraries the linter sees; and
-— with the 2026-08-18 re-renders — `memb`, `rm`, `howManySmaller` and
-`howManyBadPairs`, the last named for the book's own lemma
-`HOW-MANY-BAD-PAIRS-BNEXT` about the function `BNEXT-SIZE` it
-renders);
+`memb`, `rm`, `howManySmaller`, `howManyBadPairs` — the last named for
+the book's own lemma `HOW-MANY-BAD-PAIRS-BNEXT` about the function
+`BNEXT-SIZE` it renders);
 the uppercase ACL2 rune names in the docstrings below are
 the cross-reference to the source book and are the point.
 `Tests/MirrorNameCheck.lean` enforces the rule over this namespace at
@@ -423,47 +421,55 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     `(car nil)` is `nil`); the book's function returns a VALUE, never
     an option, which is why this one does too.
 
-    **THE JUNK ARM** (named here per the ruling of 2026-08-18). At
-    `xs = ys = []` — and at NO other input — the value is
-    `Inhabited.default`: this type's stand-in for ACL2's `(car nil)`,
-    carrying no information about either list. It is the one place
-    where a TOTAL Lean rendering of an untyped ACL2 function must
-    invent a value. The function stays total and stays exactly as the
-    book writes it; the junk is quarantined by `permWitness_complete`'s
-    precondition below, not by complicating the definition. -/
+    **THE JUNK ARM.** At `xs = ys = []` — and at NO other input — the
+    value is `Inhabited.default`: this type's stand-in for ACL2's
+    `(car nil)`, carrying no information about either list. It is the
+    one place where a TOTAL Lean rendering of an untyped ACL2 function
+    must invent a value, and it is harmless to the property below,
+    which holds for ANY witness on that input (both sides of its `Iff`
+    are true there). The function stays total and stays exactly as the
+    book writes it. -/
 def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
   | [], ys => List.headD ys default
   | a :: xs, ys => if memb a ys then permWitness xs (rm a ys) else a
 
 /-! ## The target properties — the definition of done
 
-Each `Prop` below reflects a theorem the ACL2 sorting book proves.
-The buildout is DONE for sorting when every one is a `theorem`
-proved via replay. -/
+SIXTEEN `Prop`s, one per RESULT-TIER theorem of the ACL2 sorting
+corpus, in the corpus's own order (`isort`, `msort`, `qsort`, `bsort`,
+`ordered-perms`, `perm`, `convert-perm-to-how-many`,
+`sorts-equivalent`, `equisort`). Each names its book theorem; the
+bijection invariant and the type-absorbed class are stated in the
+file header. The buildout is DONE for sorting when every one is a
+`theorem` proved via replay. -/
 
 /-- ISORT orders (the book's `ORDEREDP-ISORT`). -/
 def isort_ordered (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), Ordered (isort xs)
 
-/-- ISORT permutes (the book's `HOW-MANY-ISORT`, in its idiomatic
-    permutation form — multiplicity preservation and permutation
-    coincide). -/
-def isort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (isort xs) xs
+/-- ISORT preserves multiplicity (the book's `HOW-MANY-ISORT`: the
+    count of every element is unchanged by the sort). -/
+def isort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (a : α) (xs : List α), howMany a (isort xs) = howMany a xs
 
 /-- MSORT orders (`ORDEREDP-MSORT`). -/
 def msort_ordered (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), Ordered (msort xs)
 
-/-- MSORT permutes (`HOW-MANY-MSORT`). -/
-def msort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (msort xs) xs
+/-- MSORT preserves multiplicity (`HOW-MANY-MSORT`). -/
+def msort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (a : α) (xs : List α), howMany a (msort xs) = howMany a xs
 
 /-- QSORT orders (`ORDEREDP-QSORT`). -/
 def qsort_ordered (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), Ordered (qsort xs)
 
-/-- QSORT permutes (`HOW-MANY-QSORT`). -/
+/-- QSORT preserves multiplicity (`HOW-MANY-QSORT`). -/
+def qsort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (a : α) (xs : List α), howMany a (qsort xs) = howMany a xs
+
+/-- QSORT permutes (`PERM-QSORT` — the one sort the corpus states in
+    `PERM` terms as well as in multiplicity terms). -/
 def qsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (xs : List α), Permuted (qsort xs) xs
 
@@ -473,60 +479,70 @@ def qsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
 def bsort_ordered (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), Ordered (bsort xs)
 
-/-- BSORT permutes (`HOW-MANY-BSORT`). -/
-def bsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs : List α), Permuted (bsort xs) xs
+/-- BSORT preserves multiplicity (`HOW-MANY-BSORT`). -/
+def bsort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (a : α) (xs : List α), howMany a (bsort xs) = howMany a xs
 
-/-- An ordered permutation is unique — the book's `ORDERED-PERMS`
-    content, and the lemma that powers every equivalence below. -/
+/-- An ordered permutation is unique — the book's `ORDERED-PERMS`,
+    which states it as the EQUIVALENCE `(EQUAL A B) = (PERM A B)` for
+    ordered `A`, `B`, and that is the shape here: for ordered lists,
+    equality and permutation are the same relation. (The book's two
+    `TRUE-LISTP` hypotheses are type-absorbed.) -/
 def ordered_perm_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs ys : List α), Ordered xs → Ordered ys → Permuted xs ys → xs = ys
+  ∀ (xs ys : List α), Ordered xs → Ordered ys → (xs = ys ↔ Permuted xs ys)
 
-/-- All four sorts agree (the book's `MSORT-IS-ISORT`,
-    `QSORT-IS-ISORT`, `BSORT-IS-ISORT` capstones). -/
-def sorts_agree (α : Type u) [TotalOrder α] : Prop :=
-  ∀ (xs : List α),
-    msort xs = isort xs ∧
-    qsort xs = isort xs ∧
-    bsort xs = isort xs
+/-- Permutation is an equivalence relation (the book's
+    `PERM-IS-AN-EQUIVALENCE`, ACL2's `defequiv` content: reflexive,
+    symmetric, transitive — its `BOOLEANP` conjunct is type-absorbed by
+    `Permuted`'s being a `Prop`). -/
+def permuted_equivalence (α : Type u) [DecidableEq α] : Prop :=
+  ∀ (xs ys zs : List α),
+    Permuted xs xs ∧
+    (Permuted xs ys → Permuted ys xs) ∧
+    (Permuted xs ys → Permuted ys zs → Permuted xs zs)
 
-/-- The abstract capstone (the book's `SORTS-EQUIVALENT` /
-    encapsulate content): ANY function that orders and permutes IS
-    insertion sort. -/
-def sorter_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (f : List α → List α),
-    (∀ xs, Ordered (f xs)) → (∀ xs, Permuted (f xs) xs) →
-    ∀ xs, f xs = isort xs
-
-/-- Permutation is exactly multiplicity agreement (the book's
-    `CONVERT-PERM-TO-HOW-MANY` capstone; Mathlib states the same fact
-    about ITS notions as `List.perm_iff_count` — the book's proof
-    arrives independently, via replay). -/
-def perm_iff_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (xs ys : List α), Permuted xs ys ↔ ∀ a, howMany a xs = howMany a ys
-
-/-- The witness is complete (the book's
-    `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS`): the two
-    lists are permutations EXACTLY WHEN their multiplicities agree at
-    that ONE element — the book's statement in Lean dress, with ONE
-    precondition.
-
-    **THE PRECONDITION, AND THE HONEST DELTA** (ruled 2026-08-18). The
-    `(xs ≠ [] ∨ ys ≠ [])` guard quarantines `permWitness`'s JUNK ARM
-    (see its docstring): at `xs = ys = []` the witness is
-    `Inhabited.default`, a value invented by the Lean rendering rather
-    than computed from the lists. The book's theorem covers that input
-    trivially — ACL2 is untyped and `(car nil)` is just `nil` — so this
-    mirror is the TIGHTEST FORM AVAILABLE AT A JUNK-FREE TYPE, and the
-    delta is stated rather than hidden: it is one degenerate input, and
-    the unconditional version is a two-line step-2 corollary ABOVE the
-    mirror if a user ever wants it. That corollary is deliberately NOT
-    added here (canon line 1: no Lean-side theorems specific to an
-    example). -/
+/-- The witness is complete (the book's `CONVERT-PERM-TO-HOW-MANY`):
+    two lists are permutations EXACTLY WHEN their multiplicities agree
+    at the ONE element the witness picks out — the whole point of the
+    witness, since it turns a `∀`-quantified count check into a single
+    one. (The corpus's `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-
+    TRUE-LISTS` is this same statement under `TRUE-LISTP` hypotheses
+    the types absorb, and is the step the book proves it from, not a
+    second result.) -/
 def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α]
     [Inhabited α] : Prop :=
-  ∀ (xs ys : List α), (xs ≠ [] ∨ ys ≠ []) →
+  ∀ (xs ys : List α),
     (Permuted xs ys ↔
       howMany (permWitness xs ys) xs = howMany (permWitness xs ys) ys)
+
+/-- MSORT is ISORT (the book's `MSORT-IS-ISORT` capstone). -/
+def msort_is_isort (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), msort xs = isort xs
+
+/-- QSORT is ISORT (`QSORT-IS-ISORT`). -/
+def qsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), qsort xs = isort xs
+
+/-- BSORT is ISORT (`BSORT-IS-ISORT`, whose `TRUE-LISTP` hypothesis is
+    type-absorbed). -/
+def bsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
+  ∀ (xs : List α), bsort xs = isort xs
+
+/-- The abstract capstone (the equisort book's
+    `STRONG-SSORTFN1-IS-SSORTFN2`, its `encapsulate` content): any TWO
+    functions that order and preserve multiplicity are THE SAME
+    function. The book's constraints on each constrained sorter are
+    `ORDEREDP-SSORTFN…` and `HOW-MANY-SSORTFN…` — the two hypotheses
+    per sorter here — plus `TRUE-LISTP-SSORTFN…`, which the types
+    absorb. (`WEAK-SORTFN1-IS-SORTFN2` is the same capstone over
+    sorters whose constraints carry `TRUE-LISTP` hypotheses, so it
+    collapses into this one rather than standing as a second result.) -/
+def sorter_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+  ∀ (f g : List α → List α),
+    (∀ xs, Ordered (f xs)) →
+    (∀ (a : α) (xs : List α), howMany a (f xs) = howMany a xs) →
+    (∀ xs, Ordered (g xs)) →
+    (∀ (a : α) (xs : List α), howMany a (g xs) = howMany a xs) →
+    ∀ xs, f xs = g xs
 
 end ACL2Lean.Sorting

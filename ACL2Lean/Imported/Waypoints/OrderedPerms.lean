@@ -126,6 +126,22 @@ theorem ordered_perms_eq_driver (xs ys : List SExpr)
   rw [hp] at h
   exact beq_iff_eq.mp h
 
+/-- The same fact as the EQUIVALENCE, in the book's own `PERM`
+    vocabulary — the Bool identity `(xs == ys) = permL xs ys` read as
+    the `Iff` it is, which is what ORDERED-PERMS literally says
+    (`(EQUAL (EQUAL A B) (PERM A B))`). Another DECODE-SHAPE corollary
+    of the native above, in the class of the two below and carrying no
+    content of its own; it exists because that is the shape
+    `ordered_perm_unique`'s crossing meets. -/
+theorem ordered_perms_iff_driver (xs ys : List SExpr)
+    (hx : Worlds.Sorting.orderedpRec xs = true)
+    (hy : Worlds.Sorting.orderedpRec ys = true) :
+    xs = ys ↔ Worlds.Sorting.permL xs ys = true := by
+  have h := ordered_perms_native_driver xs ys hx hy
+  constructor
+  · intro he; rw [← h, he, beq_self_eq_true]
+  · intro hp; rw [hp] at h; exact beq_iff_eq.mp h
+
 /-- The idiomatic corollary over `List.Perm`: sorted permutations are
     EQUAL. -/
 theorem ordered_perms_native_perm_driver (xs ys : List SExpr)

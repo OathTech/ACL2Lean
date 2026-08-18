@@ -110,7 +110,38 @@ mirror_transport% evil_data_after_hyp : ACL2.Tests.IsoGenGate.probeDataAfterHyp 
   crossing evil_data_after_hyp_sexpr from probeWp
 
 /-
-  THE FOURTH NEGATIVE TEST (R4 wave 2e): `mirror_iso%` now takes an
+  THE FOURTH NEGATIVE TEST (R4 wave 2f): `mirror_transport%`'s binder
+  table now has a SCALAR row — an `SExpr` (element) binder, encoded by
+  `e.enc` where a list binder is encoded by `List.map e.enc`. Its
+  consumers are the multiplicity mirrors (`∀ (a : α) (xs : List α),
+  howMany a (isort xs) = howMany a xs`).
+
+  The row is admitted on the HYPOTHESIS-FREE path ONLY: carrying an
+  encoded ELEMENT through a hypothesis would need an element-position
+  invariance square, a class this layer does not have, so a spec that
+  binds a scalar AND carries hypotheses must be refused rather than
+  assembled against squares that cannot fire. Refused before any
+  declaration is produced, so this pin costs no `sorryAx`.
+
+  Same threat model: a SPEEDBUMP against the honest mistake (adding a
+  hypothesis to a multiplicity spec and assuming the element rides
+  along), not a barrier. If it becomes fragile, delete it.
+-/
+
+/-- a probe-only spec shape: a SCALAR binder in a spec that ALSO
+    carries a hypothesis. -/
+def probeScalarWithHyp (α : Type) : Prop :=
+  ∀ (a : α) (xs : List α), xs = xs → a = a
+
+/-- error: mirror_transport%: ACL2.Tests.IsoGenGate.probeScalarWithHyp binds an `SExpr` (scalar) argument AND 1 hypothesis binder(s) — the scalar row of the derived transport table is admitted for HYPOTHESIS-FREE spec `Prop`s only (a named frontier: carrying an encoded ELEMENT through a hypothesis needs an element-position invariance square, which is a class this layer does not have)
+-/
+#guard_msgs (whitespace := lax) in
+mirror_transport% evil_scalar_with_hyp : ACL2.Tests.IsoGenGate.probeScalarWithHyp Int
+  embed ACL2Lean.MirrorProofs.intEmbed
+  crossing evil_scalar_with_hyp_sexpr from probeWp
+
+/-
+  THE FIFTH NEGATIVE TEST (R4 wave 2e): `mirror_iso%` now takes an
   `instances [...]` clause (O-7, 2026-08-18) — per-square facts that make
   two spellings of ONE INSTANCE ARGUMENT meet. The clause admits an
   EQUATION whose type is proof-irrelevant by construction (head in
@@ -124,7 +155,7 @@ mirror_transport% evil_data_after_hyp : ACL2.Tests.IsoGenGate.probeDataAfterHyp 
   `unfold`. It is refused before any declaration is produced, because its
   equation is at `List SExpr`.
 
-  Same threat model as the other three: a SPEEDBUMP against the honest
+  Same threat model as the other four: a SPEEDBUMP against the honest
   mistake, not a barrier — no syntactic check on the invocation can
   classify content, and the bound is provenance only (A1-F1). If it
   becomes fragile, delete it.
