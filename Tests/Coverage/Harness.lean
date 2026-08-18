@@ -168,6 +168,19 @@ elab "coverage_book% " nameLit:str : command => do
                   (fun c => if c.isAlphanum then c else '_')
                   s!"usefi_term_{name}_{fn}"
                 let mName := Lean.Name.mkStr2 "ReplayedTermination" base
+                -- THE TRANSPORT (perf arc phase 2 item 1c): the dep
+                -- book's own admission constant (imported via the
+                -- covDeps module DAG), carried to this world — one
+                -- admission proof per (defun, world) per sweep;
+                -- fail-closed to the re-replay below
+                let transported ←
+                  ACL2.Replay.Runner.tryTransportDepAdmission
+                    name depName depDev.toWorld wVal wExpr fn tcp mName
+                if transported then
+                  termByFn := termByFn
+                    ++ [(fn, mName, ([] : List String),
+                         (tcp.root.map (·.inputClause)).getD [])]
+                else
                 let (status, reg?) ←
                   ACL2.Replay.Runner.replayAdmission depDev wVal wExpr
                     tcp mName (crossTrees :=
@@ -182,6 +195,18 @@ elab "coverage_book% " nameLit:str : command => do
                 | none =>
                   logInfo m!"usefi term pre-pass {depName}/{fn}: \
                     {status}"
+          -- PERF ARC PHASE 2 item 2 (2026-08-18): the library parametric
+          -- constants (EquisortParametric), consumed by NAME — the Name
+          -- literal deliberately avoids an `import` here, so only a
+          -- module that itself imports the library (BSsortsEquivalent)
+          -- sees them; everywhere else `env.contains` misses and the
+          -- rebuild route runs unchanged. Statement-matched fail-closed
+          -- inside mkUseFiDischarger.
+          let libParametric :=
+            [("WEAK-SORTFN1-IS-SORTFN2",
+              "ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric".toName),
+             ("STRONG-SSORTFN1-IS-SSORTFN2",
+              "ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric".toName)]
           for (cp, _) in
               ACL2.Replay.Driver.developmentTheoremsWithRules consumerDev
                 |>.map (fun (c, r) => (c, r)) do
@@ -206,7 +231,7 @@ elab "coverage_book% " nameLit:str : command => do
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
                     ACL2.Imported.Waypoints.prepareUseFi crossDevs
-                      consumerDev wVal wExpr spec termByFn
+                      consumerDev wVal wExpr spec termByFn libParametric
                   acc := acc ++ [(key, cName, argTys)]
                 catch e =>
                   logInfo m!"usefi prepare {thmName}: SKIPPED \

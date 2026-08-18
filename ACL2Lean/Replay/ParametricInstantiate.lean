@@ -410,7 +410,14 @@ def reflectSubst (σ : List (Symbol × List Symbol × SExpr)) :
     D6); the bridging extensions close them incrementally. -/
 def mkUseFiDischarger (crossDevs : List (String × Development))
     (termByFn : List (String × Lean.Name × List String × List SExpr)
-      := []) :
+      := [])
+    -- PERF ARC PHASE 2 item 2 (2026-08-18): cited-theorem → LIBRARY
+    -- parametric constant (the EquisortParametric artifacts, already
+    -- built once per lib build by `parametric_replayed%`). Consumed
+    -- INSTEAD of re-running `replayProofParametric` per cite —
+    -- statement-matched fail-closed below; an empty list (every caller
+    -- but the coverage harness) keeps the rebuild route verbatim.
+    (libParametric : List (String × Lean.Name) := []) :
     Development → ReplayConfig → ReplayCtx → UseFiSpec → MetaM Expr :=
     fun consumerDev cfg ctx spec => do
   let _ := consumerDev  -- consumed by the W4f bridging (next increment)
@@ -457,12 +464,41 @@ def mkUseFiDischarger (crossDevs : List (String × Development))
     let rebuildRules := (ACL2.Replay.Runner.combineRules
       (Driver.rulesBefore depDev spec.name) ch.crossRules).filter
       (fun r => cited.contains r.name)
-    let (pfParam, _pconds) ← Driver.replayProofParametric cfgDep sigFns
-      ch.tps cp depDev.justifications rebuildRules
-      ch.depProofs (equivRefls := ch.equivRefls)
-      (congTrees := some ch.localTrees)
-    -- (2) premises at the alias world via the shared engine
-    let pfParamEnv ← Lean.Meta.mkLambdaFVars #[envV] pfParam
+    -- LIBRARY-FIRST (phase 2 item 2): a registered parametric constant
+    -- for the cited theorem replaces the per-cite rebuild — accepted
+    -- ONLY when its statement matches what this rebuild would target:
+    -- shape `∀ env w, ⟨premises⟩ → EvTrue w env ⟦Φ⟧` with Φ EXACTLY the
+    -- cited theorem's translated Goal from THIS dep dev's log. The
+    -- premise telescope is walked by the same engine either way (an
+    -- undischargeable premise frontiers identically), so the match on
+    -- the CONCLUSION is the honest gate on WHAT is proved. Any
+    -- mismatch, or an absent constant (the import decides visibility),
+    -- falls back to today's rebuild.
+    let lib? ← do
+      match libParametric.find? (·.1 == spec.name) with
+      | none => pure none
+      | some (_, cn) =>
+        match (← Lean.getEnv).find? cn with
+        | none => pure none
+        | some ci => do
+          let phi := ACL2.Replay.disjoinTerm
+            ((cp.root.map (·.inputClause)).getD [])
+          let ok ← Lean.Meta.forallTelescope ci.type fun fvs concl => do
+            if h : fvs.size ≥ 2 then
+              pure (concl == Lean.mkAppN
+                (Lean.mkConst ``ACL2.Replay.EvTrue)
+                #[fvs[1], fvs[0], Driver.reflectSExpr phi])
+            else pure false
+          pure (if ok then some (Lean.mkConst cn) else none)
+    let pfParamEnv ← match lib? with
+      | some c => pure c
+      | none => do
+        let (pfParam, _pconds) ← Driver.replayProofParametric cfgDep sigFns
+          ch.tps cp depDev.justifications rebuildRules
+          ch.depProofs (equivRefls := ch.equivRefls)
+          (congTrees := some ch.localTrees)
+        -- (2) premises at the alias world via the shared engine
+        Lean.Meta.mkLambdaFVars #[envV] pfParam
     let namesE ← mkListLit (mkConst ``ACL2.Symbol)
       (names.map Driver.reflectSymbol)
     let hagree ← mkAppM ``ACL2.Replay.withAliases_agree
@@ -941,7 +977,8 @@ def prepareUseFi (crossDevs : List (String × Development))
     (consumerDev : Development)
     (worldVal : World) (wExpr : Expr) (spec : UseFiSpec)
     (termByFn : List (String × Lean.Name × List String × List SExpr)
-      := []) :
+      := [])
+    (libParametric : List (String × Lean.Name) := []) :
     Lean.MetaM (Lean.Name × List (String × String)) := do
   Lean.Meta.withLocalDeclD `envDummy (mkConst ``ACL2.Env) fun envD => do
     let cfg := ACL2.Replay.Runner.mkBookConfig consumerDev worldVal
@@ -1095,7 +1132,7 @@ def prepareUseFi (crossDevs : List (String × Development))
           equivReflHyps := equivSpecs.zip equivVs.toList,
           equivFullHyps := equivFullSpecs.zip equivFullVs.toList,
           linearHyps := linearSpecs.zip linVs.toList }
-      let pf ← mkUseFiDischarger crossDevs termByFn
+      let pf ← mkUseFiDischarger crossDevs termByFn libParametric
         consumerDev cfg ctx spec
       -- the result is `mkAppN (const) usedFVars`; record each argument
       -- as a (class, key) pair for DIRECT row-time lookup (blind

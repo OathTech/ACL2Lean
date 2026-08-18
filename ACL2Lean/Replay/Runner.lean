@@ -15,6 +15,7 @@
   print the same rows the sweep would, so results are directly comparable.
 -/
 import ACL2Lean.Replay.Driver
+import ACL2Lean.Replay.WorldTransport
 import ACL2Lean.ProofLog
 import ACL2Lean.ClauseTree
 import Lean
@@ -365,6 +366,147 @@ def admissionCircular (fn : String) (conds : List String) : Bool :=
 def worldIncludes (w1 w2 : World) : Bool :=
   w1.defs.entries.all fun (s, v) => w2.defs.get? s == some v
 
+/-! ## The D2/D7 WORLD TRANSPORT (perf arc phase 2 item 1, 2026-08-17)
+
+A dependency book's own module already holds a kernel-checked replayed
+constant for each of its green theorems/admissions, stated over the
+DEP's world. When that constant is IMPORTED (the coverage harness's
+module DAG mirrors `covDeps`), re-replaying the dep's tree at the
+consumer's world is redundant: `Replay.evtrue_transport`
+(`WorldTransport.lean` — the proven `evalOpt_world_mono` behind two
+per-pair decidable side conditions + finite per-new-name `callBuiltin`
+facts) carries the SAME statement to the consumer's world by a single
+kernel-checked lemma application.
+
+Fail-closed at every layer, falling back to today's re-replay (never a
+hard fail where today succeeds): a missing/foreign-named dep constant,
+a CONDITIONAL dep constant (hypotheses are contravariant — they do not
+transport), a statement mismatch (the dep constant's type must be
+EXACTLY `∀ env, EvTrue w_dep env ⟦Φ⟧` for the formula the consumer
+computed from the SAME log), a new consumer name shadowing a builtin,
+or a failing side-condition check. The transported constant's type is
+byte-identical to what the unconditional re-replay route would have
+produced, so consumers (`thmAt`/the totality prover) see no
+difference. -/
+
+/-- The one shared name sanitizer of the registry constants. -/
+private def xSan (s : String) : String :=
+  String.map (fun c => if c.isAlphanum then c else '_') s
+
+/-- Build (or reuse) the per-(consumer, dep) PAIR TRANSPORT constant
+    `∀ env t, EvTrue w_dep env t → EvTrue w env t` — the two decidable
+    side conditions kernel-checked ONCE per pair (design §4: per-pair
+    constants, never per-theorem re-derivations), the `hnew` residue
+    closed name-by-name by `rfl` on the concrete non-builtin new names
+    (the P3c reconciliation — see `WorldTransport.lean`'s header).
+    `none` = transport unavailable for this pair (fail-closed). -/
+def tryBuildPairTransport (bookKey src : String) (dw w : World)
+    (dwExpr wExpr : Expr) : TermElabM (Option Name) := do
+  let pairName := Name.mkStr2 "CrossBookTransport" (xSan s!"pair_{bookKey}_{src}")
+  if (← Lean.getEnv).contains pairName then return some pairName
+  let news := w.defs.entries.filterMap fun kv =>
+    if dw.defs.contains kv.1 then none else some kv.1
+  -- a new name whose NAME STRING is a builtin would shadow `callBuiltin`
+  -- dispatch — `hnew` is then genuinely unprovable (design §D2's audit-F6
+  -- caveat); refuse the pair
+  if news.any (fun s => builtinNames.contains s.name) then return none
+  -- meta-level pre-check on the VALUES (compiled, cheap) before spending
+  -- kernel time; a false check refuses the pair
+  unless ACL2.Replay.worldExtendsCheck dw w
+      && ACL2.Replay.newKeysCoverCheck dw w news do
+    return none
+  try
+    let boolTrue := mkConst ``Bool.true
+    let newsE ← Meta.mkListLit (mkConst ``ACL2.Symbol) (news.map reflectSymbol)
+    let hinc ← Meta.mkDecideProof (← Meta.mkEq
+      (← Meta.mkAppM ``ACL2.Replay.worldExtendsCheck #[dwExpr, wExpr]) boolTrue)
+    let hcov ← Meta.mkDecideProof (← Meta.mkEq
+      (← Meta.mkAppM ``ACL2.Replay.newKeysCoverCheck #[dwExpr, wExpr, newsE]) boolTrue)
+    let hnb ← mkNoBuiltinsProof news
+    let value ← Meta.mkAppM ``ACL2.Replay.evtrue_transport #[hinc, hcov, hnb]
+    Lean.addDecl <| .thmDecl
+      { name := pairName, levelParams := [],
+        type := ← Meta.inferType value, value }
+    return some pairName
+  catch _ => return none
+where
+  /-- `NoBuiltins news`, each conjunct `∀ args, callBuiltin s.name args
+      = none` closed by `rfl` — kernel whnf reduces the 55-arm match on
+      a CONCRETE name with the args abstract; no equation lemma is
+      involved. A name that fails the defeq check (a builtin — already
+      excluded above, so this is belt) throws and refuses the pair. -/
+  mkNoBuiltinsProof : List Symbol → MetaM Expr
+    | [] => pure (mkConst ``ACL2.Replay.noBuiltins_nil)
+    | s :: rest => do
+      let sE := reflectSymbol s
+      let listSExprTy := mkApp (mkConst ``List [.zero]) (mkConst ``ACL2.SExpr)
+      let head ← Meta.withLocalDeclD `args listSExprTy fun argsFV => do
+        let noneE := mkApp (mkConst ``Option.none [.zero]) (mkConst ``ACL2.SExpr)
+        let lhs := mkApp2 (mkConst ``ACL2.callBuiltin)
+          (mkApp (mkConst ``ACL2.Symbol.name) sE) argsFV
+        let ty ← Meta.mkEq lhs noneE
+        let pf ← Meta.mkEqRefl noneE
+        -- force the defeq check NOW (fail-closed here, not at addDecl)
+        unless ← Meta.isDefEq (← Meta.inferType pf) ty do
+          throwError "mkNoBuiltinsProof: callBuiltin does not reduce to \
+            none on {s.name} (builtin shadow?)"
+        Meta.mkLambdaFVars #[argsFV] (← Meta.mkExpectedTypeHint pf ty)
+      Meta.mkAppM ``ACL2.Replay.noBuiltins_cons
+        #[head, ← mkNoBuiltinsProof rest]
+
+/-- Transport ONE unconditional dep constant (type
+    `∀ env, EvTrue w_dep env ⟦Φ⟧`, checked EXACTLY — statement-matched,
+    fail-closed) to the consumer's world under `tgtName`. Returns
+    `false` (caller falls back to re-replay) on any mismatch. -/
+def tryTransportDepConst (pairName : Name) (dwExpr wExpr : Expr)
+    (depDecl : Name) (formula : SExpr) (tgtName : Name) :
+    TermElabM Bool := do
+  let env ← Lean.getEnv
+  let some ci := env.find? depDecl | return false
+  if env.contains tgtName then return false
+  try
+    let φE := reflectSExpr formula
+    let envTy := mkConst ``ACL2.Env
+    let mkStmt (wE : Expr) : TermElabM Expr :=
+      Meta.withLocalDeclD `env envTy fun envFV =>
+        Meta.mkForallFVars #[envFV]
+          (mkAppN (mkConst ``ACL2.Replay.EvTrue) #[wE, envFV, φE])
+    let expectedDep ← mkStmt dwExpr
+    unless ci.type == expectedDep do
+      -- syntactic mismatch: allow a defeq match (same statement, different
+      -- print) but nothing weaker — `isDefEq` here can only equate types,
+      -- never change what is proved
+      unless ← Meta.isDefEq ci.type expectedDep do return false
+    let value ← Meta.withLocalDeclD `env envTy fun envFV =>
+      Meta.mkLambdaFVars #[envFV]
+        (mkAppN (mkConst pairName) #[envFV, φE, mkApp (mkConst depDecl) envFV])
+    Lean.addDecl <| .thmDecl
+      { name := tgtName, levelParams := [],
+        type := ← mkStmt wExpr, value }
+    return true
+  catch _ => return false
+
+/-- Transport-first recorded-admission reuse (phase 2 item 1c — the
+    profile's QSORT-3x finding): when the dep book's OWN admission
+    constant (`ReplayedTermination.term_<src>_<fn>`) is visible in the
+    environment and the dep world is included in the consumer's, carry
+    it to the consumer's world instead of re-replaying the admission
+    waterfall. Shared by `crossBookRegistry`'s xterm pass and the
+    coverage harness's usefi term pre-pass — ONE proof per (defun,
+    world) per sweep. `false` = caller keeps today's re-replay. -/
+def tryTransportDepAdmission (bookKey src : String) (dw w : World)
+    (wExpr : Expr) (fn : String) (tcp : ClauseProof) (tgtName : Name) :
+    TermElabM Bool := do
+  let depDecl := Name.mkStr2 "ReplayedTermination" (xSan s!"term_{src}_{fn}")
+  unless (← Lean.getEnv).contains depDecl do return false
+  unless worldIncludes dw w do return false
+  let dwE ← reflectWorld dw
+  match ← tryBuildPairTransport bookKey src dw w dwE wExpr with
+  | some pn =>
+    tryTransportDepConst pn dwE wExpr depDecl
+      (disjoinTerm ((tcp.root.map (·.inputClause)).getD [])) tgtName
+  | none => return false
+
 /-- Rune names cited ANYWHERE under a theorem's tree — the clause-level
     `WaterfallStep.runes` that `citedRuneNames` reads PLUS the rewriter
     detail's own per-step runes. The clause-level set is the ttree
@@ -519,6 +661,25 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
       continue
     let thms := developmentTheoremsWithRules depDev
     let crossRules := earlierRules
+    -- THE TRANSPORT prelude (phase 2 item 1): when the dep book's OWN
+    -- module constants are visible (the coverage harness imports its
+    -- covDeps — the module DAG), build the per-pair transport constant
+    -- once; each demanded dep statement then transports instead of
+    -- re-replaying. The focused CLI imports no coverage modules, so
+    -- `anyDep` is false there and this costs nothing.
+    let depThmDecl := fun (t : String) =>
+      Name.mkStr2 "ReplayedStatements" (xSan s!"replayed_{src}_{t}")
+    let depTermDecl := fun (fn : String) =>
+      Name.mkStr2 "ReplayedTermination" (xSan s!"term_{src}_{fn}")
+    let recTerms := recordedTerminationDefuns depDev.justifications depDev
+    let envNow ← Lean.getEnv
+    let anyDep := thms.any (fun (cp, _) => envNow.contains (depThmDecl cp.name))
+      || recTerms.any (fun (fn, _) => envNow.contains (depTermDecl fn))
+    let (pair?, dwExpr?) ←
+      if anyDep then do
+        let dwE ← reflectWorld dw
+        pure (← tryBuildPairTransport bookKey src dw w dwE wExpr, some dwE)
+      else pure (none, none)
     -- RECORDED ADMISSIONS of the dep book, at the CONSUMER's world. An
     -- :INCLUDE-BOOK'd defun carries no admission proof in the consumer's
     -- own log, so the consumer's totality prover walls on it and every
@@ -526,7 +687,7 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
     -- (`ORDEREDP-BSORT`/`HOW-MANY-QSORT` cross-replays, measured). The
     -- admission is the dep book's OWN recorded waterfall — replayed here
     -- exactly as its own book replays it, at the world that includes it.
-    for (fn, tcp) in recordedTerminationDefuns depDev.justifications depDev do
+    for (fn, tcp) in recTerms do
       if xterm.any (·.1 == fn) then continue
       let tBase := String.map (fun c => if c.isAlphanum then c else '_')
         s!"xterm_{bookKey}_{src}_{fn}"
@@ -542,19 +703,36 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
           some <$> (unsafe Meta.evalExpr (List String) condsTy
             (mkConst tCondsName))
         else do
-          let (status, r?) ← replayAdmission depDev w wExpr tcp tName
-            (crossTrees := trees ++ bookTrees depDev)
-            (replayed := reg) (crossRules := crossRules)
-          match r? with
-          | some cs =>
+          -- THE TRANSPORT (phase 2 item 1c): the dep book's OWN
+          -- recorded-admission constant, carried to this world by the
+          -- pair transport — unconditional dep constants only,
+          -- statement-matched, fail-closed to the re-replay below
+          let transported ←
+            match pair?, dwExpr? with
+            | some pn, some dwE =>
+              tryTransportDepConst pn dwE wExpr (depTermDecl fn)
+                (disjoinTerm ((tcp.root.map (·.inputClause)).getD [])) tName
+            | _, _ => pure false
+          if transported then
             Lean.addAndCompile (.defnDecl {
               name := tCondsName, levelParams := [], type := condsTy,
-              value := Lean.toExpr cs, hints := .opaque, safety := .safe })
-            pure (some cs)
-          | none =>
-            IO.println s!"    [cross-book termination {src}/{fn} @ \
-              {bookKey}: {status}]"
-            pure none
+              value := Lean.toExpr ([] : List String), hints := .opaque,
+              safety := .safe })
+            pure (some ([] : List String))
+          else do
+            let (status, r?) ← replayAdmission depDev w wExpr tcp tName
+              (crossTrees := trees ++ bookTrees depDev)
+              (replayed := reg) (crossRules := crossRules)
+            match r? with
+            | some cs =>
+              Lean.addAndCompile (.defnDecl {
+                name := tCondsName, levelParams := [], type := condsTy,
+                value := Lean.toExpr cs, hints := .opaque, safety := .safe })
+              pure (some cs)
+            | none =>
+              IO.println s!"    [cross-book termination {src}/{fn} @ \
+                {bookKey}: {status}]"
+              pure none
       if timings then  -- perf-arc phase 1 instrumentation
         IO.println s!"[t] xterm {src}/{fn}: {(← IO.monoMsNow) - tXa0} ms"
       if let some cs := conds? then
@@ -593,6 +771,26 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
           (mkConst condsName)
         reg := reg ++ [{ thm := cp.name, decl := mName, conds := conds,
                          formula := formula, crossBook := true }]
+        continue
+      -- THE TRANSPORT (phase 2 item 1b): the dep's OWN replayed
+      -- constant, carried to this world by the pair transport —
+      -- unconditional dep constants only, statement-matched,
+      -- fail-closed to the re-replay below
+      let transported ←
+        match pair?, dwExpr? with
+        | some pn, some dwE =>
+          tryTransportDepConst pn dwE wExpr (depThmDecl cp.name)
+            formula mName
+        | _, _ => pure false
+      if transported then
+        Lean.addAndCompile (.defnDecl {
+          name := condsName, levelParams := [], type := condsTy,
+          value := Lean.toExpr ([] : List String), hints := .opaque,
+          safety := .safe })
+        reg := reg ++ [{ thm := cp.name, decl := mName, conds := [],
+                         formula := formula, crossBook := true }]
+        if timings then  -- perf-arc phase 2 instrumentation
+          IO.println s!"[t] xthm {src}/{cp.name}: TRANSPORTED"
         continue
       let tXt0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
       let (status, reg?) ← tryReplay depDev w wExpr cp rules

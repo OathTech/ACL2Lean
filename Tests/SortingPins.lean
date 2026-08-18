@@ -56,7 +56,8 @@
 -/
 import ACL2Lean.Replay.Runner
 import ACL2Lean.DevLoad
-import Tests.Coverage.BSsortsEquivalent
+-- (`import Tests.Coverage.BSsortsEquivalent` REMOVED 2026-08-18 — see the
+-- capstone-pins move tombstone at the end of this file.)
 
 namespace ACL2.Tests.SortingPins
 
@@ -1012,160 +1013,15 @@ elab "equisort_scope_pins% " : term => do
 
 def equisortScopePins : True := equisort_scope_pins%
 
-/-! ## sorts-equivalent CAPSTONE statement pins (final close-out arc
-    increment 0 — close-out audit follow-up, both reviewers). The two
-    FI capstone rows are the corpus's headline artifacts and had no
-    statement pin. These pin the MACHINE statements — the sweep's own
-    registered constants, imported from `Tests.Coverage.BSsortsEquivalent`
-    (no re-replay: the constants are reused, so the pin costs two
-    example elaborations) — against types hand-transcribed from
-    `acl2/books/sorting/sorts-equivalent.lisp`, so statement-derivation
-    drift through a RECAPTURE fails here at elaboration. HYPOTHESIS
-    discipline as above: every `cond[…]` entry transcribed in telescope
-    order; stored-rule forms from the emitted `(:RULES …)` entries
-    (TRUE-LISTP-RM is the ordered-perms book's cross entry). -/
-
-private def sortsEqLog : String :=
-  include_str "../acl2_samples/sorting/sorts-equivalent.proof-log"
-
-def sortsEqPinsDev : Development := load_development% sortsEqLog
-
-derive_world sortsEqPinsWorld from sortsEqPinsDev
-
--- (`trueListpRmHyp` — `rule:TRUE-LISTP-RM`, ordered-perms.lisp:34 —
--- and `convertPermHyp` — `rule:CONVERT-PERM-TO-HOW-MANY`,
--- convert-perm-to-how-many.lisp:92 — DELETED 2026-08-16. Both had 3
--- users each at the sprint base and 0 at its exit: the P3c cross-book
--- D1 transfer retired both conditions from every telescope in this
--- file (diagnosed in place at the capstone pins below). Same
--- convention as the vocabulary tombstones above; they come back with
--- the next pin that keeps their class.)
-
-/-! ## Capstone pins — RETURNED 2026-08-13 (the TP-replay arc's ATOM-leg
-increment)
-
-They were retired by the thin-Lean purge (2026-08-11) with a recorded
-return condition: the rows had regressed to ASSUMED ◌ when the usefi
-pre-pass lost its forbidden Lean-side dischargers, so the sweep
-registered no constant for them to pin. That condition is now met —
-`total:PERM-COUNTER-EXAMPLE` retired by the replay route (the ATOM leg:
-PCE's emitted termination clause rules on `(ATOM X)`), the usefi
-discharge succeeds, and both rows are REPLAYED ✓ again.
-
-RESURRECTED, NOT RE-DERIVED: the conclusions and every surviving
-hypothesis are the git-history texts verbatim. What CHANGED is that
-hypotheses LEFT the telescopes as their conditions retired across this
-arc — each drop carries a diagnosis comment below, never a silent
-edit. MSORT loses three (`tp:HOW-MANY`, `tp:INSERT`, `tp:EVENS`);
-QSORT loses five (`total:PERM-COUNTER-EXAMPLE`, `tp:HOW-MANY`,
-`tp:INSERT`, `tp:ALL-REL`, and — 2026-08-14, the D-A ts-algebra
-consumer — `tp:ACL2-COUNT`) and, since 2026-08-16 (T1+2 sprint P5b,
-the conditional stored-rule route), `tp:QSORT` as well. -/
-
-/-- PIN the machine statement of `MSORT-IS-ISORT`
-    (sorts-equivalent.lisp:12): the mirror of
-    `(equal (msort x) (isort x))`, **UNCONDITIONAL since 2026-08-15** —
-    the pinned type is premise-free. Its former cond[…] telescope
-    (merge2/msort totality; the true-listp-rm and
-    convert-perm-to-how-many stored rules) is retired item by item in
-    the log below, each dated. -/
-example :
-    ∀ (env : Env),
-      -- (total:MERGE2 and total:MSORT RETIRED 2026-08-14 — the R3
-      -- unified measure/arity table; both left the telescope.)
-      -- (tp:HOW-MANY RETIRED 2026-08-12 — the TP prover's BINARY-+
-      -- return path; tp:INSERT and tp:EVENS RETIRED 2026-08-13 — the
-      -- CONS return-path shape. All three left the telescope.)
-      -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
-      -- 2026-08-15 — T1+2 sprint P3c: the WP5 cross-book D1 transfer
-      -- replays both dependencies at this world, so both hypotheses
-      -- left the telescope and the row is UNCONDITIONAL. INTENTIONAL;
-      -- diagnosed row-by-row against the golden.)
-      EvTrue sortsEqPinsWorld env
-        (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
-
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
-
-/-- PIN the machine statement of `QSORT-IS-ISORT`
-    (sorts-equivalent.lisp:18): the mirror of
-    `(equal (qsort x) (isort x))`, **UNCONDITIONAL since 2026-08-16** —
-    the pinned type is premise-free. Its former cond[…] telescope
-    (qsort/o< totality, the emitted TPs, true-listp-rm +
-    convert-perm-to-how-many, the arithmetic-3 commutativity + two
-    if-lifting rules, and the three qsort-book rules how-many-filter-1 /
-    how-many-qsort / orderedp-append) is retired item by item in the log
-    below, each dated.
-    DISCLOSURE RETIRED (2026-08-16): this docstring used to disclose
-    `how-many-qsort` as "the row's disclosed own-obligation assumption,
-    audit O-3". That assumption is GONE — it left the telescope with the
-    P5b/P6 retirements, the type no longer carries it, and a standing
-    disclosure of an assumption that no longer exists is itself a
-    records defect. -/
-example :
-    ∀ (env : Env),
-      -- (total:PERM-COUNTER-EXAMPLE RETIRED 2026-08-13 — the ATOM leg;
-      -- it led this telescope in the pre-purge text.)
-      -- (total:QSORT RETIRED 2026-08-15 — T1+2 sprint P3c: the
-      -- cross-book ADMISSION pre-pass replays QSORT's recorded
-      -- admission at this world (:INCLUDE-BOOK source), so the
-      -- hypothesis left the telescope. INTENTIONAL.)
-      -- (total:O< RETIRED 2026-08-15 — T1+2 sprint P3b: the ORDINAL
-      -- registry row (Replay/OrdinalSim) + the O-FINP recognizer
-      -- duality + the world-read EQUAL-alias normalization of ACL2's
-      -- recomputed ground-zero rulers discharge O<'s admission from
-      -- its OWN emitted :TERMINATION-CLAUSES, so the hypothesis left
-      -- the telescope and the pinned type drops it. INTENTIONAL;
-      -- diagnosed against the golden.)
-      -- (tp:HOW-MANY RETIRED 2026-08-12; tp:INSERT 2026-08-13, the CONS
-      -- shape; tp:ALL-REL 2026-08-13, the arity-3 assembly.)
-      -- (tp:ACL2-COUNT RETIRED 2026-08-14 — the D-A ts-algebra
-      -- consumer: the R2 fork batch's context-refined leaves carry
-      -- ACL2's own derivation, so the corollary is PROVED and the
-      -- hypothesis left the telescope.)
-      -- (tp:QSORT RETIRED 2026-08-16 — T1+2 sprint P5b. P4b's verbatim
-      -- frontier here was "proveTp: BINARY-APPEND's corollary class
-      -- …conspOrArg neither matches nor implies the …trueListp class
-      -- QSORT's prescription needs", and it was a CONSUMPTION item
-      -- exactly as P4b's corrected map said: RT2 had already emitted the
-      -- stored strengthening TRUE-LISTP-APPEND with its own hypotheses,
-      -- `:term` and per-rule `:LEAVES`. The driver now takes the
-      -- `:ALL-TPS` route — re-proving that rule from BINARY-APPEND's
-      -- body under its hypothesis, discharging the hypothesis at
-      -- QSORT's own leaf, and taking the FILTER-headed self-call's
-      -- decrease from QSORT's REPLAYED admission. The hypothesis left
-      -- the telescope and the pinned type drops it. INTENTIONAL;
-      -- diagnosed against the golden.)
-      -- (rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY RETIRED
-      -- 2026-08-15 — the WP5 transfer, see MSORT-IS-ISORT above.)
-      -- (the ARITHMETIC-3 family — rule:(+ y x), rule:(+ y (+ x z)),
-      -- rule:(+ (+ x y) z), rule:(+ x (if a b c)) — and the if-lifting
-      -- rule:(equal (if a b c) x) RETIRED 2026-08-15, T1+2 sprint P4b:
-      -- all five are registered in `d5GzRules`, so the driver discharges
-      -- each at its CITED rune from its D5 prelude constant
-      -- (`Replay/GzRules.lean`, recompute-checked against the emitted
-      -- `(:RULES …)` entry). This ALSO closes P3c's flagged +1: the
-      -- rule:(+ (+ x y) z) that JOINED here when rule:HOW-MANY-FILTER-1
-      -- retired is gone with the rest. INTENTIONAL; diagnosed against
-      -- the golden.)
-      -- (rule:HOW-MANY-FILTER-1 and rule:HOW-MANY-QSORT RETIRED
-      -- 2026-08-15 — P3c: both are qsort-book theorems the transfer
-      -- now replays at this world; FILTER-1's own arithmetic premise
-      -- surfaces above. INTENTIONAL.)
-      -- (rule:ORDEREDP-APPEND RETIRED 2026-08-16 — T1+2 sprint P5a: the
-      -- IFF-CONCLUSION DECODE class. ACL2 stores this defthm's
-      -- `(IFF lhs rhs)` conclusion as an `:EQUIV EQUAL` rewrite rule
-      -- because both sides are boolean; `dischargeRuleHyp`'s `routeIff`
-      -- RECOMPUTES that normalization, taking each side's two-valuedness
-      -- from the EMITTED :TYPE-PRESCRIPTION corollaries (demanded, never
-      -- assumed). The hypothesis left the telescope and the pinned type
-      -- drops it; the waypoint layer's hand decode
-      -- `dis_rule_orderedp_append` was deleted with it. INTENTIONAL;
-      -- diagnosed against the golden.)
-      EvTrue sortsEqPinsWorld env
-        (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
-
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+-- (The sorts-equivalent CAPSTONE statement pins — MSORT-IS-ISORT and
+-- QSORT-IS-ISORT bound to the SWEEP'S OWN registered constants — MOVED
+-- to Tests/SortingPinsEndgame.lean 2026-08-18 (perf arc phase 2 item 3,
+-- the cascade decoupling): they were this module's ONLY consumers of
+-- `Tests.Coverage.BSsortsEquivalent`, and that import serialized this
+-- whole module (~13 min of its own pins replays) AFTER the sweep's
+-- largest module on the post-edit critical path. The pins bind the SAME
+-- constants from the Endgame module (which already imports the coverage
+-- modules and already sits after them); nothing about what is pinned
+-- changed. This module now builds in PARALLEL with the coverage tier.)
 
 end ACL2.Tests.SortingPins
