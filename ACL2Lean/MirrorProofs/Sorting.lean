@@ -1,661 +1,584 @@
-import ACL2Lean.MirrorProofs.IsoGen
-import ACL2Lean.MirrorProofs.OrderBridge
-import ACL2Lean.Mirrors.Sorting
+import ACL2Lean.MirrorProofs.TransportGen
+import ACL2Lean.MirrorProofs.SortingSquares
+import ACL2Lean.MirrorProofs.SortingPermSquares
+import ACL2Lean.MirrorProofs.SortingQsortSquares
+import ACL2Lean.MirrorProofs.SortingBsortSquares
+import ACL2Lean.Imported.Waypoints.Isort
+import ACL2Lean.Imported.Waypoints.Msort
+import ACL2Lean.Imported.Waypoints.OrderedPerms
+import ACL2Lean.Imported.Waypoints.PermBook
+import ACL2Lean.Imported.Waypoints.Qsort
+import ACL2Lean.Imported.Waypoints.BsortCap
+import ACL2Lean.Imported.Waypoints.SortsEquivalent
 
-/-! # MIRROR PROOFS — the sorting book (the WITNESS PAGE, not yet a proof page)
+/-! # MIRROR PROOFS — the sorting book's PRODUCTS (R4 wave 2c)
 
-`ACL2Lean/Mirrors/Sorting.lean`'s Props are the buildout's north star; NONE
-of them is proved yet (R4's scope). This page exists because R1 item B
-widened `mirror_iso%`'s ARGUMENT-READING table (audit finding F1) and that
-widening had to land against REAL square declarations read off the sorting
-spec — not against a test fixture (the anti-"infrastructure now, wire it
-later" rule). It is therefore the landing zone for the sorting squares.
+The sorting mirrors themselves. `MirrorProofs/SortingSquares.lean` — the
+witness page this file was split out of when it crossed the module-size
+norm — carries the METRIC's machinery (the twenty-six squares:
+definitional correspondence about our own definitions, and every
+definition's frontier where a square does not exist). THIS page carries
+the PRODUCT: `Mirrors/Sorting.lean`'s target `Prop`s as THEOREMS, each
+proved by `mirror_transport%` from a CATALOGUED waypoint native, i.e. BY
+REPLAYING the ACL2 book theorem (canon line 4). The generated crossing
+is the sole entry point of the content, and the mirror seam gate
+(`MirrorProofs/SeamGate.lean`) checks mechanically that each product's
+proof term reaches a `driver_replayed%` statement.
 
-After R4 WAVE 1 (2026-08-14) it carries EIGHT declarations — all LIVE
-squares, each `#print axioms`-pinned:
+## THE SCOREBOARD — THIRTEEN OF THE SIXTEEN, all at `Int`
 
-| witness | agree | hom |
-| ------- | ----- | --- |
-| W1 `insertOrd` | LIVE (R1-D) | **LIVE (wave 1 — the order dimension)** |
-| W2 `howMany`   | LIVE (R1-D) | LIVE (R1-D, scalar) |
-| W5 `isort`     | **LIVE**    | **LIVE** |
-| W6 `evens`     | **LIVE**    | **LIVE** |
+The spec's target `Prop`s stand in a BIJECTION with the sorting
+corpus's result-tier theorems since R4 wave 2f (the reshape's permanent
+record is `docs/notes/2026-08-18_sorting-spec-reshape.md`; the
+invariant itself is stated in `Mirrors/Sorting.lean`'s header). Against
+that list of SIXTEEN, THIRTEEN are theorems on this page:
 
-and FOUR RECORDED frontiers with no declaration — W3 `filterRel`, W7
-`merge2`, W8 `msort`, W9 `odds`. Nothing is emitted for a frontier on
-purpose: a closer failure leaves a `sorryAx`-carrying declaration
-behind, which this tree does not accept, so the state lives in this
-docstring (statements verbatim, residuals verbatim, the measured closing
-condition) rather than in a `#guard_msgs` pin.
+| `Prop` | product | wave |
+|---|---|---|
+| `isort_ordered` | `isort_ordered_int` | 2c |
+| `isort_howMany` | `isort_howMany_int` | 2f |
+| `msort_ordered` | `msort_ordered_int` | 2c |
+| `msort_howMany` | `msort_howMany_int` | 2f |
+| `qsort_ordered` | `qsort_ordered_int` | 2e |
+| `qsort_howMany` | `qsort_howMany_int` | 2f |
+| `qsort_perm` | `qsort_perm_int` | 2e |
+| `ordered_perm_unique` | `ordered_perm_unique_int` | 2d, re-landed as the `Iff` in 2f |
+| `permuted_equivalence` | `permuted_equivalence_int` | 2f |
+| `bsort_ordered` | `bsort_ordered_int` | 2g |
+| `bsort_howMany` | `bsort_howMany_int` | 2g |
+| `msort_is_isort` | `msort_is_isort_int` | 2g |
+| `qsort_is_isort` | `qsort_is_isort_int` | 2g |
 
-The wave-1 machinery both new squares rest on is in `IsoGen`'s "the
-order-respect route" (the `embed S via [...]` clause — an order-using
-definition's homomorphism square is only TRUE for an order-respecting
-embedding, so that hypothesis belongs in its statement) and in
-`OrderBridge`'s `OrderedEmbed`/`intOrderedEmbed`. The ladder also gained
-`ite`'s own two cases, the `rfl` twin of the already-admitted `cond`
-pair; the line wave 1 held is that the closer grows LEMMA rungs that
-meet the pinned criterion and never a CAPABILITY (W7 and W3 record the
-two capabilities that were measured and not taken).
+The THREE that are not, with their real distance and no euphemism:
 
-## What R1-B changed
+* **`bsort_is_isort` — the row's REPLAY CARRIES AN ASSUMED dp-fact, and
+  that is the whole cause.** Its two siblings landed this wave, and
+  neither the waypoint module nor the bsort exec kit is missing any
+  more. The golden's own row is the record: `BSORT-IS-ISORT → REPLAYED
+  ✓ [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(BSORT X),
+  ASSUMED:dp-fact]]`. `driver_replayed%` REFUSES to register a replayed
+  statement carrying `ASSUMED:dp-fact` — deliberately, since such a
+  condition states an obligation over independently-quantified opaques
+  that can be FALSE — so no waypoint native can be built from it while
+  the leaf is assumed. The remedy is at the LEAF'S EMISSION, one layer
+  below this page.
+* **`permWitness_complete` — THE `Prop` IS CORRECT AND THE PRODUCT IS
+  STRUCTURALLY UNAVAILABLE (J-2e-6).** Not a to-do. The mirror rung
+  needs the element-result homomorphism square, which is FALSE at the
+  junk arm for ANY embedding of `Int` (`SExpr`'s default is `nil`;
+  `intEmbed.enc` is never `nil`) — kernel-refuted in wave 2e, at a
+  point the then-ruled precondition admitted. The two remaining routes
+  are a spec/type question and a theorem the corpus does not prove;
+  neither is an executor call.
+* **`sorter_unique` — THE `Prop` IS CORRECT AND ITS REACHABILITY IS
+  OPEN.** Recorded with the ruling of 2026-08-18: the `Prop` quantifies
+  over an ARBITRARY Lean `f : List α → List α`, while a world-parametric
+  constant can only be instantiated at the `evalOpt` image of a `World`
+  defun, and no construction takes an arbitrary Lean function to an
+  ACL2 world. Whether the statement is reachable AS STATED is a design
+  question, not a machinery gap.
 
-Before: `mirror_iso%` collapsed a mirror definition's binder telescope to
-one `allList` boolean and hard-errored on ANY non-list explicit argument —
-so every sorting definition with an ELEMENT argument (`insertOrd (a : α)`,
-`howMany (a : α)`) was rejected by the SHAPE TABLE, before its statement was
-ever built. After: the telescope is read into a per-binder READING VECTOR
-inferred from the spec's own Lean binder types (`List α` ↦ enters under
-`List.map e.enc`; `α` ↦ enters under `e.enc`), with no new user syntax.
+**WHAT THE FIRST TRANSPORT COST IN MACHINERY: NOTHING.** The charter
+predicted a machinery gap here — `mirror_transport%`'s binder check is
+`List SExpr`-only and the deferred F3 instance THREADING was to be built
+against these consumers. Measured, and reported rather than assumed:
+`isort_ordered`'s only binder IS a `List`, and its `[TotalOrder α]`
+binder needs no threading at all, because the generator states the
+crossing at `SExpr` and the mirror at the user's type and lets ORDINARY
+INSTANCE SYNTHESIS find `instTotalOrderSExpr` / `instTotalOrderInt` at
+each end. So no threading was built: building it here would have been
+the banned "infrastructure now, wire it later", and the honest record is
+that the first real consumer did not demand it. (The binder check's
+ELEMENT frontier stood until R4 wave 2f, whose multiplicity `Prop`s are
+its first consumers; it cost ONE table row, and the instance threading
+is STILL not built, because still nothing demands it.)
 
-## What the R1-D ruling batch (2026-08-14) changed
+## THE FIRST SORTING PRODUCT — `isort_ordered` at `Int`
 
-Three machinery-side items, all recorded here because their acceptance
-witnesses are this page's squares:
-
-1. **`Acl2Embed.inj` admitted to the closing ladder** (as the iff
-   `enc_inj_iff`) — the FIRST of the two plumbing families the pinned
-   criterion now names (the second, `Bool.decide_eq_true`, arrived with
-   R4 wave 0 below). See `IsoGen.lean`'s ladder section for why both are
-   plumbing (a square is definitional correspondence about OUR OWN
-   definitions; content still arrives only via replay).
-2. **Hypothesis-directed closing.** The closer was ALREADY
-   `simp_all`-class, so the case hypotheses of a split the template
-   itself created were always in scope; what W1's residual actually
-   needed was for the hypothesis to SPEAK THE GOAL'S VOCABULARY. Under
-   `OrderBridge`'s instance `a ≤ b` IS `lexorderB a b = true`, and the
-   instance is a DEFINITION — so it goes in the invocation's
-   `unfold [...]` list (definitions only, already gated), and the fixed
-   kit gained `cond`'s own two cases (`Bool.cond_true/false`,
-   `rfl`-lemmas, pinned in `LadderPins`). Measured: without the instance
-   in the unfold list the two `bif`/`≤` residuals below survive
-   verbatim; with it, W1's agree square closes.
-3. **The HOW-MANY waypoint reading went OWN-DEFINITION**
-   (`Worlds.Sorting.howManyL`, `Imported/Sorting.lean`), retiring the
-   `xs.count e` library spelling that surfaced in W2's agree residual as
-   a demand for `List.count_cons`. One of the five logged
-   vocabulary-compliance readings; four remain (`SimGen.lean`'s note).
-
-## What the R1-E FILTER re-render (2026-08-14) changed
-
-Mike's ruling (item 3 of the R1-D batch, taken separately): a mirror is
-the CLOSEST IDIOMATIC LEAN analog of the BOOK — step (1) of a two-step
-use, step (2) being ordinary Lean reasoning from it to the theorem the
-user actually wants — so closeness to the book beats maximal Lean-idiom
-polish. `Mirrors/Sorting.lean`'s `FILTER` was therefore re-rendered to
-the book's shape: `(filter fn x e)` is a MODE (`REL`'s `FN` argument,
-one of the book's four quoted symbols) and a PIVOT ELEMENT, not the
-predicate closure the spec carried until then. `RelMode`/`relMode` are
-the new spec definitions; the 13 target `Prop`s are byte-identical
-across the change (their statements do not mention `filterRel`).
-
-The machinery consequence is the reading table's third case, `.fixed`
-(`IsoGen.lean`): an explicit argument whose type is CLOSED — no free
-variables, so in particular no occurrence of the element type — is one
-the embedding has no action on, and it passes through both sides of a
-square unchanged, at its own type. That is what lets `filterRel`'s mode
-argument be read at all. A FUNCTION over the element type stays outside
-the table with the same F5-style message (now naming three derived
-readings instead of two).
-
-One thing the batch did NOT rule, found on contact and reported: the
-statement builder DROPPED the mirror definition's own instance binders,
-so `howMany`'s `hom scalar` statement did not elaborate at all
-(`failed to synthesize instance of type class DecidableEq α`) — the
-ladder change could not be witnessed until the statement existed. The
-builder now re-binds them (`[DecidableEq α]`, `[TotalOrder α]`, …) at the
-user's element type, with a hard error for any class that is not a
-one-parameter class over that type. See `mirrorFnShape`.
-
-## The witnesses, and what each one established
-
-**W1 `insertOrd (a : α) : List α → List α`** — the audit's executed
-reject, now the batch's item-2 acceptance. Its frontier moved in three
-recorded stages:
-
-*Stage 1 (R1-B):* the first real blocker was an instance, not a shape —
-`insertOrd` carries `[TotalOrder α]`, so its `agree` square at `List SExpr`
-demanded a `TotalOrder SExpr` instance that did not then exist
-(`error: failed to synthesize instance of type class Sorting.TotalOrder
-SExpr`, then `mirror_iso%`'s hard error, candidate cause (c)).
-
-*Stage 2 (R1-C):* `MirrorProofs/OrderBridge.lean` now provides that
-instance by LEXORDER's Bool reading, backed by the CORE-LOGIC theorems of
-`LexorderOrder.lean` (trio-clean — nothing here trusts ACL2), plus the
-restriction lemma `lexorderB (intEmbed.enc m) (intEmbed.enc n) =
-decide (m ≤ n)` (the R4 order bridge). Re-probed with the instance, the
-`agree` square vs `Worlds.Sorting.insertL` ELABORATED its statement and
-the CLOSER left exactly two residuals (verbatim, the two cases of the
-comparison split):
-
-```
-h✝ : a ≤ head✝
-⊢ a :: head✝ :: t✝ =
-    bif Worlds.Sorting.lexorderB a head✝ then a :: head✝ :: t✝
-    else head✝ :: Worlds.Sorting.insertL a t✝
-```
-
-(and its `¬` twin, with the `ih1✝` induction hypothesis available).
-
-*Stage 3 (R1-D):* CLOSED, and LIVE below. `a ≤ head✝` IS
-`lexorderB a head✝ = true` definitionally under the instance, so naming
-the instance in the `unfold [...]` list normalises the case hypothesis to
-that Bool equation; `simp_all` then rewrites the reading's `bif`
-condition with it and `cond`'s own two cases finish both branches. The
-`hom list` square is still NOT declared: it needs the embedding to
-RESPECT the order, and `Acl2Embed` has no order field by construction
-("that dimension arrives with sorting", `IsoGen`) — an honest frontier,
-and a failing `mirror_iso%` leaves a `sorryAx`-carrying declaration
-behind, which this tree does not accept.
-
-**W2 `howMany (a : α) : List α → Nat`** — the positive one, and the
-batch's items 1+3 acceptance. Its `agree` square elaborated from the
-start (the element binder read as `.elem` and typed `SExpr`, the list
-binder as `.list`, `DecidableEq SExpr` found); the closer's residual was
-
-```
-⊢ (if a = head✝ then 1 else 0) + List.count a t✝ = List.count a (head✝ :: t✝)
-```
-
-— i.e. it wanted `List.count_cons`, a LIBRARY lemma about a LIBRARY
-reading, which the fixed ladder rightly cannot reach. Item 3 removed the
-cause rather than the symptom: the reading is now the own-definition
-`howManyL`, whose own equation the invocation unfolds, and the square
-CLOSES (live below). The `hom scalar` square's residual was the
-element-position `if e.enc a = e.enc head✝ …` vs `if a = head✝ …`; item
-1's `enc_inj_iff` rewrites exactly that, and it CLOSES too — once the
-statement builder stopped dropping `[DecidableEq α]` (above). Recorded
-from R1-B and still standing: the `hom scalar` CODEC is fine for a `Nat`
-result — that class asserts scalar INVARIANCE (`fn (encoded args) =
-fn (args)`) and carries no result codec at all.
-
-**W3 `filterRel`** — two recorded stages:
-
-*Stage 1 (R1-B):* with the spec's old signature `filterRel (keep : α →
-Bool)` this was the expected named frontier and was PINNED here: the
-shape table hard-errored on the function-valued argument before any
-declaration was produced, so the pin cost no `sorryAx`.
-
-*Stage 2 (R1-E):* that frontier is DISSOLVED — not widened. The
-function argument was the MIRROR SPEC's idiom, never the book's
-(`(filter fn x e)` is a mode symbol plus a pivot element), and the
-ruling above re-rendered the spec to the book. There is no
-function-valued argument left to reject, so the pin is gone with it;
-what stands in its place is a MEASURED state, recorded here because no
-declaration can carry it.
-
-The two statements now BUILD (verbatim `#check`, off the generator):
-
-```
-filterRel_agree_filterL : ∀ (fn : Sorting.RelMode) (ev : SExpr) (xs : List SExpr),
-  Sorting.filterRel fn ev xs = Worlds.Sorting.filterL (modeSym fn) ev xs
-
-@filterRel_map_hom : ∀ {α : Type u_1} [inst : Sorting.TotalOrder α]
-  [inst_1 : DecidableEq α] (e : Acl2Embed α) (fn : Sorting.RelMode) (ev : α)
-  (xs : List α),
-  List.map e.enc (Sorting.filterRel fn ev xs) = Sorting.filterRel fn (e.enc ev) (List.map e.enc xs)
-```
-
-(`modeSym : RelMode → SExpr` is the four-line machinery-side decode of
-the mode to the book's quoted symbol; the mode reads `.fixed` and so
-appears UNCHANGED on both sides of the homomorphism square, which is
-exactly what the pass-through reading claims.)
-
-Neither CLOSES, and the two failures are different:
-
-* `hom list` fails for W1's reason, in FILTER vocabulary — the
-  embedding would have to respect the ORDER. Residual verbatim (case 2
-  of the split; case 3 is its `¬` twin):
-
-  ```
-  h✝ : Sorting.relMode fn head✝ ev = true
-  ih1✝ : List.map e.enc (Sorting.filterRel fn ev t✝) = Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
-  ⊢ e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝) =
-      if Sorting.relMode fn (e.enc head✝) (e.enc ev) = true then
-        e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
-      else Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
-  ```
-
-  i.e. it wants `relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`.
-  `enc_inj_iff` (ruling item 1) covers the mode's EQUALITY test; the
-  `≤` test is the order dimension `Acl2Embed` has no field for. Honest
-  frontier, unchanged in substance from W1's.
-
-* `agree` fails on VOCABULARY, three separate gaps, measured one at a
-  time (the whole residual is ~100 lines of stuck `match fn`/`if`
-  chain; the load-bearing lines are quoted):
-
-  1. the MODE DISPATCH. The reading's `relL` selects by comparing
-     symbols (`if fv == symV "LT" then …`), so the closer must both
-     case-split `fn` — `fun_induction` inducts on `filterRel`'s own
-     list recursion and never touches the mode — and then EVALUATE a
-     ground `Bool` comparison. `simp only` does neither: with the mode
-     bound it is stuck at
-     `(match fn with | RelMode.lt => SExpr.atom (Atom.symbol {name := "LT", …}) | …) == symV "LT"`,
-     and even at a CONCRETE mode the ground comparison does not reduce
-     (measured: `simp only []` does not fire `reduceIte` at all).
-  2. `decide (b = true)` vs `b`. The spec's `relMode` is Bool-valued
-     over `decide (i ≤ j)`, and under the order instance that is
-     `decide (lexorderB i j = true)`, while the reading has the plain
-     `lexorderB i j`:
-     `h✝ : (decide (Worlds.Sorting.lexorderB head✝ ev = true) && !decide (head✝ = ev)) = true`.
-     Closing that needs `Bool.decide_eq_true` — NOT a `rfl`-lemma (it
-     is `cases b <;> rfl`), so it is outside the ladder's pinned
-     admission criterion.
-  3. `==` vs `decide (· = ·)`. This one is already reachable under the
-     current rules: `instBEqOfDecidableEq` is a DEFINITION, so naming
-     it in the invocation's `unfold [...]` list turns the reading's
-     `!a == e` into the spec's `!decide (a = e)`.
-
-  The obvious repair — give `relMode` its own `agree` square, which the
-  closer would then pick up automatically as a REGISTERED CALLEE square
-  of `filterRel` — is not available: `relMode` is NOT RECURSIVE, and
-  Lean generates no functional induction principle for a non-recursive
-  definition, so the template's `fun_induction` fails outright
-  (`No functional induction theorem for 'relMode'`). That bound is
-  general, not a `relMode` quirk: `odds` and `permWitness` are
-  non-recursive spec definitions too.
-
-  MEASURED CLOSING CONDITION (against the real spec definitions, in
-  `.tmp`, not declared): with a MODE-SPECIALIZED reading — the one the
-  waypoint theorems actually speak, e.g. `xs.filter (fun a =>
-  lexLtB a ev)` for `'LT` and `xs.filter (fun a => lexorderB ev a)` for
-  `'GTE`, which have no symbol dispatch — gap 1 disappears, gap 3 is an
-  unfold-list entry, and the square closes IFF the fixed kit gains gap
-  2's single rung. Removing that rung alone re-opens it. So the whole
-  distance between here and a live `agree` square is: (i) one ladder
-  rung (`decide (b = true) = b`), plus (ii) a way to declare a square
-  at a SPECIFIC mode — `vars` takes identifiers, and `registerSquare`
-  is fail-closed at one `agree` square per mirror definition, so four
-  per-mode squares cannot be registered as things stand. Both are
-  design changes to the square classes, i.e. rulings, not edits — and
-  per the thin-Lean ruling the escape is never a hand square.
-
-*Stage 3 (R4 wave 0, 2026-08-14):* rung (i) LANDED — `Bool.decide_eq_true`
-is in the fixed kit and the ladder's criterion now reads "`rfl`-lemmas +
-two named plumbing families" (`IsoGen.lean`). Route (ii) — the ruled
-ENUM-REFINEMENT registry, a once-per-datatype constructor↦ACL2-value
-table off which the generator would emit one square per constructor with
-the mapped LITERAL on the waypoint side — was NOT built, because its
-acceptance witness does not close. What was measured, four modes each
-(`.tmp`, not declared; `filterRel <ctor> ev xs = filterL <literal> ev xs`,
-the registry's own statement shape):
-
-* THE RULED LADDER (fixed kit incl. the new rung): FAILS, all four.
-* the ruled ladder + GROUND EVALUATION (`simp_all (config :=
-  { decide := true })`) + `ite`'s own two cases (`ite_true`/`ite_false`):
-  CLOSES, all four.
-* R1-E's stage-2 measurement REPRODUCES unchanged: against the
-  dispatch-free mode-specialized reading the square closes with the rung
-  and re-opens without it.
-
-The finding that separates them: R1-E's "mode specialization" was at the
-READING level — a reading with no symbol dispatch, which is also the
-vocabulary the REAL waypoint drivers speak (`Imported/Waypoints/
-Qsort.lean`: `all_rel_filter_1_native_driver`,
-`how_many_filter_1_native_driver` state `xs.filter (fun a => lexLtB a
-ev)`, never `filterL '<mode>`). The registry as ruled specializes the
-ARGUMENT VALUE instead, and hands that literal to `filterL`, whose
-`relL` still dispatches at runtime (`fv == symV "LT"`). The fixed closer
-cannot evaluate that ground comparison: `simp only`'s simprocs do not
-decide `SExpr` equality, and `Worlds.Sorting.symV` is PRIVATE — so it
-can neither be named in the invocation's `unfold [...]` list nor matched
-by the reading's own dispatch `rfl`-lemmas `relL_LT`/`relL_LTE`/
-`relL_GTE` (simp matches up to REDUCIBLE defeq, and `symV` is neither
-reducible nor nameable here). Gap 1 of stage 2 is therefore NOT removed
-by instantiating the mode; it is removed only by a dispatch-free reading.
-
-So the remaining distance is THREE ladder ingredients, not one:
-`Bool.decide_eq_true` (landed), `ite_true`/`ite_false` (`rfl`-lemmas —
-`ite`'s own two cases, the exact analogue of the already-admitted `cond`
-pair), and GROUND EVALUATION in rung 2, which is NEW IN KIND: not a
-lemma but a closer CAPABILITY, outside the pinned criterion as written.
-(The argument for it: rung 1 is bare `rfl`, which already computes
-without limit, so deciding CLOSED propositions inside rung 2 is no
-stronger, and a square over variables cannot be closed by ground
-evaluation. The argument against: the criterion says "nothing else", and
-every previous kit change here was a ruling.) That is a ruling, not an
-executor call — and per the thin-Lean ruling the escape is never a hand
-square.
-
-The `hom list` square was RE-PROBED at R4 wave 0 for the record: its
-residual was byte-identical to stage 2's (same two cases, same wanted
-fact `relMode fn (e.enc a) (e.enc ev) = relMode fn a ev`); frontier
-unchanged at that point — `enc_inj_iff` covers the mode's EQUALITY test,
-the `≤` test is the order dimension `Acl2Embed` has no field for.
-
-*Stage 4 (R4 wave 1, 2026-08-14) — the ORDER half of W3's `hom list`
-frontier is GONE; only a `Bool` coercion is left.* `filterRel` was out of
-wave 1's declared scope, so nothing is declared here, but the wave's
-`OrderedEmbed` bears directly on the residual above and the measurement
-belongs on the record. Measured (`.tmp`, not declared) with the square
-stated over `OrderedEmbed` and closed by the wave-1 kit plus `e.ord`:
-
-* the `≤` test is DISCHARGED — `ord` is a `Prop`-level iff, so it
-  rewrites under `decide` and the whole `relMode` dispatch follows; the
-  positive case CLOSES;
-* what survives is one case, and it is not about order at all:
-
-  ```
-  ⊢ Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝) =
-      if false = true then e.enc head✝ :: Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
-      else Sorting.filterRel fn (e.enc ev) (List.map e.enc t✝)
-  ```
-
-* with `Bool.false_eq_true` added to the fixed kit — the same Bool/decide
-  coercion family as the already-admitted `Bool.decide_eq_true` — the
-  square CLOSES, all cases.
-
-So W3's `hom list` distance is now ONE rung of an already-admitted
-family, plus the declaration itself; the `agree` square's three gaps
-(stage 2/3) are untouched by this wave and stand as recorded.
--/
+The book's ORDEREDP-ISORT. Three registered squares carry it and would
+each fail closed if missing: `isort_agree_isortL` and
+`ordered_agree_orderedpRec` (W5/W11 — the crossing's vocabulary), then
+`isort_map_hom` backwards and `ordered_map_invariant` forwards (W5/W11 —
+the transport's normalisation). The embedding is `intOrderedEmbed`
+(`OrderBridge`), whose `ord` field is PROVED by `lexorderB_intEmbed`, so
+the `Int` mirror carries no extra hypothesis — which is exactly what the
+charter's wave-2c line predicted. -/
 
 namespace ACL2Lean.MirrorProofs
 
 open ACL2 ACL2Lean
 
-/-! ## W1 — `insertOrd` agrees with the INSERT reading (LIVE)
+/-- **`isort_ordered` at `Int`, via ACL2 replay** — the FIRST sorting
+    mirror, and the first product whose content is a sorting book
+    theorem. Content enters through the generated crossing
+    `isort_ordered_sexpr`, which cites
+    `orderedp_isort_native_driver` (the catalogued ORDEREDP-ISORT
+    native, `sorting/isort`) exactly, and nowhere else. -/
+mirror_transport% isort_ordered_int : ACL2Lean.Sorting.isort_ordered Int
+  embed intOrderedEmbed
+  crossing isort_ordered_sexpr
+    from ACL2.Imported.Waypoints.orderedp_isort_native_driver
 
-The mirror definition at `List SExpr` IS `insertL`'s recursion. The
-`unfold` list is DEFINITIONS ONLY: the waypoint reading itself, and the
-order instance whose `le` field is the reading's own `lexorderB`
-comparison (which is what lets the split's case hypothesis close the
-`bif`). -/
-
-mirror_iso% insertOrd_agree_insertL for ACL2Lean.Sorting.insertOrd
-  vars [a, xs]
-  square agree (Worlds.Sorting.insertL a xs)
-  unfold [Worlds.Sorting.insertL, instTotalOrderSExpr]
-
-/-- info: 'ACL2Lean.MirrorProofs.insertOrd_agree_insertL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+/-- info: 'ACL2Lean.MirrorProofs.isort_ordered_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
-#print axioms insertOrd_agree_insertL
+#print axioms isort_ordered_int
 
-/-! ## W2 — `howMany` (LIVE, both classes)
+/-! ## THE SECOND SORTING PRODUCT — `msort_ordered` at `Int`
 
-The AGREEMENT square is against the OWN-DEFINITION reading `howManyL`
-(ruling batch item 3); the MAP-INVARIANCE square is the element-position
-homomorphism the embedding's injectivity closes (item 1). -/
+The charter's wave-2c pair was `isort_ordered` + `isort_perm`. The second
+of those CANNOT LAND (the record is below: there is no PERM-ISORT
+theorem in the book at all), so the second product is taken from the
+long tail instead — `msort_ordered`, the book's ORDEREDP-MSORT — because
+it costs exactly the three transport lines and needs no new machinery:
+`msort`'s two squares are wave 2a's, `Ordered`'s two are W11's (one of
+them landed above), and the waypoint is catalogued
+(`sorting/msort`, `orderedp_msort_native_driver`). -/
 
-mirror_iso% howMany_agree_howManyL for ACL2Lean.Sorting.howMany
-  vars [a, xs]
-  square agree (Worlds.Sorting.howManyL a xs)
-  unfold [Worlds.Sorting.howManyL]
+/-- **`msort_ordered` at `Int`, via ACL2 replay** — the second sorting
+    mirror. Content enters through the generated crossing
+    `msort_ordered_sexpr`, which cites the catalogued ORDEREDP-MSORT
+    native exactly, and nowhere else. -/
+mirror_transport% msort_ordered_int : ACL2Lean.Sorting.msort_ordered Int
+  embed intOrderedEmbed
+  crossing msort_ordered_sexpr
+    from ACL2.Imported.Waypoints.orderedp_msort_native_driver
 
-/-- info: 'ACL2Lean.MirrorProofs.howMany_agree_howManyL' depends on axioms: [propext] -/
+/-- info: 'ACL2Lean.MirrorProofs.msort_ordered_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
-#print axioms howMany_agree_howManyL
+#print axioms msort_ordered_int
 
-mirror_iso% howMany_map_invariant for ACL2Lean.Sorting.howMany
-  vars [a, xs]
-  square hom scalar
+/-! ## THE THIRD SORTING PRODUCT — `ordered_perm_unique` at `Int`
 
-/-- info: 'ACL2Lean.MirrorProofs.howMany_map_invariant' depends on axioms: [propext] -/
+The book's ORDERED-PERMS, and the first product whose spec `Prop`
+CARRIES HYPOTHESES (`∀ xs ys, Ordered xs → Ordered ys → Permuted xs ys →
+xs = ys`). Two things had to arrive for it, and both are recorded where
+they live rather than summarised away:
+
+* the `Permuted` AGREE square (`SortingPermSquares`, R4 wave 2d), which
+  is what carries the third hypothesis into the reading's vocabulary. It
+  needed the `rm` agree square, which needed the OWN-DEFINITION `rmL`
+  reading — the compliance conversion of wave 2d item 1;
+* `mirror_transport%`'s HYPOTHESIS-CARRYING rung (`TransportGen`, item
+  5): the binder walk now admits DATA-THEN-HYPOTHESES, the crossing
+  rewrites the hypotheses as well as the goal with the same fixed
+  agreement-square set, and the mirror rung applies the normalised
+  crossing instance to the mirror's own hypotheses. The hypothesis-free
+  path is a separate branch and is byte-identical to what it was.
+
+The waypoint cited is `ordered_perms_eq_driver`, a DECODE-SHAPE
+corollary of the catalogued ORDERED-PERMS native
+(`ordered_perms_native_driver`, `(xs == ys) = permL xs ys` under the two
+sortedness hypotheses) — the same class as that native's existing
+`List.Perm` corollary, carrying no content of its own: the content is
+the replay's, and the seam gate checks that the product's proof term
+reaches `orderedPermsCapReplayedCond`. -/
+
+/-- **`ordered_perm_unique` at `Int`, via ACL2 replay** — an ordered
+    permutation is unique. Content enters through the generated crossing
+    `ordered_perm_unique_sexpr`, which cites the ORDERED-PERMS native's
+    decode corollary exactly, and nowhere else. -/
+mirror_transport% ordered_perm_unique_int :
+    ACL2Lean.Sorting.ordered_perm_unique Int
+  embed intOrderedEmbed
+  crossing ordered_perm_unique_sexpr
+    from ACL2.Imported.Waypoints.ordered_perms_iff_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.ordered_perm_unique_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
-#print axioms howMany_map_invariant
+#print axioms ordered_perm_unique_int
 
-/-! ## W4 — `insertOrd`'s HOMOMORPHISM square (LIVE — the order dimension)
+/-! ## THE FOURTH AND FIFTH SORTING PRODUCTS — `qsort_ordered` and
+`qsort_perm` at `Int` (R4 wave 2e)
 
-The square W1 stage 3 recorded as an honest frontier ("it needs the
-embedding to RESPECT the order, and `Acl2Embed` has no order field by
-construction"). R4 wave 1 closes it the way the frontier said it had to
-be closed — by giving the embedding the field, not by giving the closer
-a rung: `OrderedEmbed` (`MirrorProofs/OrderBridge.lean`) extends
-`Acl2Embed` with `ord : (enc a ≤ enc b) ↔ (a ≤ b)`, and the
-`embed … via [...]` clause binds it in THIS square's statement and hands
-that one field to THIS square's closer (`IsoGen`'s "the order-respect
-route" carries the criterion text; `intOrderedEmbed` is the witness, its
-field proved by `lexorderB_intEmbed`).
+The book's ORDEREDP-QSORT and PERM-QSORT. Wave 2d left BOTH one
+orchestrator decision away, and named exactly what was missing: a place
+for the instance-canonicalisation fact that makes the four per-mode
+`filterRel` agree squares FIRE inside `qsort`'s closer (J-2b-4). O-7
+(2026-08-18) ruled it — the `instances [...]` clause on a square
+declaration — and the square landed on the first attempt with no other
+change: the ladder is untouched this wave and no new capability was
+added. The record is `MirrorProofs/SortingQsortSquares.lean`; the
+reading's own validation bound is
+`Imported/SortingQsortReading.lean`'s header.
 
-The square is not merely easier this way — it is only TRUE this way: for
-an embedding that does not respect the order the encoded insertion takes
-the other branch. Measured residual WITHOUT `ite`'s own two cases in the
-fixed kit (the ladder's other wave-1 addition), both cases verbatim:
+The waypoints cited are the two catalogued qsort natives read at the
+depth-1 reading (`orderedp_qsort_own_driver`,
+`perm_qsort_own_driver` — decode-shape corollaries in the class
+`ordered_perms_eq_driver` established, carrying no content of their
+own), and the seam gate checks that each product's proof term reaches
+`orderedpQsortReplayedCond` / `permQsortReplayedCond`. -/
+
+/-- **`qsort_ordered` at `Int`, via ACL2 replay** — QUICKSORT SORTS.
+    Content enters through the generated crossing `qsort_ordered_sexpr`,
+    which cites the catalogued ORDEREDP-QSORT native (at the depth-1
+    reading) exactly, and nowhere else. -/
+mirror_transport% qsort_ordered_int : ACL2Lean.Sorting.qsort_ordered Int
+  embed intOrderedEmbed
+  crossing qsort_ordered_sexpr
+    from ACL2.Imported.Waypoints.orderedp_qsort_own_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.qsort_ordered_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms qsort_ordered_int
+
+/-- **`qsort_perm` at `Int`, via ACL2 replay** — QUICKSORT PERMUTES, and
+    the FIRST perm-shaped sorting product. Content enters through the
+    generated crossing `qsort_perm_sexpr`, which cites the catalogued
+    PERM-QSORT native (at the depth-1 reading) exactly, and nowhere
+    else. -/
+mirror_transport% qsort_perm_int : ACL2Lean.Sorting.qsort_perm Int
+  embed intOrderedEmbed
+  crossing qsort_perm_sexpr
+    from ACL2.Imported.Waypoints.perm_qsort_own_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.qsort_perm_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms qsort_perm_int
+
+/-! ## THE MULTIPLICITY PRODUCTS — `isort_howMany`, `msort_howMany` and
+`qsort_howMany` at `Int` (R4 wave 2f)
+
+The books' HOW-MANY-ISORT, HOW-MANY-MSORT and HOW-MANY-QSORT: each sort
+leaves the count of every element unchanged. These are the corpus's own
+statement of "the sort permutes" — the form the sorting books actually
+prove — and the spec `Prop`s were reshaped to it in this wave.
+
+WHAT THEY COST IN MACHINERY: ONE ROW of the transport's binder table.
+Each `Prop` binds an ELEMENT (`∀ (a : α) (xs : List α)`), which the
+binder walk previously hard-errored on ("neither a `List SExpr`
+argument nor a HYPOTHESIS"), and that error was the charter's predicted
+element-binder frontier. The row is the smallest thing that clears it:
+a scalar `SExpr` binder is encoded by `e.enc a` where a list binder is
+encoded by `List.map e.enc`, and the crossing instance is taken at
+`e.enc a`. Nothing else moved — `howMany_map_invariant` (a SCALAR
+homomorphism square, live since wave 2a) is what deletes the encoding
+again on the mirror rung, and the closers are untouched. The row is
+fail-closed on the hypothesis-carrying path (a scalar binder in a spec
+that also carries hypotheses is a named frontier, pinned as a negative
+test in `Tests/IsoGenGateTests.lean`). -/
+
+/-- **`isort_howMany` at `Int`, via ACL2 replay** — INSERTION SORT
+    PRESERVES MULTIPLICITY. Content enters through the generated
+    crossing `isort_howMany_sexpr`, which cites the catalogued
+    HOW-MANY-ISORT native exactly, and nowhere else. -/
+mirror_transport% isort_howMany_int : ACL2Lean.Sorting.isort_howMany Int
+  embed intOrderedEmbed
+  crossing isort_howMany_sexpr
+    from ACL2.Imported.Waypoints.how_many_isort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.isort_howMany_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms isort_howMany_int
+
+/-- **`msort_howMany` at `Int`, via ACL2 replay** — MERGE SORT PRESERVES
+    MULTIPLICITY. Content enters through the generated crossing
+    `msort_howMany_sexpr`, which cites the catalogued HOW-MANY-MSORT
+    native exactly, and nowhere else. -/
+mirror_transport% msort_howMany_int : ACL2Lean.Sorting.msort_howMany Int
+  embed intOrderedEmbed
+  crossing msort_howMany_sexpr
+    from ACL2.Imported.Waypoints.how_many_msort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.msort_howMany_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms msort_howMany_int
+
+/-- **`qsort_howMany` at `Int`, via ACL2 replay** — QUICKSORT PRESERVES
+    MULTIPLICITY. Content enters through the generated crossing
+    `qsort_howMany_sexpr`, which cites the catalogued HOW-MANY-QSORT
+    native (at the depth-1 reading) exactly, and nowhere else. -/
+mirror_transport% qsort_howMany_int : ACL2Lean.Sorting.qsort_howMany Int
+  embed intOrderedEmbed
+  crossing qsort_howMany_sexpr
+    from ACL2.Imported.Waypoints.how_many_qsort_own_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.qsort_howMany_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms qsort_howMany_int
+
+/-! ## `permuted_equivalence` at `Int` (R4 wave 2f)
+
+The perm book's PERM-IS-AN-EQUIVALENCE — ACL2's `defequiv` content, and
+the first product whose spec `Prop` is a CONJUNCTION rather than a
+single equation or `Iff`. It needed nothing new: the binder walk already
+admits three list binders, and the body check only refuses a nested
+`∀`, so the conjunction passes through as the equation-position body it
+is. The waypoint cited is `perm_equivalence_permL_driver`, the bundle
+re-spelled in the own-definition `permL` vocabulary (the decode class
+`ordered_perms_eq_driver` established), and the seam gate checks that
+the product's proof term reaches `permEquivReplayed`. -/
+
+/-- **`permuted_equivalence` at `Int`, via ACL2 replay** — permutation
+    is an equivalence relation. Content enters through the generated
+    crossing `permuted_equivalence_sexpr`, which cites the catalogued
+    PERM-IS-AN-EQUIVALENCE native's bundle exactly, and nowhere else. -/
+mirror_transport% permuted_equivalence_int :
+    ACL2Lean.Sorting.permuted_equivalence Int
+  embed intOrderedEmbed
+  crossing permuted_equivalence_sexpr
+    from ACL2.Imported.Waypoints.perm_equivalence_permL_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.permuted_equivalence_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms permuted_equivalence_int
+
+
+/-! ## THE BSORT PRODUCTS — `bsort_ordered` and `bsort_howMany` at `Int`
+(R4 wave 2g)
+
+The book's ORDEREDP-BSORT and HOW-MANY-BSORT — the last two of the
+sorting corpus's four sorts to arrive, and the only pair that needed
+machinery on BOTH sides of the seam:
+
+* the WAYPOINT side had no BSORT exec kit at all, because `BSORT` is the
+  corpus's only `userFn`-MEASURED defun (`(BNEXT-SIZE X)`); the kit is
+  now GENERATED by `derive_exec%`'s new measure row
+  (`Imported/ExecGen.lean`, `Imported/SortingBsortKit.lean`);
+* the MIRROR side's two squares looped the closer on the spec's own
+  fixpoint equation; the FIXPOINT-GUARD capability
+  (`MirrorProofs/IsoKit.lean`) closes that, and both squares are LIVE
+  (`MirrorProofs/SortingBsortSquares.lean`).
+
+Neither product needed a decode corollary or a transport-table row: the
+two natives are stated in exactly the shapes `msort_ordered` and
+`msort_howMany` transport through. -/
+
+/-- **`bsort_ordered` at `Int`, via ACL2 replay** — BUBBLE SORT SORTS.
+    Content enters through the generated crossing `bsort_ordered_sexpr`,
+    which cites the catalogued ORDEREDP-BSORT native exactly, and
+    nowhere else. -/
+mirror_transport% bsort_ordered_int : ACL2Lean.Sorting.bsort_ordered Int
+  embed intOrderedEmbed
+  crossing bsort_ordered_sexpr
+    from ACL2.Imported.Waypoints.orderedp_bsort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.bsort_ordered_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms bsort_ordered_int
+
+/-- **`bsort_howMany` at `Int`, via ACL2 replay** — BUBBLE SORT PRESERVES
+    MULTIPLICITY. Content enters through the generated crossing
+    `bsort_howMany_sexpr`, which cites the catalogued HOW-MANY-BSORT
+    native exactly, and nowhere else. -/
+mirror_transport% bsort_howMany_int : ACL2Lean.Sorting.bsort_howMany Int
+  embed intOrderedEmbed
+  crossing bsort_howMany_sexpr
+    from ACL2.Imported.Waypoints.how_many_bsort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.bsort_howMany_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms bsort_howMany_int
+
+
+/-! ## THE AGREEMENT PRODUCTS — `msort_is_isort` and `qsort_is_isort` at
+`Int` (R4 wave 2g)
+
+The sorts-equivalent book's capstones: the corpus's own statement that
+the sorts compute the same list. Wave 2f recorded these as blocked on
+"`sorting/sorts-equivalent` has NO waypoint module at all". That is
+true and was not the whole cause, and the correction is on the record:
+`driver_replayed%` had NO ROUTE to a `:USE (:FUNCTIONAL-INSTANCE …)`
+proof — the discharge existed only as a `runBook` parameter the
+coverage sweep supplies — so these rows were replayable by the SWEEP
+and by nothing else, and no waypoint module could have been written.
+The macro's `usefi` clause (`Imported/Waypoints/Macro.lean`) is that
+route at the waypoint layer.
+
+Neither product needed anything on THIS page: the squares they consume
+(`msort`/`qsort`/`isort` agree + hom) have been live since waves 2a-2e,
+and `mirror_transport%`'s list-equation landing is the `map_inj_iff`
+alternative wave 2f added. `bsort_is_isort` is NOT here — see the
+frontier section below; its cause is not machinery. -/
+
+/-- **`msort_is_isort` at `Int`, via ACL2 replay** — MERGE SORT AND
+    INSERTION SORT AGREE. Content enters through the generated crossing
+    `msort_is_isort_sexpr`, which cites the catalogued MSORT-IS-ISORT
+    native exactly, and nowhere else. -/
+mirror_transport% msort_is_isort_int : ACL2Lean.Sorting.msort_is_isort Int
+  embed intOrderedEmbed
+  crossing msort_is_isort_sexpr
+    from ACL2.Imported.Waypoints.msort_is_isort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.msort_is_isort_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms msort_is_isort_int
+
+/-- **`qsort_is_isort` at `Int`, via ACL2 replay** — QUICKSORT AND
+    INSERTION SORT AGREE. Content enters through the generated crossing
+    `qsort_is_isort_sexpr`, which cites the catalogued QSORT-IS-ISORT
+    native (at the depth-1 reading) exactly, and nowhere else. -/
+mirror_transport% qsort_is_isort_int : ACL2Lean.Sorting.qsort_is_isort Int
+  embed intOrderedEmbed
+  crossing qsort_is_isort_sexpr
+    from ACL2.Imported.Waypoints.qsort_is_isort_native_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.qsort_is_isort_int' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms qsort_is_isort_int
+
+/-! ## R4 WAVE 2f — THE REMAINING FRONTIERS, RE-STATED AGAINST THE
+RESHAPED SPEC (each measured this wave; nothing forced)
+
+THE RESHAPE ITSELF is recorded once, in
+`docs/notes/2026-08-18_sorting-spec-reshape.md`: the spec's target
+`Prop`s were put in a BIJECTION with the corpus's result-tier theorems
+(13 `Prop`s → 16), and FIVE of the moved rows landed as products in the
+same wave — `isort_howMany`, `msort_howMany`, `qsort_howMany`,
+`permuted_equivalence`, and `ordered_perm_unique` re-landed as the
+`Iff`. What had been recorded on THIS page across waves 2c–2e as
+machinery frontiers (`isort_perm`, `perm_iff_howMany`, `sorts_agree`)
+was in each case the spec asking for a statement the books do not make;
+those subjects no longer exist, so their records leave this page and
+stay in the charter's ARC LOG for waves 2c/2d/2e, which carries them
+verbatim. What follows is what is actually left.
+
+**`perm_iff_howMany` IS RETIRED FROM THE SPEC, not solved.** Wave 2e's
+finding stands and is the reason: the `→` direction ("a permutation has
+equal counts EVERYWHERE") appears in no `(:DEFTHM …)` row of the
+corpus, and closing it in Lean would be `List.Perm.count_eq` — the
+ornamental-import antipattern. The complete 75-row inventory that
+establishes the absence is in the reshape note.
+
+**`permWitness_complete` — THE `Prop` IS THE BOOK'S NOW, AND THE `Int`
+PRODUCT IS STRUCTURALLY UNAVAILABLE (J-2e-6).** The precondition wave
+2e ruled onto this `Prop` came off in the reshape: `CONVERT-PERM-TO-
+HOW-MANY` carries no such hypothesis, and — measured in wave 2e — the
+precondition did not do the job it was ruled for either. Both halves of
+that measurement are kept here because they are the reason this row is
+an honest structural entry rather than a to-do.
+
+RE-MEASURED THIS WAVE against the UNCONDITIONAL `Prop` (wave 2e's
+numbers were taken against the preconditioned one, so they are not
+carried on trust). The CROSSING CLOSES with no residual, against a
+two-line decode corollary of the catalogued CONVERT-PERM-TO-HOW-MANY
+native (`permL xs ys = true ↔ howManyL (pceL xs ys) xs = howManyL
+(pceL xs ys) ys`, the native modulo `beq_iff_eq`) — declared in the
+probe and NOT landed in the tree, because a decode corollary whose only
+consumer cannot close is unwired machinery. The MIRROR rung's entire
+residual is verbatim, and it is unchanged by the reshape:
 
 ```
-h✝ : a ≤ head✝
-⊢ e.enc a :: e.enc head✝ :: List.map e.enc t✝ =
-    if True then e.enc a :: e.enc head✝ :: List.map e.enc t✝
-    else e.enc head✝ :: Sorting.insertOrd (e.enc a) (List.map e.enc t✝)
+h has type
+  Sorting.Permuted xs ys ↔
+    Sorting.howMany (Sorting.permWitness (List.map intOrderedEmbed.enc xs)
+        (List.map intOrderedEmbed.enc ys)) (List.map intOrderedEmbed.enc xs) =
+      Sorting.howMany (Sorting.permWitness (List.map intOrderedEmbed.enc xs)
+        (List.map intOrderedEmbed.enc ys)) (List.map intOrderedEmbed.enc ys)
+but is expected to have type
+  Sorting.Permuted xs ys ↔
+    Sorting.howMany (Sorting.permWitness xs ys) xs =
+      Sorting.howMany (Sorting.permWitness xs ys) ys
 ```
 
-— i.e. the order field had already done its whole job; what was left was
-`ite`'s own two cases. -/
-
-mirror_iso% insertOrd_map_hom for ACL2Lean.Sorting.insertOrd
-  vars [a, xs]
-  square hom list
-  embed OrderedEmbed via [ord]
-
-/-- info: 'ACL2Lean.MirrorProofs.insertOrd_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms insertOrd_map_hom
-
-/-! ## W5 — `isort` (LIVE, both classes) — the first sorting chain
-
-Both squares resolve `insertOrd`'s REGISTERED squares out of the
-registry and would fail closed without them (the `rev`→`app` pattern of
-THE LIST item 9, one book up). The homomorphism square inherits the
-order dimension from its callee: it is declared over `OrderedEmbed` too,
-because `insertOrd_map_hom` — the rewrite its step case needs — is. -/
-
-mirror_iso% isort_agree_isortL for ACL2Lean.Sorting.isort
-  vars [xs]
-  square agree (Worlds.Sorting.isortL xs)
-  unfold [Worlds.Sorting.isortL]
-
-/-- info: 'ACL2Lean.MirrorProofs.isort_agree_isortL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms isort_agree_isortL
-
-mirror_iso% isort_map_hom for ACL2Lean.Sorting.isort
-  vars [xs]
-  square hom list
-  embed OrderedEmbed via [ord]
-
-/-- info: 'ACL2Lean.MirrorProofs.isort_map_hom' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms isort_map_hom
-
-/-! ## W6 — `evens` (LIVE, both classes)
-
-The msort chain's structural half. `evens` uses no order at all, so its
-homomorphism square is over the PLAIN `Acl2Embed` — which is also the
-demonstration that the wave-1 `embed` clause is opt-in per square and
-changes nothing where it is not declared.
-
-The `agree` square carries ONE extra unfolding, `List.tail`, and it is
-worth saying why: the two sides destructure at different DEPTHS. The
-mirror `evens` matches three patterns (`[]`, `[a]`, `a :: _ :: t`,
-mirroring the book's `(cons (car l) (evens (cdr (cdr l))))`), while the
-waypoint reading `evensL` matches two and reaches the second element
-through `List.tail`. `List.tail` is a DEFINITION, so it is admissible in
-the `unfold [...]` list on the same terms as any other (a definitional
-unfolding cannot introduce content), and unfolding it is exactly what
-lets the reading's `evensL t.tail` meet the mirror's `evens t`. It is
-also a FINDING about the reading, recorded rather than fixed here:
-`evensL`'s body is spelled with a library function, which is the
-vocabulary-compliance class `Imported/SortingReadings.lean` tracks —
-re-spelling it would move `evensExec_enc`'s proof term and is out of
-wave 1's regression net. -/
-
-mirror_iso% evens_agree_evensL for ACL2Lean.Sorting.evens
-  vars [xs]
-  square agree (Worlds.Sorting.evensL xs)
-  unfold [Worlds.Sorting.evensL, List.tail]
-
-/-- info: 'ACL2Lean.MirrorProofs.evens_agree_evensL' depends on axioms: [propext, Classical.choice, Quot.sound] -/
-#guard_msgs (whitespace := lax) in
-#print axioms evens_agree_evensL
-
-mirror_iso% evens_map_hom for ACL2Lean.Sorting.evens
-  vars [xs]
-  square hom list
-
-/-- info: 'ACL2Lean.MirrorProofs.evens_map_hom' depends on axioms: [propext] -/
-#guard_msgs (whitespace := lax) in
-#print axioms evens_map_hom
-
-/-! ## W7 — `merge2`: RECORDED, not declared (the UNDESTRUCTURED-ARM bound)
-
-THREE of the four cases of BOTH squares close with the wave-1 kit.
-Case 2 does not, in either, and it is the same cause in both — the one
-new frontier this wave found.
-
-CAUSE. The mirror `merge2` renders the book's `(if (consp x) (if (consp
-y) … x) y)` faithfully, so its second arm does NOT destructure the first
-list (`| xs, [] => xs`). Lean therefore generates that equation GUARDED:
+— `permuted_map_invariant` fired (the left side is already the
+mirror's), and `howMany_map_invariant` is reported UNUSED, which is the
+precise statement of the gap: it cannot fire until the WITNESS ARGUMENT
+is `e.enc (permWitness xs ys)`, i.e. until the ELEMENT-RESULT
+homomorphism square exists. That square is FALSE, and the refutation is
+kernel-checked rather than argued (wave 2e, at a point the then-ruled
+precondition ADMITTED — so it refutes the square for the unconditional
+`Prop` a fortiori):
 
 ```
-Sorting.merge2.eq_2 : ∀ {α} [TotalOrder α] (x : List α),
-  (x = [] → False) → Sorting.merge2 x [] = x
+theorem conditional_elem_square_false :
+    ¬ (∀ (xs ys : List Int), (xs ≠ [] ∨ ys ≠ []) →
+        Sorting.permWitness (List.map intOrderedEmbed.enc xs)
+            (List.map intOrderedEmbed.enc ys)
+          = intOrderedEmbed.enc (Sorting.permWitness xs ys)) := by
+  intro h; have hc := h [1] [1] (Or.inl (by simp)); exact absurd hc (by decide)
 ```
 
-and `fun_induction` hands the template a case whose scrutinee is a bare
-variable plus that guard. Neither square can get past it:
+AND THE CHARACTERISATION, which is what makes it structural rather than
+a boundary case: `permWitness xs ys` IS the junk value on the ENTIRE
+`Permuted` half. The walk consumes `xs`, removing each element from
+`ys`; it reaches `permWitness [] []` exactly when every element of `xs`
+was found AND `ys` is exhausted — i.e. exactly when `Permuted xs ys`.
+Measured: `permWitness [1,2] [2,1] = 0` (= `default`, a permuting pair
+of NON-EMPTY lists), against `permWitness [1,2] [2,1,5] = 5` (leftover
+head — a real witness) and `permWitness [9] [2] = 9` (not found — a
+real witness). So no precondition that leaves the theorem's content
+intact can make the square true, and the `Prop` is unharmed on the junk
+half (both sides of the `Iff` hold there for ANY witness) — which is
+why the theorem is true and the SQUARE is not.
 
-* AGREE (residual verbatim; cases 1/3/4 close):
+THE TWO ROUTES THAT REMAIN, neither an executor call. (1) AN EMBEDDING
+WHOSE `default` IS IN RANGE: the square becomes true for any
+`Acl2Embed` with `e.enc default = default` (`SExpr`'s default is
+`nil`), which no embedding of `Int` can satisfy but a type with a
+nil-like default could — a spec/type question. (2) COMPOSITION: on the
+`Permuted` half both sides of the `Iff` hold for any witness, so the
+mirror follows from the crossing plus "a permutation has equal counts
+everywhere" — the direction the corpus does not prove (above), so this
+route is blocked behind an absent book theorem, and its glue is
+REASONING besides.
 
-  ```
-  xs✝ : List SExpr
-  x✝ : xs✝ = [] → False
-  ⊢ xs✝ = Worlds.Sorting.merge2L xs✝ []
-  ```
+**`msort_is_isort` / `qsort_is_isort` — LANDED IN R4 WAVE 2g; and what
+the blocker actually was.** Wave 2f recorded it as "`sorting/sorts-
+equivalent` has NO waypoint module at all — no `derive_world`, no
+`driver_replayed%` row, nothing", and treated that as a cost estimate
+for the corpus's largest book. The absence was real; its CAUSE was one
+level down and is corrected here. Each of these theorems is proved in
+ACL2 by ONE node — a `:USE (:FUNCTIONAL-INSTANCE …)` of the equisort
+scope's constrained-sorter capstone — and `driver_replayed%` had NO
+ROUTE to a functional-instance proof at all: the discharge existed only
+as a `runBook` parameter the coverage sweep supplies, so these rows were
+replayable BY THE SWEEP AND BY NOTHING ELSE, and a waypoint module could
+not have been written whatever its size. The `usefi` clause is that
+route at this layer (`Imported/Waypoints/Macro.lean`), and with it the
+module is 140 lines. `bsort_is_isort` did NOT come with them — see the
+scoreboard: its cause is an ASSUMED leaf, not this machinery.
 
-  The waypoint reading DOES destructure (`| x :: xs, [] => x :: xs`), so
-  neither of `merge2L`'s equations applies to a variable — the goal is
-  stuck, and `simp_all` reports "made no progress".
+**`bsort_ordered` / `bsort_howMany` — LANDED IN R4 WAVE 2g, and the
+frontier this page recorded for them was MIS-ATTRIBUTED.** Waves 2b–2f
+recorded the blocker as "the EXEC's termination: `bsortExec` recurses on
+`bnextExec x` for an ARBITRARY `SExpr`, where the replayed decrease (an
+`enc`-image statement, per the type-absorbed doctrine) does not reach".
+The parenthetical is the error, and it is corrected on the record: the
+`enc`-image bound belongs to the chosen NATIVE READING, not to the
+replay. A replayed statement quantifies over EVERY environment, so
+binding `X` to an arbitrary `SExpr` is exactly as available as binding it
+to `enc xs` — and stated in the exec's own vocabulary the decrease holds
+everywhere (`how_many_bad_pairs_bnext_exec_driver`,
+`Imported/Waypoints/Bsort.lean`). With that, `BSORT`'s exec is an
+ordinary generated kit and its termination proof is the book's own
+admission lemma, arriving by replay.
 
-* HOM (residual verbatim; cases 1/3/4 close, the order field doing its
-  work in 3/4 exactly as in W4):
+The kit is GENERIC, not a bsort kit: `derive_exec%` gained the measure
+table's `userFn` ROW (`Imported/ExecGen.lean`), which serves any defun
+measured by a world function; `BSORT` is its witness. On this page's side
+the two squares needed the FIXPOINT-GUARD capability
+(`MirrorProofs/IsoKit.lean`) — wave 2d-prep's recorded looping closer —
+and both are LIVE in `MirrorProofs/SortingBsortSquares.lean`.
 
-  ```
-  xs✝ : List α
-  x✝ : xs✝ = [] → False
-  ⊢ List.map e.enc xs✝ = Sorting.merge2 (List.map e.enc xs✝) (List.map e.enc [])
-  ```
+**`sorter_unique` — THE `Prop` IS THE BOOK'S AND ITS REACHABILITY IS
+THE RECORDED OPEN QUESTION.** The reshape put the `Prop` in the
+equisort capstone's own shape (TWO constrained sorters, constrained by
+`ORDEREDP-SSORTFN…` and `HOW-MANY-SSORTFN…`), which removes wave 2e's
+second route-A obstacle — "the book's capstone relates TWO CONSTRAINED
+SORTERS, not one sorter and `ISORT`" is now what the `Prop` says. Two
+things are left, and neither is an executor call.
 
-  Here both sides are the MIRROR definition, so there is no reading to
-  blame: to fire `eq_2` on the right the closer must discharge
-  `List.map e.enc xs✝ = [] → False` from `xs✝ = [] → False`, i.e.
-  transport the guard through `List.map`.
-
-MEASURED CLOSING CONDITIONS (`.tmp`, not declared), in order of how much
-they ask for:
-
-1. ONE CASE SPLIT on the undestructured argument, then the EXISTING kit:
-   both squares close, all four cases, nothing else added — the `nil`
-   branch by the guard (`absurd rfl`), the `cons` branch by the kit.
-   Measured verbatim.
-2. `List.map_eq_nil_iff` in the fixed kit: does NOT close the hom square
-   (case 2 survives unchanged) and cannot touch the agree square at all.
-3. `merge2L.eq_def` in the `unfold` list: LOOPS (`Possibly looping simp
-   theorem: merge2L.eq_3`, then max recursion depth) — recorded so the
-   next reader does not re-try it.
-4. A `split` rung after the kit: no effect — there is no `match`/`ite`
-   in either residual to split.
-
-So the distance is ONE ingredient, and it is a CLOSER CAPABILITY, not a
-lemma: the template would have to case-split an argument the mirror
-definition's own recursion left alone. That is new in kind — the same
-class as W3 stage 3's GROUND EVALUATION, and outside the ladder's pinned
-criterion, which admits `rfl`-lemmas and the two plumbing families and
-nothing else. Wave 1 held that line (see `IsoGen`'s ladder section) and
-recorded the measurement instead of taking it; the shape of a ruling
-would be "when the mirror definition's equation leaves an argument
-undestructured, the closer may refine that case by the argument's own
-constructors". Per the thin-Lean ruling the escape is never a hand
-square.
-
-## W8 — `msort`: RECORDED, not declared (blocked ONLY on W7)
-
-Both `msort` squares reduce, under the wave-1 kit plus the REGISTERED
-`evens` squares and `unfold [ACL2Lean.Sorting.odds]`, to exactly
-`merge2`'s corresponding square — nothing else is missing. Cases 1 and 2
-close in both; case 3's residual, after the closer has run, is verbatim:
-
-* AGREE — literally `merge2 A B = merge2L A B` at the two recursive
-  results (i.e. `merge2_agree_merge2L` instantiated):
-
-  ```
-  ⊢ Sorting.merge2 (Worlds.Sorting.msortL (Worlds.Sorting.evensL (a✝ :: head✝ :: t✝)))
-        (Worlds.Sorting.msortL (Worlds.Sorting.evensL (head✝ :: t✝))) =
-      Worlds.Sorting.merge2L (Worlds.Sorting.msortL (Worlds.Sorting.evensL (a✝ :: head✝ :: t✝)))
-        (Worlds.Sorting.msortL (Worlds.Sorting.evensL (head✝ :: t✝)))
-  ```
-
-* HOM — `merge2`'s homomorphism square at the two recursive results,
-  with the two IHs in scope to finish it:
-
-  ```
-  ⊢ List.map e.enc
-        (Sorting.merge2 (Sorting.msort (Sorting.evens (a✝ :: head✝ :: t✝)))
-          (Sorting.msort (Sorting.evens (head✝ :: t✝)))) =
-      Sorting.merge2 (Sorting.msort (Sorting.evens (e.enc a✝ :: e.enc head✝ :: List.map e.enc t✝)))
-        (Sorting.msort (Sorting.evens (e.enc head✝ :: List.map e.enc t✝)))
-  ```
-
-Both are the registry doing its job: a missing callee square fails
-closed, and the failure names exactly the square that is missing. W7's
-ruling unblocks W8 with no further work — the `msort` invocations are
-two four-line declarations.
-
-(Recorded for the record: `msort`'s ODDS callee needs no square of its
-own on either route — `unfold [ACL2Lean.Sorting.odds]` carries
-`odds (a :: t)` to `evens t`, which is exactly where `msortL`'s own
-recursion goes. The `odds` SQUARES are a separate frontier, W9.)
-
-## W9 — `odds`: RECORDED, not declared (a NON-RECURSIVE spec definition)
-
-`odds` is `| [] => [] | _ :: t => evens t` — the book's `(EVENS (CDR
-L))`, and not recursive. The template inducts with `fun_induction`, and
-Lean generates no functional induction principle for a non-recursive
-definition, so BOTH classes fail before any goal exists. Verbatim, off
-the real generator (the hard error fires correctly, and its lemma-set
-line confirms `evens_map_hom` was resolved from the registry):
-
-```
-mirror_iso%: the square template did not close odds_map_hom.
-OBSERVED: the declaration was produced but carries `sorryAx` …
-```
-
-with Lean's own underlying error:
-
-```
-No functional induction theorem for `Sorting.odds`, or function is mutually recursive
-```
-
-This is the bound W3 stage 2 already named as GENERAL rather than a
-`relMode` quirk ("`odds` and `permWitness` are non-recursive spec
-definitions too"), now executed on a second member of the family. The
-shape of the fix is a template FALLBACK from `fun_induction` to
-`fun_cases` (which does exist for a non-recursive definition and
-supplies exactly the definition's own case analysis, with no induction
-hypotheses and no inference) — a template capability, so a ruling, and
-one that would unblock `relMode` and `permWitness` at the same time.
-
-A SECOND, independent gap sits behind the same frontier and is worth
-separating: there is no ODDS waypoint READING at all. `Imported/
-Sorting.lean` carries `insertL`/`isortL`/`merge2L`/`evensL`/`msortL` but
-no `oddsL`, and no waypoint driver speaks one (`how_many_evens_and_odds
-_native_driver` states the odds side as `evensL t`). Writing one is not
-wave-1 work: a reading is validated through `derive_sim%` against the
-book function's exec, and there is no ODDS EXEC KIT — `oddsBody` exists
-but there is no `oddsExec` and no `register_exec_kit% "ODDS"` (the
-`msort` correctness proof walks the ODDS body inline, as
-`evensExec (Logic.cdr xv)`). So the `odds` AGREE square needs an exec
-kit first; the `odds` HOM square needs only the `fun_cases` fallback.
-
-## W3 — `filterRel`: RECORDED, not declared
-
-Nothing is emitted here on purpose. Both of `filterRel`'s squares now
-build their STATEMENTS (the mode reads `.fixed`) and neither closes, and
-a closer failure leaves a `sorryAx`-carrying declaration behind — so the
-state lives in the module docstring above (statements verbatim,
-residuals verbatim, the measured closing condition) rather than in a
-`#guard_msgs` pin. The stage-1 pin that stood here guarded the
-function-argument message; the re-render deleted the function argument,
-so the pin went with it. -/
+* ROUTE A, the encapsulate/parametric lane (prototype:
+  `Imported/Waypoints/EquisortParametric.lean`). (1) The transport's
+  binder table hard-errors on a FUNCTION binder — `sorter_unique`'s
+  `f` and `g`. (2) THE DEEP ONE, and it is not a machinery gap: the
+  `Prop` quantifies over an ARBITRARY Lean `f : List α → List α`, while
+  a parametric constant can only be instantiated at a function that is
+  the `evalOpt` image of a `World` defun. There is no construction
+  taking an arbitrary Lean function to an ACL2 world, so route A cannot
+  reach the `Prop` AS STATED however much machinery is built. That is
+  the REACHABILITY QUESTION recorded with the 2026-08-18 ruling: the
+  `Prop` is correct, and whether it is reachable is a design decision.
+* ROUTE B, COMPOSITION FROM LANDED PRODUCTS, whose shape the reshape
+  changed and simplified. `ordered_perm_unique` is a THEOREM (and now
+  an `Iff`, which is the direction this route needs), and the two
+  sorters' hypotheses give count agreement between `f xs` and `g xs`
+  directly — so what is left is `permWitness_complete`'s `←` direction
+  (counts agree AT THE WITNESS → `Permuted`) plus a COMPOSITION
+  mechanism. The first is the structurally-unavailable product above.
+  What route B is NOT is free: the glue is logical REASONING over
+  replayed facts, and whether that is "thin generic lifting" (canon
+  line 1's exception) or a Lean-side theorem specific to this example
+  is a RULING, not an executor call. Recorded for it. -/
 
 end ACL2Lean.MirrorProofs

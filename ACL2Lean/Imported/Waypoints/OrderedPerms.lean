@@ -97,15 +97,50 @@ theorem orderedPermsCapReplayed_uncond (env : Env) :
   orderedPermsCapReplayedCond env
 
 /-- ENTRY, PROVED — ORDERED-PERMS natively: for lexorder-sorted lists,
-    equality IS permutation-equivalence (the Bool identity). -/
+    equality IS permutation-equivalence (the Bool identity).
+
+    Stated in the OWN-DEFINITION `permL` vocabulary since R4 wave 2d
+    (O-6): this is the native the `ordered_perm_unique` mirror meets,
+    and a mirror agree square must face an own-definition reading. -/
 theorem ordered_perms_native_driver (xs ys : List SExpr)
     (hx : Worlds.Sorting.orderedpRec xs = true)
     (hy : Worlds.Sorting.orderedpRec ys = true) :
-    (xs == ys) = xs.isPerm ys :=
-  Worlds.Sorting.ordered_perms_native_of_replayed orderedPermsWorldD
+    (xs == ys) = Worlds.Sorting.permL xs ys := by
+  rw [Worlds.Sorting.permL_eq_isPerm]
+  exact Worlds.Sorting.ordered_perms_native_of_replayed orderedPermsWorldD
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     orderedPermsCapReplayed_uncond xs ys hx hy
+
+/-- The same fact as the IMPLICATION, in the book's own `PERM`
+    vocabulary — a DECODE-SHAPE corollary of the native above (the Bool
+    identity read as "sorted permutations are equal"), in the same class
+    as the `List.Perm` corollary below and carrying no content of its
+    own. It exists because that is the shape `ordered_perm_unique`'s
+    crossing meets. -/
+theorem ordered_perms_eq_driver (xs ys : List SExpr)
+    (hx : Worlds.Sorting.orderedpRec xs = true)
+    (hy : Worlds.Sorting.orderedpRec ys = true)
+    (hp : Worlds.Sorting.permL xs ys = true) : xs = ys := by
+  have h := ordered_perms_native_driver xs ys hx hy
+  rw [hp] at h
+  exact beq_iff_eq.mp h
+
+/-- The same fact as the EQUIVALENCE, in the book's own `PERM`
+    vocabulary — the Bool identity `(xs == ys) = permL xs ys` read as
+    the `Iff` it is, which is what ORDERED-PERMS literally says
+    (`(EQUAL (EQUAL A B) (PERM A B))`). Another DECODE-SHAPE corollary
+    of the native above, in the class of the two below and carrying no
+    content of its own; it exists because that is the shape
+    `ordered_perm_unique`'s crossing meets. -/
+theorem ordered_perms_iff_driver (xs ys : List SExpr)
+    (hx : Worlds.Sorting.orderedpRec xs = true)
+    (hy : Worlds.Sorting.orderedpRec ys = true) :
+    xs = ys ↔ Worlds.Sorting.permL xs ys = true := by
+  have h := ordered_perms_native_driver xs ys hx hy
+  constructor
+  · intro he; rw [← h, he, beq_self_eq_true]
+  · intro hp; rw [hp] at h; exact beq_iff_eq.mp h
 
 /-- The idiomatic corollary over `List.Perm`: sorted permutations are
     EQUAL. -/
@@ -114,7 +149,7 @@ theorem ordered_perms_native_perm_driver (xs ys : List SExpr)
     (hy : Worlds.Sorting.orderedpRec ys = true)
     (hp : xs.Perm ys) : xs = ys := by
   have h := ordered_perms_native_driver xs ys hx hy
-  rw [List.isPerm_iff.mpr hp] at h
+  rw [Worlds.Sorting.permL_eq_isPerm, List.isPerm_iff.mpr hp] at h
   exact beq_iff_eq.mp h
 
 #print axioms ordered_perms_native_driver

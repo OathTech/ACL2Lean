@@ -157,10 +157,24 @@ def opObligationClause (measure : SExpr) : SExpr :=
     clause rather than parsing it, so this is the shared datatype the two
     layers now agree on (audit F13's cross-layer asymmetry). -/
 inductive MeasurePos where
-  /-- one measured position — the `count`/`len`/`nfix`/`userFn` rows. -/
+  /-- one measured position, measured by a TRUSTED-CORE measure — the
+      `count`/`len`/`nfix` rows. -/
   | m1 (idx : Nat)
   /-- two measured positions — the `sumCount` row. -/
   | m2 (idx1 idx2 : Nat)
+  /-- one measured position, measured by a WORLD FUNCTION — the `userFn`
+      row (R4 wave 2g; corpus witness `BSORT`, measured by `BNEXT-SIZE`).
+
+      The position alone does not describe this row: the measure is a
+      defun, so the consumer additionally needs THE MEASURE FUNCTION and
+      a DECREASE for it. `derive_exec%` carries both in its own clause
+      (`measured i via "<FN>" decreasing <thm>`) — the measure's
+      registered exec kit supplies the function and the named theorem is
+      the REPLAYED decrease (`Imported/ExecGen.lean`, "the userFn measure
+      row"). Splitting it out of `m1` is what makes a consumer that only
+      understands trusted-core measures fail closed on this shape instead
+      of silently reading it as a `consCount` decrease. -/
+  | mUser (idx : Nat)
   deriving Repr, BEq, Inhabited
 
 -- (`MeasureShape.positionsIn` — the derivation of a row's `MeasurePos`

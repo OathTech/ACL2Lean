@@ -178,10 +178,22 @@ where
 
 /-! ## The command -/
 
+/-- How one `vars` position of an iso statement is read. -/
+inductive SimVarKind where
+  /-- a bare `SExpr`, passed to both sides -/
+  | raw
+  /-- a `List SExpr` that enters the exec under `enc` -/
+  | list
+  /-- NOT a binder: the position is this fixed `SExpr` literal -/
+  | lit (t : Term)
+
 /-- One binder of the iso statement with its READING: `raw` = a bare
     `SExpr` passed to both sides; `list` = a `List SExpr` that enters the
-    exec under `enc`. -/
-syntax simVarSpec := "(" ident " : " ident ")"
+    exec under `enc`; `lit <term>` = NOT a binder at all — the position is
+    a fixed SExpr LITERAL (R4 wave 2a, the per-mode FILTER readings: the
+    book passes `'LT`/`'GTE` as quoted symbols, and a reading with no
+    runtime dispatch is only stateable at ONE such literal). -/
+syntax simVarSpec := "(" ident " : " ident (term:max)? ")"
 
 declare_syntax_cat simInductSpec
 /-- Induct on the native's own recursion (`fun_induction <native args>`). -/
@@ -234,41 +246,72 @@ syntax (name := deriveSimCmd)
     | throwError "derive_sim%: no registered exec kit for {aclName} \
         (frontier — generate it with derive_exec%, or register the \
         hand-written exec with register_exec_kit% first)"
-  unless kit.encName == .anonymous do
-    throwError "derive_sim%: {aclName} already has a registered iso \
-        ({kit.encName}) — a second one would silently redirect callee \
-        resolution (fail-closed)"
   -- readings
-  let mut isList : List (Name × Bool) := []
+  let mut kinds : List (Name × SimVarKind) := []
   for spec in varSpecs do
     let v : Ident := ⟨spec[1]⟩
     let k : Ident := ⟨spec[3]⟩
     let kind := k.getId.toString
+    let hasTerm := spec[4].getNumArgs > 0
     let b ←
-      if kind == "raw" then pure false
-      else if kind == "list" then pure true
+      if kind == "raw" then pure .raw
+      else if kind == "list" then pure .list
+      else if kind == "lit" then
+        if hasTerm then pure (.lit ⟨spec[4][0]⟩)
+        else throwError "derive_sim%: reading `lit` for {v.getId} needs \
+            the LITERAL term it stands for (`(fv : lit modeLT)`)"
       else throwError "derive_sim%: reading {kind} for {v.getId} is \
           outside the derived table (frontier — the argument readings are \
-          `raw` (a bare SExpr) and `list` (a List SExpr under `enc`))"
-    isList := isList ++ [(v.getId, b)]
+          `raw` (a bare SExpr), `list` (a List SExpr under `enc`) and \
+          `lit <term>` (a fixed SExpr literal, not a binder))"
+    match b with
+    | .lit _ => pure ()
+    | _ =>
+      if hasTerm then
+        throwError "derive_sim%: reading `{kind}` for {v.getId} takes no \
+            term — only `lit` does"
+    kinds := kinds ++ [(v.getId, b)]
+  -- A LITERAL-SPECIALIZED iso is a VALIDATION artifact, not a callee
+  -- entry: it states the exec at ONE fixed argument, so it can never be
+  -- what a caller's iso rewrites with. It is therefore NOT registered on
+  -- the kit — which is also why the "already has a registered iso"
+  -- fail-close does not apply to it: the thing that check protects
+  -- (callee resolution) is untouched, and the general iso stays the one
+  -- and only registered one. (Two isos at the SAME literal cannot hide
+  -- either: they would be two theorems of the same name.)
+  let isLitIso : Bool := kinds.any fun (_, k) => match k with
+    | .lit _ => true
+    | _ => false
+  unless isLitIso do
+    unless kit.encName == .anonymous do
+      throwError "derive_sim%: {aclName} already has a registered iso \
+          ({kit.encName}) — a second one would silently redirect callee \
+          resolution (fail-closed)"
   unless execArgIds.size == kit.arity do
     throwError "derive_sim%: {aclName} has arity {kit.arity} but \
         {execArgIds.size} exec arguments were given"
-  -- the exec application (list-read arguments enter under `enc`)
+  -- the exec application (list-read arguments enter under `enc`; a
+  -- `lit`-read argument enters as its literal)
   let execArgs : Array Term ← execArgIds.mapM fun (a : Ident) => do
-    let some b := isList.lookup a.getId
+    let some b := kinds.lookup a.getId
       | throwError "derive_sim%: exec argument {a.getId} is not one of \
           the declared vars"
-    if b then `($(mkCIdent ``ACL2.Lifting.enc) $a:ident) else `($a:ident)
+    match b with
+    | .list => `($(mkCIdent ``ACL2.Lifting.enc) $a:ident)
+    | .raw => `($a:ident)
+    | .lit t => pure t
   let lhs := Syntax.mkApp (mkCIdent kit.execName) execArgs
-  -- binders, in `vars` order
+  -- binders, in `vars` order (a `lit` position binds nothing)
   let sexprTy : Term := mkCIdent ``ACL2.SExpr
   let listTy : Term ← `(List $sexprTy)
-  let binders ← varSpecs.mapM fun spec => do
+  let binders ← varSpecs.filterMapM fun spec => do
     let v : Ident := ⟨spec[1]⟩
-    let some b := isList.lookup v.getId
+    let some b := kinds.lookup v.getId
       | throwError "derive_sim%: internal — var {v.getId} lost"
-    `(bracketedBinderF| ($v:ident : $(if b then listTy else sexprTy)))
+    match b with
+    | .lit _ => pure none
+    | .list => do pure (some (← `(bracketedBinderF| ($v:ident : $listTy))))
+    | .raw => do pure (some (← `(bracketedBinderF| ($v:ident : $sexprTy))))
   -- FRONTIER: mutual recursion (the template inducts on ONE function)
   if let some (.defnInfo di) := env.find? kit.execName then
     if di.all.length > 1 then
@@ -303,8 +346,15 @@ syntax (name := deriveSimCmd)
     `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
   let allLemmas := calleeLemmas ++ simpArgs.map
     (fun a => (⟨a⟩ : TSyntax ``Lean.Parser.Tactic.simpLemma))
-  let eqDefId : Term :=
-    mkCIdent (kit.execName ++ `eq_def)
+  -- A NON-RECURSIVE exec's `eq_def` is a RESERVED name, realized on
+  -- demand, and `mkCIdent` bypasses that realization (a recursive exec's
+  -- already exists, so this is a no-op for every kit that predates the
+  -- R4 wave-2a ODDS kit — the first non-recursive one to want an iso).
+  let eqDefName := kit.execName ++ `eq_def
+  unless env.contains eqDefName do
+    let _ ← liftTermElabM <|
+      realizeGlobalConstNoOverloadWithInfo (mkIdent eqDefName)
+  let eqDefId : Term := mkCIdent eqDefName
   let proof ← `(by
       $inductTac:tactic <;> rw [$eqDefId:term] <;>
         sim_iso_close [$allLemmas,*])
@@ -399,8 +449,10 @@ syntax (name := deriveSimCmd)
       throwError "derive_sim%: {thmId.getId} is not an equation between \
           a program value and a reading of it (frontier)"
   -- register the iso on the kit (first-match lookup: the updated copy
-  -- supersedes; the prior entry stays inert)
-  registerKitEnc aclName thmName
+  -- supersedes; the prior entry stays inert). A LITERAL-SPECIALIZED iso
+  -- is not registered — see the note at the fail-close above.
+  unless isLitIso do
+    registerKitEnc aclName thmName
 
 /- DELIBERATELY ABSENT: a `register_sim_kit%` for hand-written isos.
    Registering a hand `_enc` so that callers could still resolve it would

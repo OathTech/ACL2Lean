@@ -135,4 +135,25 @@ theorem how_many_bad_pairs_bnext_native_driver (xs : List SExpr)
 
 #print axioms how_many_bad_pairs_bnext_native_driver
 
+/-- ENTRY, PROVED — the SAME replayed theorem at the EXEC level, over an
+    ARBITRARY `SExpr` (R4 wave 2g). This is the form `derive_exec%`'s
+    `userFn` measure row consumes as `BSORT`'s termination proof: the
+    replayed statement quantifies over every environment, so it reaches
+    every value, and only the LIST-shaped native reading above is
+    `enc`-image restricted. Not a waypoint entry (its statement is in
+    exec vocabulary, which criterion 1 excludes) — it is the kit's
+    termination input. -/
+theorem how_many_bad_pairs_bnext_exec_driver (x : SExpr)
+    (h : Logic.toBool
+      (Logic.equal (Worlds.Sorting.bnextExec x) x) = false) :
+    Logic.toNat (Worlds.Sorting.bnextSizeExec (Worlds.Sorting.bnextExec x))
+      < Logic.toNat (Worlds.Sorting.bnextSizeExec x) :=
+  Worlds.Sorting.how_many_bad_pairs_bnext_exec_of_replayed
+    bsortWaypointsWorld (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide)
+    howManyBadPairsBnextReplayed_uncond x h
+
+#print axioms how_many_bad_pairs_bnext_exec_driver
+
 end ACL2.Imported.Waypoints

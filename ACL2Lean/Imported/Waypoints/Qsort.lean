@@ -1,6 +1,7 @@
 import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.Imported.Waypoints.ConvertPerm
 import ACL2Lean.Imported.Waypoints.OrderedPerms
+import ACL2Lean.Imported.SortingQsortReading
 import ACL2Lean.DevLoad
 
 namespace ACL2.Imported.Waypoints
@@ -323,18 +324,38 @@ theorem permQsortReplayed_uncond (env : Env) :
 
 set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — PERM-QSORT natively: QUICKSORT PERMUTES —
-    `qsortL xs` is a permutation of `xs` (`isPerm`). -/
+    `qsortL xs` is a permutation of `xs` (the book's own `PERM`, read as
+    `permL`).
+
+    Stated in the OWN-DEFINITION `permL` vocabulary since R4 wave 2d
+    (O-6): this is the native the `qsort_perm` mirror meets, and a
+    mirror agree square must face an own-definition reading. -/
 theorem perm_qsort_native_driver (xs : List SExpr) :
-    (Worlds.Sorting.qsortL xs).isPerm xs = true :=
-  Worlds.Sorting.perm_qsort_native_of_replayed qsortWorldD (by decide)
+    Worlds.Sorting.permL (Worlds.Sorting.qsortL xs) xs = true := by
+  rw [Worlds.Sorting.permL_eq_isPerm]
+  exact Worlds.Sorting.perm_qsort_native_of_replayed qsortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) permQsortReplayed_uncond xs
 
-/-- The idiomatic `List.Perm` form. -/
+/-- The idiomatic `List.Perm` form (through the decode bridge). -/
 theorem perm_qsort_perm_driver (xs : List SExpr) :
     (Worlds.Sorting.qsortL xs).Perm xs :=
-  List.isPerm_iff.mp (perm_qsort_native_driver xs)
+  List.isPerm_iff.mp
+    (Worlds.Sorting.permL_eq_isPerm _ _ ▸ perm_qsort_native_driver xs)
+
+/-- PERM-QSORT at the DEPTH-1 reading (R4 wave 2e) — the same theorem,
+    read through `qsortOwnL_eq_qsortL`. A DECODE-SHAPE corollary in the
+    class this layer already writes (`ordered_perms_eq_driver`,
+    `perm_qsort_perm_driver`, `orderedp_qsort_isChain_driver`): it
+    carries no content of its own, and the content is the replay's. It
+    exists because the `qsort` MIRROR agree square must face the
+    mirror's own access pattern — see
+    `MirrorProofs/SortingQsortSquares.lean`. -/
+theorem perm_qsort_own_driver (xs : List SExpr) :
+    Worlds.Sorting.permL (Worlds.Sorting.qsortOwnL xs) xs = true := by
+  rw [Worlds.Sorting.qsortOwnL_eq_qsortL]
+  exact perm_qsort_native_driver xs
 
 #print axioms perm_qsort_native_driver
 
@@ -385,6 +406,23 @@ theorem orderedp_qsort_native_driver (xs : List SExpr) :
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide)
     orderedpQsortReplayed_uncond xs
+
+/-- HOW-MANY-QSORT at the DEPTH-1 reading — the same theorem, read
+    through `qsortOwnL_eq_qsortL`; see `perm_qsort_own_driver` for the
+    class. -/
+theorem how_many_qsort_own_driver (ev : SExpr) (xs : List SExpr) :
+    Worlds.Sorting.howManyL ev (Worlds.Sorting.qsortOwnL xs)
+      = Worlds.Sorting.howManyL ev xs := by
+  rw [Worlds.Sorting.qsortOwnL_eq_qsortL]
+  exact how_many_qsort_native_driver ev xs
+
+/-- ORDEREDP-QSORT at the DEPTH-1 reading (R4 wave 2e) — the same
+    theorem, read through `qsortOwnL_eq_qsortL`; see
+    `perm_qsort_own_driver` for the class. -/
+theorem orderedp_qsort_own_driver (xs : List SExpr) :
+    Worlds.Sorting.orderedpRec (Worlds.Sorting.qsortOwnL xs) = true := by
+  rw [Worlds.Sorting.qsortOwnL_eq_qsortL]
+  exact orderedp_qsort_native_driver xs
 
 /-- ORDEREDP-QSORT, Mathlib form. -/
 theorem orderedp_qsort_isChain_driver (xs : List SExpr) :

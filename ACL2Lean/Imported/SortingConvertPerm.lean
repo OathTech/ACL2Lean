@@ -154,14 +154,19 @@ theorem how_many_rm_general_native_of_replayed (w : World)
 /-! ## PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — the
 counterexample WITNESS row -/
 
-/-- The NATIVE counterexample witness: walk `xs`, erasing each element
+/-- The NATIVE counterexample witness: walk `xs`, removing each element
     from `ys` as it is matched; the first element of `xs` that `ys`
     cannot match IS the witness, and when `xs` is exhausted the witness
     is `ys`'s head (`nil` when both are). Self-contained (waypoint
-    criterion: `List` vocabulary only). -/
+    criterion: `List` vocabulary only).
+
+    The removal step is the OWN-DEFINITION `rmL` (R4 wave 2d item 1
+    converted `RM`'s reading; this reading is a CONSUMER of that one —
+    `pceExec` calls the `RM` exec, so `pceExec_enc`'s induction meets
+    `rmL` and nothing else). It was `ys.erase x` until then. -/
 def pceL : List SExpr → List SExpr → SExpr
   | [], ys => ys.headD SExpr.nil
-  | x :: xs, ys => bif ys.contains x then pceL xs (ys.erase x) else x
+  | x :: xs, ys => bif ys.contains x then pceL xs (rmL x ys) else x
 
 -- The hand `pceExec` (Sorting.lean) enters the kit registry here — the
 -- iso below is its stage-2 reading.
@@ -223,8 +228,13 @@ theorem pce_is_counterexample_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env pce_is_counterexampleFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) :
-    xs.isPerm ys
+    permL xs ys
       = (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) := by
+  -- O-6 (2026-08-18): stated in the OWN-DEFINITION `permL` vocabulary,
+  -- because this native's statement is the one a mirror square meets
+  -- (`permWitness_complete`). The library spelling enters only through
+  -- the decode bridge, here, at the seam and nowhere else.
+  rw [permL_eq_isPerm]
   let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
     re_val_var_get w e { name := "X" } (enc xs) (by
@@ -281,6 +291,127 @@ theorem pce_is_counterexample_native_of_replayed (w : World)
     _ _ h_no_implies hAnt hConcl
   have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
   have hEq := eq_of_equal_truthy (truthy_of_implies_t hIt rfl)
+  -- decode: `equal` on the two integer atoms IS the counts' `==`
+  have hInt : Logic.equal
+      (SExpr.atom (.number (.int (howManyL (pceL xs ys) xs))))
+      (SExpr.atom (.number (.int (howManyL (pceL xs ys) ys))))
+      = (bif (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) then SExpr.t
+          else SExpr.nil) := by
+    by_cases h : howManyL (pceL xs ys) xs = howManyL (pceL xs ys) ys
+    · rw [h]; simp
+    · have hi : ¬ ((howManyL (pceL xs ys) xs : Int)
+          = (howManyL (pceL xs ys) ys : Int)) := by
+        intro hc; exact h (by omega)
+      have hne : (howManyL (pceL xs ys) xs
+          == howManyL (pceL xs ys) ys) = false := by
+        simpa using h
+      rw [hne]
+      simp [Logic.equal, hi]
+  rw [hInt] at hEq
+  exact bool_of_cond_eq hEq
+
+/-! ## CONVERT-PERM-TO-HOW-MANY — the book's UNCONDITIONAL capstone
+
+The same equation as the witness row above, WITHOUT the two `true-listp`
+hypotheses: the book proves it separately (`(:DEFTHM
+CONVERT-PERM-TO-HOW-MANY :FORMULA (EQUAL (PERM X Y) (EQUAL (HOW-MANY
+(PERM-COUNTER-EXAMPLE X Y) X) (HOW-MANY (PERM-COUNTER-EXAMPLE X Y)
+Y))))`, `acl2_samples/sorting/convert-perm-to-how-many.proof-log:17781`)
+and every consumer book includes it as a `:REWRITE` rule.
+
+THE NATIVE STATEMENT IS THE SAME as the witness row's, and that is not a
+duplication of content but a consequence of the type-absorbed doctrine:
+the native quantifies over `List SExpr` — the `enc` IMAGE — which is
+exactly where the witness row's `true-listp` hypotheses put it, so the
+two ACL2 theorems' native readings coincide there. What differs is the
+SEAM: this one's content comes from the CONVERT-PERM-TO-HOW-MANY replayed
+statement and no other, which is what the catalogue's row demands.
+
+ENGINEERING NOTE (recorded, not smoothed over): the decode below is a
+NEAR-CLONE of `pce_is_counterexample_native_of_replayed`'s — the same
+`corr_*` plumbing, differing only in that this row has no antecedent to
+carry, so its ender is `Logic.eq_of_equal_ne_nil` directly where the
+other's is `eq_of_equal_truthy ∘ truthy_of_implies_t`. Extracting the
+shared conv chain is a clean behaviour-preserving increment and is
+flagged for one (it is two copies, the extraction threshold); it was NOT
+taken in the same step that lands the native, per the one-verifiable-
+step-at-a-time rule. -/
+
+/-- The CONVERT-PERM-TO-HOW-MANY replayed-statement formula — the root
+    Goal clause, exactly as the log emits it (no hypotheses):
+    `(EQUAL (PERM X Y)
+            (EQUAL (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X)
+                   (HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y)))`. -/
+def convert_perm_to_how_manyFormula : SExpr :=
+  equalT (permT xT yT)
+    (equalT (howManyT (pceT xT yT) xT) (howManyT (pceT xT yT) yT))
+
+/-- CONVERT-PERM-TO-HOW-MANY, natively: PERMUTATION IS MULTIPLICITY
+    AGREEMENT AT THE WITNESS — the book's own capstone, unconditional.
+    SCOPE: the native quantifies over `List SExpr` (the `enc` image), the
+    standing type-absorbed doctrine.
+
+    Stated in the OWN-DEFINITION `permL` vocabulary (the O-6 rule): this
+    is a native a mirror square meets. -/
+theorem convert_perm_to_how_many_native_of_replayed (w : World)
+    (h_pce : w.defs.get? pce_sym = some ([xS, yS], pceBody))
+    (h_perm : w.defs.get? { package := "ACL2", name := "PERM" }
+      = some ([{ package := "ACL2", name := "X" },
+               { package := "ACL2", name := "Y" }], permBody))
+    (h_memb : w.defs.get? { package := "ACL2", name := "MEMB" }
+      = some ([{ package := "ACL2", name := "A" },
+               { package := "ACL2", name := "X" }], membBody))
+    (h_rm : w.defs.get? { package := "ACL2", name := "RM" }
+      = some ([{ package := "ACL2", name := "E" },
+               { package := "ACL2", name := "X" }], rmBody))
+    (h_hm : w.defs.get? how_many_sym = some ([eS, xS], howManyBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env convert_perm_to_how_manyFormula = some v ∧ v ≠ SExpr.nil)
+    (xs ys : List SExpr) :
+    permL xs ys
+      = (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) := by
+  rw [permL_eq_isPerm]
+  let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
+    re_val_var_get w e { name := "X" } (enc xs) (by
+      show e.get? xS = some (enc xs)
+      rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hy : ∃ N, ∀ f ≥ N, evalOpt f w e yT = some (enc ys) :=
+    re_val_var_get w e { name := "Y" } (enc ys) (by
+      show e.get? yS = some (enc ys)
+      rw [show e = (({} : Env).insert yS (enc ys)).insert xS (enc xs)
+            from rfl,
+          Env.get?_insert, if_neg (by decide), Env.get?_insert,
+          if_pos (by decide)])
+  -- the witness, and the two counts at it
+  have hpce := pce_exec_corr w h_pce h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons e xT yT (enc xs) (enc ys) hx hy
+  rw [pceExec_enc] at hpce
+  have hL := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e (pceT xT yT) xT (pceL xs ys) (enc xs) hpce hx
+  rw [howManyExec_enc] at hL
+  have hR := how_many_exec_corr w h_hm h_no_consp h_no_equal h_no_car
+    h_no_cdr h_no_plus e (pceT xT yT) yT (pceL xs ys) (enc ys) hpce hy
+  rw [howManyExec_enc] at hR
+  have hCounts := conv_equalT w e (howManyT (pceT xT yT) xT)
+    (howManyT (pceT xT yT) yT) _ _ h_no_equal hL hR
+  -- the left side of the conclusion: the perm simulation
+  have hPerm := corr_perm_enc w h_perm h_memb h_rm h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_cons xs ys e xT yT hx hy
+  have hConcl := conv_equalT w e (permT xT yT)
+    (equalT (howManyT (pceT xT yT) xT) (howManyT (pceT xT yT) yT))
+    _ _ h_no_equal hPerm hCounts
+  -- UNCONDITIONAL: the replayed statement pins the equation's own value
+  have hEq := Logic.eq_of_equal_ne_nil
+    (replayed_pins_ne_nil (hreplayed e) hConcl)
   -- decode: `equal` on the two integer atoms IS the counts' `==`
   have hInt : Logic.equal
       (SExpr.atom (.number (.int (howManyL (pceL xs ys) xs))))

@@ -61,4 +61,120 @@ mirror_iso% evil_rev_via_acc for ACL2Lean.Basics.rev
   square agree (Worlds.RevAcc.revAccL xs [])
   unfold [Worlds.RevAcc.revAccL, smuggled]
 
+/-
+  THE SECOND NEGATIVE TEST (R4 wave 2a): `vars` now takes a CONSTRUCTOR
+  LITERAL, which is what lets ONE definition carry a per-constructor
+  FAMILY of agreement squares (the keyed registry). A literal is admitted
+  at a `.fixed` position ONLY — a closed type the embedding does not act
+  on. Handed one at a `List α` position, the generator must refuse BEFORE
+  producing any declaration, so this pin costs no `sorryAx`.
+
+  Same threat model as above: a SPEEDBUMP against the honest mistake
+  (writing `.lt` where a binder was meant, or at the wrong position), not
+  a barrier. If it becomes fragile, delete it.
+-/
+
+/-- error: mirror_iso%: a `vars` CONSTRUCTOR LITERAL was given at an argument position whose reading is not `.fixed` — a literal specializes a CLOSED-TYPE (pass-through) position, the one kind of argument the embedding does not act on. At a `List α` or `α` position there is nothing for a literal to specialize (fail-closed).
+-/
+#guard_msgs in
+mirror_iso% evil_app_at_literal for ACL2Lean.Basics.app
+  vars [.nil, ys]
+  square agree (ys)
+
+/-
+  THE THIRD NEGATIVE TEST (R4 wave 2d): `mirror_transport%` now admits a
+  spec `Prop` that CARRIES HYPOTHESES (`ordered_perm_unique`). The shape
+  it admits is DATA-THEN-HYPOTHESES — the data binders are the ones the
+  transport encodes with `List.map` — and a DATA binder appearing AFTER a
+  hypothesis is outside the table. Refused before any declaration is
+  produced, so this pin costs no `sorryAx`.
+
+  Same threat model: a SPEEDBUMP against the honest mistake (a spec whose
+  binder order the generator would silently mis-associate), not a
+  barrier. If it becomes fragile, delete it.
+-/
+
+/-- a probe-only spec shape: a `List` binder AFTER a hypothesis. -/
+def probeDataAfterHyp (α : Type) : Prop :=
+  ∀ (xs : List α), xs = xs → ∀ (ys : List α), ys = ys
+
+/-- a probe-only `from` argument: the binder walk refuses before the
+    cited theorem is ever used, so any resolvable constant serves. -/
+theorem probeWp : True := trivial
+
+/-- error: mirror_transport%: ACL2.Tests.IsoGenGate.probeDataAfterHyp binds the `List SExpr` argument `ys` AFTER 1 hypothesis binder(s) — the derived transport table is DATA-THEN-HYPOTHESES (the data binders are what get encoded), and anything else is a named frontier
+-/
+#guard_msgs in
+mirror_transport% evil_data_after_hyp : ACL2.Tests.IsoGenGate.probeDataAfterHyp Int
+  embed ACL2Lean.MirrorProofs.intEmbed
+  crossing evil_data_after_hyp_sexpr from probeWp
+
+/-
+  THE FOURTH NEGATIVE TEST (R4 wave 2f): `mirror_transport%`'s binder
+  table now has a SCALAR row — an `SExpr` (element) binder, encoded by
+  `e.enc` where a list binder is encoded by `List.map e.enc`. Its
+  consumers are the multiplicity mirrors (`∀ (a : α) (xs : List α),
+  howMany a (isort xs) = howMany a xs`).
+
+  The row is admitted on the HYPOTHESIS-FREE path ONLY: carrying an
+  encoded ELEMENT through a hypothesis would need an element-position
+  invariance square, a class this layer does not have, so a spec that
+  binds a scalar AND carries hypotheses must be refused rather than
+  assembled against squares that cannot fire. Refused before any
+  declaration is produced, so this pin costs no `sorryAx`.
+
+  Same threat model: a SPEEDBUMP against the honest mistake (adding a
+  hypothesis to a multiplicity spec and assuming the element rides
+  along), not a barrier. If it becomes fragile, delete it.
+-/
+
+/-- a probe-only spec shape: a SCALAR binder in a spec that ALSO
+    carries a hypothesis. -/
+def probeScalarWithHyp (α : Type) : Prop :=
+  ∀ (a : α) (xs : List α), xs = xs → a = a
+
+/-- error: mirror_transport%: ACL2.Tests.IsoGenGate.probeScalarWithHyp binds an `SExpr` (scalar) argument AND 1 hypothesis binder(s) — the scalar row of the derived transport table is admitted for HYPOTHESIS-FREE spec `Prop`s only (a named frontier: carrying an encoded ELEMENT through a hypothesis needs an element-position invariance square, which is a class this layer does not have)
+-/
+#guard_msgs (whitespace := lax) in
+mirror_transport% evil_scalar_with_hyp : ACL2.Tests.IsoGenGate.probeScalarWithHyp Int
+  embed ACL2Lean.MirrorProofs.intEmbed
+  crossing evil_scalar_with_hyp_sexpr from probeWp
+
+/-
+  THE FIFTH NEGATIVE TEST (R4 wave 2e): `mirror_iso%` now takes an
+  `instances [...]` clause (O-7, 2026-08-18) — per-square facts that make
+  two spellings of ONE INSTANCE ARGUMENT meet. The clause admits an
+  EQUATION whose type is proof-irrelevant by construction (head in
+  `{Decidable, DecidableEq}`, or a synthesizable `Subsingleton`), and
+  that shape check is the whole gate: an equation at any other type CAN
+  carry subject content.
+
+  THE ATTACK is the file's own first one, re-aimed: hand the closer the
+  accumulator CONTENT law (`revAccL xs acc = revAccL xs [] ++ acc`, an
+  ACL2 book theorem's shape) through the NEW clause instead of through
+  `unfold`. It is refused before any declaration is produced, because its
+  equation is at `List SExpr`.
+
+  Same threat model as the other four: a SPEEDBUMP against the honest
+  mistake, not a barrier — no syntactic check on the invocation can
+  classify content, and the bound is provenance only (A1-F1). If it
+  becomes fragile, delete it.
+-/
+
+/-- THE SMUGGLE, through the instance-facts clause. (Not `private`: the
+    gate's error prints the resolved name.) -/
+theorem smuggledInstanceFact : ∀ (t : List SExpr) (h : SExpr),
+    Worlds.RevAcc.revAccL t [h] = Worlds.RevAcc.revAccL t [] ++ [h] :=
+  fun t h => accLaw t [h]
+
+/-- error: mirror_iso%: `instances [ACL2.Tests.IsoGenGate.smuggledInstanceFact]` is an equation at `List SExpr`, which is neither in the instance-facts allowlist (`Decidable`, `DecidableEq`) nor provably `Subsingleton`.
+The clause exists for ONE thing: two spellings of one INSTANCE ARGUMENT that a `local` spec instance and the ambient one produce (O-7, 2026-08-18). Such an equality is content-free BY CONSTRUCTION — proof-irrelevant, relating no two operations. An equation at any OTHER type CAN carry subject content, so it is refused here (fail-closed): route a bridging fact through a replayed ACL2 book theorem.
+-/
+#guard_msgs (whitespace := lax) in
+mirror_iso% evil_rev_via_instances for ACL2Lean.Basics.rev
+  vars [xs]
+  square agree (Worlds.RevAcc.revAccL xs [])
+  unfold [Worlds.RevAcc.revAccL]
+  instances [smuggledInstanceFact]
+
 end ACL2.Tests.IsoGenGate

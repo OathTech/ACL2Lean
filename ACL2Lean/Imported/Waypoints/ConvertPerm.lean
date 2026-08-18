@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.Waypoints.Macro
+import ACL2Lean.Imported.Waypoints.PermBook
 import ACL2Lean.Imported.SortingConvertPerm
 import ACL2Lean.DevLoad
 
@@ -143,9 +144,13 @@ theorem pceIsCounterexampleReplayed_uncond (env : Env) :
 /-- ENTRY, PROVED — PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS
     natively: `pceL xs ys` is a COMPLETE counterexample witness — the two
     lists are permutations exactly when their counts agree at that one
-    element. -/
+    element.
+
+    Stated in the OWN-DEFINITION `permL` vocabulary since R4 wave 2d
+    (O-6): this is the native the `permWitness_complete` mirror meets,
+    and a mirror agree square must face an own-definition reading. -/
 theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
-    xs.isPerm ys
+    Worlds.Sorting.permL xs ys
       = (Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) xs
           == Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) ys) :=
   Worlds.Sorting.pce_is_counterexample_native_of_replayed convertPermWorldD
@@ -154,5 +159,36 @@ theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
     (by decide) pceIsCounterexampleReplayed_uncond xs ys
 
 #print axioms pce_is_counterexample_native_driver
+
+set_option maxHeartbeats 3200000 in
+/-- The driver's replayed statement for the book's CAPSTONE,
+    CONVERT-PERM-TO-HOW-MANY — UNCONDITIONAL since 2026-08-14 (T1+2
+    sprint G1-M; the catalogue's row records the retirement history). -/
+def convertPermToHowManyReplayedCond := driver_replayed% convertPermDev
+  convertPermWorldD "convert-perm-to-how-many" deps [permDev]
+
+/-- The unconditional form. -/
+theorem convertPermToHowManyReplayed_uncond (env : Env) :
+    ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f convertPermWorldD env
+      Worlds.Sorting.convert_perm_to_how_manyFormula = some v ∧ v ≠ SExpr.nil :=
+  convertPermToHowManyReplayedCond env
+
+/-- ENTRY, PROVED — CONVERT-PERM-TO-HOW-MANY natively (R4 wave 2e): two
+    lists are permutations EXACTLY WHEN their multiplicities agree at
+    `pceL`, unconditionally. The book's capstone, and the row the
+    catalogue has carried as `.pending` on "build the native — the
+    replay side is done".
+
+    Stated in the OWN-DEFINITION `permL` vocabulary (the O-6 rule). -/
+theorem convert_perm_to_how_many_native_driver (xs ys : List SExpr) :
+    Worlds.Sorting.permL xs ys
+      = (Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) xs
+          == Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) ys) :=
+  Worlds.Sorting.convert_perm_to_how_many_native_of_replayed convertPermWorldD
+    (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
+    (by decide) (by decide) (by decide) (by decide) (by decide)
+    convertPermToHowManyReplayed_uncond xs ys
+
+#print axioms convert_perm_to_how_many_native_driver
 
 end ACL2.Imported.Waypoints

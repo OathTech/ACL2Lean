@@ -16,4 +16,5 @@ import Tests.WaypointCensus
 import Tests.MirrorNameCheck
 import Tests.TamperTests
 import Tests.IsoGenGateTests
+import Tests.LiftingRelProbes
 import Tests.SpikeTauOmega

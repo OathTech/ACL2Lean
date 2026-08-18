@@ -42,12 +42,40 @@
   waypoints) re-elaborates against the generated artifact. The build is the
   gate. No kit is generated "for later".
 
+  THE `userFn` MEASURE ROW (R4 wave 2g — generic, witnessed by BSORT).
+  A defun measured by a WORLD FUNCTION (`BSORT`'s `(BNEXT-SIZE X)`) is
+  the measure table's `userFn` row (`Replay/MeasureTable.lean`), and its
+  exec is generated from the clause
+  `measured i via "<MEASURE-FN>" decreasing <thm>`:
+
+  - the MEASURE is `Logic.toNat (<measure-fn's registered exec> <formal
+    i>)` — the trusted core's own totalization of the emitted measure,
+    so the exec is TOTAL on arbitrary `SExpr` like every other one;
+  - the DECREASE is the named theorem and is never derived here. It is
+    the book's own admission lemma (`HOW-MANY-BAD-PAIRS-BNEXT` for
+    BSORT), reaching Lean BY REPLAY. Note what makes this possible and
+    what earlier waves recorded as the blocker: a replayed statement
+    quantifies over EVERY environment, hence over every `SExpr` — it is
+    only the LIST-shaped native READING of it that is `enc`-image
+    restricted. The exec-level decrease is therefore available at
+    arbitrary `SExpr`, which is exactly what a total Lean definition
+    needs;
+  - the CORR takes `Nat` strong induction over that same measure (M2's
+    scaffold), and applies the decrease at the site's own IF-branch
+    guard.
+
+  The row's declared SHAPE CLASS is: one measured formal, a measure
+  function with a registered exec kit, and ONE self-call site governed by
+  an IF branch. Anything else — several sites, an ungoverned site, a site
+  that recurses on the measured formal itself, an unregistered measure
+  kit — is a hard error naming the frontier.
+
   Fail-closed throughout: an unknown head symbol, a free variable, a
   recursion site whose measured argument is not a destructor chain over the
-  measured formal, a self-call outside the measured CONSP guard, or a
-  measure shape outside v1 (M3: decrease through a defined function —
-  msort's EVENS, qsort's FILTER) is a HARD elaboration error naming the
-  frontier; those kits stay hand-written.
+  measured formal (M1/M2), a self-call outside the measured CONSP guard, or a
+  measure shape outside the table's rows (M3: decrease through a defined
+  function — msort's EVENS, qsort's FILTER) is a HARD elaboration error
+  naming the frontier; those kits stay hand-written.
 -/
 import ACL2Lean.Replay.EvalLemmas
 import ACL2Lean.Imported.Lifting
@@ -81,6 +109,68 @@ theorem callBuiltin_lexorder_gen (a b : SExpr) :
 /-- `callBuiltin` bridge for CONS. -/
 theorem callBuiltin_cons_gen (a b : SExpr) :
     callBuiltin "CONS" [a, b] = some (Logic.cons a b) := rfl
+
+/-! ### THE `userFn` MEASURE ROW's generic support (R4 wave 2g)
+
+A defun measured by a WORLD FUNCTION (`BSORT`'s `(BNEXT-SIZE X)` — the
+`userFn` row of `Replay/MeasureTable.lean`) recurses on a value the
+measure function scores, not on a destructor chain, so its exec cannot
+take the M1/M2 `consCount` route. Two things are needed and BOTH are
+generic:
+
+* THE MEASURE TOTALIZATION. The measure exec returns an `SExpr`; Lean's
+  `termination_by` needs a `Nat`. `Logic.toNat` is the trusted core's own
+  projection (junk ↦ `0`) and is what the emitted measure is read
+  through — nothing new is defined here.
+* THE ORDER BRIDGE. What a replayed decrease gives is ACL2's `<` on the
+  two measure VALUES (`Logic.lt` truthy); what `termination_by` needs is
+  `Logic.toNat a < Logic.toNat b`. The two agree exactly when both values
+  are NON-NEGATIVE INTEGERS — which is ACL2's own `(O-P <measure>)`
+  admission obligation, and is why that obligation exists. `NatValued`
+  states it and `toNat_lt_of_lt_truthy` is the bridge.
+
+`NatValued` for a particular measure exec is a fact about OUR OWN
+generated function; `natValued_plus` covers the `BINARY-+` measure shape
+the corpus uses, so a measure kit's proof is a `fun_induction` over the
+exec plus these three lemmas. What may NEVER come from here is the
+DECREASE itself: that is the book's theorem and arrives by REPLAY. -/
+
+/-- The measure exec's values are NON-NEGATIVE INTEGER atoms — ACL2's
+    `(O-P <measure>)` admission obligation in the exec's vocabulary. -/
+def NatValued (v : SExpr) : Prop :=
+  ∃ n : Nat, v = .atom (.number (.int (n : Int)))
+
+theorem natValued_zero : NatValued (.atom (.number (.int 0))) := ⟨0, rfl⟩
+
+theorem natValued_one : NatValued (.atom (.number (.int 1))) := ⟨1, rfl⟩
+
+/-- `BINARY-+` closes the class (every corpus measure is a sum of
+    counts). -/
+theorem natValued_plus {a b : SExpr} (ha : NatValued a) (hb : NatValued b) :
+    NatValued (Logic.plus a b) := by
+  obtain ⟨m, rfl⟩ := ha
+  obtain ⟨n, rfl⟩ := hb
+  refine ⟨m + n, ?_⟩
+  simp [Logic.plus, Logic.toRat, Logic.mkNumber]
+
+/-- THE ORDER BRIDGE: ACL2's `<` on two non-negative integer measure
+    values IS `Logic.toNat`'s `<`. Both `NatValued` hypotheses are
+    load-bearing — without them the rationals `-2 < -1` map to `0 < 0`. -/
+theorem toNat_lt_of_lt_truthy {a b : SExpr} (ha : NatValued a)
+    (hb : NatValued b) (h : Logic.toBool (Logic.lt a b) = true) :
+    Logic.toNat a < Logic.toNat b := by
+  obtain ⟨m, rfl⟩ := ha
+  obtain ⟨n, rfl⟩ := hb
+  simp only [Logic.lt, Logic.toRat, Logic.toNat, Logic.toInt] at h ⊢
+  split at h
+  · omega
+  · simp [Logic.toBool] at h
+
+/-- The ELSE-branch guard, in the two spellings the two consumers see:
+    `decreasing_by` meets Lean's `¬(… = true)` from the `if`, while the
+    corr walk meets `conv_if_lift`'s `… = false`. -/
+theorem guard_false_of_not_true {b : Bool} (h : ¬ b = true) : b = false := by
+  cases b <;> simp_all
 
 /-! ## The kit registry -/
 
@@ -364,7 +454,9 @@ def decreaseScript (chain : List String) :
 /-- The measure classes: M1 = one measured formal (`(ACL2-COUNT formalᵢ)`,
     `(LEN formalᵢ)`, …) with destructor-chain recursion; M2 = two measured
     formals (`(+ (ACL2-COUNT formalᵢ) (ACL2-COUNT formalⱼ))`, merge2's
-    shape) with single-CDR one-side decreases.
+    shape) with single-CDR one-side decreases; `mUser` = the measure
+    table's `userFn` row — one measured formal scored by a WORLD FUNCTION,
+    whose decrease arrives by replay (see the header).
 
     R3 (T1+2 sprint phase 2, 2026-08-14): this IS the shared measure
     table's positional view (`ACL2.Replay.MeasurePos`,
@@ -392,10 +484,18 @@ structure CorrCtx where
   builtinHypMap : List (String × Ident)
   execId : Ident
   ihId : Ident
-  /-- M2 only: the `sum = n` hypothesis for the ▸-transport -/
+  /-- M2/mUser only: the `measure = n` hypothesis for the ▸-transport -/
   hnId : Ident
   /-- in-scope CONSP guards, per formal name -/
   guards : List (String × Ident) := []
+  /-- `mUser` only: the measure function's registered exec. -/
+  measureExecId : Ident := mkIdent `unusedMeasureExec
+  /-- `mUser` only: the REPLAYED decrease theorem named by the clause. -/
+  decreaseId : Ident := mkIdent `unusedDecrease
+  /-- `mUser` only: the INNERMOST governing IF-branch guard binder (the
+      hypothesis the decrease theorem is applied to). `none` at a site
+      that no IF governs. -/
+  branchGuard : Option Ident := none
 
 private def holes (n : Nat) : CommandElabM (Array Term) :=
   (Array.range n).mapM fun _ => `(_)
@@ -448,14 +548,26 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
       | [c, t, e] => do
         let pc ← corrTerm ctx (path ++ "c") c
         let hb := mkIdent (Name.mkSimple s!"hb{path}")
+        let he := mkIdent (Name.mkSimple s!"he{path}")
+        -- the `userFn` row's decrease is applied to the site's own
+        -- BRANCH guard, so both branches bind theirs; every other row
+        -- consumes only the CONSP guard of the THEN side, and its else
+        -- binder stays anonymous so its proof term is unchanged.
+        let isUser := match ctx.measure with | .mUser _ => true | _ => false
         let ctxT := match conspTestFormal ctx.formalAcls c with
           | some f => { ctx with guards := (f, hb) :: ctx.guards }
           | none => ctx
+        let ctxT := if isUser then { ctxT with branchGuard := some hb } else ctxT
+        let ctxE := if isUser then { ctx with branchGuard := some he } else ctx
         let pt ← corrTerm ctxT (path ++ "t") t
-        let pe ← corrTerm ctx (path ++ "e") e
+        let pe ← corrTerm ctxE (path ++ "e") e
         let hs ← holes 7
-        `($(mkCIdent ``conv_if_lift) $(ctx.wId) $hs*
-            $pc (fun $hb => $pt) (fun _ => $pe))
+        if isUser then
+          `($(mkCIdent ``conv_if_lift) $(ctx.wId) $hs*
+              $pc (fun $hb => $pt) (fun $he => $pe))
+        else
+          `($(mkCIdent ``conv_if_lift) $(ctx.wId) $hs*
+              $pc (fun $hb => $pt) (fun _ => $pe))
       | _ => throwError "derive_exec% corr: IF with {as.length} arguments"
     else if hd.name == ctx.selfAcl then do
       let ps ← as.mapM (corrTerm ctx (path ++ "s"))
@@ -483,11 +595,17 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
             match ci, cj with
             | some (["CDR"], fi), some ([], fj) => do
               unless fi == ctx.formalAcls[i]! && fj == ctx.formalAcls[j]! do
-                throwError "derive_exec% corr: M2 site formals mismatch"
+                throwError "derive_exec% corr: the M2 site descends \
+                    ({fi}, {fj}) but the measured formals are \
+                    ({ctx.formalAcls[i]!}, {ctx.formalAcls[j]!}) — the \
+                    site's decrease is not the measured one (fail-closed)"
               pure (fi, ``consCount_cdr_sum_lt_left_consp)
             | some ([], fi), some (["CDR"], fj) => do
               unless fi == ctx.formalAcls[i]! && fj == ctx.formalAcls[j]! do
-                throwError "derive_exec% corr: M2 site formals mismatch"
+                throwError "derive_exec% corr: the M2 site descends \
+                    ({fi}, {fj}) but the measured formals are \
+                    ({ctx.formalAcls[i]!}, {ctx.formalAcls[j]!}) — the \
+                    site's decrease is not the measured one (fail-closed)"
               pure (fj, ``consCount_cdr_sum_lt_right_consp)
             | _, _ =>
               throwError "derive_exec% corr: M2 site is not a single-CDR \
@@ -505,6 +623,23 @@ partial def corrTerm (ctx : CorrCtx) (path : String := "") :
           let rflP ← `(rfl)
           pure <| Syntax.mkApp ctx.ihId
             (#[sumT, decP] ++ argVals.toArray ++ #[rflP])
+        | .mUser mIdx => do
+          -- the `userFn` row: the IH is at the measure's `Logic.toNat`
+          -- value of the SITE's measured argument, and the `<` is the
+          -- REPLAYED decrease applied to this site's own branch guard.
+          let some guard := ctx.branchGuard
+            | throwError "derive_exec% corr: the userFn row's self-call \
+                is not governed by an IF branch, so there is no guard to \
+                hand the decrease theorem (frontier — the row's shape \
+                class is a guarded fixpoint recursion)"
+          let mVal ← proj as[mIdx]!
+          let measT ← `($(mkCIdent ``Logic.toNat) ($(ctx.measureExecId) $mVal))
+          let decP ← `($(ctx.hnId) ▸ $(ctx.decreaseId) $(ctx.valMap[mIdx]!.2)
+              $guard)
+          let argVals ← as.mapM proj
+          let rflP ← `(rfl)
+          pure <| Syntax.mkApp ctx.ihId
+            (#[measT, decP] ++ argVals.toArray ++ #[rflP])
       let some hSelf := ctx.defnHypMap.lookup ctx.selfAcl
         | throwError "derive_exec% corr: no self defn hyp (internal)"
       mkConvDefn ctx.wId as.length ps hSelf ihApp
@@ -605,26 +740,35 @@ structure KitInput where
   formalSyms : Array Symbol
   measure : MeasureSpec
   recursive : Bool
+  /-- `mUser` only: the measure function's registered exec. -/
+  measureExecId : Ident := mkIdent `unusedMeasureExec
+  /-- `mUser` only: the REPLAYED decrease theorem named by the clause. -/
+  decreaseId : Ident := mkIdent `unusedDecrease
 
 /-- Generate the corr theorem for a kit; returns the telescope metadata
     (defn-hyp ACL2 names, builtin-hyp names) to register. -/
-def genCorr (inp : KitInput) (corrId : Ident) :
+def canonicalTelescope (selfAcl : String) (body : SExpr) :
     CommandElabM (List String × List String) := do
   let env ← getEnv
-  let selfAcl := inp.sym.name
-  -- callee kits, first-occurrence order (each must carry a corr)
-  let calleeKits ← (calleeNames selfAcl inp.body).mapM fun c => do
+  let calleeKits ← (calleeNames selfAcl body).mapM fun c => do
     let some k := findKit env c
       | throwError "derive_exec% corr: unregistered callee {c}"
     if k.corrName == .anonymous || k.symC == .anonymous then
       throwError "derive_exec% corr: callee {c}'s kit has no corr/statement \
           metadata (generate its corr first, or extend its registration)"
     pure k
-  -- canonical telescopes
   let defnAcls := (calleeKits.flatMap (·.defnHyps) ++ [selfAcl]).eraseDups
-  let own := usedBuiltins selfAcl inp.body
+  let own := usedBuiltins selfAcl body
   let builtinAcls := (builtinTwins.map (·.1)).filter fun b =>
     own.contains b || calleeKits.any (·.builtinHyps.contains b)
+  return (defnAcls, builtinAcls)
+
+def genCorr (inp : KitInput) (corrId : Ident) :
+    CommandElabM (List String × List String) := do
+  let env ← getEnv
+  let selfAcl := inp.sym.name
+  -- canonical telescopes
+  let (defnAcls, builtinAcls) ← canonicalTelescope selfAcl inp.body
   -- statement pieces per defn hyp: (symC, formalCs, bodyC)
   let defnMeta ← defnAcls.mapM fun a => do
     if a == selfAcl then
@@ -702,7 +846,8 @@ def genCorr (inp : KitInput) (corrId : Ident) :
         fun (s, id) => (s.name, id),
       defnHypMap := defnAcls.zip defnHypIds,
       builtinHypMap := builtinAcls.zip builtinHypIds,
-      execId := inp.execId, ihId := ihId, hnId := hnId }
+      execId := inp.execId, ihId := ihId, hnId := hnId,
+      measureExecId := inp.measureExecId, decreaseId := inp.decreaseId }
   let walk ← corrTerm ctx "" inp.body
   let eqDefId : Term :=
     mkCIdent ((← liftTermElabM <|
@@ -749,6 +894,22 @@ def genCorr (inp : KitInput) (corrId : Ident) :
           rw [$eqDefId:term]
           exact $walk)
       pure (stmt, tac)
+    | true, .mUser i => do
+      -- the userFn row: Nat strong induction over the MEASURE EXEC's
+      -- `Logic.toNat` value (M2's scaffold, with the emitted measure in
+      -- place of the count sum)
+      let nId := mkIdent `n
+      let measT ← `($(mkCIdent ``Logic.toNat) ($(inp.measureExecId) $(vIds[i]!)))
+      let stmt ← `(∀ ($nId:ident : $natTy) ($[$vIds:ident]* : $sexprTy),
+          $measT = $nId → $hbodyGoal)
+      let introIds := #[nId, ihId] ++ vIds ++ #[hnId]
+      let tac ← `(Lean.Parser.Tactic.tacticSeq|
+          refine fun $nId:ident => Nat.strong_induction_on $nId ?_
+          intro $[$introIds:ident]*
+          $[$hvHaves:tactic]*
+          rw [$eqDefId:term]
+          exact $walk)
+      pure (stmt, tac)
     | false, _ => do
       -- plain defs have no equation lemma; delta-unfold instead
       let stmt ← `(∀ ($[$vIds:ident]* : $sexprTy), $hbodyGoal)
@@ -772,6 +933,10 @@ def genCorr (inp : KitInput) (corrId : Ident) :
       let sumT ← `($ccT $(vIds[i]!) + $ccT $(vIds[j]!))
       let rflP ← `(rfl)
       pure <| Syntax.mkApp hbodyId (#[sumT] ++ vTerms ++ #[rflP])
+    | true, .mUser i => do
+      let measT ← `($(mkCIdent ``Logic.toNat) ($(inp.measureExecId) $(vIds[i]!)))
+      let rflP ← `(rfl)
+      pure <| Syntax.mkApp hbodyId (#[measT] ++ vTerms ++ #[rflP])
     | false, _ => pure <| Syntax.mkApp hbodyId vTerms
   let some hSelfId := (defnAcls.zip defnHypIds).lookup selfAcl
     | throwError "derive_exec% corr: internal — self defn hyp missing"
@@ -790,16 +955,26 @@ def genCorr (inp : KitInput) (corrId : Ident) :
 
 syntax corrClause := &" corr " ident
 
+/-- THE `userFn` MEASURE CLAUSE (R4 wave 2g). `via "<ACL2-FN>"` names the
+    emitted `:MEASURE`'s head function — its registered exec kit supplies
+    the measure exec — and `decreasing <thm>` names the REPLAYED decrease
+    for the recursion site. Like `measured` itself, the clause is a
+    TRANSCRIPTION of the emitted `:MEASURE`, checked at the kit's
+    consumers. -/
+syntax userMeasureClause := &" via " str &" decreasing " ident
+
 syntax (name := deriveExecCmd)
   (docComment)? "derive_exec% " ident (corrClause)? " for " ident
   &" formals " "[" ident,* "]" &" body " ident
-  (&" measured " num (num)?)? : command
+  (&" measured " num (num)? (userMeasureClause)?)? : command
 
 /-- `derive_exec% <execName> [corr <corrName>] for <symConst> formals
     [<symConsts>] body <bodyConst> measured <i>` — generate the M1 exec
     def (+ optionally the stage-1 corr theorem) and register the kit.
     `measured i` is the 0-based index of the measured formal (from the
-    emitted `:MEASURE (ACL2-COUNT <formal_i>)`). -/
+    emitted `:MEASURE (ACL2-COUNT <formal_i>)`); `measured i j` is the M2
+    sum row; `measured i via "<FN>" decreasing <thm>` is the `userFn`
+    row. -/
 @[command_elab deriveExecCmd] def elabDeriveExec : CommandElab := fun stx => do
     -- raw destructuring (two optional groups defeat the quotation-pattern
     -- lifter): [0] doc? [1] atom [2] exec [3] corrClause? [4] for [5] sym
@@ -819,13 +994,24 @@ syntax (name := deriveExecCmd)
       if stx[12].getNumArgs == 0 then pure none
       else
         -- the optional group flattens: [0] atom " measured " [1] num
-        -- [2] (num)?
+        -- [2] (num)? [3] (userMeasureClause)?
         let mstx := stx[12]
         let some idxN := mstx[1].isNatLit?
           | throwError "derive_exec%: measured index must be a numeral"
         let idx2? : Option Nat :=
           if mstx[2].getNumArgs > 0 then mstx[2][0].isNatLit? else none
         pure (some (idxN, idx2?))
+    -- the userFn clause: [0] " via " [1] str [2] " decreasing " [3] ident
+    let user? : Option (String × Ident) ←
+      if stx[12].getNumArgs == 0 || stx[12][3].getNumArgs == 0 then
+        pure (none : Option (String × Ident))
+      else do
+        let ustx := stx[12][3][0]
+        let some mAcl := ustx[1].isStrLit?
+          | throwError "derive_exec%: the measure function name must be a \
+              string literal"
+        let decId : Ident := ⟨ustx[3]⟩
+        pure (some (mAcl, decId))
     let symName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo symId
     let bodyName ← liftTermElabM <| realizeGlobalConstNoOverloadWithInfo bodyId
     let formalNames ← formalIds.mapM fun fid =>
@@ -850,16 +1036,38 @@ syntax (name := deriveExecCmd)
         throwError "derive_exec%: {sym.name} recurses but no 'measured' \
             clause was given (transcribe the emitted :MEASURE)"
       | none, true => pure (.m1 0)  -- unused: no sites, no measure
-      | some (i, j?), false => pure (match j? with
-        | some j => .m2 i j
-        | none => .m1 i)
+      | some (i, j?), false =>
+        match user?, j? with
+        | some _, some _ =>
+          throwError "derive_exec%: 'measured i j via …' — the userFn row \
+              is the SINGLE-measured-formal shape; a two-position sum \
+              measure has no user measure function (fail-closed)"
+        | some _, none => pure (.mUser i)
+        | none, some j => pure (.m2 i j)
+        | none, none => pure (.m1 i)
     let idxOk (k : Nat) : CommandElabM Unit := do
       unless k < formalSyms.size do
         throwError "derive_exec%: measured index {k} out of range \
             ({formalSyms.size} formals)"
     match measure with
     | .m1 k => idxOk k
+    | .mUser k => idxOk k
     | .m2 k l => do idxOk k; idxOk l
+    -- THE USER MEASURE's exec, resolved through the SAME kit registry the
+    -- body's callees are resolved through (fail-closed: a measure
+    -- function with no registered kit is a hard error naming it)
+    let measurePair : Ident × Ident ←
+      match user? with
+      | none => pure (mkIdent `unusedMeasureExec, mkIdent `unusedDecrease)
+      | some (mAcl, decId) => do
+        let some mkit := findKit (← getEnv) mAcl
+          | throwError "derive_exec%: the measure function {mAcl} has no \
+              registered exec kit — the userFn row reads the measure \
+              THROUGH its exec, so generate or register that kit first \
+              (fail-closed)"
+        pure (mkCIdent mkit.execName, decId)
+    let measureExecId : Ident := measurePair.1
+    let decreaseId : Ident := measurePair.2
     -- binder idents, in formal order
     let binderIds : Array Ident := formalSyms.map fun s =>
       mkIdent (formalBinderName s.name)
@@ -869,12 +1077,35 @@ syntax (name := deriveExecCmd)
     -- measure-class validation of every self-call site, producing the
     -- decreasing_by script per site
     let sites := selfCallSites sym.name body
+    match measure with
+    | .mUser _ =>
+      unless sites.length == 1 do
+        throwError "derive_exec%: the userFn measure row's declared shape \
+            class is a SINGLE guarded fixpoint recursion site, and \
+            {sym.name} has {sites.length} — each site needs its own \
+            replayed decrease, so the clause cannot name them \
+            (frontier — extend the clause when a witness exists)"
+    | _ => pure ()
     let mut scripts : Array (TSyntax ``Lean.Parser.Tactic.tacticSeq) := #[]
     for site in sites do
       unless site.length == formalSyms.size do
         throwError "derive_exec%: self-call arity {site.length} ≠ \
             {formalSyms.size}"
       match measure with
+      | .mUser i => do
+        -- the userFn row: the measured argument is whatever the body
+        -- recurses on (a call, not a destructor chain), and the decrease
+        -- is the REPLAYED theorem — never derived here. The one thing
+        -- checked is that the site actually MOVES the measured formal.
+        if destructorChain site[i]! == some ([], formalSyms[i]!.name) then
+          throwError "derive_exec%: the userFn site recurses on the \
+              measured formal ITSELF ({formalSyms[i]!.name}) — no \
+              decrease is possible (fail-closed)"
+        let pf ← `($decreaseId _ (by first
+            | assumption
+            | exact $(mkCIdent ``guard_false_of_not_true) (by assumption)))
+        scripts := scripts.push
+          (← `(Lean.Parser.Tactic.tacticSeq| exact $pf))
       | .m1 i => do
         -- M1: the measured argument is a destructor chain over the
         -- measured formal
@@ -894,11 +1125,17 @@ syntax (name := deriveExecCmd)
           match destructorChain site[i]!, destructorChain site[j]! with
           | some (["CDR"], fi), some ([], fj) => do
             unless fi == formalSyms[i]!.name && fj == formalSyms[j]!.name do
-              throwError "derive_exec%: M2 site formals mismatch"
+              throwError "derive_exec%: the M2 site descends ({fi}, {fj}) \
+                  but the measured formals are ({formalSyms[i]!.name}, \
+                  {formalSyms[j]!.name}) — the site's decrease is not the \
+                  measured one (fail-closed)"
             pure ``consCount_cdr_sum_lt_left_consp
           | some ([], fi), some (["CDR"], fj) => do
             unless fi == formalSyms[i]!.name && fj == formalSyms[j]!.name do
-              throwError "derive_exec%: M2 site formals mismatch"
+              throwError "derive_exec%: the M2 site descends ({fi}, {fj}) \
+                  but the measured formals are ({formalSyms[i]!.name}, \
+                  {formalSyms[j]!.name}) — the site's decrease is not the \
+                  measured one (fail-closed)"
             pure ``consCount_cdr_sum_lt_right_consp
           | _, _ =>
             throwError "derive_exec%: M2 site {repr site} is not a \
@@ -918,6 +1155,8 @@ syntax (name := deriveExecCmd)
       else do
         let measT ← match measure with
           | .m1 i => `($(mkCIdent ``SExpr.consCount) $(binderIds[i]!))
+          | .mUser i =>
+            `($(mkCIdent ``Logic.toNat) ($measureExecId $(binderIds[i]!)))
           | .m2 i j =>
             `($(mkCIdent ``SExpr.consCount) $(binderIds[i]!)
                 + $(mkCIdent ``SExpr.consCount) $(binderIds[j]!))
@@ -929,7 +1168,8 @@ syntax (name := deriveExecCmd)
       { execId := execId, symName := symName, bodyName := bodyName,
         formalNames := formalNames, sym := sym, body := body,
         formalSyms := formalSyms, measure := measure,
-        recursive := !sites.isEmpty }
+        recursive := !sites.isEmpty,
+        measureExecId := measureExecId, decreaseId := decreaseId }
     -- corr (optional clause)
     let (corrName, defnAcls, builtinAcls) ←
       match corrId? with
@@ -962,6 +1202,60 @@ syntax (name := registerExecKitCmd)
       registerKit
         { aclName := acl.getString, execName := execName,
           arity := n.getNat }
+    | _ => throwUnsupportedSyntax
+
+syntax (name := registerExecCorrCmd)
+  "register_exec_corr% " str " => " ident &" for " ident
+  &" formals " "[" ident,* "]" &" body " ident : command
+
+/-- ATTACH a HAND-WRITTEN kit's stage-1 CORR metadata (R4 wave 2g) — the
+    module header's "corr-side callee use additionally needs the corr
+    fields — extend the registration when a generated corr first needs a
+    hand callee". First consumer: `BSORT`'s GENERATED corr, whose body
+    calls the hand-written `BNEXT`.
+
+    Attach rather than register, exactly like `registerKitEnc`: the exec
+    registration stays where the exec is, and the corr metadata is added
+    where the corr theorem is in scope. The hypothesis TELESCOPE is
+    DERIVED from the body by `canonicalTelescope` — the same derivation
+    `genCorr` uses for its own — so a hand corr whose telescope deviates
+    from the canonical order fails closed at the CALLER's elaboration
+    (an application type mismatch), never silently. Re-attachment is
+    refused, so a corr cannot be redirected. -/
+@[command_elab registerExecCorrCmd] def elabRegisterExecCorr : CommandElab :=
+  fun stx => do
+    match stx with
+    | `(register_exec_corr% $acl:str => $corrId:ident for $symId:ident
+        formals [$formalIds,*] body $bodyId:ident) => do
+      let some kit := findKit (← getEnv) acl.getString
+        | throwError "register_exec_corr%: no registered exec kit for \
+            {acl.getString} (register the exec first)"
+      unless kit.corrName == .anonymous do
+        throwError "register_exec_corr%: {acl.getString} already has corr \
+            {kit.corrName} — re-attachment would silently redirect a \
+            caller's corr walk (fail-closed)"
+      let corrName ← liftTermElabM <|
+        realizeGlobalConstNoOverloadWithInfo corrId
+      let symName ← liftTermElabM <|
+        realizeGlobalConstNoOverloadWithInfo symId
+      let bodyName ← liftTermElabM <|
+        realizeGlobalConstNoOverloadWithInfo bodyId
+      let formalNames ← formalIds.getElems.mapM fun fid =>
+        liftTermElabM <| realizeGlobalConstNoOverloadWithInfo fid
+      unless formalNames.size == kit.arity do
+        throwError "register_exec_corr%: {acl.getString} has arity \
+            {kit.arity} but {formalNames.size} formals were given \
+            (fail-closed)"
+      let sym ← liftTermElabM <| unsafe evalExpr Symbol
+        (mkConst ``ACL2.Symbol) (mkConst symName)
+      let body ← liftTermElabM <| unsafe evalExpr SExpr
+        (mkConst ``ACL2.SExpr) (mkConst bodyName)
+      let (defnAcls, builtinAcls) ← canonicalTelescope sym.name body
+      let info : KitInfo :=
+        { kit with corrName := corrName, symC := symName,
+                   formalCs := formalNames.toList, bodyC := bodyName,
+                   defnHyps := defnAcls, builtinHyps := builtinAcls }
+      modifyEnv fun env => execKitExt.addEntry env info
     | _ => throwUnsupportedSyntax
 
 end ACL2.ExecGen
