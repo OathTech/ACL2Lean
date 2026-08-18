@@ -52,6 +52,17 @@ line as the FILTER re-render):
   bad-pair measure, where it previously ran `length`-many passes as a
   `List.foldl`. That is a DIFFERENT definition with the same intent,
   and it is the book's.
+* `permWitness` renders `PERM-COUNTER-EXAMPLE`'s own ERASE-WALK
+  (`(if (memb (car x) y) (pce (cdr x) (rm (car x) y)) (car x))`,
+  `(car y)` when `x` is exhausted) and returns a VALUE, where it
+  previously ran a `List.find?` multiplicity scan returning
+  `Option α` — a DIFFERENT ALGORITHM, and the old one made the
+  correspondence square FALSE at `xs = ys = []`. Two consequences are
+  stated plainly rather than smoothed over: the definition needs an
+  `[Inhabited α]` binder (for `(CAR Y)` on an exhausted list, where
+  ACL2 has `nil`), and `permWitness_complete` is restated as the
+  book's own SINGLE EQUIVALENCE — the only target `Prop` this wave
+  changes. (Ruling Q3, 2026-08-18; landed R4 wave 2d.)
 
 CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
 would write as a reasonably close Lean analog of the ACL2 theorem —
@@ -404,10 +415,16 @@ def Permuted [DecidableEq α] : List α → List α → Prop
   | a :: xs, ys => memb a ys = true ∧ Permuted xs (rm a ys)
 
 /-- The permutation counterexample witness (the book's
-    `PERM-COUNTER-EXAMPLE`): an element whose multiplicities differ,
-    if one exists. -/
-def permWitness [DecidableEq α] (xs ys : List α) : Option α :=
-  List.find? (fun a => howMany a xs != howMany a ys) (xs ++ ys)
+    `PERM-COUNTER-EXAMPLE`), as the book writes it: walk `xs`, removing
+    each element from `ys` as it is found; the FIRST element of `xs`
+    that is not found is the witness, and if every one is found the
+    head of what is left of `ys` is. `List.headD … default` is Lean's
+    stand-in for the book's `(CAR Y)` on an exhausted list (ACL2's
+    `(car nil)` is `nil`); the book's function returns a VALUE, never
+    an option, which is why this one does too. -/
+def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
+  | [], ys => List.headD ys default
+  | a :: xs, ys => if memb a ys then permWitness xs (rm a ys) else a
 
 /-! ## The target properties — the definition of done
 
@@ -480,11 +497,13 @@ def perm_iff_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (xs ys : List α), Permuted xs ys ↔ ∀ a, howMany a xs = howMany a ys
 
 /-- The witness is complete (the book's
-    `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE`): no witness means
-    permutation, and any witness really is a counterexample. -/
-def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
+    `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS`): the two
+    lists are permutations EXACTLY WHEN their multiplicities agree at
+    that ONE element — the book's statement, verbatim in Lean dress. -/
+def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α]
+    [Inhabited α] : Prop :=
   ∀ (xs ys : List α),
-    (permWitness xs ys = none ↔ Permuted xs ys) ∧
-    ∀ a ∈ permWitness xs ys, howMany a xs ≠ howMany a ys
+    Permuted xs ys ↔
+      howMany (permWitness xs ys) xs = howMany (permWitness xs ys) ys
 
 end ACL2Lean.Sorting

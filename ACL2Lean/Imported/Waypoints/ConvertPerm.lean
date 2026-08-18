@@ -143,9 +143,13 @@ theorem pceIsCounterexampleReplayed_uncond (env : Env) :
 /-- ENTRY, PROVED — PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS
     natively: `pceL xs ys` is a COMPLETE counterexample witness — the two
     lists are permutations exactly when their counts agree at that one
-    element. -/
+    element.
+
+    Stated in the OWN-DEFINITION `permL` vocabulary since R4 wave 2d
+    (O-6): this is the native the `permWitness_complete` mirror meets,
+    and a mirror agree square must face an own-definition reading. -/
 theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
-    xs.isPerm ys
+    Worlds.Sorting.permL xs ys
       = (Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) xs
           == Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) ys) :=
   Worlds.Sorting.pce_is_counterexample_native_of_replayed convertPermWorldD

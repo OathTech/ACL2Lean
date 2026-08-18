@@ -323,18 +323,25 @@ theorem permQsortReplayed_uncond (env : Env) :
 
 set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — PERM-QSORT natively: QUICKSORT PERMUTES —
-    `qsortL xs` is a permutation of `xs` (`isPerm`). -/
+    `qsortL xs` is a permutation of `xs` (the book's own `PERM`, read as
+    `permL`).
+
+    Stated in the OWN-DEFINITION `permL` vocabulary since R4 wave 2d
+    (O-6): this is the native the `qsort_perm` mirror meets, and a
+    mirror agree square must face an own-definition reading. -/
 theorem perm_qsort_native_driver (xs : List SExpr) :
-    (Worlds.Sorting.qsortL xs).isPerm xs = true :=
-  Worlds.Sorting.perm_qsort_native_of_replayed qsortWorldD (by decide)
+    Worlds.Sorting.permL (Worlds.Sorting.qsortL xs) xs = true := by
+  rw [Worlds.Sorting.permL_eq_isPerm]
+  exact Worlds.Sorting.perm_qsort_native_of_replayed qsortWorldD (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) (by decide) (by decide) (by decide) (by decide)
     (by decide) permQsortReplayed_uncond xs
 
-/-- The idiomatic `List.Perm` form. -/
+/-- The idiomatic `List.Perm` form (through the decode bridge). -/
 theorem perm_qsort_perm_driver (xs : List SExpr) :
     (Worlds.Sorting.qsortL xs).Perm xs :=
-  List.isPerm_iff.mp (perm_qsort_native_driver xs)
+  List.isPerm_iff.mp
+    (Worlds.Sorting.permL_eq_isPerm _ _ ▸ perm_qsort_native_driver xs)
 
 #print axioms perm_qsort_native_driver
 

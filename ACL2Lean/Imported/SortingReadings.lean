@@ -100,7 +100,30 @@ whose statement does not face a mirror square keeps it. They are
 equalities between two computable renderings of the SAME book function,
 proved by induction on our own definitions — no book content, and no
 new axiom: the content of every native still arrives through the
-replayed statement. -/
+replayed statement.
+
+**THE GUARD ON THIS ACCEPTANCE (O-6, 2026-08-18 — binding).** The
+bridge judgment was accepted with EXACTLY one condition, and it is
+this: **`rmL_eq_erase` and `permL_eq_isPerm` must NEVER join the mirror
+square closer's fixed kit** (`MirrorProofs/IsoGen.lean`'s ladder), nor
+any square's `unfold` list. They are DECODE-LAYER ONLY — a decode
+statement that faces no mirror square may keep its library spelling
+through them, and that is all they are for.
+
+The reason the acceptance is sound is precisely the closer's PURITY: a
+mirror agree square must close against an OWN-DEFINITION reading, so
+that no library simp lemma about `List.erase`/`List.isPerm` can close
+it. A bridge in the closer's kit would rewrite the own-definition
+reading straight back to the library one and re-open the exact channel
+the vocabulary rule exists to shut — which would make the conversion
+above cosmetic. Keeping them out is what makes it real.
+
+This is a PLACEMENT RULE, not a hardening surface, and it is one grep
+away: `grep -rn "rmL_eq_erase\|permL_eq_isPerm" ACL2Lean/MirrorProofs`
+must find no CODE — today it finds exactly one PROSE mention, in the
+`rm` agree square's record on `MirrorProofs/SortingPermSquares.lean`,
+which says this same thing. Reviewed to the honest-mistake standard; do
+not grow a gate for it. -/
 
 /-- `permL`'s BASE ARM at an opaque second list — the bridge the
     `derive_sim%` template needs, because the exec's base arm reaches
@@ -111,6 +134,8 @@ replayed statement. -/
 theorem permL_nil (ys : List SExpr) : permL [] ys = ys.isEmpty := by
   cases ys <;> rfl
 
+/-- DECODE-LAYER ONLY — see THE GUARD above: this must NEVER enter the
+    mirror square closer's kit or a square's `unfold` list. -/
 theorem rmL_eq_erase (e : SExpr) (xs : List SExpr) : rmL e xs = xs.erase e := by
   induction xs with
   | nil => rfl
@@ -120,6 +145,8 @@ theorem rmL_eq_erase (e : SExpr) (xs : List SExpr) : rmL e xs = xs.erase e := by
     · simp [h]
     · rw [if_neg h, if_neg (by simpa using fun hc : a = e => h hc.symm)]
 
+/-- DECODE-LAYER ONLY — see THE GUARD above: this must NEVER enter the
+    mirror square closer's kit or a square's `unfold` list. -/
 theorem permL_eq_isPerm (xs ys : List SExpr) : permL xs ys = xs.isPerm ys := by
   induction xs generalizing ys with
   | nil => cases ys <;> rfl

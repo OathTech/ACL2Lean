@@ -81,4 +81,32 @@ mirror_iso% evil_app_at_literal for ACL2Lean.Basics.app
   vars [.nil, ys]
   square agree (ys)
 
+/-
+  THE THIRD NEGATIVE TEST (R4 wave 2d): `mirror_transport%` now admits a
+  spec `Prop` that CARRIES HYPOTHESES (`ordered_perm_unique`). The shape
+  it admits is DATA-THEN-HYPOTHESES — the data binders are the ones the
+  transport encodes with `List.map` — and a DATA binder appearing AFTER a
+  hypothesis is outside the table. Refused before any declaration is
+  produced, so this pin costs no `sorryAx`.
+
+  Same threat model: a SPEEDBUMP against the honest mistake (a spec whose
+  binder order the generator would silently mis-associate), not a
+  barrier. If it becomes fragile, delete it.
+-/
+
+/-- a probe-only spec shape: a `List` binder AFTER a hypothesis. -/
+def probeDataAfterHyp (α : Type) : Prop :=
+  ∀ (xs : List α), xs = xs → ∀ (ys : List α), ys = ys
+
+/-- a probe-only `from` argument: the binder walk refuses before the
+    cited theorem is ever used, so any resolvable constant serves. -/
+theorem probeWp : True := trivial
+
+/-- error: mirror_transport%: ACL2.Tests.IsoGenGate.probeDataAfterHyp binds the `List SExpr` argument `ys` AFTER 1 hypothesis binder(s) — the derived transport table is DATA-THEN-HYPOTHESES (the data binders are what get encoded), and anything else is a named frontier
+-/
+#guard_msgs in
+mirror_transport% evil_data_after_hyp : ACL2.Tests.IsoGenGate.probeDataAfterHyp Int
+  embed ACL2Lean.MirrorProofs.intEmbed
+  crossing evil_data_after_hyp_sexpr from probeWp
+
 end ACL2.Tests.IsoGenGate

@@ -58,6 +58,40 @@ macro "mirror_transport_close" "[" xs:simpLemma,* "]"
       | (refine map_inj $e ?_
          simp only [$fs,*, List.map_nil]
          exact $h)))
+
+open Lean.Parser.Tactic in
+/-- The transport closer for a HYPOTHESIS-CARRYING spec `Prop` (R4 wave
+    2d, item 5; its consumer is `ordered_perm_unique`, whose statement is
+    `∀ xs ys, Ordered xs → Ordered ys → Permuted xs ys → xs = ys`).
+
+    A SEPARATE macro rather than a widening of the one above, on purpose:
+    the hypothesis-free path is then LITERALLY untouched, so every
+    pre-existing transport's proof term is byte-identical and the
+    regression net can say so.
+
+    It is rung 1 only, with the crossing instance APPLIED to the mirror's
+    own hypotheses (which the map-INVARIANCE squares have just carried
+    from the encoded lists back to the user's). Rung 2 (the closed-list-
+    literal fallback) has no hypothesis-carrying consumer and is
+    deliberately not duplicated — a spec that needed it would fail here,
+    which is the fail-closed direction.
+
+    The third `first` alternative is the same landing as the second
+    through the RICHER embedding's parent projection: `map_inj` is stated
+    over `Acl2Embed`, and a transport declared `embed OrderedEmbed …`
+    with a LIST conclusion (which `ordered_perm_unique` has) would
+    otherwise fail on the structure's type. It is a structure projection,
+    not a lemma, and it only ever fires where the second alternative
+    already failed. -/
+macro "mirror_transport_close_hyps" "[" xs:simpLemma,* "]"
+    " embed " e:term:max " in " h:ident &" hyps " "[" hs:ident,* "]" : tactic =>
+  `(tactic|
+    (simp only [$xs,*] at $h:ident
+     first
+       | exact $h $hs*
+       | exact map_inj $e ($h $hs*)
+       | exact map_inj ($e).toAcl2Embed ($h $hs*)))
+
 /-! ## `mirror_transport%`
 
 The assembly measured off the three hand transports (`app_assoc_int`,
@@ -115,34 +149,81 @@ syntax (name := mirrorTransportCmd)
   -- UNFOLDED form (so the generated crossing states what the hand one did)
   let sexprC : Term := mkCIdent ``ACL2.SExpr
   let crossTyStx : Term ← `($(mkCIdent specName) $sexprC)
-  let (crossStmt, binderNames) ← liftTermElabM do
+  -- THE BINDER WALK. A transported spec `Prop` is a `∀` over DATA
+  -- (`List SExpr` binders, each encoded by `List.map`) optionally
+  -- followed by HYPOTHESES (R4 wave 2d item 5 — `ordered_perm_unique`'s
+  -- `Ordered xs → Ordered ys → Permuted xs ys → …`). The shape is
+  -- DATA-THEN-HYPOTHESES and it is fail-closed in both directions: a
+  -- binder that is neither a `List SExpr` nor a `Prop` is a hard error,
+  -- and so is a data binder AFTER a hypothesis (which would need the
+  -- hypothesis's own binder to be encoded — outside the table).
+  let (crossStmt, binderNames, hypNames) ← liftTermElabM do
     let ty ← whnf (← Term.elabType crossTyStx)
     unless ty.isForall do
       throwError "mirror_transport%: {specName} at SExpr is not a \
           quantified statement (frontier — the transported spec is a \
           `∀`-statement over lists)"
-    let names ← forallTelescopeReducing ty fun xs body => do
+    let (names, hyps) ← forallTelescopeReducing ty fun xs body => do
+      let mut names : Array Name := #[]
+      let mut hyps : Array Name := #[]
       for x in xs do
-        let t ← whnf (← inferType x)
-        unless t.isAppOf ``List && (t.appArg!).isConstOf ``ACL2.SExpr do
-          throwError "mirror_transport%: {specName} binds a non-`List \
-              SExpr` argument — outside the derived transport table (a \
-              named frontier: every binder is encoded by `List.map`)"
+        let nm := (← x.fvarId!.getDecl).userName
+        let raw ← inferType x
+        let t ← whnf raw
+        if t.isAppOf ``List && (t.appArg!).isConstOf ``ACL2.SExpr then
+          unless hyps.isEmpty do
+            -- the hypothesis binders are ANONYMOUS, so the count (not
+            -- their hygienic names) is what this message can honestly say
+            throwError "mirror_transport%: {specName} binds the `List \
+                SExpr` argument `{nm}` AFTER {hyps.size} hypothesis \
+                binder(s) — the derived transport table is \
+                DATA-THEN-HYPOTHESES (the data binders are what get \
+                encoded), and anything else is a named frontier"
+          names := names.push nm
+        else if ← Lean.Meta.isProp raw then
+          hyps := hyps.push nm
+        else
+          throwError "mirror_transport%: {specName} binds `{nm}`, which \
+              is neither a `List SExpr` argument nor a HYPOTHESIS \
+              (`{raw}`) — outside the derived transport table (a named \
+              frontier: every data binder is encoded by `List.map`, and \
+              every hypothesis is carried by the registered INVARIANCE \
+              squares)"
       if body.isForall then
         throwError "mirror_transport%: {specName}'s body is not an \
             equation between list/scalar terms (frontier)"
-      pure (← xs.mapM fun x => do pure (← x.fvarId!.getDecl).userName)
-    pure (← PrettyPrinter.delab ty, names)
+      pure (names, hyps)
+    pure (← PrettyPrinter.delab ty, names, hyps)
   let bs : Array Ident := binderNames.map mkIdent
+  -- The hypotheses are ANONYMOUS binders in the spec (`Ordered xs → …`),
+  -- so their `userName`s are all the same inaccessible `a✝` and using
+  -- them would make every later reference resolve to the LAST one. The
+  -- generator introduces them under FRESH, DISTINCT names instead.
+  let hs : Array Ident :=
+    (Array.range hypNames.size).map fun i =>
+      mkIdent (Name.mkSimple s!"transportHyp{i}")
   -- the crossing: mirror vocabulary → waypoint vocabulary, then the
   -- replayed-backed waypoint theorem EXACTLY
   let agreeLemmas ← (currentSquares env).flatMap (·.agree.map (·.thmName))
     |>.toArray.mapM fun n =>
       `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
-  let crossProof ← `(by
-      intro $bs*
-      simp only [$agreeLemmas,*]
-      exact $(mkCIdent wpName) $bs*)
+  -- With HYPOTHESES the agreement squares have to reach the hypotheses
+  -- too (they arrive in mirror vocabulary and the waypoint theorem wants
+  -- the reading's), so the rewrite is `simp_all only` — the SAME fixed
+  -- lemma set, applied at every location instead of only the goal. The
+  -- hypothesis-FREE proof is left exactly as it was, so every
+  -- pre-existing crossing's proof term is byte-identical.
+  let crossProof ←
+    if hs.isEmpty then
+      `(by
+        intro $bs*
+        simp only [$agreeLemmas,*]
+        exact $(mkCIdent wpName) $bs*)
+    else
+      `(by
+        intro $bs* $hs*
+        simp_all only [$agreeLemmas,*]
+        exact $(mkCIdent wpName) $bs* $hs*)
   elabCommand (← `(theorem $crossId : $crossStmt := $crossProof))
   -- the crossing's docstring is GENERATED too: it says exactly what the
   -- crossing is (the content's sole entry point) and names the replayed
@@ -173,12 +254,24 @@ syntax (name := mirrorTransportCmd)
   let hId : Ident := mkIdent `h
   let encArgs ← bs.mapM fun b => `(List.map ($embedStx).enc $b:ident)
   let crossApp := Syntax.mkApp crossId encArgs
-  let mainProof ← `(by
-      intro $bs*
-      have $hId : _ := $crossApp
-      mirror_transport_close [$(homLemmas.toArray),*]
-        fwd [$(homLemmasFwd.toArray),*]
-        embed $embedStx in $hId)
+  let mainProof ←
+    if hs.isEmpty then
+      `(by
+        intro $bs*
+        have $hId : _ := $crossApp
+        mirror_transport_close [$(homLemmas.toArray),*]
+          fwd [$(homLemmasFwd.toArray),*]
+          embed $embedStx in $hId)
+    else
+      -- the hypothesis-carrying rung: the mirror's OWN hypotheses are
+      -- introduced first, the crossing instance is normalised by the
+      -- registered INVARIANCE squares (which carry `Ordered (map e.enc
+      -- xs)` back to `Ordered xs`), and the result is APPLIED to them.
+      `(by
+        intro $bs* $hs*
+        have $hId : _ := $crossApp
+        mirror_transport_close_hyps [$(homLemmas.toArray),*]
+          embed $embedStx in $hId hyps [$hs,*])
   let mainStmt : Term ← `($(mkCIdent specName) $elemTy)
   elabCommand (←
     `($[$doc?:docComment]? theorem $thmId : $mainStmt := $mainProof))

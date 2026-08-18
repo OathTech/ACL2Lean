@@ -1,5 +1,6 @@
 import ACL2Lean.MirrorProofs.SortingSquares
 import ACL2Lean.Imported.SortingBsort
+import ACL2Lean.Imported.SortingConvertPerm
 
 /-! # MIRROR PROOFS — the sorting book's PERM and MEASURE squares
 
@@ -107,8 +108,38 @@ mirror_iso% rm_map_hom for ACL2Lean.Sorting.rm
 #guard_msgs (whitespace := lax) in
 #print axioms rm_map_hom
 
-/-! ### `rm`'s AGREE square — ONE residual, and it is the READING's
-equality-test ORIENTATION (R4 wave 2d-prep, measured, NOT declared)
+/-! ### `rm`'s AGREE square — LIVE since R4 wave 2d (the OWN-DEFINITION
+`rmL` reading), and the record of what it took
+
+The square below is the ONE the whole perm chain was waiting on:
+`Permuted`'s agree square, and `permWitness`'s, were each EXACTLY this
+one square away. The frontier record from wave 2d-prep is kept verbatim
+underneath, because it is the evidence the reading conversion rested on.
+
+WHAT CHANGED: the reading. `RM`'s waypoint reading was `xs.erase a`
+until R4 wave 2d item 1 and is now the own-definition
+`Worlds.Sorting.rmL` (`Imported/SortingReadings.lean`), written to the
+book's `RM` body shape with the equality test TARGET-FIRST — which is
+what the residual below was about. The reading is `derive_sim%`-
+VALIDATED against the real `RM` exec (`rmExec_enc`, `Imported/
+Perm.lean`), so it is admissible by the same gate every other reading
+passes; the decodes that keep a `List.erase` statement do so through
+`rmL_eq_erase`, a DECODE-LAYER-ONLY bridge that is barred by name from
+this closer's kit (the guard at the bridge). -/
+
+mirror_iso% rm_agree_rmL for ACL2Lean.Sorting.rm
+  vars [a, xs]
+  square agree (Worlds.Sorting.rmL a xs)
+  unfold [Worlds.Sorting.rmL]
+
+/-- info: 'ACL2Lean.MirrorProofs.rm_agree_rmL' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms rm_agree_rmL
+
+/-! ### THE PRIOR RECORD — `rm`'s agree square against the LIBRARY
+reading `List.erase` (R4 wave 2d-prep, measured, NOT declared). This is
+the measurement that motivated the conversion above; both candidate
+ladder rungs are refuted here and stay refuted.
 
 Declared as
 
@@ -166,18 +197,19 @@ months and this square now motivates: an OWN-DEFINITION `rmL` reading
 written to `RM`'s own body shape. That is a WAYPOINT-LAYER change — it
 moves `permExec_enc`'s proof term and every PERM-* native's statement
 vocabulary — so it is out of this wave's scope and is recorded, not
-attempted.
+attempted. [TAKEN in R4 wave 2d item 1; the square above is the result.]
 
-## W15 — `Permuted` (HOM LIVE; the AGREE square is exactly `rm`'s)
+## W15 — `Permuted` (BOTH CLASSES LIVE since R4 wave 2d)
 
 The map-invariance square below is what wave 2c recorded as blocked on
 three LIBRARY facts about the operations the OLD spec body used; the Q1
 re-render removed the operations, and the square closes on the
 registered `memb`/`rm` squares plus the fixed kit.
 
-THE AGREE SQUARE, measured with `memb`'s square registered and `rm`'s
-absent — cases 1 and 2 (the two blockers wave 2c recorded) CLOSE, and
-the whole residual is the missing `rm` square:
+THE AGREE SQUARE is now LIVE too, against the own-definition reading
+`Worlds.Sorting.permL`. Wave 2d-prep measured it with `memb`'s square
+registered and `rm`'s absent — cases 1 and 2 (the two blockers wave 2c
+recorded) CLOSED, and the whole residual was the missing `rm` square:
 
 ```
 ih1✝ : Sorting.Permuted xs✝ (Sorting.rm a✝ ys✝) = (xs✝.isPerm (Sorting.rm a✝ ys✝) = true)
@@ -185,8 +217,20 @@ ih1✝ : Sorting.Permuted xs✝ (Sorting.rm a✝ ys✝) = (xs✝.isPerm (Sorting
     ((List.elem a✝ ys✝ && xs✝.isPerm (ys✝.erase a✝)) = true)
 ```
 
-— `memb` is already rewritten to the reading's `List.elem` on both
-sides; `rm a ys` versus `ys.erase a` is all that is left. -/
+— `memb` already rewritten to the reading's `List.elem` on both sides;
+`rm a ys` versus `ys.erase a` all that was left. With `rm_agree_rmL`
+registered above and the reading itself converted to `permL` (whose
+three-arm match is the spec's own, and whose removal step is `rmL`),
+the square closes with `permL` as its ONLY unfold. -/
+
+mirror_iso% permuted_agree_permL for ACL2Lean.Sorting.Permuted
+  vars [xs, ys]
+  square agree (Worlds.Sorting.permL xs ys)
+  unfold [Worlds.Sorting.permL]
+
+/-- info: 'ACL2Lean.MirrorProofs.permuted_agree_permL' depends on axioms: [propext, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms permuted_agree_permL
 
 mirror_iso% permuted_map_invariant for ACL2Lean.Sorting.Permuted
   vars [xs, ys]
@@ -195,6 +239,65 @@ mirror_iso% permuted_map_invariant for ACL2Lean.Sorting.Permuted
 /-- info: 'ACL2Lean.MirrorProofs.permuted_map_invariant' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms permuted_map_invariant
+
+/-! ## W16 — `permWitness` (the book's PERM-COUNTER-EXAMPLE): the AGREE
+square is LIVE
+
+Wave 2b recorded this square as FALSE, and it was: the spec rendered
+`PERM-COUNTER-EXAMPLE` as a `List.find?` multiplicity scan returning
+`Option α`, which is a DIFFERENT ALGORITHM from the book's erase-walk
+(the `some (pceL …)`-shaped square is refuted at `xs = ys = []`). Mike's
+ruling Q3 (2026-08-18) re-rendered the spec as the book's own walk —
+`(if (memb (car x) y) (pce (cdr x) (rm (car x) y)) (car x))`, `(car y)`
+on an exhausted `x` — returning a VALUE.
+
+The square is stated against the existing waypoint reading
+`Worlds.Sorting.pceL` (`Imported/SortingConvertPerm.lean`), whose own
+removal step became `rmL` in R4 wave 2d (it is a CONSUMER of the `RM`
+reading conversion: `pceExec` calls the `RM` exec, so `pceExec_enc`'s
+induction meets `rmL` and nothing else). It closes on the registered
+`memb` and `rm` squares plus the fixed kit, with `pceL` its only
+unfold; the `(CAR Y)` arm meets `List.headD ys default` because
+`SExpr`'s DERIVED `Inhabited` default IS `SExpr.nil` — the same value
+ACL2's `(car nil)` has. -/
+
+mirror_iso% permWitness_agree_pceL for ACL2Lean.Sorting.permWitness
+  vars [xs, ys]
+  square agree (Worlds.Sorting.pceL xs ys)
+  unfold [Worlds.Sorting.pceL]
+
+/-- info: 'ACL2Lean.MirrorProofs.permWitness_agree_pceL' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms permWitness_agree_pceL
+
+/-! ### `permWitness`'s HOM square — the fourth square class EXISTS and
+the residual is a JUNK ARM (R4 wave 2d item 4, measured, NOT declared)
+
+`permWitness` returns an ELEMENT, which is a fourth refinement row the
+square table did not have: `permWitness (map e.enc xs) (map e.enc ys) =
+e.enc (permWitness xs ys)`. The class was BUILT in scratch — a `hom
+elem` spec whose result reading is inferred from the definition's own
+result type and drift-checked exactly like `hom list`/`hom scalar` — and
+it ELABORATES: every case closes but one, verbatim:
+
+```
+⊢ (List.map e.enc ys✝).headD default = e.enc (ys✝.headD default)
+```
+
+That residual is FALSE, and no machinery can repair it. It is the JUNK
+ARM: at `xs = ys = []` the book's `PERM-COUNTER-EXAMPLE` returns
+`(CAR NIL)` = `nil`, and the spec (Q3) returns `Inhabited.default`.
+`SExpr`'s DERIVED default IS `nil` — but `intEmbed.enc` is
+`.atom (.number (.int ·))` and never `nil`, so no `Acl2Embed` on `Int`
+sends `default` to `default`. Every other case of the square is true,
+and the `Prop` itself is unharmed (at `[] []` both sides hold for any
+witness): it is the POINTWISE square that cannot be stated.
+
+So the class was NOT LANDED — with its only consumer refuted it would be
+unwired machinery, which is the banned "infrastructure now, wire it
+later". The open question is a SPEC one (how a mirror declares an arm
+whose value is junk), and it is reader-facing, so Mike's. The full
+record, including the crossing that DOES close, is on the product page. -/
 
 /-! ### W15's PRIOR RECORD — what waves 2b/2c measured against the OLD
 `Permuted` body (moved here verbatim from the algorithm page when the

@@ -647,3 +647,275 @@ untouched; no `sorry`/`admit`/`native_decide` anywhere in the diff;
 `test-provenance-gates` fail ONLY because the `acl2/` submodule is not
 checked out in this worktree (`ls acl2` is empty), the same
 environmental owe waves 2a–2c recorded, owed at collection.
+
+### Wave 2d (2026-08-18) — the perm chain OPENS: 34 → 37 squares, the FIRST hypothesis-carrying transport, PRODUCT #9; item 1's RED BUILD found and repaired
+
+Executed in the same isolated worktree, resuming after the Mathlib
+incident (`docs/notes/2026-08-18_mathlib-incident.md`, RESOLVED — the
+shared checkout is restored at the manifest pin with its cache
+unpacked). This entry covers STEP 0 (item 1's owed re-verification and
+O-6) and the original items 2–8.
+
+**STEP 0's HEADLINE IS A RED BUILD, and it is item 1's.** The full
+worktree build of `d9bdc96` FAILS. That commit's own message said "a
+full-tree build showed no error lines through a grep filter but the
+success line was NOT seen"; it was not seen because the build was
+broken. Verbatim:
+
+```
+error: ACL2Lean/Imported/SortingConvertPerm.lean:170:0: derive_sim%: the iso
+template did not close pceExec_enc — the chosen NATIVE READING DOES NOT ALIGN
+WITH THE EXEC'S RECURSION …
+h_1 : ¬pceExec (enc xs) (enc (rmL x ys)) = pceL xs (ys.erase x)
+```
+
+CAUSE: item 1 converted `RM`'s reading to the own-definition `rmL`, and
+`pceL` — a CONSUMER of that reading, since `pceExec` calls the `RM` exec
+— still spelled its removal step `ys.erase x`, so `pceExec_enc`'s
+induction met `rmL` on one side and `List.erase` on the other. FIX: the
+one-line conversion of `pceL`'s recursive step to `rmL`, which is the
+same compliance move one level down and is what the `permWitness` agree
+square needed anyway. The reading is re-VALIDATED by its own
+`derive_sim%` (template failure = hard error). **The gap this exposes is
+a process one and is stated plainly: a grep filter over a build log is
+not a build result — only the exit code and the success line are.**
+
+**O-6 (orchestrator, 2026-08-18) — IMPLEMENTED, both halves.**
+
+* THE GUARD at the two decode bridges (`Imported/SortingReadings.lean`):
+  a paragraph at the bridge section and a one-line docstring on each of
+  `rmL_eq_erase` / `permL_eq_isPerm` saying they must NEVER join the
+  mirror square closer's kit or a square's `unfold` list. The reasoning
+  is recorded, not just the rule: the closer's PURITY is why the
+  acceptance is sound — a bridge in the kit would rewrite the
+  own-definition reading straight back to the library one and re-open the
+  channel the vocabulary rule exists to shut, making the conversion
+  cosmetic. Checkable by `grep -rn "rmL_eq_erase\|permL_eq_isPerm"
+  ACL2Lean/MirrorProofs` returning nothing.
+* THE PERM-SIDE NATIVES re-stated in `permL` vocabulary, through the
+  bridges at the seam and nowhere else — the three O-6 named, and no
+  others. Statement changes enumerated in the regression-net disclosure
+  below.
+
+**Q3 LANDED (the wave's ONE authorized spec change), verbatim from the
+ruled draft.** `Mirrors/Sorting.lean`'s `permWitness` is now the book's
+ERASE-WALK returning a VALUE (`| [], ys => List.headD ys default |
+a :: xs, ys => if memb a ys then permWitness xs (rm a ys) else a`), with
+the `[Inhabited α]` binder for `(CAR Y)` on an exhausted list, and
+`permWitness_complete` is the book's SINGLE EQUIVALENCE. The header
+carries the re-render note next to Q1's and Q2's. Nothing else in
+`Mirrors/` changed (net-verified).
+
+**SQUARES: 34 → 37, all `#guard_msgs`-pinned** — `rm` AGREE (against the
+own-definition `rmL`; receipt `[propext]`), `Permuted` AGREE (against
+`permL`; `[propext, Quot.sound]`), `permWitness` AGREE (against `pceL`;
+`[propext]`). Each closes with its reading as its ONLY unfold, on the
+registered `memb`/`rm` squares plus the fixed kit — the ladder is
+UNCHANGED this wave (zero new rungs). The chain that unblocked them is
+the one wave 2d-prep predicted exactly: the `rm` agree square was the
+whole residual of `Permuted`'s, and `Permuted`'s the whole residual of
+the perm-side crossings.
+
+**PRODUCT #9 — `ordered_perm_unique_int`, trio-clean.** The book's
+ORDERED-PERMS at `Int`, and the FIRST product whose spec `Prop` carries
+HYPOTHESES. The seam gate prints `8 → 9` products and pairs it correctly
+(`ordered_perm_unique_int → orderedPermsCapReplayedCond`). Two things
+had to arrive and both are real:
+
+* the `Permuted` agree square above (which carries the third hypothesis
+  into the reading's vocabulary);
+* **item 5 — `mirror_transport%`'s HYPOTHESIS-CARRYING rung.** The
+  binder walk now classifies each binder as DATA (`List SExpr`) or
+  HYPOTHESIS (`Prop`) and admits DATA-THEN-HYPOTHESES, fail-closed in
+  both directions (a binder that is neither is a hard error; so is a
+  data binder after a hypothesis). The crossing rewrites the hypotheses
+  as well as the goal with the SAME fixed agreement-square set
+  (`simp_all only` instead of `simp only`), and the mirror rung applies
+  the normalised crossing instance to the mirror's own hypotheses. The
+  hypothesis-FREE path is a separate branch and a separate closer macro,
+  so every pre-existing transport's proof term is byte-identical.
+  The waypoint cited is `ordered_perms_eq_driver`, a DECODE-SHAPE
+  corollary of the catalogued ORDERED-PERMS native — the same class as
+  that native's existing `List.Perm` corollary.
+
+**ITEM 3 (the qsort pair) — TWO of its three blockers fall, and the
+third is a RECORDED STOP.** Full measurement verbatim on the product
+page; the summary:
+
+* J-2b-5 is **REFUTED**. `qsortExec_eq_modes` — the exec's own equation
+  re-spelled at `modeLT`/`modeGTE` — states and proves from OUTSIDE
+  `Imported/Sorting.lean` by `rw [qsortExec.eq_def]; rfl`. `symV` never
+  has to be NAMED, so de-privatising it is not on the critical path.
+* the DEPTH blocker is **solved**: a depth-2 dispatch-free reading
+  (`qsortOwnL`, through `filterLtL`/`filterGteL`) is a Lean definition,
+  and against it `qsort`'s agree square's case 1 closes and case 2's
+  equation SHAPES match.
+* what is left is **exactly J-2b-4** — `filterRel`'s `DecidableEq`
+  instance argument. The fact that dissolves it is PROVED
+  (`decEqOfOrder_eq_instSExpr`, by `Subsingleton.elim`; Q4's general
+  form was not a rewrite rule, this concrete one is, and it was measured
+  to close the two-instance goal) — but it CANNOT BE PLACED: `unfold`
+  is definitions-only and hard-errors on a lemma (verified), and a
+  ladder rung is impossible because the fact names a MIRROR SPEC
+  constant while `IsoGen.lean` imports only `ACL2Lean.Syntax`.
+* NOT TAKEN. J-2b-4 is a recorded stop (delegation-boundary class 5), so
+  it returns to the orchestrator with the measurement above rather than
+  being re-decided here. A third item rides on whichever route wins:
+  `qsortOwnL` cannot be `derive_sim%`-VALIDATED where it stands (a
+  second general iso for "QSORT" is fail-closed), and converting
+  `qsortL` itself needs `filterLtL` visible from `Imported/Sorting.lean`
+  — i.e. a split of that grandfathered module.
+
+**ITEM 4 (the element-result class) — BUILT, MEASURED, and NOT LANDED.**
+The class works: `hom elem` infers the result reading from the
+definition's own result type, drift-checks like the other two, and
+`permWitness`'s square elaborates with every case closing but one —
+`(List.map e.enc ys).headD default = e.enc (ys.headD default)`. That
+residual is FALSE and no machinery can repair it: it is the JUNK ARM
+(the book returns `(CAR NIL)` = `nil`; `intEmbed.enc` is an integer atom
+and never `nil`). The `Prop` is unharmed; the POINTWISE square is what
+cannot be stated. With its only consumer refuted the class would be
+unwired machinery, so it was reverted — `IsoGen.lean` and the square
+half of `TransportGen.lean` are byte-identical to their pre-wave form.
+The open question is a SPEC one (how a mirror declares a junk arm) and
+is reader-facing, so Mike's. `permWitness_complete`'s CROSSING does
+close, which is the other half of the record.
+
+**ITEMS 6, 7, 8 — NO WAYPOINT THEOREM EXISTS TO TRANSPORT.** Checked
+concretely in the tree rather than inferred from the catalogue: there is
+no `convert_perm_to_how_many_*`, no `*_is_isort_*`, no
+`orderedp_bsort_*`/`how_many_bsort_*`, and no `bsortExec`/`bsortL` at
+all. So the element-binder widening (item 6), the composition
+meta-theorems (item 7) and the bsort exec kit (item 8) each have NO
+consumer that could be wired now, and building any of them would be the
+banned "infrastructure now, wire it later" — the J-2b-1 finding,
+unchanged. Recorded, not built.
+
+**J-CALLS.**
+
+* **J-2d-5 — `pceL`'s reading converted to `rmL` (TAKEN).** It is the
+  repair of item 1's red build AND the compliance move one level down;
+  the reading is re-validated by its own `derive_sim%`. Disclosed
+  because it changes a waypoint reading's definition.
+* **J-2d-6 — the element-result square class REVERTED after measurement
+  (TAKEN).** The alternative was to keep validated machinery with no
+  closing consumer, which the working discipline names as the banned
+  anti-pattern. The measurement is preserved verbatim on the pages.
+* **J-2d-7 — `ordered_perms_eq_driver` ADDED as a decode corollary, not
+  a statement change (TAKEN).** The catalogued native keeps its
+  statement; the corollary is additive and in the class the layer
+  already writes (`ordered_perms_native_perm_driver`,
+  `perm_qsort_perm_driver`, `orderedp_qsort_isChain_driver`).
+* **J-2d-8 — item 3's route NOT taken, returned to the orchestrator**
+  (delegation-boundary class 5: re-opening a recorded stop). See above.
+
+**REGRESSION NET.** Statements AND proof-term hashes over
+`ACL2Lean.MirrorProofs`, `ACL2Lean.Sorting`, `ACL2Lean.Basics`,
+`ACL2.Worlds.Sorting`, `ACL2.Worlds.Perm`. BASELINE PROVENANCE, stated
+because it is not the usual one: the baseline is the dump wave 2d-prep
+recorded as its AFTER state (646 declarations — the tree at `054fcb2`),
+because `d9bdc96`'s own state CANNOT be dumped: it does not build. So
+this net covers item 1 as well as items 2–8.
+
+MEASURED: **646 declarations before, 663 after; ZERO REMOVALS, 17
+additions, 7 changed statements and 7 moved proof terms** — and every
+one of the fourteen is entailed by a ruling, an O-call or a logged
+J-call. The complete list:
+
+CHANGED STATEMENTS (7):
+
+* `ACL2Lean.Sorting.permWitness`,
+  `ACL2Lean.Sorting.permWitness_complete` — Mike's ruling Q3, the one
+  authorized spec change. Every OTHER `Prop` in `Mirrors/` is
+  byte-identical.
+* `ACL2.Worlds.Perm.rmExec_enc`, `ACL2.Worlds.Perm.permExec_enc` — the
+  two converted readings (item 1).
+* `ACL2.Worlds.Sorting.pce_is_counterexample_native_of_replayed` —
+  re-stated in `permL` vocabulary (O-6).
+* `ACL2.Worlds.Sorting.pceL.eq_def`,
+  `ACL2.Worlds.Sorting.pceL.induct_unfolding` — Lean-generated
+  auxiliaries, following `pceL`'s body (J-2d-5).
+
+MOVED PROOF TERMS, statements byte-identical (7):
+
+* `ACL2.Worlds.Perm.corr_rm_enc`, `ACL2.Worlds.Perm.corr_perm_enc` — the
+  decode bridges item 1 inserted so these keep their library statements.
+* `ACL2.Worlds.Sorting.pceL` and its two `match_1.congr_eq_*`
+  companions, and `ACL2.Worlds.Sorting.pceExec_enc` — J-2d-5.
+* `ACL2Lean.MirrorProofs.elabMirrorTransport` — item 5's generator
+  change, the only machinery term that moved.
+
+NOTE what did NOT move, because it is the load-bearing negative: the two
+pre-existing sorting PRODUCTS (`isort_ordered_int`, `msort_ordered_int`)
+and their crossings are byte-identical, statement AND proof term, even
+though three new agreement squares were registered — unlike wave
+2d-prep, which had to disclose the opposite. So are all 25+ pre-existing
+squares and every `Mirrors/Basics` declaration.
+
+NET COVERAGE, stated because it is a real bound: the net's namespaces
+are `ACL2Lean.MirrorProofs`, `ACL2Lean.Sorting`, `ACL2Lean.Basics`,
+`ACL2.Worlds.Sorting`, `ACL2.Worlds.Perm` — `ACL2.Imported.Waypoints`
+is NOT among them, so the two O-6 driver re-statements
+(`perm_qsort_native_driver`, `ordered_perms_native_driver`), the third
+(`pce_is_counterexample_native_driver`) and the added
+`ordered_perms_eq_driver` are enumerated HERE rather than caught there.
+Those four, plus the seven above, are the complete statement-change set
+for this wave.
+
+**TAMPER PROBES — three for the new mechanism, all hard-error:** a
+transport whose cited waypoint has its sortedness and permutation
+hypotheses SWAPPED (application type mismatch at the crossing); a spec
+`Prop` with a FUNCTION binder (`sorter_unique`'s `f` — "neither a `List
+SExpr` argument nor a HYPOTHESIS"); and a spec `Prop` with a DATA binder
+AFTER a hypothesis. The third is also pinned as a BUILD-TIME negative
+test (`Tests/IsoGenGateTests.lean`, the file's third), because this wave
+introduced a new mechanism and that is what such a pin is for.
+
+**RECEIPTS (verbatim).** New squares: `rm_agree_rmL` `[propext]`,
+`permuted_agree_permL` `[propext, Quot.sound]`,
+`permWitness_agree_pceL` `[propext]`. New product and its crossing:
+`ordered_perm_unique_int` and `ordered_perm_unique_sexpr`, both
+`[propext, Classical.choice, Quot.sound]`. The re-stated / added
+waypoint entries, all trio: `perm_qsort_native_driver`,
+`perm_qsort_perm_driver`, `ordered_perms_native_driver`,
+`ordered_perms_eq_driver`, `pce_is_counterexample_native_driver`. The
+two pre-existing products keep theirs: `isort_ordered_int`,
+`msort_ordered_int`, both trio. No `sorryAx`, no `native_decide`
+anywhere.
+
+**Gate (fast-gate, in-worktree) [wave 2d].** Full `lake build` GREEN —
+`BUILD_EXIT=0`, 6453 jobs, ZERO errors and ZERO warnings — and RE-RUN
+after the last edit so the green covers the final tree state (the first
+run had been started before a docstring edit; that is disclosed rather
+than glossed, and the second run is the claim). `just test` green (3236
+jobs). `just driver-coverage` 116/116 replayed, aggregate OK, 29 books;
+`just check-golden-current` "golden matches the live assembly", and
+`git status` shows `acl2_samples/` and all of `Tests/` except the
+deliberately-edited `Tests/IsoGenGateTests.lean` byte-untouched. THE
+MIRROR SEAM GATE prints **9** products, pairing the new one correctly
+(`ordered_perm_unique_int → orderedPermsCapReplayedCond`). 10 of 13
+statics PASS; `check-acl2-tags`, `check-log-provenance` and
+`test-provenance-gates` fail ONLY because the `acl2/` submodule is not
+checked out in this worktree (`ls acl2` is empty) — the same
+environmental owe waves 2a–2d-prep recorded, owed at collection. No
+`sorry`/`admit`/`native_decide` in the diff.
+
+**WHAT THE SORTING CLOSE-OUT NEEDS FROM HERE, and its honest shape.**
+Thirteen target `Prop`s; THREE are theorems (`isort_ordered`,
+`msort_ordered`, `ordered_perm_unique`, all at `Int`). Of the ten left:
+
+* **TWO are one ORCHESTRATOR DECISION away** — `qsort_ordered` and
+  `qsort_perm`. Everything else for them exists or is measured; the
+  decision is J-2b-4 plus where an instance-canonicalisation fact may
+  live, and a module split of `Imported/Sorting.lean` rides on it.
+* **ONE is one SPEC DECISION away** — `permWitness_complete`. Its
+  crossing closes today; the junk-arm question is Mike's.
+* **SEVEN need a WAYPOINT NATIVE THAT DOES NOT EXIST** —
+  `isort_perm`, `msort_perm`, `bsort_ordered`, `bsort_perm`,
+  `sorts_agree`, `perm_iff_howMany`, `sorter_unique`. That is the
+  arc's real remaining shape and it is NOT mirror-side work: it is the
+  `CONVERT-PERM-TO-HOW-MANY` native, the bsort exec kit + its two
+  natives, the three `*-IS-ISORT` capstones, and (for `sorter_unique`)
+  the encapsulate/parametric lane and its still-unraised ruling. The
+  mirror machinery is ahead of the waypoint layer for the first time in
+  the arc.

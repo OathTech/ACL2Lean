@@ -154,14 +154,19 @@ theorem how_many_rm_general_native_of_replayed (w : World)
 /-! ## PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — the
 counterexample WITNESS row -/
 
-/-- The NATIVE counterexample witness: walk `xs`, erasing each element
+/-- The NATIVE counterexample witness: walk `xs`, removing each element
     from `ys` as it is matched; the first element of `xs` that `ys`
     cannot match IS the witness, and when `xs` is exhausted the witness
     is `ys`'s head (`nil` when both are). Self-contained (waypoint
-    criterion: `List` vocabulary only). -/
+    criterion: `List` vocabulary only).
+
+    The removal step is the OWN-DEFINITION `rmL` (R4 wave 2d item 1
+    converted `RM`'s reading; this reading is a CONSUMER of that one —
+    `pceExec` calls the `RM` exec, so `pceExec_enc`'s induction meets
+    `rmL` and nothing else). It was `ys.erase x` until then. -/
 def pceL : List SExpr → List SExpr → SExpr
   | [], ys => ys.headD SExpr.nil
-  | x :: xs, ys => bif ys.contains x then pceL xs (ys.erase x) else x
+  | x :: xs, ys => bif ys.contains x then pceL xs (rmL x ys) else x
 
 -- The hand `pceExec` (Sorting.lean) enters the kit registry here — the
 -- iso below is its stage-2 reading.
@@ -223,8 +228,13 @@ theorem pce_is_counterexample_native_of_replayed (w : World)
     (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
       evalOpt f w env pce_is_counterexampleFormula = some v ∧ v ≠ SExpr.nil)
     (xs ys : List SExpr) :
-    xs.isPerm ys
+    permL xs ys
       = (howManyL (pceL xs ys) xs == howManyL (pceL xs ys) ys) := by
+  -- O-6 (2026-08-18): stated in the OWN-DEFINITION `permL` vocabulary,
+  -- because this native's statement is the one a mirror square meets
+  -- (`permWitness_complete`). The library spelling enters only through
+  -- the decode bridge, here, at the seam and nowhere else.
+  rw [permL_eq_isPerm]
   let e : Env := (({} : Env).insert yS (enc ys)).insert xS (enc xs)
   have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some (enc xs) :=
     re_val_var_get w e { name := "X" } (enc xs) (by

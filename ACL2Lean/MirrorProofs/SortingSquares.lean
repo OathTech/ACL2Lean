@@ -1310,7 +1310,15 @@ it did.** Mike asked for a measurement, not a fix, and here it is.
 So no new product landed from this route. The two recorded routes
 (J-2b-4's restatement at the caller's instance, which breaks the
 `.lt`/`.gt` squares; J-2b-5's `symV` de-privatisation) are unchanged
-and remain Mike's. -/
+and remain Mike's.
+
+**R4 WAVE 2d POSTSCRIPT — the DEPTH blocker is solved, J-2b-5 is
+REFUTED, and J-2b-4 is now the ONLY thing left.** The full measurement
+(the depth-2 dispatch-free reading, the `symV` re-spelling that proves
+by `rfl` from outside this module, the instance-irrelevance fact that
+dissolves J-2b-4 and the reason it cannot be PLACED) is on the product
+page, `MirrorProofs/Sorting.lean`, under "R4 WAVE 2d — THE FRONTIERS
+RE-MEASURED". Nothing here changed. -/
 
 /-- The APPEND homomorphism square (decision O-2). `List.append` is a
     LIBRARY FUNCTION, and its square is legal machinery — the collision
