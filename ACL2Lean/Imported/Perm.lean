@@ -1,4 +1,5 @@
 import ACL2Lean.Imported.SimGen
+import ACL2Lean.Imported.SortingReadings
 
 /-! # Imported: the perm book — hand support for the `perm-cons` bridge
 
@@ -318,13 +319,21 @@ theorem rm_exec_corr (w : World)
   exact conv_defn_2 w env rm_sym a x av xv eS xS rmBody _
     rm_ns h_rm ha hx (hbody xv av)
 
-/-- Stage 2: `rmExec` on an encoded list computes `List.erase` —
-    GENERATED (`derive_sim%`). -/
+/-- Stage 2: `rmExec` on an encoded list computes the OWN-DEFINITION
+    reading `Worlds.Sorting.rmL` — GENERATED (`derive_sim%`).
+
+    The reading was `xs.erase a` until R4 wave 2d (2026-08-18); it is now
+    an own-definition because `List.erase`'s equality test is
+    HEAD-FIRST where the book's `RM` — and the mirror spec that renders
+    it — test TARGET-FIRST, and that orientation is the entire residual
+    of `rm`'s mirror agree square (`Imported/SortingReadings.lean` has
+    the record, and `rmL_eq_erase` the bridge for the decodes that keep
+    their `List.erase` statements). -/
 derive_sim% rmExec_enc for "RM"
   vars (a : raw) (xs : list)
   exec [a, xs]
-  native (enc (xs.erase a))
-  simp [List.erase_cons]
+  native (enc (Sorting.rmL a xs))
+  simp [Sorting.rmL]
   induct structural xs
 
 /-- `perm`'s body as a total Lean function — calls the callees' exec
@@ -415,8 +424,8 @@ theorem perm_exec_corr (w : World)
 derive_sim% permExec_enc for "PERM"
   vars (xs : list) (ys : list)
   exec [xs, ys]
-  native (bif xs.isPerm ys then SExpr.t else SExpr.nil)
-  simp [List.isPerm]
+  native (bif Sorting.permL xs ys then SExpr.t else SExpr.nil)
+  simp [Sorting.permL, Sorting.permL_nil]
   induct structural xs generalizing ys
 
 /-! ## Simulations under `enc` -/
@@ -453,7 +462,9 @@ theorem corr_rm_enc (w : World)
   intro xs e' a x av ha hx
   have h := rm_exec_corr w h_rm h_no_consp h_no_equal h_no_car h_no_cdr
     h_no_cons e' a x av (enc xs) ha hx
-  rwa [rmExec_enc] at h
+  -- the reading is the own-definition `rmL` since R4 wave 2d; this decode
+  -- keeps its `List.erase` statement through the declared bridge
+  rwa [rmExec_enc, Sorting.rmL_eq_erase] at h
 
 /-- `perm` over encoded arguments computes `List.isPerm`. -/
 theorem corr_perm_enc (w : World)
@@ -473,7 +484,9 @@ theorem corr_perm_enc (w : World)
   intro xs ys e' x y hx hy
   have h := perm_exec_corr w h_perm h_memb h_rm h_no_consp h_no_equal
     h_no_car h_no_cdr h_no_cons e' x y (enc xs) (enc ys) hx hy
-  rwa [permExec_enc] at h
+  -- the reading is the own-definition `permL` since R4 wave 2d; this
+  -- decode keeps its `List.isPerm` statement through the declared bridge
+  rwa [permExec_enc, Sorting.permL_eq_isPerm] at h
 
 /-! ## The assembly -/
 
