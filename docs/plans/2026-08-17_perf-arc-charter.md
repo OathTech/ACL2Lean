@@ -102,3 +102,14 @@ decided BY the profile per the binding methodology:
    refused; take only if honestly decoupled, fail-closed. Plus a look
    at Waypoints/Qsort.lean's 564s elaboration.
 4. Budget tuning: DROPPED (the profile's verdict).
+
+## ARC EXIT (2026-08-18)
+
+Full claim-gate TRUE_EXIT=0 on 8296575 (artifact:
+`.gate-runs/8296575-20260818T014625Z.log`) — the arc's own halved
+critical path made this the fastest full gate on record. Phase 3
+candidates recorded above with honestly-diminishing prizes (the SE
+runBook residue; the usefi prepare engine; own-row driver costs; the
+shared-lib Waypoints/coverage double-replay = a design decision for
+Mike). The branch is the merge candidate, awaiting explicit approval
+per standard practice.
