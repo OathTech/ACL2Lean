@@ -1409,3 +1409,370 @@ collisions; the four `#guard_msgs` receipts on the new products are
 trio-clean `[propext, Classical.choice, Quot.sound]`; the new negative
 test's message is pinned; regression net as above from a real
 reverted-source build.
+
+### Wave 2g (2026-08-18) — THE LAST BUILDS: the `userFn` MEASURE ROW and the `usefi` ROUTE; sorting 11 → 13 of 16, products 15 → 19
+
+Executed in the same isolated worktree; nothing committed there. Two
+GENERIC machinery items, each witnessed by the work it unblocks, and
+both were built as machinery rather than as per-algorithm kits (Mike's
+binding direction of 2026-08-18: "we should be building the latter").
+
+**THE HEADLINE.** Four new products — `bsort_ordered_int`,
+`bsort_howMany_int`, `msort_is_isort_int`, `qsort_is_isort_int` — take
+the sorting scoreboard to **13 of 16** and the seam gate to **19
+products, 58 seams**, every pairing correct. The three that remain are
+`permWitness_complete` and `sorter_unique` (the two SETTLED structural
+entries, untouched) and `bsort_is_isort`, whose cause this wave
+MEASURED and it is not machinery (below).
+
+---
+
+#### BUILD 1 — `derive_exec%`'s `userFn` MEASURE ROW (generic), witnessed by BSORT
+
+`BSORT` is the corpus's only defun measured by a WORLD FUNCTION
+(`(BNEXT-SIZE X)`) — the measure table's `userFn` row. It recurses to a
+FIXED POINT rather than down a destructor chain, so neither the M1 nor
+the M2 route reaches it, and three waves recorded its kit as unbuilt.
+
+**THE FINDING THAT UNBLOCKED IT, and it is a CORRECTION to this arc's
+own record.** J-2b-1, J-2e-3 and the wave-2f product page all said the
+blocker was that "`bsortExec` recurses on `bnextExec x` for an ARBITRARY
+`SExpr`, where the replayed decrease (an `enc`-image statement, per the
+type-absorbed doctrine) does not reach". **The parenthetical is false.**
+The `enc`-image bound belongs to the chosen NATIVE READING
+(`bnextSizeL : List SExpr → Nat`), not to the replay: `hreplayed`
+quantifies over EVERY environment, so binding `X` to an arbitrary
+`SExpr` is exactly as available as binding it to `enc xs`. Stated in the
+EXEC's own vocabulary the decrease holds everywhere —
+`how_many_bad_pairs_bnext_exec_of_replayed` (`Imported/SortingBsort.
+lean`) and its driver — and a total Lean `bsortExec` can take THE BOOK'S
+OWN ADMISSION LEMMA, by replay, as its termination proof. Nothing about
+bubble sort is assumed anywhere in the kit.
+
+**THE ROW, in full (`Imported/ExecGen.lean`, `Replay/MeasureTable.lean`).**
+
+* `MeasurePos` gains `mUser` — the positional twin of `MeasureShape.
+  userFn`. Split out of `m1` on purpose: a consumer that only
+  understands trusted-core measures now fails CLOSED on this shape
+  instead of silently reading it as a `consCount` decrease.
+* The clause is `measured i via "<MEASURE-FN>" decreasing <thm>`: the
+  measure function's REGISTERED EXEC KIT supplies the measure (resolved
+  through the same registry the body's callees are), and the named
+  theorem is the REPLAYED decrease. Like `measured` itself the clause is
+  a TRANSCRIPTION of the emitted `:MEASURE`, checked at the consumers.
+* THE MEASURE TOTALIZATION is `Logic.toNat` — the TRUSTED CORE'S OWN
+  projection, documented there as "for termination measures". Nothing
+  new was defined for it.
+* THE ORDER BRIDGE is generic and is three lemmas: `NatValued` (the
+  measure's values are non-negative integer atoms — ACL2's own
+  `(O-P <measure>)` admission obligation, in exec vocabulary),
+  `natValued_plus` (which closes the `BINARY-+` measure shape the corpus
+  uses), and `toNat_lt_of_lt_truthy` (ACL2's `<` on two such values IS
+  `Logic.toNat`'s `<`; both hypotheses load-bearing — without them the
+  rationals `-2 < -1` map to `0 < 0`). A measure kit's own `NatValued`
+  proof is then a `fun_induction` over its exec.
+* THE CORR takes `Nat` strong induction over that same measure (M2's
+  scaffold with the emitted measure in place of the count sum) and
+  applies the decrease AT THE SITE'S OWN IF-BRANCH GUARD. Else-branch
+  binders are named ONLY for this row, so every other kit's corr proof
+  term is byte-identical.
+* THE DECLARED SHAPE CLASS: one measured formal, a measure function with
+  a registered exec kit, and ONE self-call site governed by an IF
+  branch. Several sites, an ungoverned site, a site that recurses on the
+  measured formal itself, a two-position sum with a `via`, or an
+  unregistered measure kit are each a hard error naming the frontier.
+* `register_exec_corr%` — ATTACH a hand kit's corr metadata where the
+  corr theorem is in scope, modelled on `registerKitEnc` (re-attachment
+  refused). This is the module header's own "extend the registration
+  when a generated corr first needs a hand callee", and BSORT's
+  GENERATED corr — whose body calls the hand-written BNEXT — is that
+  first consumer. The telescope is DERIVED from the body by the same
+  `canonicalTelescope` `genCorr` uses for its own.
+* F4's message convention applied to the four M2 formals-mismatch
+  messages (they now name the observed and expected formals).
+
+**THE KIT AND ITS PLACEMENT** (`Imported/SortingBsortKit.lean`, new).
+The generated `bsortExec` + `bsort_exec_corr`, the native reading
+`bsortL` (an ORDINARY Lean definition whose termination is the REPLAYED
+`how_many_bad_pairs_bnext_native_driver` — no P2 hand proof at all), the
+generated `bsortExec_enc`, and the two decodes. It sits ABOVE the
+waypoint layer, which inverts the usual layering for this one book and
+is the honest shape of the row: ACL2 admits `BSORT` only because it has
+already proved that lemma, and so do we.
+
+**THE NATIVES** (`Waypoints/BsortCap.lean`, new): ORDEREDP-BSORT and
+HOW-MANY-BSORT, both replaying UNCONDITIONALLY with `with_termination`,
+both drivers trio-clean; the two catalogue rows promoted `.pending` →
+`.native`. Those rows' own text is corrected in place: their "remaining
+frontier" named a P2 hand termination proof under the measure-absorbed
+precedent, and the actual artifact is the replayed decrease.
+
+**THE MIRROR SIDE — the FIXPOINT-GUARD capability.** Wave 2d-prep
+recorded both `bsort` squares as blocked on a LOOPING CLOSER (verbatim:
+`Possibly looping simp theorem: Sorting.bsort.eq_1`, then a `whnf`
+timeout), which this wave reproduced for the AGREE square too. A guarded
+fixpoint recursion's own `eq_def` rewrites `f x` to a term containing
+`f (step x)`, forever. The capability (`MirrorProofs/IsoKit.lean`) is a
+BOUNDED UNFOLD read off the definition and nothing else: from `f`'s own
+`eq_def` it DERIVES the definition's two GUARDED equations (`eq_def`
+composed with `if_pos`/`if_neg`, and nothing else is available to the
+proof) and hands THOSE to the closer. They terminate, because the
+recursive occurrence's own guard is not derivable. It fires only where
+the `eq_def` right-hand side is an `ite` whose branches mention the
+definition itself — every pre-existing square, all pattern-matching,
+takes the unchanged route.
+
+Two things ride with it, BOTH SCOPED TO THE NEW CLASS so that a square
+declaring no fixpoint is handed the identical lemma set it was handed
+before (the O-7 design): the callee HOM squares enter REVERSED (the
+guard has to be normalised OUT of the embedding's image; the forward
+direction was MEASURED to leave the side condition undischargeable), and
+the extension `[map_inj_iff, not_false_eq_true]` is appended.
+`map_inj_iff` moved VERBATIM from `TransportGen` to `IsoKit` for it.
+
+**THE MODULE SPLIT the ratchet asked for.** `IsoGen.lean` was at exactly
+1500 and could not take the capability, so it split on the seam the
+ratchet implies: the KIT (embedding structures, the ladder and its pins,
+the closer) is `MirrorProofs/IsoKit.lean` (678), `mirror_iso%`'s
+ELABORATOR keeps `IsoGen.lean` (990). A verbatim move; the only
+non-move is `undestructuredGuardCtor?` losing `private` (its one caller
+moved to the other file).
+
+The generated equations live OUTSIDE `ACL2Lean.MirrorProofs`
+(`ACL2Lean.FixpointEqns`), and the reason is recorded at the code: the
+mirror seam gate enumerates PRODUCTS mechanically as "a theorem under
+`ACL2Lean.MirrorProofs` whose statement mentions a `Mirrors/` spec
+constant and no other constant of this package", and a spec definition's
+own guarded equation matches that description exactly while being the
+opposite of a product. Classifying it out of the product namespace is
+the honest fix; hardening the gate's criterion would not be (the
+two-standard rule). The gate CAUGHT this — it is the J-2c-4 class again
+and the gate did its job.
+
+**SQUARES + PRODUCTS.** `MirrorProofs/SortingBsortSquares.lean` (new):
+`bsort_agree_bsortL` and `bsort_map_hom`, both `#guard_msgs`-pinned,
+both trio-clean. `bsort_ordered_int` and `bsort_howMany_int` needed NO
+decode corollary and NO transport-table row — the two natives are in
+exactly the shapes `msort_ordered`/`msort_howMany` transport through.
+
+---
+
+#### BUILD 2 — the `usefi` ROUTE on `driver_replayed%`, and the sorts-equivalent module
+
+**THE BLOCKER WAS NOT THE BOOK'S SIZE, and this corrects waves 2e/2f.**
+Both recorded `msort_is_isort` / `qsort_is_isort` / `bsort_is_isort` as
+blocked because "`sorting/sorts-equivalent` has NO waypoint module at
+all", and treated that as a cost estimate for the corpus's largest book
+(eight dependency books). The absence was real; its CAUSE was one level
+down. Each of these theorems is proved in ACL2 by ONE node — a `:USE
+(:FUNCTIONAL-INSTANCE …)` of the equisort scope's constrained-sorter
+capstone — and **`driver_replayed%` had NO ROUTE to a
+functional-instance proof at all**: the discharge existed only as a
+`runBook` parameter the COVERAGE HARNESS supplies, so these rows were
+replayable BY THE SWEEP AND BY NOTHING ELSE, and no waypoint module
+could have been written whatever its size. With the route, the module is
+140 lines.
+
+**THE ROUTE** (`Waypoints/Macro.lean`): an opt-in `usefi` clause that
+mirrors the harness pre-pass in the harness's own order and for its
+reasons — the dep books' recorded ADMISSIONS carried to this world
+(transport first, re-replay as the fallback), the LIBRARY PARAMETRIC
+constants consumed by NAME (Name literals, so no import is forced on
+modules that do not have them; absent = the rebuild route, unchanged),
+and the prepare run in a SHALLOW context because the composition
+overflows the worker stack inside a row telescope. Two differences from
+the sweep, both deliberate: only the ONE theorem being replayed is
+prepared, and a failed prepare HARD-FAILS rather than being logged and
+skipped — a waypoint row states a frontier, it does not carry one.
+
+**ONE REAL BUG FOUND AND FIXED IN THE MACRO, and it predates this
+wave.** `driver_replayed%` was already computing the cross-book
+ADMISSION seed (`crossBookRegistry`'s second component) and DISCARDING
+it, where `runBook` seeds `termReplayed` with it. An `:INCLUDE-BOOK`'d
+defun has no admission proof in the consumer's own log, so its totality
+had no route at all — which is why QSORT-IS-ISORT first elaborated with
+a kept `total:QSORT` + `tp:QSORT` telescope the sweep does not have. The
+fix is the runner's own three lines, with the runner's own filter (a fn
+with its OWN recorded admission keeps that route), and it is what makes
+the row unconditional.
+
+**THE ONE BUILD-CONFIG COST, disclosed:** `lakefile.toml` now carries
+the Tests lib's `--tstack=524288` for the `ACL2Lean` lib as well, for
+the same documented reason one layer down. Without it the SE rows abort
+with "deep recursion was detected at 'interpreter'".
+
+**THE MODULES** (`Imported/SortsEquivalent.lean`,
+`Waypoints/SortsEquivalent.lean`, both new): the two decodes and the two
+rows, both UNCONDITIONAL, both drivers trio-clean; catalogue rows
+promoted. The decodes spell their world-fact symbols as LITERALS rather
+than naming `Imported/Sorting.lean`'s `private *_sym` constants — the
+literal is DEFEQ, so the callee corrs accept it and nothing is
+de-privatised (the J-2b-5 class). `QSORT-IS-ISORT` decodes to
+`qsortOwnL`, the reading its mirror square is stated against.
+
+**THE EXPECTED REFUSAL, recorded not silenced:** the cross-book transfer
+prints `[cross-book equisortDev: world NOT included in sortsEqWorldD —
+transfer refused]`. That is correct (the scope's WITNESS defuns are not
+in the consumer's world) and the `usefi` route is exactly the mechanism
+that does not need them.
+
+**THE TRANSPORTS** cost two `first`-alternatives: the HYPOTHESIS-FREE
+transport closer gained the `.toAcl2Embed` landings the
+hypothesis-carrying one already documented (`map_inj` is stated over
+`Acl2Embed`, and these are the first LIST-conclusion products declared
+at an `OrderedEmbed`). Appended LAST, so every pre-existing transport
+succeeds at an earlier alternative.
+
+---
+
+#### J-CALLS
+
+* **J-2g-1 — `BSORT-IS-ISORT` NOT BUILT, and the cause is NOT
+  machinery.** Measured, and the golden says it: `BSORT-IS-ISORT →
+  REPLAYED ✓ [DISCHARGE: Goal:preprocess/tau ◌ assumed
+  cond[total:(BSORT X), ASSUMED:dp-fact]]`. `driver_replayed%` REFUSES
+  to register a replayed statement carrying `ASSUMED:dp-fact` (the N1
+  remediation guard — such a condition states an obligation over
+  independently-quantified opaques that CAN BE FALSE), so no waypoint
+  native can be built from it while the leaf is assumed. Its catalogue
+  entry's own claim is corrected in place: "UNCONDITIONAL since
+  2026-08-16" tracked the KEPT-condition telescope, which is a different
+  axis from an ASSUMED discharge. The row additionally failed EARLIER in
+  the attempt, on its own dependency (`usefi bridge: consumer discharge
+  of ORDEREDP-BSORT failed: depReplayedProofAt … (frontier)`). Both
+  observations are on the record; neither was worked around. The remedy
+  is at the LEAF'S EMISSION.
+  **AND IT IS A FORK ROUND-TRIP — a RECORDED STOP, not a mirror-wave
+  task** (delegation boundary, escalated for Mike's sequencing). What
+  has to change is in the `acl2/` instrumentation: the
+  `Goal:preprocess/tau` leaf must EMIT A REAL DISCHARGE RECORD instead
+  of the verdict-only shape the driver can currently only take as an
+  assumed dp-fact. No amount of waypoint or mirror machinery reaches
+  it, and NO LATER MIRROR WAVE SHOULD CHASE IT: the honest scoreboard
+  entry stands until the fork emits more.
+* **J-2g-2 — the BSORT-IS-ISORT DECODE was written, measured to close,
+  and REVERTED.** Keeping it would be machinery with no consumer (the
+  J-2d-6 precedent). Recorded at the foot of
+  `Imported/SortsEquivalent.lean`.
+* **J-2g-3 — the `ACL2Lean` lib's `--tstack` (TAKEN, disclosed).** A
+  project-local build-config change with the Tests lib's own rationale
+  and comment. The alternative was no waypoint route to any
+  functional-instance proof.
+* **J-2g-4 — the FIXPOINT extension's three members are scoped to the
+  new class, not admitted to the fixed kit.** The reversal of callee hom
+  squares in particular is a MEASURED direction choice (the forward one
+  leaves the guard's side condition undischargeable, recorded at the
+  code), and scoping it means no pre-existing square's lemma set moves.
+* **J-2g-5 — the two SETTLED structural entries were NOT touched.**
+  Mike's ruling of 2026-08-18 is recorded as a dated ADDENDUM to part 6
+  of the reshape note: the `Option Int` demonstrator for
+  `permWitness_complete` and round-trip functional instantiation for
+  `sorter_unique` are each a NAMED DIRECTION, DELIBERATELY NOT TAKEN —
+  no toolchain contortions.
+
+#### TAMPER PROBES — six, all hard-error
+
+1. `via "NO-SUCH-MEASURE"` → "the measure function NO-SUCH-MEASURE has
+   no registered exec kit … (fail-closed)".
+2. `decreasing` given the LIST-shaped NATIVE driver instead of the
+   exec-level one → type mismatch at the termination goal (the
+   `enc`-image statement cannot discharge a total function's).
+3. `register_exec_corr%` RE-ATTACHING a corr → "BNEXT already has corr
+   … re-attachment would silently redirect a caller's corr walk".
+4. `measured 0 0 via …` → "the userFn row is the SINGLE-measured-formal
+   shape …".
+5. the `bsort` AGREE square against a MISALIGNED reading (`isortL`) →
+   "the square template did not close" (the fixpoint equations cannot
+   rescue it).
+6. the `bsort` HOM square over the PLAIN `Acl2Embed` → same, and the
+   order-respect is load-bearing through `bnext`'s own hom square.
+
+#### REGRESSION NET — built from two real builds, not argued
+
+Statements AND `pp.all` proof-term hashes over `ACL2Lean.MirrorProofs`,
+`ACL2Lean.Sorting`, `ACL2Lean.Basics`, `ACL2.Worlds.Sorting`,
+`ACL2.Worlds.Perm`, taken by STASHING the whole wave (tracked +
+untracked), rebuilding at `dc1cadd`, dumping, then restoring and
+dumping again.
+
+**862 declarations before, 931 after; 836 BYTE-IDENTICAL (statement AND
+proof term).** The complete remainder:
+
+* **81 ADDED** — 49 real declarations (the bsort kit and its two
+  natives-of-replayed; the two sorts-equivalent decodes and their
+  symbol/formula constants; `fixpointGuardEqns?` /
+  `fixpointExtraLemmas`; the two `bsort` squares; the four products and
+  their four crossings) + 32 Lean-generated auxiliaries
+  (`eq_def`/`induct`/`match_*` for the new definitions).
+  `undestructuredGuardCtor?` counts as an addition because it lost
+  `private` (its private-mangled name is outside the net's namespaces),
+  which is disclosed rather than netted away. NOT COUNTED because they
+  live outside the net's namespaces by design: the four generated
+  `ACL2Lean.FixpointEqns.*_fix`/`_step` equations (two definitions × two
+  guards) — enumerated here.
+* **12 REMOVED + 6 STATEMENT-CHANGED — ALL of them
+  `elabMirrorIso.match_N`**, Lean-generated `match` auxiliaries of the
+  ELABORATOR this wave deliberately changed; their numbering shifts with
+  the function's body. No content.
+* **8 VALUE-ONLY** — `elabMirrorIso` (the generator itself) and SEVEN
+  pre-existing PRODUCTS: `isort_ordered_int`, `isort_howMany_int`,
+  `msort_ordered_int`, `msort_howMany_int`, `qsort_ordered_int`,
+  `qsort_howMany_int`, `qsort_perm_int`. Statements and receipts
+  unchanged; the proof terms moved for the reason wave 2d-prep already
+  disclosed for the same mechanism — a transport collects EVERY
+  REGISTERED SQUARE into its fixed simp set, and this wave registers two
+  new ones (`bsort` agree + hom).
+
+**THE LOAD-BEARING NEGATIVE.** ZERO pre-existing SQUARES moved —
+statement or proof term — even though the closer's assembly was changed
+and `IsoGen` was split. That is the check that the FIXPOINT extension is
+properly scoped (it fires only on the new shape class) and that the
+`IsoGen`/`IsoKit` split and the `map_inj_iff` move are verbatim. Every
+`Mirrors/` spec `Prop` and every `Mirrors/Basics` declaration is
+byte-identical: **NO SPEC CHANGE THIS WAVE.**
+
+#### Gate (fast-gate tier, in-worktree) [wave 2g]
+
+Full `lake build` GREEN — **`BUILD_EXIT=0`, 6469 jobs, ZERO errors and
+ZERO warnings** — run after the last source edit. `just test` green
+(3243 jobs). `just driver-coverage`: **116/116 replayed (116
+unconditional + 0 conditional), aggregate OK, 29 books**;
+`just check-golden-current` "golden matches the live assembly", and
+`git status` shows `acl2_samples/` and ALL of `Tests/` byte-untouched
+(this wave edited no test file at all). THE MIRROR SEAM GATE prints
+**19 products, 58 seams**, pairing all four new ones correctly
+(`bsort_ordered_int → orderedpBsortReplayedCond`,
+`bsort_howMany_int → howManyBsortReplayedCond`,
+`msort_is_isort_int → msortIsIsortReplayedCond`,
+`qsort_is_isort_int → qsortIsIsortReplayedCond`). Mirror name check: no
+collisions. 10 of 13 statics PASS — `check-acl2-tags`,
+`check-log-provenance` and `test-provenance-gates` fail ONLY because the
+`acl2/` submodule is not checked out in this worktree, the same
+environmental owe waves 2a–2f recorded, owed at collection. No
+`sorry`/`admit`/`native_decide` anywhere in the diff or the new files
+(the only hits are the word "admitted" in the ladder's own prose and
+`sorryAx` inside error-message strings).
+
+**RECEIPTS (verbatim, all TEN new mirror-side declarations trio-clean —
+`[propext, Classical.choice, Quot.sound]`):** `bsort_agree_bsortL`,
+`bsort_map_hom`, `bsort_ordered_sexpr`, `bsort_ordered_int`,
+`bsort_howMany_sexpr`, `bsort_howMany_int`, `msort_is_isort_sexpr`,
+`msort_is_isort_int`, `qsort_is_isort_sexpr`, `qsort_is_isort_int`. The
+five new waypoint-layer entries, also trio: `how_many_bad_pairs_bnext_
+exec_driver`, `orderedp_bsort_native_driver`,
+`how_many_bsort_native_driver`, `msort_is_isort_native_driver`,
+`qsort_is_isort_native_driver`.
+
+**MODULE SIZE.** `IsoGen.lean` 1500 → 990 with `IsoKit.lean` at 686 (the
+split the ratchet asked for); `ExecGen.lean` 967 → 1261;
+`MirrorProofs/Sorting.lean` 584. Five new modules, all well under the
+norm (188 / 150 / 140 / 66 / 62). `check-file-weight` PASSES.
+
+#### THE ARC-EXIT SHAPE AFTER 2g
+
+**THIRTEEN of the sixteen sorting `Prop`s are THEOREMS at `Int`.** The
+three that are not are each recorded with a cause that is NOT a
+machinery gap this layer can close: an ASSUMED leaf whose remedy is at
+EMISSION (`bsort_is_isort`), and the two SETTLED structural entries
+Mike ruled to REST. There is no unbuilt mirror machinery named by any
+of the three.

@@ -9,6 +9,7 @@ import ACL2Lean.MirrorProofs.OrderBridge
 import ACL2Lean.MirrorProofs.SortingSquares
 import ACL2Lean.MirrorProofs.SortingPermSquares
 import ACL2Lean.MirrorProofs.SortingQsortSquares
+import ACL2Lean.MirrorProofs.SortingBsortSquares
 import ACL2Lean.MirrorProofs.Sorting
 -- the MIRROR-LEVEL seam gate (R-1b, 2026-08-16 — audit A1-F2)
 import ACL2Lean.MirrorProofs.SeamGate

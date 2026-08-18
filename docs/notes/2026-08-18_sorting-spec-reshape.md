@@ -303,6 +303,19 @@ an embedding whose `default` is in range (a spec/type question), or a
 composition through a theorem the corpus does not prove. The `Prop` is
 correct and the product is absent; the scoreboard says exactly that.
 
+### ADDENDUM (Mike, 2026-08-18) — THE TWO STRUCTURAL ENTRIES REST
+
+Appended after the ruling above, altering nothing in it. Both remaining
+structural entries have a named next direction, and both are being left
+alone on purpose:
+
+* **`permWitness_complete`** — an `Option`-valued demonstrator at `Int`
+  (a junk arm the embedding can hit) is the named direction, deliberately
+  not taken: no toolchain contortions.
+* **`sorter_unique`** — round-trip functional instantiation (an arbitrary
+  Lean `f` carried back to a `World` defun) is the named direction,
+  deliberately not taken: no toolchain contortions.
+
 ---
 
 ## MIKE'S RULINGS (2026-08-18, "Agree on all")

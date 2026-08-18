@@ -1,5 +1,51 @@
 # ACL2Lean — project TODO
 
+> **R4 WAVE 2g — THE LAST BUILDS (2026-08-18; branch `mdd/r4-wave2`,
+> ARC LOG in `docs/plans/2026-08-17_r4-wave2-charter.md`).** Mirror
+> PRODUCTS go **15 → 19** and the sorting scoreboard **11 → 13 of 16**:
+> `bsort_ordered_int`, `bsort_howMany_int`, `msort_is_isort_int`,
+> `qsort_is_isort_int`. Two GENERIC machinery items, per Mike's binding
+> direction that these be built as machinery and never as
+> per-algorithm kits.
+> **(1) `derive_exec%`'s `userFn` MEASURE ROW** — a defun measured by a
+> WORLD FUNCTION (the measure table's `userFn` row; witness `BSORT`,
+> measured by `(BNEXT-SIZE X)`). `MeasurePos` gains `mUser`; the clause
+> is `measured i via "<FN>" decreasing <thm>`; the measure is
+> `Logic.toNat` of the measure fn's REGISTERED EXEC and the decrease is
+> the book's own admission lemma BY REPLAY. **THE FINDING, and it
+> corrects J-2b-1/J-2e-3 and the wave-2f product page:** those recorded
+> the blocker as "the replayed decrease is an `enc`-image statement" —
+> IT IS NOT. The `enc`-image bound belongs to the chosen NATIVE READING;
+> a replayed statement quantifies over EVERY environment, so the
+> exec-level decrease holds at ARBITRARY `SExpr`, which is exactly what
+> a total Lean definition needs. Also: `register_exec_corr%` (attach a
+> hand kit's corr metadata — BSORT's generated corr calling the hand
+> BNEXT is the first consumer the module header anticipated), and the
+> mirror closer's **FIXPOINT-GUARD capability** (`MirrorProofs/IsoKit.
+> lean`, split out of `IsoGen` at the 1500-line cap) — the definition's
+> own two GUARDED equations derived from its `eq_def`, which is what
+> wave 2d-prep's recorded looping closer needed.
+> **(2) `driver_replayed%`'s `usefi` CLAUSE** — the coverage sweep's
+> functional-instance pre-pass at the WAYPOINT layer. **THE BLOCKER FOR
+> `sorting/sorts-equivalent` WAS NOT THE BOOK'S SIZE:** each capstone is
+> ONE `:USE (:FUNCTIONAL-INSTANCE …)` node, and the macro had NO ROUTE
+> to such a proof at all — the rows were replayable by the SWEEP and by
+> nothing else, so no waypoint module could have been written. With the
+> route the module is 140 lines. A real pre-existing macro BUG fell out:
+> the cross-book ADMISSION seed was computed and DISCARDED where
+> `runBook` seeds `termReplayed` with it, which is why an
+> `:INCLUDE-BOOK`'d defun's totality had no route.
+> **OPEN AFTER IT — THREE of sixteen.** `bsort_is_isort`: **not
+> machinery** — the golden's own row is `[DISCHARGE: … ◌ assumed
+> cond[total:(BSORT X), ASSUMED:dp-fact]]`, and `driver_replayed%`
+> refuses to register a replayed statement carrying an ASSUMED dp-fact;
+> the remedy is at the LEAF'S EMISSION (J-2g-1). `permWitness_complete`
+> and `sorter_unique`: the two SETTLED structural entries, untouched —
+> Mike ruled them to REST (2026-08-18), with the `Option Int`
+> demonstrator and round-trip functional instantiation recorded as
+> NAMED DIRECTIONS, DELIBERATELY NOT TAKEN (reshape note, part 6
+> addendum).
+
 > **R4 WAVE 2f — THE BIJECTION LANDS (2026-08-18; branch `mdd/r4-wave2`,
 > ARC LOG in `docs/plans/2026-08-17_r4-wave2-charter.md`, reshape record
 > in `docs/notes/2026-08-18_sorting-spec-reshape.md`).** Mike approved

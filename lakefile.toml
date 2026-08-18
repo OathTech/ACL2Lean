@@ -9,6 +9,14 @@ rev = "v4.28.0"
 
 [[lean_lib]]
 name = "ACL2Lean"
+# R4 wave 2g: the SAME reason the Tests lib carries it (below), now one
+# layer down. `driver_replayed%` gained a `usefi` clause so a WAYPOINT
+# module can replay a `:USE (:FUNCTIONAL-INSTANCE …)` proof — the
+# sorts-equivalent capstones — and that discharge nests a parametric
+# replay inside a row replay, spending a native frame per telescope
+# binder. Without this the elaboration aborts with "deep recursion was
+# detected at 'interpreter'". Scoped to this lib's modules only.
+moreLeanArgs = ["--tstack=524288"]
 
 [[lean_lib]]
 name = "Tests"

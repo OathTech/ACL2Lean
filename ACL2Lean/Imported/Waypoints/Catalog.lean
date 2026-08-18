@@ -9,6 +9,8 @@ import ACL2Lean.Imported.Waypoints.Qsort
 import ACL2Lean.Imported.Waypoints.Msort
 import ACL2Lean.Imported.Waypoints.IsChain
 import ACL2Lean.Imported.Waypoints.Bsort
+import ACL2Lean.Imported.Waypoints.BsortCap
+import ACL2Lean.Imported.Waypoints.SortsEquivalent
 -- the pattern-pin natives' seam check (audit F6) needs the native
 import ACL2Lean.Imported.Waypoints.P8ClausifyDetail
 -- the axiom gate carries the equisort parametric/at-canonical receipts
@@ -350,64 +352,41 @@ def liftCatalog : List (String × String × LiftStatus) := [
       3's functional instantiation consumes; a \
       witness-level native is the banned masquerade"),
   -- sorts-equivalent capstones (MSORT/QSORT/BSORT-IS-ISORT): the
-  -- entries RETURN 2026-08-13. They were parked when the rows regressed
-  -- to ASSUMED under the thin-Lean purge (2026-08-11: the usefi pre-pass
-  -- lost its forbidden Lean-side dischargers). The ATOM-leg increment
-  -- re-greened all three — the usefi discharge succeeds now that PCE's
-  -- admission replays — so the lift-coverage gate demands a decision
-  -- again. HONEST STATUS: `.pending` for all three. No capstone waypoint
-  -- native exists (there is no `msortL xs = isortL xs` decode in the
-  -- layer, and inventing one to satisfy the gate would be exactly the
-  -- fake this catalog exists to prevent); the pre-purge entries were
-  -- `.pending` too, and their old text is superseded because the usefi
-  -- blocker it named is gone.
+  -- entries RETURNED 2026-08-13, parked when the rows regressed to
+  -- ASSUMED under the thin-Lean purge and re-greened by the ATOM-leg
+  -- increment. Two of the three are `.native` since R4 wave 2g (below);
+  -- the third's `.pending` now names a DIFFERENT cause and is not a
+  -- queue item.
+  -- PROMOTED 2026-08-18 (R4 wave 2g): the book HAS a waypoint module now
+  -- (`Waypoints/SortsEquivalent.lean`). The blocker these two entries
+  -- named ("queued behind the mirror buildout") was not the whole story
+  -- and the correction is on the record: `driver_replayed%` had NO ROUTE
+  -- to a `:USE (:FUNCTIONAL-INSTANCE …)` proof at all — the discharge
+  -- existed only as a `runBook` parameter the coverage sweep supplies —
+  -- so these rows were replayable by the SWEEP and by nothing else. The
+  -- macro's `usefi` clause is that route at this layer.
   ("sorting/sorts-equivalent", "MSORT-IS-ISORT",
-    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13 \
-      — the FI of the equisort parametric theorem at msort/isort \
-      replays) and UNCONDITIONAL since 2026-08-15 (T1+2 sprint P3c): \
-      the row's conditions total:MERGE2, total:MSORT (R3's measure \
-      table), rule:TRUE-LISTP-RM and rule:CONVERT-PERM-TO-HOW-MANY \
-      (the cross-book D1 transfer) are ALL retired, and the \
-      REQUIRED-class merge2/msort admission debt went with them \
-      (dis_merge2_total/dis_msort_total at R3, dis_convert_perm at \
-      P3c — the repository is at zero sorries). The waypoint native \
-      (`msortL xs = isortL xs`) is NOT BUILT — queued behind the \
-      mirror buildout; the decision stays `.pending` for THAT reason, \
-      not for a replay one. Statement pin: Tests/SortingPins"),
+    .native ``msort_is_isort_native_driver ``msortIsIsortReplayedCond),
   ("sorting/sorts-equivalent", "QSORT-IS-ISORT",
-    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13) \
-      and UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P5b): every \
-      condition the row once carried is retired — tp:ACL2-COUNT by the \
-      D-A ts-algebra consumer (P1, 2026-08-14); total:QSORT/total:O< \
-      by the R3 measure table and the ordinal route (P3b); \
-      rule:TRUE-LISTP-RM, rule:CONVERT-PERM-TO-HOW-MANY, \
-      rule:HOW-MANY-FILTER-1 and rule:HOW-MANY-QSORT by the cross-book \
-      D1 transfer (P3c); the three arithmetic/if-lift gz rules by the \
-      d5GzRules move (P4b); rule:ORDEREDP-APPEND by the routeIff \
-      registered decode (P5a); and tp:QSORT by the CONDITIONAL \
-      stored-rule route over RT2's per-rule :ALL-TPS leaves (P5b). \
-      The stale own-obligation disclosure (how-many-qsort, audit O-3) \
-      went with them. The waypoint native (`qsortL xs = isortL xs`) is \
-      NOT BUILT — queued behind the mirror buildout; the decision \
-      stays `.pending` for THAT reason, not for a replay one. \
-      Statement pin: Tests/SortingPins"),
+    .native ``qsort_is_isort_native_driver ``qsortIsIsortReplayedCond),
   ("sorting/sorts-equivalent", "BSORT-IS-ISORT",
-    .pending "the capstone, GREEN again (ATOM-leg increment 2026-08-13) \
-      and UNCONDITIONAL since 2026-08-16 (T1+2 sprint P6): the row's \
-      last two conditions, rule:TRUE-LISTP-BNEXT and \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT, retired together when the \
-      cross-book demand seed took in the consumer's OFFER surfaces and \
-      the post-replay discharge lane began running to QUIESCENCE with \
-      totalEnv rebuilt between rounds (both reach this telescope from \
-      BSORT's recorded ADMISSION proof, after the dependency sweep, so \
-      nothing had ever attempted them). Earlier retirements: \
-      total:BNEXT/BSORT/O</O-P, rule:TRUE-LISTP-RM, \
-      rule:CONVERT-PERM-TO-HOW-MANY, rule:ORDEREDP-ISORT, \
-      rule:ORDEREDP-BSORT, rule:TRUE-LISTP-BSORT, rule:HOW-MANY-BSORT. \
-      The waypoint native (`true-listp xs → bsortL xs = isortL xs`) is \
-      NOT BUILT — queued behind the mirror buildout AND the bsort exec \
-      kit; the decision stays `.pending` for that reason, not for a \
-      replay one. Statement pin: Tests/SortingPinsEndgame"),
+    .pending "NOT a mirror-buildout queue item, and this entry's own \
+      claim is CORRECTED (R4 wave 2g). Its two siblings are `.native` \
+      now; this one is not, and the cause is neither the native nor the \
+      bsort exec kit (which EXISTS since this wave). The golden's own \
+      row says it: `BSORT-IS-ISORT → REPLAYED ✓ [DISCHARGE: \
+      Goal:preprocess/tau ◌ assumed cond[total:(BSORT X), \
+      ASSUMED:dp-fact]]` — the discharge is ASSUMED, which is a \
+      different axis from the KEPT-condition telescope this entry's \
+      earlier text tracked, and `driver_replayed%` REFUSES to register a \
+      replayed statement carrying ASSUMED:dp-fact (the N1 remediation \
+      guard: such a condition states an obligation over \
+      independently-quantified opaques that can be FALSE). The row \
+      additionally failed EARLIER in the waypoint attempt, on its own \
+      dependency (`usefi bridge: consumer discharge of ORDEREDP-BSORT \
+      failed: depReplayedProofAt … (frontier)`). The remedy is at the \
+      LEAF's EMISSION, not in this layer. Statement pin: \
+      Tests/SortingPinsEndgame"),
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
@@ -485,43 +464,25 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/bsort", "ORDEREDP-WHEN-BNEXT-CONSTANT",
     .native ``orderedp_when_bnext_constant_native_driver
       ``orderedpWhenBnextConstantReplayedCond),
+  -- PROMOTED 2026-08-18 (R4 wave 2g): the BSORT EXEC KIT EXISTS, built
+  -- by `derive_exec%`'s new `userFn` MEASURE ROW (generic machinery, not
+  -- a bsort-specific kit — `Imported/ExecGen.lean`'s header). The
+  -- entry's own "remaining frontier" text is superseded and its premise
+  -- is corrected on the record: the Lean-side termination artifact is
+  -- NOT a P2 hand proof under the measure-absorbed precedent — it is the
+  -- REPLAYED decrease itself, at the exec level over arbitrary `SExpr`
+  -- (`how_many_bad_pairs_bnext_exec_driver`). The `enc`-image bound that
+  -- earlier waves recorded as the blocker is a property of the NATIVE
+  -- READING, not of the replay.
   ("sorting/bsort", "ORDEREDP-BSORT",
-    .pending "UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P6) — \
-      the `.pending` stands on the missing waypoint native and the \
-      bsort exec kit ONLY, not on any replay condition. The row's \
-      conditions retired in order: tp:BNEXT-SIZE (TP-replay arc \
-      increment 3, 2026-08-13), total:BNEXT (R3's measure table LEN \
-      row, 2026-08-14), total:O</total:O-P (the P3b ordinal route, \
-      which also DELETED dis_o_lt_total), total:BSORT (P3a's TotFacts \
-      value+convergence carry), and finally \
-      linear:HOW-MANY-BAD-PAIRS-BNEXT — the condition this entry long \
-      recorded as HAVING NO UNLOCK CLASS. It got one: \
-      `gz_linear_defn_branch`, a parametric CLASS lemma for \
-      ground-zero :LINEAR rules (P5a), reaching this telescope once \
-      the discharge lane ran to QUIESCENCE with totalEnv rebuilt \
-      between rounds (P6). (The carve-out class extension itself is a \
-      recorded open ruling — audit 2026-08-16, brief B2.) Remaining \
-      frontier: the native `orderedpRec (bsortL l)` needs a bsort \
-      kit, whose Lean-side termination artifact IS the bubble-size \
-      decrease (P2 admits it by the MEASURE-ABSORBED precedent — and \
-      the native measure `bnextSizeL` + its decrease EXIST as the \
-      HOW-MANY-BAD-PAIRS-BNEXT native, so the kit is a build, not a \
-      research question)"),
+    .native ``orderedp_bsort_native_driver ``orderedpBsortReplayedCond),
   ("sorting/bsort", "TRUE-LISTP-BSORT",
     .replayedOnly "subsumed by the bsort simulation: the enc image is
       closed under bsortExec (the type-absorbed true-listp doctrine,
       the TRUE-LISTP-RM precedent)"),
+  -- PROMOTED 2026-08-18 (R4 wave 2g) — ORDEREDP-BSORT's story exactly.
   ("sorting/bsort", "HOW-MANY-BSORT",
-    .pending "UNCONDITIONAL since 2026-08-16 (T1+2 sprint P5a+P6) — \
-      ORDEREDP-BSORT's story exactly, condition for condition \
-      (tp:HOW-MANY by the replay route, TP-replay arc increment 1; \
-      tp:BNEXT-SIZE by increment 3; total:BNEXT by the R3 measure \
-      table 2026-08-14; total:O</total:O-P by the P3b ordinal route; \
-      total:BSORT by P3a; and linear:HOW-MANY-BAD-PAIRS-BNEXT by the \
-      P5a gz-linear CLASS lemma reached under P6's quiescence loop). \
-      The `.pending` stands on the missing waypoint native and the \
-      bsort exec kit ONLY — same second frontier as ORDEREDP-BSORT; \
-      the native would be `howManyL e (bsortL l) = howManyL e l`"),
+    .native ``how_many_bsort_native_driver ``howManyBsortReplayedCond),
   -- PROMOTED 2026-08-14 (the R3 measure table's LEN row).
   ("sorting/bsort", "HOW-MANY-SMALLER-BNEXT",
     .native ``how_many_smaller_bnext_native_driver

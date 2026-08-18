@@ -310,4 +310,104 @@ theorem how_many_bad_pairs_bnext_native_of_replayed (w : World)
   · exfalso
     simp [Logic.lt, Logic.toRat, hcmp, Logic.toBool] at hq
 
+/-! ## HOW-MANY-BAD-PAIRS-BNEXT AT THE EXEC LEVEL — BSORT's admission
+obligation, over ARBITRARY `SExpr` (R4 wave 2g)
+
+The native reading above is `List SExpr`-shaped, so it says nothing about
+values outside the `enc` image — which is why waves 2b–2f recorded
+"`bsortExec` recurses on `bnextExec x` for an ARBITRARY `SExpr`, where
+the replayed decrease does not reach" as the bsort kit's blocker.
+
+THAT READING OF THE BLOCKER IS WRONG, and this theorem is the correction.
+The `enc`-image restriction is a property of the chosen NATIVE READING,
+not of the replay: `hreplayed` quantifies over EVERY environment, so
+binding `X` to an arbitrary `SExpr` is exactly as available as binding it
+to `enc xs`. Stated in the EXEC's own vocabulary — `bnextExec` and
+`bnextSizeExec`, whose stage-1 corrs already hold at arbitrary values —
+the decrease holds everywhere, and a total Lean `bsortExec` can take it
+as its termination proof.
+
+The `Logic.toNat` order bridge needs both measure values to be
+non-negative integers — ACL2's own `(O-P (BNEXT-SIZE X))` admission
+obligation. Here that is a fact about OUR OWN generated execs, proved by
+their own recursion off `ExecGen`'s generic `NatValued` kit; the DECREASE
+itself is the book's and comes only from `hreplayed`. -/
+
+theorem howManySmallerExec_natValued (e x : SExpr) :
+    NatValued (howManySmallerExec e x) := by
+  fun_induction howManySmallerExec e x <;>
+    first
+      | exact natValued_zero
+      | assumption
+      | exact natValued_plus natValued_one (by assumption)
+
+theorem bnextSizeExec_natValued (x : SExpr) : NatValued (bnextSizeExec x) := by
+  fun_induction bnextSizeExec x <;>
+    first
+      | exact natValued_zero
+      | exact natValued_plus (howManySmallerExec_natValued _ _) (by assumption)
+
+/-- HOW-MANY-BAD-PAIRS-BNEXT at the EXEC level: a bubble pass that changes
+    an ARBITRARY `SExpr` strictly decreases its bubble measure, read
+    through `Logic.toNat`. This is `BSORT`'s emitted termination clause in
+    the shape a Lean `termination_by` consumes, and it is the sole thing
+    the generated `bsortExec` takes on faith from ACL2 — via replay. -/
+theorem how_many_bad_pairs_bnext_exec_of_replayed (w : World)
+    (h_bnext : w.defs.get? bnext_sym = some ([xS], bnextBody))
+    (h_hms : w.defs.get? how_many_smaller_sym
+      = some ([eS, xS], howManySmallerBody))
+    (h_bs : w.defs.get? bnext_size_sym = some ([xS], bnextSizeBody))
+    (h_no_consp : w.defs.get? ({ name := "CONSP" } : Symbol) = none)
+    (h_no_equal : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
+    (h_no_car : w.defs.get? ({ name := "CAR" } : Symbol) = none)
+    (h_no_cdr : w.defs.get? ({ name := "CDR" } : Symbol) = none)
+    (h_no_cons : w.defs.get? ({ name := "CONS" } : Symbol) = none)
+    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
+    (h_no_lexorder : w.defs.get? ({ name := "LEXORDER" } : Symbol) = none)
+    (h_no_not : w.defs.get? ({ name := "NOT" } : Symbol) = none)
+    (h_no_lt : w.defs.get? ({ name := "<" } : Symbol) = none)
+    (h_no_implies : w.defs.get? ({ name := "IMPLIES" } : Symbol) = none)
+    (hreplayed : ∀ env : Env, ∃ N, ∀ f, f ≥ N → ∃ v,
+      evalOpt f w env how_many_bad_pairs_bnextFormula = some v
+        ∧ v ≠ SExpr.nil)
+    (x : SExpr) (h : Logic.toBool (Logic.equal (bnextExec x) x) = false) :
+    Logic.toNat (bnextSizeExec (bnextExec x))
+      < Logic.toNat (bnextSizeExec x) := by
+  let e : Env := ({} : Env).insert xS x
+  have hx : ∃ N, ∀ f ≥ N, evalOpt f w e xT = some x :=
+    re_val_var_get w e { name := "X" } x (by
+      show e.get? xS = some x
+      rw [show e = ({} : Env).insert xS x from rfl,
+          Env.get?_insert, if_pos (by decide)])
+  have hbn : ConvTo w e (app1 "BNEXT" xT) (bnextExec x) :=
+    bnext_exec_corr w h_bnext h_no_consp h_no_car h_no_cdr h_no_cons
+      h_no_lexorder e xT x hx
+  have hEqX := conv_equalT w e xT (app1 "BNEXT" xT) x (bnextExec x) h_no_equal
+    hx hbn
+  have hNot := conv_builtin1 w e { name := "NOT" }
+    (equalT xT (app1 "BNEXT" xT)) (Logic.equal x (bnextExec x))
+    (Logic.not (Logic.equal x (bnextExec x))) (by decide)
+    h_no_not hEqX (callBuiltin_not _)
+  have hSL := bnext_size_exec_corr w h_hms h_bs h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder h_no_plus e (app1 "BNEXT" xT)
+    (bnextExec x) hbn
+  have hSR := bnext_size_exec_corr w h_hms h_bs h_no_consp h_no_equal
+    h_no_car h_no_cdr h_no_lexorder h_no_plus e xT x hx
+  have hLt := conv_builtin2 w e { name := "<" }
+    (bnextSizeT (app1 "BNEXT" xT)) (bnextSizeT xT) _ _ _ (by decide)
+    h_no_lt hSL hSR (callBuiltin_lt _ _)
+  have hImp := conv_impliesT w e (app1 "NOT" (equalT xT (app1 "BNEXT" xT)))
+    (app2 "<" (bnextSizeT (app1 "BNEXT" xT)) (bnextSizeT xT)) _ _
+    h_no_implies hNot hLt
+  have hIt := implies_t_of_ne_nil (replayed_pins_ne_nil (hreplayed e) hImp)
+  have hp : Logic.toBool
+      (Logic.not (Logic.equal x (bnextExec x))) = true := by
+    have hne' : ¬ (bnextExec x = x) := by
+      intro he; rw [he] at h; simp [Logic.equal, Logic.toBool] at h
+    have hne : ¬ (x = bnextExec x) := fun he => hne' he.symm
+    simp [Logic.equal, Logic.not, Logic.toBool, hne]
+  have hq := truthy_of_implies_t hIt hp
+  exact toNat_lt_of_lt_truthy (bnextSizeExec_natValued _)
+    (bnextSizeExec_natValued _) hq
+
 end ACL2.Worlds.Sorting

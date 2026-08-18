@@ -62,6 +62,7 @@ syntax depsClauseDR := &" deps " "[" ident,* "]"
 
 elab "driver_replayed%" devId:ident worldId:ident nm:str
     wt:(&" with_termination")?
+    uf:(&" usefi")?
     deps:(depsClauseDR)? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
@@ -151,6 +152,85 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         else
           termReplayed := termReplayed
             ++ [(fn, mName, conds, (tcp.root.map (·.inputClause)).getD [])]
+  -- THE `:USE (:FUNCTIONAL-INSTANCE …)` PRE-PASS (R4 wave 2g) — OPT-IN
+  -- via `usefi`, and the sweep harness's own route mirrored here, so a
+  -- waypoint module can replay a FUNCTIONAL-INSTANCE proof at all.
+  --
+  -- WHY IT HAS TO BE HERE. Before this wave the discharge existed ONLY
+  -- as a `runBook` parameter the coverage harness supplies
+  -- (`Tests/Coverage/Harness.lean`), so `sorting/sorts-equivalent`'s
+  -- three capstones — whose entire proofs are one `:USE
+  -- (:FUNCTIONAL-INSTANCE …)` node — were replayable by the SWEEP and
+  -- by nothing else, and the waypoint layer had no route to them.
+  --
+  -- Three things, in the harness's order and for its reasons: the dep
+  -- books' recorded ADMISSIONS carried to this world (transport first,
+  -- re-replay as the fallback — the totality surface the instantiation
+  -- needs); the LIBRARY PARAMETRIC constants, named as Name LITERALS so
+  -- no import is forced on modules that do not have them (absent =
+  -- `env.contains` misses = the rebuild route, unchanged); and the
+  -- prepare itself, run in THIS shallow context because the composition
+  -- overflows the worker stack inside a row telescope. Unlike the
+  -- sweep this prepares only the ONE theorem being replayed, and a
+  -- failed prepare HARD-FAILS here rather than being logged and skipped
+  -- — a waypoint row states a frontier, it does not carry one.
+  let mut preparedUseFi : List (String × Name × List (String × String)) := []
+  if uf.isSome then
+    let wVal := dev.toWorld
+    let wExpr := mkConst worldName
+    let mut termByFn : List (String × Name × List String × List SExpr) := []
+    for (depName, depDev) in crossDevs do
+      for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
+          depDev.justifications depDev do
+        unless termByFn.any (·.1 == fn) do
+          let base := String.map (fun c => if c.isAlphanum then c else '_')
+            s!"usefi_term_{worldName}_{fn}"
+          let mName := Name.mkStr2 "ReplayedTermination" base
+          let clause := (tcp.root.map (·.inputClause)).getD []
+          if (← getEnv).contains mName then
+            termByFn := termByFn ++ [(fn, mName, ([] : List String), clause)]
+          else
+            let transported ← ACL2.Replay.Runner.tryTransportDepAdmission
+              worldName.toString depName depDev.toWorld wVal wExpr fn tcp
+              mName
+            if transported then
+              termByFn := termByFn ++ [(fn, mName, ([] : List String), clause)]
+            else
+              let (status, reg?) ← ACL2.Replay.Runner.replayAdmission depDev
+                wVal wExpr tcp mName (crossTrees := crossTrees)
+              match reg? with
+              | some conds =>
+                unless ACL2.Replay.Runner.admissionCircular fn conds do
+                  termByFn := termByFn ++ [(fn, mName, conds, clause)]
+              | none =>
+                logInfo m!"driver_replayed% usefi: the {depName}/{fn} \
+                  admission pre-pass did not land ({status}) — the \
+                  instantiation will hard-fail if it needs that totality"
+    let libParametric : List (String × Name) :=
+      [("WEAK-SORTFN1-IS-SORTFN2",
+        "ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric".toName),
+       ("STRONG-SSORTFN1-IS-SSORTFN2",
+        "ACL2.Imported.Waypoints.strongSsortfn1IsSsortfn2Parametric".toName)]
+    for (thmName, sigma, hypI) in Driver.theoremFnInstanceCites cp do
+      let spec : Driver.UseFiSpec :=
+        { name := thmName, subst := sigma, formula := hypI }
+      let key := thmName ++ "|" ++ toString (hash (toString (repr hypI)))
+      unless preparedUseFi.any (·.1 == key) do
+        let (cName, argTys) ← Driver.withRealMaxRecDepth 131072 <|
+          prepareUseFi crossDevs dev wVal wExpr spec termByFn libParametric
+        preparedUseFi := preparedUseFi ++ [(key, cName, argTys)]
+  let usefiDischarge? :
+      Option (Driver.ReplayCtx → Driver.UseFiSpec → MetaM Expr) :=
+    if uf.isSome then
+      some (fun ctx spec => do
+        let key := spec.name ++ "|" ++
+          toString (hash (toString (repr spec.formula)))
+        match preparedUseFi.find? (·.1 == key) with
+        | some (_, cName, argTys) => applyPreparedUseFi cName argTys ctx
+        | none => Driver.throwFrontier (m!"driver_replayed% usefi: no \
+            prepared constant for {spec.name} (the pre-pass did not see \
+            this cite)"))
+    else none
   Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
     -- channels + config from the SHARED builder (1a): the macro constructs
     -- NO channel of its own — `bookChannels`/`mkBookConfig` are the single
@@ -158,8 +238,6 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- (the class that hard-failed fcRules/termination/equivRefls one at a
     -- time, and had silently dropped gzTps here until the unification).
     let ch := ACL2.Replay.Runner.bookChannels dev crossTrees crossRules
-    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
-      (mkConst worldName) env termReplayed
     -- SAME-WORLD entries: earlier `driver_replayed%` definitions over THIS
     -- world constant (the macro-side D1 registry).
     let sameWorld : ACL2.Replay.Driver.ReplayedRegistry :=
@@ -172,7 +250,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- WP5 CROSS-BOOK TRANSFER: the `deps [...]` books' demanded theorems
     -- replayed at THIS world (world-inclusion gated, `addDecl`'d once and
     -- cached by constant name across invocations in the same module).
-    let (crossReg, _crossTerm) ←
+    let (crossReg, crossTerm) ←
       if crossDevs.isEmpty then
         pure (([] : ACL2.Replay.Driver.ReplayedRegistry),
               ([] : List (String × Name × List String × List SExpr)))
@@ -183,8 +261,26 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
           -- golden row must demand the same dependency set, or the pin
           -- stops being a check on what the sweep does.
           (ACL2.Replay.Runner.bookDemandSeed dev))
+    -- THE CROSS-BOOK ADMISSION SEED (R4 wave 2g), mirroring `runBook`
+    -- verbatim: an `:INCLUDE-BOOK`'d defun has NO admission proof in this
+    -- book's own log, so its totality has no route at all — the transfer
+    -- supplies the dependency book's own recorded waterfall, at THIS
+    -- world. The macro was already computing it and DISCARDING it, which
+    -- is why a consumer of an included defun (QSORT inside
+    -- `sorts-equivalent`) kept a `total:` premise the sweep does not.
+    -- Filtered exactly as the runner filters it: a fn with its OWN
+    -- recorded admission in this book keeps that route.
+    let recTermDefuns :=
+      ACL2.Replay.Runner.recordedTerminationDefuns dev.justifications dev
+    let termReplayed := termReplayed ++
+      (crossTerm.filter fun (fn, _, _, _) =>
+        !recTermDefuns.any (fun (g, _) => g == fn)
+          && !termReplayed.any (fun (g, _, _, _) => g == fn))
+    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
+      (mkConst worldName) env termReplayed
     let replayed := sameWorld ++ crossReg
     let (proof, conds) ← replayProofConditional cfg ch.tps cp
+      (usefiDischarge := usefiDischarge?)
       dev.justifications
       (ACL2.Replay.Runner.combineRules
         (Driver.rulesBefore dev nm.getString) ch.crossRules) ch.depProofs

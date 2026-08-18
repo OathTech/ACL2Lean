@@ -24,19 +24,10 @@ namespace ACL2Lean.MirrorProofs
 
 open Lean Lean.Meta Lean.Elab Lean.Elab.Command Lean.Parser.Term
 
-/-- `IsoGen`'s `map_inj` IN ITS USEFUL FORM, exactly as `enc_inj_iff` is
-    to `Acl2Embed.inj`: a transport whose spec `Prop` concludes in an
-    `Iff` (`ordered_perm_unique`: `xs = ys ↔ Permuted xs ys`) cannot
-    LAND through a one-way implication — the encoded equality sits on
-    one side of an `Iff` and has to be replaced there. The converse is
-    `congrArg`, so this adds nothing: it is the same injectivity
-    plumbing, and like `map_inj` it says nothing about any mirror
-    definition and cannot rescue a misaligned crossing. It lives HERE
-    rather than in the transfer kit because the transport closers are
-    its only consumers (and `IsoGen` is at the module-size cap). -/
-theorem map_inj_iff {α : Type u} (e : Acl2Embed α) {xs ys : List α} :
-    xs.map e.enc = ys.map e.enc ↔ xs = ys :=
-  ⟨map_inj e, fun h => h ▸ rfl⟩
+-- (`map_inj_iff` — `map_inj`'s `Iff` form — MOVED to
+-- `MirrorProofs/IsoKit.lean` in R4 wave 2g, verbatim: the square
+-- closer's FIXPOINT extension is a second consumer, and it lives below
+-- this module. Same namespace, same statement, same proof.)
 
 open Lean.Parser.Tactic in
 /-- The transport closer, two rungs — both plumbing (generated skeleton
@@ -68,8 +59,12 @@ macro "mirror_transport_close" "[" xs:simpLemma,* "]"
       | (simp only [$xs,*] at $h:ident
          first
            | exact $h
-           | exact map_inj $e $h)
+           | exact map_inj $e $h
+           | exact map_inj ($e).toAcl2Embed $h)
       | (refine map_inj $e ?_
+         simp only [$fs,*, List.map_nil]
+         exact $h)
+      | (refine map_inj ($e).toAcl2Embed ?_
          simp only [$fs,*, List.map_nil]
          exact $h)))
 
@@ -89,6 +84,12 @@ open Lean.Parser.Tactic in
     literal fallback) has no hypothesis-carrying consumer and is
     deliberately not duplicated — a spec that needed it would fail here,
     which is the fail-closed direction.
+
+    (R4 wave 2g: the HYPOTHESIS-FREE closer above gained the same
+    `.toAcl2Embed` alternatives, for the same reason and appended LAST
+    so every pre-existing transport succeeds at an earlier one and its
+    proof term is unchanged. Its first LIST-conclusion consumers at an
+    `OrderedEmbed` are `msort_is_isort` and `qsort_is_isort`.)
 
     The third `first` alternative is the same landing as the second
     through the RICHER embedding's parent projection: `map_inj` is stated
