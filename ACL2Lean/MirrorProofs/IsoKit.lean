@@ -47,6 +47,99 @@ theorem enc_inj_iff (e : Acl2Embed α) (a b : α) :
     e.enc a = e.enc b ↔ a = b :=
   ⟨e.inj, fun h => h ▸ rfl⟩
 
+/-! ### THE `Option` ROW of the data-refinement calculus (close-out arc
+item 2, 2026-08-18)
+
+ACL2's single most pervasive return shape is VALUE-OR-NIL: `MEMBER`,
+`ASSOC`, `PERM-COUNTER-EXAMPLE` and every other search function return
+the thing they found, or `nil` when there is nothing to return. Lean
+renders that shape as `Option α`, and the row below is that rendering
+as a REFINEMENT MAP, keyed by the TYPE SHAPE and by nothing else:
+
+    none    ↦ SExpr.nil
+    some a  ↦ e.enc a
+
+i.e. an `Acl2Embed (Option α)` built from an `Acl2Embed α`. It is a row
+of the same calculus `Acl2Embed` and the `ArgReading` table are rows of
+(`IsoGen.lean`'s "the frame: data refinement"), and it carries NO
+constant of any consuming spec — the only inputs are the underlying
+embedding and the side condition below.
+
+**THE FAIL-CLOSED SHAPE CHECK, and it is the row's whole content.** The
+map above is injective ONLY IF the underlying encoding AVOIDS `nil`:
+otherwise `none` and `some a₀` (for the `a₀` with `e.enc a₀ = nil`) have
+the same image, and the refinement conflates "nothing was found" with
+"`nil` was found" — which is exactly the conflation ACL2 itself lives
+with and a Lean `Option` does not. So the side condition is a
+HYPOTHESIS of the row's constructor, in the same style as
+`OrderedEmbed`'s `ord` field: the row cannot be BUILT without it, and
+the obligation is discharged where the instance is declared
+(`optIntEmbed`, `MirrorProofs/OrderBridge.lean`, from `intEmbed`'s
+integer-atom image). There is no unchecked variant to reach for.
+
+The consequence is a real BOUND on the row, and it is stated here
+because it is the reason the row is an ELEMENT-TYPE row and not a
+RESULT-TYPE one: at the ACL2 value type itself (`α := SExpr`, the
+identity encoding) the side condition is FALSE, so an `Option
+SExpr`-valued mirror function has no refinement to the ACL2 values at
+all — it distinguishes cases the ACL2 function conflates, and no book
+theorem can supply the difference. A `mirror_transport%` crossing is
+stated at `SExpr` by construction, so an Option-VALUED spec definition
+fails closed there, while an Option-TYPED ELEMENT (this row) goes
+through. -/
+
+/-- **A VALUE-OR-NIL EMBEDDING** — a richer embedding whose element type
+    has a `default`, and which sends that `default` to ACL2's `nil`.
+
+    It is a RICHER EMBEDDING in the sense of `OrderedEmbed` (`IsoGen`'s
+    "the order-respect route"), and for the same reason: an
+    ELEMENT-RESULT homomorphism square over a mirror definition with a
+    JUNK ARM — a total Lean rendering of an untyped ACL2 function has to
+    invent a value where ACL2 has `(car nil)` — is NOT TRUE for an
+    arbitrary `Acl2Embed`. It is true exactly when the type's invented
+    value is ACL2's, so that is a HYPOTHESIS the square's statement must
+    carry, declared per square as `embed ValueOrNilEmbed via
+    [encDefault]`.
+
+    The field is a fact about the EMBEDDING alone: it mentions no mirror
+    definition and relates no two operations, so it cannot supply a
+    definitional correspondence that is not there (the same review-time
+    judgement `ord` carries — see `IsoGen`'s A1-F9 amendment). -/
+structure ValueOrNilEmbed (α : Type u) [Inhabited α] extends Acl2Embed α where
+  /-- the element type's junk value is ACL2's junk value — and `SExpr`'s
+      DERIVED `default` IS `SExpr.nil`, the value ACL2's `(car nil)` has
+      (pinned by the `example` below, so the reading cannot drift). -/
+  encDefault : enc default = (default : ACL2.SExpr)
+
+/-- The pin for `ValueOrNilEmbed.encDefault`'s reading: the right-hand
+    side is `SExpr.nil`. -/
+example : (default : ACL2.SExpr) = ACL2.SExpr.nil := rfl
+
+/-- **The `Option` refinement row**: `Option α` embeds as ACL2's
+    value-or-nil idiom — `none` as `nil`, `some a` as `a`'s encoding.
+
+    `hne` is the row's fail-closed shape check (see above): without it
+    the map is not injective and this is not an embedding.
+
+    The row lands a `ValueOrNilEmbed` rather than a bare `Acl2Embed`
+    because its `encDefault` field is DISCHARGED BY THE ROW ITSELF —
+    `Option`'s own `default` IS `none`, which the row sends to `nil` —
+    so the value-or-nil property is a consequence of the refinement and
+    never a per-witness obligation. -/
+def optEmbed {α : Type u} (e : Acl2Embed α)
+    (hne : ∀ a : α, e.enc a ≠ ACL2.SExpr.nil) : ValueOrNilEmbed (Option α) where
+  enc
+    | none => ACL2.SExpr.nil
+    | some a => e.enc a
+  inj := by
+    intro a b hab
+    cases a <;> cases b
+    · rfl
+    · exact absurd hab.symm (hne _)
+    · exact absurd hab (hne _)
+    · exact congrArg some (e.inj hab)
+  encDefault := rfl
+
 /-- Injectivity lifts pointwise to lists (THE LIST item 4). -/
 theorem map_inj (e : Acl2Embed α) :
     ∀ {xs ys : List α}, xs.map e.enc = ys.map e.enc → xs = ys

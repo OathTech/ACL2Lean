@@ -42,7 +42,7 @@ undeclared and nothing is forced.
 | — `List.append` | (n/a — a library callee, no reading) | **LIVE (2c — O-2's registered square)** |
 | W14 `bsort`    | frontier (2b — no exec kit is constructible) | frontier (2b — the `foldl` rendering) |
 | W15 `Permuted` | frontier (2b — library-spelled reading) | frontier (2b — the `∈`/`erase` refinement) |
-| W16 `permWitness` | frontier (2b — a DIFFERENT algorithm) | frontier (2b — an `Option α` result class) |
+| W16 `permWitness` | **LIVE (2d — against `pceL`, after the `rm` reading conversion)** | **LIVE (close-out item 2 — the `hom elem` class over `ValueOrNilEmbed`)** |
 
 Wave 1's four RECORDED frontiers (W3, W7, W8, W9) are all closed by the
 four wave-2a decisions Mike endorsed on 2026-08-16 (the synthesis's R-6).
@@ -1441,51 +1441,22 @@ reasons, both measured:
 
 ## W15/W16 — `Permuted` and `permWitness`: the two remaining definitions
 
-**W15 MOVED (2026-08-18).** `Permuted` was RE-RENDERED (ruling Q1) and
-its whole record — waves 2b/2c's measurements against the OLD body, the
-LIVE hom square, the `memb`/`rm` squares the re-render introduced, and
-the agree square's exact remaining distance — is on
-`MirrorProofs/SortingPermSquares.lean`. What is left here is W16.
+**BOTH ARE NOW LIVE, AND BOTH RECORDS BELOW ARE SUPERSEDED.** Kept
+verbatim because they are the measurements the rulings were made on —
+Q1's `Permuted` re-render, and the close-out arc's `hom elem` class —
+and because each names a shape that is still refused. The live squares
+are on `MirrorProofs/SortingPermSquares.lean` (W15 both classes since
+wave 2d; W16 agree since wave 2d, hom since the close-out arc's
+`ValueOrNilEmbed` route).
 
-**`permWitness` — a DIFFERENT ALGORITHM, and no result class.** This one
-is not a lemma or a rung away, and it should be read as a spec finding.
-The mirror is
-`List.find? (fun a => howMany a xs != howMany a ys) (xs ++ ys)` — a
-multiplicity scan. The book's `PERM-COUNTER-EXAMPLE`, whose reading is
-`Worlds.Sorting.pceL` (`Imported/SortingConvertPerm.lean`), is the
-erase-walk: `| [], ys => ys.headD nil | x :: xs, ys => bif ys.contains x
-then pceL xs (ys.erase x) else x`. Declaring the agree square produces
-ONE case whose goal is the entire equation —
-
-```
-⊢ List.find? (fun a => Worlds.Sorting.howManyL a xs != Worlds.Sorting.howManyL a ys) (xs ++ ys) =
-    some (Worlds.Sorting.pceL xs ys)
-```
-
-— i.e. a THEOREM about two different algorithms agreeing, not a
-definitional correspondence, and the template is right to refuse it. The
-square in that shape is in fact FALSE, which is the cleanest statement of
-the gap: at `xs = ys = []` the left side is `none` (nothing differs) and
-the right side is `some SExpr.nil` (the book's witness function returns a
-VALUE, never an option), so no `some`-wrapped reading can be the mirror's
-correspondent. The `hom scalar` square does not even elaborate,
-and its failure names a real gap in the square classes:
-
-```
-Type mismatch
-  Sorting.permWitness xs ys
-has type
-  Option α
-but is expected to have type
-  Option SExpr
-```
-
-— the map-INVARIANCE class asserts `fn (encoded args) = fn args`, which
-types only when the result type is CLOSED (`Nat`, `Bool`, `Prop`). An
-`Option α` result needs a RESULT READING (`Option.map e.enc`), which is a
-third result class the square table does not have — the derived-reading
-frontier at the result position rather than the argument position. Both
-are recorded; neither is forced.
+**W15 AND W16 BOTH MOVED (2026-08-18 / close-out arc item 2).**
+`Permuted` was RE-RENDERED (ruling Q1) and `permWitness`'s `(CAR Y)` arm
+after it; each definition's whole record — waves 2b/2c's measurements
+against the OLD bodies, the live squares, the `memb`/`rm` squares the
+re-render introduced, and W16's wave-2b `List.find?` measurement with
+its two verbatim residuals — is on
+`MirrorProofs/SortingPermSquares.lean`, next to the squares it is
+about. Nothing is left here but the wave-2c parenthetical below.
 
 (R4 WAVE 2c re-measured `Permuted`'s two squares — including against
 own-definition TWINS of the `contains`/`erase`/`isPerm` readings — and

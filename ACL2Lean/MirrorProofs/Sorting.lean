@@ -31,7 +31,7 @@ The spec's target `Prop`s stand in a BIJECTION with the sorting
 corpus's result-tier theorems since R4 wave 2f (the reshape's permanent
 record is `docs/notes/2026-08-18_sorting-spec-reshape.md`; the
 invariant itself is stated in `Mirrors/Sorting.lean`'s header). Against
-that list of SIXTEEN, THIRTEEN are theorems on this page:
+that list of SIXTEEN, FOURTEEN are theorems on this page:
 
 | `Prop` | product | wave |
 |---|---|---|
@@ -48,8 +48,9 @@ that list of SIXTEEN, THIRTEEN are theorems on this page:
 | `bsort_howMany` | `bsort_howMany_int` | 2g |
 | `msort_is_isort` | `msort_is_isort_int` | 2g |
 | `qsort_is_isort` | `qsort_is_isort_int` | 2g |
+| `permWitness_complete` | `permWitness_complete_optint` (at `Option Int` — the VALUE-OR-NIL element type; see the witness-product section) | close-out item 2 |
 
-The THREE that are not, with their real distance and no euphemism:
+The TWO that are not, with their real distance and no euphemism:
 
 * **`bsort_is_isort` — the row's REPLAY CARRIES AN ASSUMED dp-fact, and
   that is the whole cause.** Its two siblings landed this wave, and
@@ -62,14 +63,6 @@ The THREE that are not, with their real distance and no euphemism:
   that can be FALSE — so no waypoint native can be built from it while
   the leaf is assumed. The remedy is at the LEAF'S EMISSION, one layer
   below this page.
-* **`permWitness_complete` — THE `Prop` IS CORRECT AND THE PRODUCT IS
-  STRUCTURALLY UNAVAILABLE (J-2e-6).** Not a to-do. The mirror rung
-  needs the element-result homomorphism square, which is FALSE at the
-  junk arm for ANY embedding of `Int` (`SExpr`'s default is `nil`;
-  `intEmbed.enc` is never `nil`) — kernel-refuted in wave 2e, at a
-  point the then-ruled precondition admitted. The two remaining routes
-  are a spec/type question and a theorem the corpus does not prove;
-  neither is an executor call.
 * **`sorter_unique` — THE `Prop` IS CORRECT AND ITS REACHABILITY IS
   OPEN.** Recorded with the ruling of 2026-08-18: the `Prop` quantifies
   over an ARBITRARY Lean `f : List α → List α`, while a world-parametric
@@ -416,6 +409,94 @@ mirror_transport% qsort_is_isort_int : ACL2Lean.Sorting.qsort_is_isort Int
 #guard_msgs (whitespace := lax) in
 #print axioms qsort_is_isort_int
 
+/-! ## THE WITNESS PRODUCT — `permWitness_complete` at the VALUE-OR-NIL
+element type (close-out arc item 2, 2026-08-18)
+
+The `Prop` this page recorded as STRUCTURALLY UNAVAILABLE, and what
+changed. The blocker (wave 2d item 4, wave 2e's J-2e-6, and re-measured
+at wave 2f — the record is kept below, verbatim) was the ELEMENT-RESULT
+homomorphism square `e.enc (permWitness xs ys) = permWitness (map e.enc
+xs) (map e.enc ys)`, whose whole residual is the JUNK ARM: at
+`xs = ys = []` the spec must invent a value and ACL2 has `(car nil)` =
+`nil`. The page named the two routes that remained and classified the
+first as "a spec/type question": **AN EMBEDDING WHOSE `default` IS IN
+RANGE — the square becomes true for any embedding with
+`e.enc default = default`, which no embedding of `Int` can satisfy but
+a type with a nil-like default could.**
+
+That is the route taken, and it is taken GENERICALLY rather than for
+this theorem: `Option α` is Lean's rendering of ACL2's value-or-nil
+return idiom (`MEMBER`, `ASSOC`, `PERM-COUNTER-EXAMPLE` — the shape
+`(car nil)` exists to serve), and the `Option` ROW of the data-
+refinement calculus (`IsoKit.lean`'s `optEmbed`) builds an embedding of
+`Option α` from one of `α` under a single fail-closed side condition
+(the underlying encoding avoids `nil`, without which the map is not
+injective and the row does not construct). `Option`'s own `default` IS
+`none`, which the row sends to `nil` — so `e.enc default = default`
+holds BY THE ROW, and the square's hypothesis is discharged for every
+element type the row applies to, not arranged for this one.
+
+So the product below is at `Option Int` — the value-or-nil element type
+— and NOT at `Int`. That is not a weakening dressed up: at `Int` the
+square is REFUTED (the kernel-checked refutation is kept below), and
+`Option Int` is the type at which ACL2's junk value is a value of the
+Lean type rather than an invented one. The `Prop` transported is the
+book's, unchanged and unconditional.
+
+WHAT THE ROW DOES NOT REACH, on the record. The other rendering — a
+spec whose WITNESS IS `Option α`-VALUED, with the junk arm and the
+`[Inhabited α]` binder eliminated — does not go through, and the reason
+is the row's own side condition one level up: a `mirror_transport%`
+CROSSING is stated at `SExpr`, where the value-or-nil refinement
+`Option SExpr → SExpr` is NOT injective (`none` and `some nil` have the
+same image). An `Option`-valued mirror function therefore distinguishes
+cases the ACL2 function conflates, and no book theorem can supply the
+difference: the crossing's `none` arm would need "the walk names no
+witness exactly when the lists are permutations", which is nowhere in
+the corpus's 75 `(:DEFTHM …)` rows and would have to be a Lean-side
+induction. Measured, not argued — see the arc's report. -/
+
+/-- **`permWitness_complete` at `Option Int`, via ACL2 replay** — THE
+    COUNTEREXAMPLE WITNESS IS COMPLETE: two lists are permutations
+    exactly when their multiplicities agree at the ONE element the
+    witness picks out. Content enters through the generated crossing
+    `permWitness_complete_sexpr`, which cites the catalogued
+    CONVERT-PERM-TO-HOW-MANY native (at its `Iff` decode) exactly, and
+    nowhere else.
+
+    **WHY THIS PRODUCT LIVES AT `Option Int`** (Mike's ruling of
+    2026-08-18, approving it as THE product for this `Prop`). The
+    witness is a TOTAL Lean rendering of an untyped ACL2 function, so it
+    has a FALLBACK arm: at `xs = ys = []` it returns `Inhabited.default`
+    where ACL2's `PERM-COUNTER-EXAMPLE` returns `(CAR NIL)` = `nil`. The
+    element-result homomorphism square that carries the witness across
+    the encoding is therefore true EXACTLY WHEN THE EMBEDDING CAN HIT
+    THAT FALLBACK — when `e.enc default = default`, i.e. `nil`.
+
+    `intEmbed` PROVABLY CANNOT: its image is `.atom (.number (.int ·))`
+    and never `nil`. That is not an opinion about difficulty — it is
+    kernel-refuted, and the refutation is cited below (wave 2e's
+    `conditional_elem_square_false`, in the record section; it stands and
+    is the REASON for the element type, not an obstacle that was worked
+    around).
+
+    `Option Int` is the type at which ACL2's junk value is a VALUE of the
+    Lean type rather than an invented one: `Option`'s own `default` is
+    `none`, and the `Option` ROW (`IsoKit.lean`'s `optEmbed`) sends
+    `none` to `nil`. So the square's hypothesis is discharged BY THE ROW,
+    generically, for every element type the row applies to — not arranged
+    for this theorem. The `Prop` transported is the book's
+    `CONVERT-PERM-TO-HOW-MANY`, unchanged and unconditional. -/
+mirror_transport% permWitness_complete_optint :
+    ACL2Lean.Sorting.permWitness_complete (Option Int)
+  embed optIntEmbed
+  crossing permWitness_complete_sexpr
+    from ACL2.Imported.Waypoints.convert_perm_to_how_many_iff_driver
+
+/-- info: 'ACL2Lean.MirrorProofs.permWitness_complete_optint' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms permWitness_complete_optint
+
 /-! ## R4 WAVE 2f — THE REMAINING FRONTIERS, RE-STATED AGAINST THE
 RESHAPED SPEC (each measured this wave; nothing forced)
 
@@ -439,8 +520,13 @@ corpus, and closing it in Lean would be `List.Perm.count_eq` — the
 ornamental-import antipattern. The complete 75-row inventory that
 establishes the absence is in the reshape note.
 
-**`permWitness_complete` — THE `Prop` IS THE BOOK'S NOW, AND THE `Int`
-PRODUCT IS STRUCTURALLY UNAVAILABLE (J-2e-6).** The precondition wave
+**`permWitness_complete` — [SUPERSEDED by the witness-product section
+above; the record is kept verbatim because it is what the close-out
+arc's route was chosen against, and because its central refutation
+STILL STANDS: there is no `Int` product, and the `Option Int` one exists
+BECAUSE the square is false at `Int`.] THE `Prop` IS THE BOOK'S NOW, AND
+THE `Int` PRODUCT IS STRUCTURALLY UNAVAILABLE (J-2e-6).** The
+precondition wave
 2e ruled onto this `Prop` came off in the reshape: `CONVERT-PERM-TO-
 HOW-MANY` carries no such hypothesis, and — measured in wave 2e — the
 precondition did not do the job it was ruled for either. Both halves of

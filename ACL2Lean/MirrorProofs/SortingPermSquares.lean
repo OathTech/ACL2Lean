@@ -270,8 +270,49 @@ mirror_iso% permWitness_agree_pceL for ACL2Lean.Sorting.permWitness
 #guard_msgs (whitespace := lax) in
 #print axioms permWitness_agree_pceL
 
-/-! ### `permWitness`'s HOM square — the fourth square class EXISTS and
-the residual is a JUNK ARM (R4 wave 2d item 4, measured, NOT declared)
+/-! ### `permWitness`'s HOM square — THE FOURTH SQUARE CLASS, LIVE
+(close-out arc item 2, 2026-08-18)
+
+`permWitness` returns an ELEMENT, which is the fourth refinement row:
+`e.enc (permWitness xs ys) = permWitness (map e.enc xs) (map e.enc ys)`.
+The class is `hom elem` (`IsoGen.lean`), oriented exactly like
+`hom list` so the transport's reversed rewrite set carries it with no
+special case, and drift-checked against the definition's own result
+type like every other class.
+
+IT IS NOT TRUE FOR AN ARBITRARY `Acl2Embed`, and the prior record below
+is the measurement that says so: its whole residual was the JUNK ARM,
+`e.enc default = default`. That is a fact about the EMBEDDING alone, so
+it lands the way `ord` did — as a HYPOTHESIS of the square's statement,
+via the richer `ValueOrNilEmbed` (`IsoKit.lean`) whose `encDefault`
+field says the element type's invented value is ACL2's `nil`. The
+`Option` ROW builds such an embedding for any element type whose own
+encoding avoids `nil` (`optIntEmbed`, `MirrorProofs/OrderBridge.lean`),
+and `Option`'s `default` IS `none`, so the field is discharged BY THE
+ROW.
+
+The other input the square needed was the SPEC's own access pattern:
+`permWitness`'s `(CAR Y)` arm now DESTRUCTURES `ys` (the same re-render
+`Permuted` carries for `(IF (CONSP Y) …)`), so `fun_induction` hands
+the closer three cases that the fixed kit closes, instead of one case
+with an undestructured `List.headD` the kit cannot reach into
+(measured: with `List.headD` in the unfold list the residual is
+`e.enc (match ys, default with …) = match List.map e.enc ys, default with …`,
+verbatim). -/
+
+mirror_iso% permWitness_map_hom for ACL2Lean.Sorting.permWitness
+  vars [xs, ys]
+  square hom elem
+  embed ValueOrNilEmbed via [encDefault]
+
+/-- info: 'ACL2Lean.MirrorProofs.permWitness_map_hom' depends on axioms: [propext] -/
+#guard_msgs (whitespace := lax) in
+#print axioms permWitness_map_hom
+
+/-! ### THE PRIOR RECORD — the square measured at wave 2d item 4, when
+the class did not exist and the residual was read as fatal
+
+(R4 wave 2d item 4, measured, NOT declared)
 
 `permWitness` returns an ELEMENT, which is a fourth refinement row the
 square table did not have: `permWitness (map e.enc xs) (map e.enc ys) =
@@ -297,7 +338,71 @@ So the class was NOT LANDED — with its only consumer refuted it would be
 unwired machinery, which is the banned "infrastructure now, wire it
 later". The open question is a SPEC one (how a mirror declares an arm
 whose value is junk), and it is reader-facing, so Mike's. The full
-record, including the crossing that DOES close, is on the product page. -/
+record, including the crossing that DOES close, is on the product page.
+
+WHAT THE CLOSE-OUT ARC CHANGED, against exactly that residual: it is
+FALSE for an embedding of `Int` and TRUE for one whose `default` is
+ACL2's `nil`, so it became the square's own HYPOTHESIS
+(`ValueOrNilEmbed.encDefault`) rather than a repair — and the `Option`
+ROW builds such an embedding generically. The sentence "no machinery can
+repair it" was right about REPAIR and wrong about the class: what was
+missing was an element TYPE, not a lemma.
+
+### W16's EARLIER PRIOR RECORD — wave 2b, against the OLD `List.find?`
+body (moved here verbatim from the algorithm page, since the subject's
+squares live on this page; it is the evidence ruling Q3 rested on)
+
+**`permWitness` — a DIFFERENT ALGORITHM, and no result class.** This one
+is not a lemma or a rung away, and it should be read as a spec finding.
+The mirror is
+`List.find? (fun a => howMany a xs != howMany a ys) (xs ++ ys)` — a
+multiplicity scan. The book's `PERM-COUNTER-EXAMPLE`, whose reading is
+`Worlds.Sorting.pceL` (`Imported/SortingConvertPerm.lean`), is the
+erase-walk: `| [], ys => ys.headD nil | x :: xs, ys => bif ys.contains x
+then pceL xs (ys.erase x) else x`. Declaring the agree square produces
+ONE case whose goal is the entire equation —
+
+```
+⊢ List.find? (fun a => Worlds.Sorting.howManyL a xs != Worlds.Sorting.howManyL a ys) (xs ++ ys) =
+    some (Worlds.Sorting.pceL xs ys)
+```
+
+— i.e. a THEOREM about two different algorithms agreeing, not a
+definitional correspondence, and the template is right to refuse it. The
+square in that shape is in fact FALSE, which is the cleanest statement of
+the gap: at `xs = ys = []` the left side is `none` (nothing differs) and
+the right side is `some SExpr.nil` (the book's witness function returns a
+VALUE, never an option), so no `some`-wrapped reading can be the mirror's
+correspondent. The `hom scalar` square does not even elaborate,
+and its failure names a real gap in the square classes:
+
+```
+Type mismatch
+  Sorting.permWitness xs ys
+has type
+  Option α
+but is expected to have type
+  Option SExpr
+```
+
+— the map-INVARIANCE class asserts `fn (encoded args) = fn args`, which
+types only when the result type is CLOSED (`Nat`, `Bool`, `Prop`). An
+`Option α` result needs a RESULT READING (`Option.map e.enc`), which is a
+third result class the square table does not have — the derived-reading
+frontier at the result position rather than the argument position. Both
+are recorded; neither is forced.
+
+**[SUPERSEDED, close-out arc item 2.]** Ruling Q3 (2026-08-18) replaced
+the `List.find?` multiplicity scan by the book's own erase-walk, which is
+what made the AGREE square a definitional correspondence. The
+RESULT-position frontier the last paragraph names is the class that then
+landed as `hom elem` — the ELEMENT result carried by `e.enc`, NOT an
+`Option α` result carried by `Option.map e.enc`. The `Option` rendering
+the paragraph gestures at is the ELEMENT-TYPE row (`optEmbed`,
+`IsoKit.lean`), and the reason it is not a result class is on the product
+page: at `SExpr` the value-or-nil refinement is not injective (`none` and
+`some nil` share an image), so an `Option`-VALUED spec definition cannot
+be crossed at all. -/
 
 /-! ### W15's PRIOR RECORD — what waves 2b/2c measured against the OLD
 `Permuted` body (moved here verbatim from the algorithm page when the
