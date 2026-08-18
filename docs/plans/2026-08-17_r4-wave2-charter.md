@@ -494,3 +494,156 @@ all of `Tests/` and `acl2_samples/` byte-untouched); no
 checked out in this worktree (`ls acl2` is empty), the same environmental
 owe waves 2a and 2b recorded. The five tamper probes above were run
 against the built tree.
+
+### Wave 2d-prep (2026-08-18) — Mike's rulings Q1/Q2 LANDED as spec re-renders, Q4 MEASURED-AND-REFUTED, Q3 drafted only; 26 → 34 live squares, products unchanged at 8
+
+Executed in the same isolated worktree; nothing committed there. The
+wave implements the four rulings of 2026-08-18 in dependency order. The
+headline is honest and is not a product: **the two SPEC re-renders
+landed and moved five frontiers, but no new mirror PRODUCT is
+reachable** — Q4's route is refuted and `qsort`'s agree square is
+unchanged, so the product count stands at 8 (two sorting).
+
+**Q1 — `Permuted` re-rendered through own-definition `memb`/`rm`
+(LANDED).** `Mirrors/Sorting.lean` gains `memb` (MEMB) and `rm` (RM),
+both read off the emitted `:DEFUN` bodies in
+`acl2_samples/sorting/perm.proof-log`, and `Permuted` now renders
+`PERM`'s body at the book's own access pattern (the base arm
+destructures `ys`, exactly as `(if (consp y) nil t)` does). MEANING
+PRESERVED AND CHECKED, not asserted: the two bodies were proved
+equivalent in `.tmp` (`PermutedNew xs ys ↔ PermutedOld xs ys`, via
+`memb a ys = true ↔ a ∈ ys` and `rm a ys = ys.erase a`). All 13 target
+`Prop` STATEMENTS are byte-identical (the regression net below).
+
+**Q2 — `bsort` re-rendered as the book's fixpoint recursion (LANDED).**
+The spec gains `howManySmaller` (HOW-MANY-SMALLER) and
+`howManyBadPairs` (the book's `BNEXT-SIZE` — named for its own lemma
+`HOW-MANY-BAD-PAIRS-BNEXT`, since there is no `HOW-MANY-BAD-PAIRS`
+defun; the discrepancy is recorded rather than smoothed over), and
+`bsort` is `if bnext xs = xs then xs else bsort (bnext xs)`
+`termination_by howManyBadPairs xs`. The decrease is proved in the spec
+in ~45 lines (three lemmas: the count is bubble-pass invariant, the
+measure never increases, and a pass that CHANGES the list strictly
+decreases it) — the P2 Lean-termination-necessity exception, and the
+same obligation ACL2 discharges at `BSORT`'s admission. `bsort_ordered`
+and the other `Prop`s that name `bsort` are untouched.
+
+**Q4 — MEASURED, and the route is REFUTED (not "not taken").** Verbatim
+in W13's postscript (`MirrorProofs/SortingSquares.lean`): the mismatch
+is NOT at a `decide` — it is at `filterRel`'s own `DecidableEq`
+INSTANCE ARGUMENT (`fun a b => decEqOfOrder a b` against
+`instDecidableEqSExpr`, shown with `pp.explicit`), one level above any
+`decide`; Q4's fact as stated is not a rewrite rule (unassignable RHS
+variable, "made no progress" on a real two-instance goal); the
+canonicalizing variant is inert because simp solves that binder by
+SYNTHESIS; and the DEPTH blocker is independent and untouched
+(`qsortL (head :: t)` has no equation at a variable tail). So NO new
+product landed and nothing was forced.
+
+**Q3 — DRAFTED AND MEASURED, NOT LANDED (as ruled).** The full draft
+(defs, the new `Prop`, and the affected-square analysis) is in the
+wave report and in `.tmp/w2d/Q3Scratch.lean`; it elaborates clean. It
+DOES drop the `Option` wrapper and change `permWitness_complete`'s
+statement — to the book's own equivalence, plus an `[Inhabited α]`
+binder for `(CAR Y)` on an exhausted list. Measured with the draft
+temporarily in the tree, then reverted: the agree square against `pceL`
+now ELABORATES (the old `some`-wrapped shape was FALSE at `[] []`) and
+its ONLY residual is the same `rm` square below; the hom square fails
+with a TYPE MISMATCH that names the missing square class (an
+ELEMENT-RESULT homomorphism).
+
+**SQUARES: 26 → 34, all `#guard_msgs`-pinned** (new page
+`MirrorProofs/SortingPermSquares.lean`, split off because the algorithm
+page was at 1445 of the 1500-line norm): `memb` agree + hom, `rm` hom,
+`Permuted` hom, `howManySmaller` agree + hom, `howManyBadPairs` agree +
+hom. Receipts: `[propext]` for the first three, `[propext, Quot.sound]`
+for `Permuted`'s, trio for the four measure squares.
+
+**THE ONE LADDER CHANGE, and the two REFUTED candidates.**
+`decide_true`/`decide_false` joined the fixed kit as the `decide` twin
+of the admitted `cond`/`ite` pairs (`rfl`-lemmas, pinned by `example`,
+one operation's own two values); their consumer is `memb`'s agree
+square. The equality-test ORIENTATION gap that blocks `rm`'s agree
+square has TWO candidate rungs and BOTH WERE MEASURED TO REGRESS LIVE
+SQUARES — `eq_comm` flips the square's own top-level equation (five
+squares stop closing) and `decide (a = b) = decide (b = a)` collides
+with `Bool.decide_eq_true` at `α := Bool` (the four `filterRel` agree
+squares stop closing). Neither was taken; the residuals are on the new
+page.
+
+**THE ONE REMAINING SQUARE, and it is a READING question.** `rm`'s
+agree square is one residual wide: the book's `RM` tests
+`(EQUAL E (CAR X))` (target-first, which the mirror renders
+faithfully) and the library `List.erase` tests head-first. `List.erase`
+is one of the four logged vocabulary-compliance items and this is the
+first square where the gap is load-bearing: `Permuted`'s agree square,
+and Q3's, are each EXACTLY this one square away. The fix is an
+own-definition `rmL` reading — a waypoint-layer change that moves
+`permExec_enc` and every PERM-* native's vocabulary, so out of scope
+here and recorded.
+
+**`bsort`'s squares: the blocker MOVED but neither landed.** The
+access-pattern objection wave 2b recorded is gone (that was the point of
+Q2), and two new ones are recorded verbatim: the hom square's closer
+LOOPS on the fixpoint equation (`Possibly looping simp theorem:
+Sorting.bsort.eq_1`, then a whnf timeout — controlling it is a template
+capability, i.e. a ruling), and the agree square still has no `bsortL`
+reading in the tree.
+
+**J-CALLS.**
+
+* **J-2d-1 — the two orientation rungs: MEASURED AND REFUTED, not
+  escalated.** Both regress live squares, so there is nothing for a
+  ruling to weigh: the rung route is closed, and the open decision is
+  the READING conversion (already a standing compliance item).
+* **J-2d-2 — `decide_true`/`decide_false` TAKEN as member additions to
+  the ruled `rfl`-rung class** (delegation boundary class 2: "adding a
+  member to a ruled class stays delegated"), with the criterion text,
+  the table row and the `example … := rfl` pins added at the ladder.
+  Disclosed because the ladder is the trust-relevant surface: they are
+  two lines and revert cleanly.
+* **J-2d-3 — `bsort`'s termination lemmas are SPEC-side hand proofs.**
+  ~45 lines in a reader-facing file, admitted under the P2
+  Lean-termination-necessity exception and under the spec header's own
+  "the only proofs here are the termination measures Lean's kernel
+  demands". They knowingly re-prove in Lean what the book proves as
+  `HOW-MANY-BAD-PAIRS-BNEXT` — that is what P2 names, and the ruled
+  re-render cannot exist without them. Flagged, not hidden.
+* **J-2d-4 — no `permWitness`/`bsort`/`qsort` square was forced.** Each
+  frontier above is recorded with its verbatim residual and nothing was
+  declared that does not close.
+
+**REGRESSION NET.** Statements AND proof-term hashes over
+`ACL2Lean.MirrorProofs`, `ACL2Lean.Sorting`, `ACL2Lean.Basics`,
+`ACL2.Worlds.Sorting`, `ACL2.Worlds.Perm`, taken before and after by
+stashing the work and re-running the dump: **612 pre-existing
+declarations, ZERO statement changes, ZERO deletions, 34 additions.**
+FIVE pre-existing proof TERMS moved, each entailed by a ruling:
+`ACL2Lean.Sorting.Permuted` and `ACL2Lean.Sorting.bsort` (the two ruled
+bodies themselves), `Sorting.bnext.induct_unfolding` (a Lean-generated
+auxiliary, realized on demand by the new termination lemmas' 
+`fun_induction`; STATEMENT byte-identical), and `isort_ordered_int` /
+`msort_ordered_int` — the two PRODUCTS, whose statements and receipts
+are unchanged but whose generated proofs now carry the newly registered
+squares in their fixed simp sets (the transport collects every
+registered square). Disclosed rather than hidden: it is the price of
+registering squares before the transports, and the seam gate still pairs
+both correctly.
+
+**TAMPER PROBES — six, all hard-error with "the square template did not
+close":** `memb` against the NEGATED membership test; `rm` against the
+IDENTITY; `Permuted` against `isPerm` with the arguments SWAPPED;
+`howManySmaller`'s hom square over the PLAIN `Acl2Embed` (the
+order-respect hypothesis is load-bearing); `howManyBadPairs` against an
+OFF-BY-ONE reading; `howManySmaller` against the OTHER count reading
+(`howManyL`). The two new `decide` rungs rescue none of them.
+
+**Gate (fast-gate, in-worktree).** Full `lake build` green, 6453 jobs,
+ZERO warnings; `just test` green (3236 jobs); `just driver-coverage`
+116/116 replayed, aggregate OK, 29 books; `just check-golden-current`
+passes and `git status` shows `acl2_samples/` and `Tests/` byte-
+untouched; no `sorry`/`admit`/`native_decide` anywhere in the diff;
+11 of 14 statics PASS — `check-acl2-tags`, `check-log-provenance` and
+`test-provenance-gates` fail ONLY because the `acl2/` submodule is not
+checked out in this worktree (`ls acl2` is empty), the same
+environmental owe waves 2a–2c recorded, owed at collection.

@@ -291,10 +291,27 @@ criterion cannot rot silently):
 | `List.length_nil/cons` | `List.length`'s own two cases | `List.length_append` |
 | `Bool.cond_true/false` | `cond`'s own two cases   | any `lexorderB`/order fact |
 | `ite_true`/`ite_false` | `ite`'s own two cases    | `if_pos`/`if_neg`, `List.map_eq_nil_iff`, any conditional-rewrite discharge |
+| `decide_true`/`decide_false` | `decide`'s own two VALUES (R4 wave 2d-prep) | `eq_comm` and `decide (a = b) = decide (b = a)` — BOTH MEASURED TO REGRESS live squares, see `MirrorProofs/SortingPermSquares.lean` |
 | `enc_inj_iff`       | `Acl2Embed.inj` as an iff   | any OTHER embedding property |
 | `Bool.decide_eq_true` | the `decide`/`= true` coercion | any OTHER `Bool`/`Prop` fact (`decide_eq_true_eq`, …) |
 | `Bool.false_eq_true` | the same family: `false`/`False` | as above — still nothing that relates two operations |
 | `← Bool.and_eq_true` | the same family: `&&`/`∧`, BACKWARDS ONLY (O-3, wave 2c) | as above — `decide_eq_true_eq` in particular; and the FORWARD direction of this very lemma (measured: it regresses two live squares) |
+
+`decide_true`/`decide_false` (R4 wave 2d-prep, 2026-08-18) are the
+`decide` twin of the same pair and are admitted under the SAME clause:
+they are `rfl` (pinned below by the same `example` device), they are
+one operation's own two VALUES, and they relate nothing. Core states
+both over an ARBITRARY `Decidable` instance
+(`∀ (h : Decidable True), @decide True h = true`), which is what lets
+them fire where a reading and a mirror reached the same `decide` by
+different routes. Their consumer is `memb`'s agree square
+(`MirrorProofs/SortingPermSquares.lean`), whose residual before them
+was `⊢ true = match decide True with | true => true | false => …`,
+verbatim. NOT admitted, and MEASURED-AND-REFUTED rather than merely
+declined: `eq_comm` and `decide (a = b) = decide (b = a)`, the two
+candidate rungs for the equality-test ORIENTATION gap the same page
+records — each regresses live squares (five and four respectively; the
+residuals are on that page).
 
 `ite_true`/`ite_false` (R4 wave 1, 2026-08-14) are the `ite` twin of the
 already-admitted `cond` pair and are admitted under the SAME clause of
@@ -505,6 +522,8 @@ example (x y : α) : (bif true then x else y) = x := rfl
 example (x y : α) : (bif false then x else y) = y := rfl
 example (x y : α) : (if True then x else y) = x := rfl
 example (x y : α) : (if False then x else y) = y := rfl
+example : decide True = true := rfl
+example : decide False = false := rfl
 
 /-- The SECOND plumbing family, pinned by its statement: the rung says
     exactly that `decide (b = true)` and `b` are two spellings of one
@@ -535,6 +554,7 @@ macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
       | simp_all only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
           Bool.cond_true, Bool.cond_false, ite_true, ite_false,
+          decide_true, decide_false,
           enc_inj_iff, Bool.decide_eq_true, Bool.false_eq_true,
           ← Bool.and_eq_true, $xs,*]))
 

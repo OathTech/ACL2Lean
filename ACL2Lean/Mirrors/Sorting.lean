@@ -24,16 +24,34 @@ arrives VIA ACL2 REPLAY (the two-category workflow: user definitions
 No proof-of-property lives in this file and no `sorry` anywhere: an
 unproved target is a named `Prop`, never a fake theorem. (The only
 proofs here are the termination measures Lean's kernel demands for
-the definitions to exist, plus the decidable-equality derivation
-`decEqOfOrder` — see its docstring.)
+the definitions to exist — including `bsort`'s bad-pair decrease, the
+same obligation ACL2 discharges at `BSORT`'s admission — plus the
+decidable-equality derivation `decEqOfOrder` — see its docstring.)
 
 VOCABULARY PRACTICE (Mike, 2026-08-13 — disambiguate hard, as
 design practice): body constructs that MIRROR A BOOK FUNCTION are
-OWN-DEFINITIONS (`relMode` = REL, `filterRel` = FILTER — their iso
-squares arrive with their mirrors); pure-Lean idiom is FULLY QUALIFIED
-(`List.find?`, `List.length`) or an own device (`iterate`); operator
-notation (`++`, `∈`) is permitted as unambiguous; names are
+OWN-DEFINITIONS (`relMode` = REL, `filterRel` = FILTER, `memb` = MEMB,
+`rm` = RM, `howManySmaller` = HOW-MANY-SMALLER, `howManyBadPairs` =
+BNEXT-SIZE — their iso squares arrive with their mirrors); pure-Lean
+idiom is FULLY QUALIFIED (`List.find?`, `List.length`) or an own
+device; operator notation (`++`) is permitted as unambiguous; names are
 collision-linted (Tests/MirrorNameCheck).
+
+THE 2026-08-18 RE-RENDERS (Mike's rulings Q1/Q2 of the R4 wave-2
+climb, both to close the gap between a spec body and the BOOK it
+mirrors — the same "closeness to the book beats Lean-idiom polish"
+line as the FILTER re-render):
+* `Permuted` renders `PERM` through the own-definitions `memb`/`rm`
+  and destructures the second list in the base arm exactly as
+  `(if (consp y) nil t)` does, where it previously used library `∈`
+  and `List.erase` and stated the base case as `ys = []`. It is the
+  SAME RELATION (checked by proving the two bodies equivalent); the
+  `Prop`s that name it are untouched.
+* `bsort` renders `BSORT`'s FIXPOINT recursion
+  (`(if (equal (bnext x) x) x (bsort (bnext x)))`) on the book's own
+  bad-pair measure, where it previously ran `length`-many passes as a
+  `List.foldl`. That is a DIFFERENT definition with the same intent,
+  and it is the book's.
 
 CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
 would write as a reasonably close Lean analog of the ACL2 theorem —
@@ -67,7 +85,11 @@ therefore taken from the ACL2 BOOK, Lean-cased (`isort`, `msort`,
 `qsort`, `bsort`, `bnext`, `merge2`, `insertOrd`, `Ordered`,
 `howMany`, and — with the 2026-08-14 FILTER re-render — `relMode`,
 `RelMode`, `filterRel`, where the bare book names `REL`/`Rel` and
-`FILTER`/`filter` are both taken by the libraries the linter sees);
+`FILTER`/`filter` are both taken by the libraries the linter sees; and
+— with the 2026-08-18 re-renders — `memb`, `rm`, `howManySmaller` and
+`howManyBadPairs`, the last named for the book's own lemma
+`HOW-MANY-BAD-PAIRS-BNEXT` about the function `BNEXT-SIZE` it
+renders);
 the uppercase ACL2 rune names in the docstrings below are
 the cross-reference to the source book and are the point.
 `Tests/MirrorNameCheck.lean` enforces the rule over this namespace at
@@ -259,10 +281,99 @@ def bnext : List α → List α
     if a ≤ b then a :: bnext (b :: t) else b :: bnext (a :: t)
   termination_by xs => xs.length
 
-/-- Bubble sort: `length`-many passes reach the fixpoint (the book's
-    `BSORT`, whose measure is the bad-pair count). -/
+/-- How many elements of the list the order puts strictly BELOW `e` (the
+    book's `HOW-MANY-SMALLER`: skip the ones equal to `e`, count the ones
+    at-or-below it). A book function, so an own-definition per the
+    vocabulary practice; one half of the book's bubble measure. -/
+def howManySmaller [DecidableEq α] (e : α) : List α → Nat
+  | [] => 0
+  | a :: t =>
+    if e = a then howManySmaller e t
+    else if a ≤ e then 1 + howManySmaller e t
+    else howManySmaller e t
+
+/-- The BAD-PAIR COUNT — the book's `BNEXT-SIZE`, the measure that
+    justifies `BSORT`'s recursion: summed over the list, how many of the
+    elements after it each element is out of order with. -/
+def howManyBadPairs [DecidableEq α] : List α → Nat
+  | [] => 0
+  | a :: t => howManySmaller a t + howManyBadPairs t
+
+/-! The three facts below are `bsort`'s TERMINATION ARGUMENT — the
+measure decrease Lean's kernel demands before the book's fixpoint
+recursion is a definition at all (the same obligation ACL2 discharges
+at `BSORT`'s admission, where it is the book's own lemma
+`HOW-MANY-BAD-PAIRS-BNEXT`). They are about OUR OWN definitions and
+prove no target property; every `Prop` at the bottom of this file still
+arrives via replay. -/
+
+theorem howManySmaller_cons [DecidableEq α] (e a : α) (t : List α) :
+    howManySmaller e (a :: t) =
+      (if e = a then 0 else if a ≤ e then 1 else 0) + howManySmaller e t := by
+  by_cases h : e = a
+  · simp [howManySmaller, h]
+  · by_cases h2 : a ≤ e <;> simp [howManySmaller, h, h2]
+
+/-- A bubble pass MOVES elements without changing how many of them the
+    order puts below `e`. -/
+theorem howManySmaller_bnext [DecidableEq α] (e : α) (xs : List α) :
+    howManySmaller e (bnext xs) = howManySmaller e xs := by
+  fun_induction bnext xs with
+  | case1 => rfl
+  | case2 a => rfl
+  | case3 a b t h ih => simp [howManySmaller_cons, ih]
+  | case4 a b t h ih => simp [howManySmaller_cons, ih]; omega
+
+/-- A bubble pass never INCREASES the bad-pair count. -/
+theorem howManyBadPairs_bnext_le [DecidableEq α] (xs : List α) :
+    howManyBadPairs (bnext xs) ≤ howManyBadPairs xs := by
+  fun_induction bnext xs with
+  | case1 => exact Nat.le_refl _
+  | case2 a => exact Nat.le_refl _
+  | case3 a b t h ih =>
+    simp only [howManyBadPairs, howManySmaller_bnext] at ih ⊢
+    omega
+  | case4 a b t h ih =>
+    simp only [howManyBadPairs, howManySmaller_bnext,
+      howManySmaller_cons] at ih ⊢
+    have hba : b ≤ a := (TotalOrder.le_total a b).resolve_left h
+    have hne : ¬ b = a := fun e => h (e ▸ TotalOrder.le_refl a)
+    simp [hba, hne, h] at ih ⊢
+    omega
+
+/-- THE DECREASE — a bubble pass that CHANGES the list strictly
+    decreases the bad-pair count (the book's `HOW-MANY-BAD-PAIRS-BNEXT`,
+    which is exactly what admits `BSORT` there). -/
+theorem howManyBadPairs_bnext_lt [DecidableEq α] (xs : List α) :
+    bnext xs ≠ xs → howManyBadPairs (bnext xs) < howManyBadPairs xs := by
+  fun_induction bnext xs with
+  | case1 => exact fun h => absurd rfl h
+  | case2 a => exact fun h => absurd rfl h
+  | case3 a b t h ih =>
+    intro hne
+    have hb : bnext (b :: t) ≠ b :: t := by
+      intro e; exact hne (by rw [e])
+    have ih' := ih hb
+    simp only [howManyBadPairs, howManySmaller_bnext] at ih' ⊢
+    omega
+  | case4 a b t h ih =>
+    intro _
+    have hle := howManyBadPairs_bnext_le (a :: t)
+    simp only [howManyBadPairs, howManySmaller_bnext,
+      howManySmaller_cons] at hle ⊢
+    have hba : b ≤ a := (TotalOrder.le_total a b).resolve_left h
+    have hne : ¬ b = a := fun e => h (e ▸ TotalOrder.le_refl a)
+    have hne' : ¬ a = b := fun e => hne e.symm
+    simp [hba, hne, hne', h] at hle ⊢
+    omega
+
+/-- Bubble sort: bubble passes until a pass changes nothing (the book's
+    `BSORT` — `(if (equal (bnext x) x) x (bsort (bnext x)))`, whose
+    measure is the bad-pair count). -/
 def bsort (xs : List α) : List α :=
-  (List.range xs.length).foldl (fun acc _ => bnext acc) xs
+  if bnext xs = xs then xs else bsort (bnext xs)
+  termination_by howManyBadPairs xs
+  decreasing_by exact howManyBadPairs_bnext_lt xs ‹_›
 
 /-- Multiplicity of an element (the book's `HOW-MANY`; our own
     definition). -/
@@ -270,14 +381,27 @@ def howMany [DecidableEq α] (a : α) : List α → Nat
   | [] => 0
   | b :: t => (if a = b then 1 else 0) + howMany a t
 
+/-- Membership test (the book's `MEMB`). A book function, so an
+    own-definition per the vocabulary practice. -/
+def memb [DecidableEq α] (a : α) : List α → Bool
+  | [] => false
+  | b :: t => if a = b then true else memb a t
+
+/-- Remove the FIRST occurrence (the book's `RM`). A book function, so
+    an own-definition per the vocabulary practice. -/
+def rm [DecidableEq α] (e : α) : List α → List α
+  | [] => []
+  | a :: t => if e = a then t else a :: rm e t
+
 /-- Permutation, the book's way (`PERM`): every head occurs in the
-    other list, and the tails-after-erasure are permutations. Our own
+    other list, and the tails-after-removal are permutations. Our own
     definition — its equivalence with multiplicity agreement is a
     THEOREM of the book (`CONVERT-PERM-TO-HOW-MANY`), not a library
     import. -/
 def Permuted [DecidableEq α] : List α → List α → Prop
-  | [], ys => ys = []
-  | a :: xs, ys => a ∈ ys ∧ Permuted xs (ys.erase a)
+  | [], [] => True
+  | [], _ :: _ => False
+  | a :: xs, ys => memb a ys = true ∧ Permuted xs (rm a ys)
 
 /-- The permutation counterexample witness (the book's
     `PERM-COUNTER-EXAMPLE`): an element whose multiplicities differ,

@@ -1269,7 +1269,48 @@ Wave 0 recorded the `symV` privacy blocker and wave 2a routed around it;
 the constant and moves every proof term that mentions it, which is a
 regression-net decision, not an executor edit. (Wave 2c did NOT attempt
 the agree square: it is held for Mike, and nothing above changes either
-of its two blockers.) -/
+of its two blockers.)
+
+**Q4's MEASUREMENT (2026-08-18) — the decide-instance-irrelevance route
+does NOT dissolve the mismatch, and the square would not close even if
+it did.** Mike asked for a measurement, not a fix, and here it is.
+
+1. THE MISMATCH IS NOT AT A `decide`. Re-measured with `pp.explicit`,
+   `qsort`'s own body carries `filterRel` at
+
+   ```
+   @Sorting.filterRel SExpr instTotalOrderSExpr
+     (fun a b => @Sorting.decEqOfOrder SExpr instTotalOrderSExpr a b)
+     Sorting.RelMode.lt head✝ t✝
+   ```
+
+   — the difference from the registered squares is `filterRel`'s own
+   `DecidableEq` INSTANCE ARGUMENT (an eta-expanded `decEqOfOrder`
+   against `ACL2.instDecidableEqSExpr`), one level ABOVE any `decide`
+   application. A `decide`-level fact cannot reach an instance argument
+   of `filterRel`.
+2. THE FACT AS STATED IS NOT A REWRITE RULE. `∀ p i₁ i₂, @decide p i₁ =
+   @decide p i₂` has an RHS variable the LHS does not determine; on a
+   goal that IS a two-instance `decide` mismatch
+   (`@decide (a = b) (decEqOfOrder a b) = @decide (a = b)
+   (instDecidableEqSExpr a b)`) `simp only` reports "made no progress".
+3. NOR IS THE CANONICALIZING VARIANT. `@decide p i = @decide p inst`
+   with the RHS instance INSTANCE-IMPLICIT is well-formed, but simp
+   solves that binder by SYNTHESIS rather than by matching, so its LHS
+   only ever matches the canonical spelling — "made no progress" on the
+   same goal. Applying either alongside
+   `filterRel_lt_agree_filterLtL` to the real term likewise makes no
+   progress.
+4. AND THE SQUARE WOULD STILL NOT CLOSE. The DEPTH blocker is
+   independent and untouched: the residual's right-hand side is
+   `Worlds.Sorting.qsortL (head✝ :: t✝)`, which has no applicable
+   equation at a variable tail (the reading matches three patterns, the
+   mirror two) and survives the closer's own `unfold` of `qsortL`.
+
+So no new product landed from this route. The two recorded routes
+(J-2b-4's restatement at the caller's instance, which breaks the
+`.lt`/`.gt` squares; J-2b-5's `symV` de-privatisation) are unchanged
+and remain Mike's. -/
 
 /-- The APPEND homomorphism square (decision O-2). `List.append` is a
     LIBRARY FUNCTION, and its square is legal machinery — the collision
@@ -1298,6 +1339,13 @@ mirror_iso% qsort_map_hom for ACL2Lean.Sorting.qsort
 
 /-! ## W14 — `bsort`'s record: BOTH squares blocked, and NOT on the exec
 kit (R4 wave 2b, measured, nothing declared)
+
+**SUPERSEDED IN PART BY THE Q2 RE-RENDER (2026-08-18) — read the
+postscript at the end of this section first.** The access-pattern
+diagnosis below was correct and was escalated as a SPEC question; Mike
+ruled the re-render, the spec now recurses to the fixpoint on the
+book's own measure, and the blocker MOVED. Everything below is kept as
+the record of what was measured when.
 
 The wave-0/A5 inventory said `bsort` "needs the bsort exec kit and the
 bnext-size measure row, the M3-class ExecGen widening or a hand kit".
@@ -1359,39 +1407,37 @@ termination proof Lean's kernel would demand ("the only proofs here are
 the termination measures Lean's kernel demands for the definitions to
 exist"). That is reader-facing, so it is Mike's call, not this wave's.
 
+**POSTSCRIPT — THE RE-RENDER LANDED (ruling Q2, 2026-08-18), AND THE
+BLOCKER MOVED (R4 wave 2d-prep, measured, still nothing declared).**
+The spec's `bsort` is now
+`if bnext xs = xs then xs else bsort (bnext xs)`, `termination_by
+howManyBadPairs xs`, with the decrease proved in the spec from the
+book's own measure (`howManySmaller`/`howManyBadPairs` — the same
+obligation ACL2 discharges at `BSORT`'s admission via
+`HOW-MANY-BAD-PAIRS-BNEXT`). The access-pattern objection above is
+therefore GONE: the mirror and the book now recurse the same way, so a
+commuting square IS stateable. Neither square landed, for two NEW
+reasons, both measured:
+
+* the HOM square hits a LOOPING CLOSER. `fun_induction` unfolds the
+  LEFT occurrence, but the right-hand `bsort (List.map e.enc xs)` stays
+  folded, and the closer's `simp_all only [… bsort …]` unfolds a
+  fixpoint recursion forever. Lean says so directly — `Possibly looping
+  simp theorem: Sorting.bsort.eq_1`, then `(deterministic) timeout at
+  whnf`. Controlling that would need the closer to use the case
+  hypothesis BEFORE the definition's own equation, i.e. a template
+  capability (a ruling), not a rung.
+* the AGREE square still has NO READING to be stated against: there is
+  no `bsortL` in the tree, and the catalogue still records the BSORT
+  waypoint native as not built.
+
 ## W15/W16 — `Permuted` and `permWitness`: the two remaining definitions
 
-Both are recorded frontiers, and they are different in kind.
-
-**`Permuted` — the `∈`/`erase` refinement.** The `hom scalar` square
-(`Permuted (List.map e.enc xs) (List.map e.enc ys) = Permuted xs ys`)
-elaborates and leaves both cases:
-
-```
-case case1  ⊢ (List.map e.enc ys✝ = []) = (ys✝ = [])
-case case2  ⊢ (e.enc a✝ ∈ List.map e.enc ys✝ ∧ Sorting.Permuted (List.map e.enc xs✝) ((List.map e.enc ys✝).erase (e.enc a✝))) =
-    (a✝ ∈ ys✝ ∧ Sorting.Permuted xs✝ (ys✝.erase a✝))
-```
-
-— three library facts, each an ELEMENT-position refinement square of a
-library operation the spec body uses: `List.map_eq_nil_iff` (in the
-ladder's NOT-admitted column by name), `List.mem_map` + injectivity, and
-`(List.map f ys).erase (f a) = List.map f (ys.erase a)` under
-injectivity. The `agree` square against `List.isPerm` leaves
-
-```
-case case1  ⊢ (ys✝ = []) = (ys✝.isEmpty = true)
-case case2  ⊢ (a✝ ∈ ys✝ ∧ xs✝.isPerm (ys✝.erase a✝) = true) =
-    ((ys✝.contains a✝ && xs✝.isPerm (ys✝.erase a✝)) = true)
-```
-
-— `Bool.and_eq_true` again (W11's rung) plus `List.isEmpty_iff` and
-`List.contains_iff`, which are library lemmas about a LIBRARY-SPELLED
-READING: `List.isPerm`/`contains`/`erase` are three of the four logged
-vocabulary-compliance items (`Imported/SimGen.lean`'s note). This square
-is the first consumer that would justify converting them to
-own-definitions; that conversion moves `permExec_enc`'s proof term and is
-out of wave 2b's regression net.
+**W15 MOVED (2026-08-18).** `Permuted` was RE-RENDERED (ruling Q1) and
+its whole record — waves 2b/2c's measurements against the OLD body, the
+LIVE hom square, the `memb`/`rm` squares the re-render introduced, and
+the agree square's exact remaining distance — is on
+`MirrorProofs/SortingPermSquares.lean`. What is left here is W16.
 
 **`permWitness` — a DIFFERENT ALGORITHM, and no result class.** This one
 is not a lemma or a rung away, and it should be read as a spec finding.

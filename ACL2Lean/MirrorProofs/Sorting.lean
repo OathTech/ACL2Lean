@@ -1,5 +1,6 @@
 import ACL2Lean.MirrorProofs.TransportGen
 import ACL2Lean.MirrorProofs.SortingSquares
+import ACL2Lean.MirrorProofs.SortingPermSquares
 import ACL2Lean.Imported.Waypoints.Isort
 import ACL2Lean.Imported.Waypoints.Msort
 
@@ -19,7 +20,10 @@ proof term reaches a `driver_replayed%` statement.
 
 TWO OF THE THIRTEEN target `Prop`s are theorems here (`isort_ordered`,
 `msort_ordered`, both at `Int`); the other eleven have their exact
-remaining distance recorded below or on the witness page.
+remaining distance recorded below or on the witness page. (The
+2026-08-18 rulings Q1/Q2 were SPEC re-renders and Q4 a measurement:
+they moved squares, not products, and the count stands at two — see the
+summary under THE TRANSPORT FRONTIERS.)
 
 **WHAT THE FIRST TRANSPORT COST IN MACHINERY: NOTHING.** The charter
 predicted a machinery gap here — `mirror_transport%`'s binder check is
@@ -127,8 +131,30 @@ only PERM-shaped sorting native that exists is `PERM-QSORT`
 that is nearest — and it needs BOTH the `qsort` agree square (above) and
 the `Permuted` agree square (below).
 
+**RULINGS Q1/Q2/Q4 (2026-08-18) MOVED THREE OF THE LINES BELOW; the
+current state is on `MirrorProofs/SortingPermSquares.lean` and in W13's
+Q4 postscript, and it is summarised here so this page is not stale:**
+
+* `Permuted`'s spec body was RE-RENDERED through the own-definitions
+  `memb`/`rm` (Q1). Its HOM square is now LIVE, both of the blockers
+  recorded below are gone, and its AGREE square's whole remaining
+  distance is ONE square — `rm a ys = ys.erase a`, blocked on the
+  equality-test ORIENTATION of the library reading `List.erase` (two
+  candidate ladder rungs measured, both REGRESS live squares).
+* `bsort`'s spec body was re-rendered as the book's fixpoint recursion
+  (Q2); its squares' blocker moved from the access pattern to a looping
+  closer and a missing reading (W14's postscript).
+* Q4's decide-instance-irrelevance route was MEASURED and does not
+  dissolve `qsort`'s agree-square mismatch (W13's postscript), so
+  `qsort_ordered` and `qsort_perm` did not land and the product count
+  is unchanged at TWO sorting mirrors.
+* `qsort_perm`'s remaining distance is therefore exactly TWO squares:
+  `qsort`'s agree square (unchanged, held for Mike) and `Permuted`'s
+  agree square (one `rm` square away).
+
 **`Permuted` — the frontier is in the SPEC's own vocabulary, and the
 reading-layer conversion is NOT the unblock (wave 2c measured it).**
+[SUPERSEDED BY Q1 — kept as the record the ruling rested on.]
 Wave 2b left `Permuted`'s two squares blocked on "the library-spelled
 readings", i.e. on the logged `contains`/`erase`/`isPerm` compliance
 items, and this wave was to convert them. Measured first, per the
