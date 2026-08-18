@@ -1,5 +1,47 @@
 # ACL2Lean — project TODO
 
+> **R4 WAVE 2e — THE QSORT PAIR, AND THE CONVERT-PERM CAPSTONE NATIVE
+> (LANDED 2026-08-18; branch `mdd/r4-wave2`, ARC LOG in
+> `docs/plans/2026-08-17_r4-wave2-charter.md`).** Mirror PRODUCTS go
+> **9 → 11**: `qsort_ordered_int` and `qsort_perm_int` (the first
+> perm-shaped sorting product), both trio-clean, both paired by the seam
+> gate. The unlock was **O-7**, the orchestrator's ruling of 2026-08-18:
+> an `instances [...]` clause on a `mirror_iso%` declaration, scoped like
+> `embed … via [fields]`, shape-checked as an equality between two
+> INSTANCE terms of a proof-irrelevant class — which is the legal home
+> wave 2d could not find for `decEqOfOrder_eq_instSExpr`, the fact that
+> makes the four per-mode `filterRel` squares FIRE inside `qsort`'s
+> closer (J-2b-4, now CLOSED). Also landed: the
+> **CONVERT-PERM-TO-HOW-MANY waypoint native** (catalogue row promoted
+> `.pending` → `.native`), with a correction to that row's own record —
+> it needs `deps [permDev]` or it hard-fails `replayCongCollapse` at
+> PERM-IS-AN-EQUIVALENCE.
+> OPEN AFTER IT, and the shape changed character: of the eight target
+> `Prop`s left, ONE is a spec decision (`permWitness_complete`'s junk
+> arm, Mike's), ONE is a MISSING BOOK THEOREM (`perm_iff_howMany` — the
+> corpus proves the WITNESS form, not the `∀`-form; checked against both
+> books' complete `:DEFTHM` inventories), and SIX turn on a
+> **COMPOSITION MECHANISM** (`mirror_transport%` cites ONE waypoint
+> exactly) plus the **BSORT exec kit**. J-2e-3 revises the kit's cost:
+> the READING's termination is now free (`how_many_bad_pairs_bnext_
+> native_driver` is unconditional today), and what remains is the EXEC's
+> termination over an ARBITRARY `SExpr` plus BSORT's stage-1 corr.
+> J-2e-2 corrects the `*-IS-ISORT` premise: `sorting/sorts-equivalent`
+> has NO waypoint module at all, and a probe row timed out at 8M
+> heartbeats.
+> **J-2e-6 — MIKE'S JUNK-ARM RULING (2026-08-18) LANDED, ITS ROUTE
+> REFUTED.** `permWitness_complete` gains the ruled precondition
+> `(xs ≠ [] ∨ ys ≠ []) →` (the function unchanged, its junk arm named in
+> a comment) — but the premise that this makes the element-result hom
+> square true is FALSE, kernel-checked: the junk arm is reached BY
+> RECURSION from admitted inputs, the square is disproved at
+> `xs = ys = [1]`, and `permWitness xs ys` IS the junk value on the
+> ENTIRE `Permuted` half (`permWitness [1,2] [2,1] = 0`). The pointwise
+> square is true exactly where `¬ Permuted xs ys` — the content-free
+> half of the `Iff` — so no content-preserving precondition can rescue
+> it and `permWitness_complete_int` did NOT land. Whether to KEEP the
+> now-clarifying-but-not-enabling precondition is a follow-up spec call.
+
 > **P4a — THE TRIO'S TERMINATION ROWS RETIRED (LANDED 2026-08-15, T1+2
 > sprint; NO fork change).** `termination:COUNT-DOWN`,
 > `termination:MY-EVENP` and `termination:CD2` are all REPLAYED ✓.

@@ -411,25 +411,23 @@ def liftCatalog : List (String × String × LiftStatus) := [
   ("sorting/convert-perm-to-how-many", "HOW-MANY-TLFIX",
     .replayedOnly "tlfix normalization plumbing (count ignores the final \
       cdr) — no user-facing content"),
+  -- PROMOTED 2026-08-18 (R4 wave 2e): the native is BUILT
+  -- (`convert_perm_to_how_many_native_of_replayed` +
+  -- `convert_perm_to_how_many_native_driver`, stated in the
+  -- own-definition `permL`/`pceL` vocabulary per O-6). ONE CORRECTION TO
+  -- THIS ROW'S OWN RECORD, stated because it was load-bearing for
+  -- whoever built it next: the `.pending` text said "no replay blocker /
+  -- the replay side is done", and the row does NOT replay at its own
+  -- world with a bare `driver_replayed%` — it hard-fails
+  -- `replayCongCollapse: own-position rewrite under PERM at arg 0: 0
+  -- step-cited equivfull hypotheses (need exactly 1; cited equivalence
+  -- runes [PERM-IS-AN-EQUIVALENCE])`. It replays with `deps [permDev]`,
+  -- which offers the PERM book's own equivalence tree. So the claim was
+  -- true of the CONDITIONS and false of the invocation; the fix is one
+  -- clause, and it is recorded here rather than smoothed over.
   ("sorting/convert-perm-to-how-many", "CONVERT-PERM-TO-HOW-MANY",
-    .pending "UNCONDITIONAL since 2026-08-14 (T1+2 sprint G1-M) — the \
-      row has NO kept conditions and no replay blocker; the `.pending` \
-      stands on the missing waypoint native ALONE. History: this entry \
-      once read BLOCKED ON A RED ROW (the R-lane rung-2 wall) and \
-      earlier still cited use:PCE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS; \
-      the retirements were tp:HOW-MANY by the replay route (TP-replay \
-      arc increment 1, 2026-08-12), total:PERM-COUNTER-EXAMPLE by the \
-      ATOM-leg increment (2026-08-13), and finally rule:PERM-TLFIX \
-      when the G1 lane made PERM-TLFIX itself REPLAYED ✓ unconditional \
-      (2026-08-14) — its only criterion-clean discharger, now live. \
-      A Lean-side bridge would still be a new content discharger \
-      (banned) / the ornamental-import antipattern. NOT blocked on \
-      simulation work either: the PCE kit \
-      (pceExec/pce_exec_corr/pceExec_enc) exists, its `dis_pce_total` \
-      companion is GONE (retired by the replay route), and the book's \
-      own PCE row is a landed native (the ELEMENT reading, ruled \
-      2026-08-11). UNLOCK: build the native — the replay side is \
-      done"),
+    .native ``convert_perm_to_how_many_native_driver
+      ``convertPermToHowManyReplayedCond),
   ("sorting/isort", "ORDEREDP-ISORT", .native ``orderedp_isort_native_driver ``orderedpIsortReplayedCond),
   ("sorting/isort", "TRUE-LISTP-ISORT", .replayedOnly "subsumed by the isort simulation (corr_isort_enc/isortExec_enc): the program's value on any encoded input IS an encoded List by the sim — no native content beyond it (the type-absorbed true-listp doctrine)"),
   ("sorting/isort", "HOW-MANY-ISORT", .native ``how_many_isort_native_driver ``howManyIsortReplayedCond),

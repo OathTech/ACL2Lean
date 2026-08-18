@@ -421,7 +421,16 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     head of what is left of `ys` is. `List.headD … default` is Lean's
     stand-in for the book's `(CAR Y)` on an exhausted list (ACL2's
     `(car nil)` is `nil`); the book's function returns a VALUE, never
-    an option, which is why this one does too. -/
+    an option, which is why this one does too.
+
+    **THE JUNK ARM** (named here per the ruling of 2026-08-18). At
+    `xs = ys = []` — and at NO other input — the value is
+    `Inhabited.default`: this type's stand-in for ACL2's `(car nil)`,
+    carrying no information about either list. It is the one place
+    where a TOTAL Lean rendering of an untyped ACL2 function must
+    invent a value. The function stays total and stays exactly as the
+    book writes it; the junk is quarantined by `permWitness_complete`'s
+    precondition below, not by complicating the definition. -/
 def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
   | [], ys => List.headD ys default
   | a :: xs, ys => if memb a ys then permWitness xs (rm a ys) else a
@@ -499,11 +508,25 @@ def perm_iff_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
 /-- The witness is complete (the book's
     `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS`): the two
     lists are permutations EXACTLY WHEN their multiplicities agree at
-    that ONE element — the book's statement, verbatim in Lean dress. -/
+    that ONE element — the book's statement in Lean dress, with ONE
+    precondition.
+
+    **THE PRECONDITION, AND THE HONEST DELTA** (ruled 2026-08-18). The
+    `(xs ≠ [] ∨ ys ≠ [])` guard quarantines `permWitness`'s JUNK ARM
+    (see its docstring): at `xs = ys = []` the witness is
+    `Inhabited.default`, a value invented by the Lean rendering rather
+    than computed from the lists. The book's theorem covers that input
+    trivially — ACL2 is untyped and `(car nil)` is just `nil` — so this
+    mirror is the TIGHTEST FORM AVAILABLE AT A JUNK-FREE TYPE, and the
+    delta is stated rather than hidden: it is one degenerate input, and
+    the unconditional version is a two-line step-2 corollary ABOVE the
+    mirror if a user ever wants it. That corollary is deliberately NOT
+    added here (canon line 1: no Lean-side theorems specific to an
+    example). -/
 def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α]
     [Inhabited α] : Prop :=
-  ∀ (xs ys : List α),
-    Permuted xs ys ↔
-      howMany (permWitness xs ys) xs = howMany (permWitness xs ys) ys
+  ∀ (xs ys : List α), (xs ≠ [] ∨ ys ≠ []) →
+    (Permuted xs ys ↔
+      howMany (permWitness xs ys) xs = howMany (permWitness xs ys) ys)
 
 end ACL2Lean.Sorting

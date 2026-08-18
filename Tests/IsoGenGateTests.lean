@@ -109,4 +109,41 @@ mirror_transport% evil_data_after_hyp : ACL2.Tests.IsoGenGate.probeDataAfterHyp 
   embed ACL2Lean.MirrorProofs.intEmbed
   crossing evil_data_after_hyp_sexpr from probeWp
 
+/-
+  THE FOURTH NEGATIVE TEST (R4 wave 2e): `mirror_iso%` now takes an
+  `instances [...]` clause (O-7, 2026-08-18) — per-square facts that make
+  two spellings of ONE INSTANCE ARGUMENT meet. The clause admits an
+  EQUATION whose type is proof-irrelevant by construction (head in
+  `{Decidable, DecidableEq}`, or a synthesizable `Subsingleton`), and
+  that shape check is the whole gate: an equation at any other type CAN
+  carry subject content.
+
+  THE ATTACK is the file's own first one, re-aimed: hand the closer the
+  accumulator CONTENT law (`revAccL xs acc = revAccL xs [] ++ acc`, an
+  ACL2 book theorem's shape) through the NEW clause instead of through
+  `unfold`. It is refused before any declaration is produced, because its
+  equation is at `List SExpr`.
+
+  Same threat model as the other three: a SPEEDBUMP against the honest
+  mistake, not a barrier — no syntactic check on the invocation can
+  classify content, and the bound is provenance only (A1-F1). If it
+  becomes fragile, delete it.
+-/
+
+/-- THE SMUGGLE, through the instance-facts clause. (Not `private`: the
+    gate's error prints the resolved name.) -/
+theorem smuggledInstanceFact : ∀ (t : List SExpr) (h : SExpr),
+    Worlds.RevAcc.revAccL t [h] = Worlds.RevAcc.revAccL t [] ++ [h] :=
+  fun t h => accLaw t [h]
+
+/-- error: mirror_iso%: `instances [ACL2.Tests.IsoGenGate.smuggledInstanceFact]` is an equation at `List SExpr`, which is neither in the instance-facts allowlist (`Decidable`, `DecidableEq`) nor provably `Subsingleton`.
+The clause exists for ONE thing: two spellings of one INSTANCE ARGUMENT that a `local` spec instance and the ambient one produce (O-7, 2026-08-18). Such an equality is content-free BY CONSTRUCTION — proof-irrelevant, relating no two operations. An equation at any OTHER type CAN carry subject content, so it is refused here (fail-closed): route a bridging fact through a replayed ACL2 book theorem.
+-/
+#guard_msgs (whitespace := lax) in
+mirror_iso% evil_rev_via_instances for ACL2Lean.Basics.rev
+  vars [xs]
+  square agree (Worlds.RevAcc.revAccL xs [])
+  unfold [Worlds.RevAcc.revAccL]
+  instances [smuggledInstanceFact]
+
 end ACL2.Tests.IsoGenGate

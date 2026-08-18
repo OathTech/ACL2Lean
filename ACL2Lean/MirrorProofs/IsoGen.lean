@@ -437,6 +437,51 @@ A1-F1's: PROVENANCE only — such a square is still kernel-true, so no
 false mirror is reachable. DO NOT HARDEN this with semantic classifiers;
 the per-book provenance audit is the backstop.
 
+## THE INSTANCE-FACTS CLAUSE — `instances [...]`, per square (O-7, 2026-08-18)
+
+The third per-square channel, modelled EXACTLY on the `embed … via
+[fields]` scope above; ruled by the orchestrator 2026-08-18 (O-7, R4
+wave 2e) to resolve J-2b-4's PLACEMENT question.
+
+THE PROBLEM. A mirror spec may declare an instance `local`
+(`Mirrors/Sorting.lean`'s `decEqOfOrder`, deliberately `local`+low
+priority so `qsort` carries no `[DecidableEq α]` binder). A definition
+elaborated INSIDE that file then carries it, while a square elaborated
+OUTSIDE picks up the ambient `instDecidableEqSExpr`; the two print
+identically without `pp.explicit`, the residual is `X = X` differing in
+ONE INSTANCE ARGUMENT, and a registered callee square is therefore TRUE
+and CANNOT FIRE (measured: waves 2b/2c/2d, `SortingSquares.lean` W13 and
+its Q4 postscript). Neither existing slot can carry the fact that
+dissolves it: `unfold [...]` is DEFINITIONS ONLY and hard-errors on a
+lemma, and a LADDER RUNG is impossible because such a fact names a
+MIRROR SPEC constant while this module imports only `ACL2Lean.Syntax`.
+
+WHAT IT IS: `instances [thm₁, …]` makes those theorems — and only those
+— available to THAT square's closer, as `embed S via [f]` does `S.f e`.
+
+THE SHAPE CHECK (mechanical, and the whole of it). Each named theorem's
+statement must be an EQUATION whose two sides have the equation's own
+type, and that type's head must be in the small named allowlist
+`{Decidable, DecidableEq}` or carry a synthesizable `Subsingleton`
+instance. Anything else is a hard error naming the observed type.
+
+WHY THAT CRITERION (the `ord` field's argument, and why this is a
+criterion and not a taste call): an equality between two INSTANCES of a
+subsingleton class is CONTENT-FREE BY CONSTRUCTION — both sides were
+provably equal before the fact existed, so it carries no subject matter,
+relates no two operations, mentions no recursion, and cannot supply a
+definitional correspondence that is not there; all it can do is make two
+spellings of ONE instance argument meet. Proved PER INVOCATION
+(`Subsingleton.elim`), never assumed, never global.
+
+HONESTLY (the A1-F9 amendment's sibling): the check is STRUCTURAL — it
+rejects a content lemma by its TYPE, which is what makes it mechanical,
+and a determined author can still write a theorem that satisfies it. The
+bound is A1-F1's, unchanged: PROVENANCE only — such a square is still
+kernel-true, so no false mirror is reachable. Speedbump standard; DO NOT
+HARDEN it with semantic classifiers. Negative test:
+`Tests/IsoGenGateTests.lean` (the file's fourth).
+
 ## THE DEFINITION-DIRECTED CASE SPLIT (ruled 2026-08-16 — R4 wave 2a/W7)
 
 The one structural capability the closer has. Its consumer is the
@@ -851,7 +896,8 @@ syntax (name := mirrorIsoCmd)
   &" vars " "[" term,* "]"
   &" square " mirrorSquareSpec
   (&" embed " ident &" via " "[" ident,* "]")?
-  (&" unfold " "[" ident,* "]")? : command
+  (&" unfold " "[" ident,* "]")?
+  (&" instances " "[" ident,* "]")? : command
 
 /-! ### The ARGUMENT READINGS (R1 item B, audit finding F1)
 
@@ -1005,6 +1051,50 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
               never a hand square (thin-Lean ruling 2026-08-11)."
     return (readings, (← whnf body).isAppOf ``List, instClasses)
 
+/-- THE INSTANCE-FACTS SHAPE CHECK (O-7, ruled 2026-08-18) — see "the
+    instance-facts clause" in the header.
+
+    `n` must be a THEOREM whose statement (under any binders) is an
+    EQUATION between two terms whose type is proof-irrelevant by
+    construction: the head is `Decidable`/`DecidableEq`, or the type
+    carries a synthesizable `Subsingleton` instance. Everything else is
+    a hard error naming the observed type — which is what makes a
+    CONTENT lemma (`List.map_append`, whose equation is at `List β`)
+    fail the check rather than reach a closer. -/
+private def checkInstanceFact (n : Name) : MetaM Unit := do
+  let ci ← getConstInfo n
+  unless ci matches .thmInfo _ do
+    throwError "mirror_iso%: `instances [{n}]` is not a THEOREM — the \
+        instance-facts clause names PROVED equalities of instances \
+        (fail-closed: a definition here would be the unfold list's \
+        content channel under another name)"
+  forallTelescopeReducing ci.type fun _ body => do
+    let some (ty, lhs, rhs) := body.eq?
+      | throwError "mirror_iso%: `instances [{n}]`'s statement is not an \
+          EQUATION (`{body}`). The clause admits an equality between two \
+          INSTANCE terms and nothing else (fail-closed)."
+    unless (← isDefEq (← inferType lhs) ty) && (← isDefEq (← inferType rhs) ty) do
+      throwError "mirror_iso%: `instances [{n}]`'s two sides do not have \
+          the equation's own type `{ty}` — the clause admits an equality \
+          between two INSTANCE terms of ONE type (fail-closed)"
+    let allowed : Bool :=
+      match ty.getAppFn.constName? with
+      | some c => c == ``Decidable || c == ``DecidableEq
+      | none => false
+    unless allowed do
+      let sub ← trySynthInstance (← mkAppM ``Subsingleton #[ty])
+      unless sub matches .some _ do
+        throwError "mirror_iso%: `instances [{n}]` is an equation at \
+            `{ty}`, which is neither in the instance-facts allowlist \
+            (`Decidable`, `DecidableEq`) nor provably `Subsingleton`.\n\
+            The clause exists for ONE thing: two spellings of one \
+            INSTANCE ARGUMENT that a `local` spec instance and the \
+            ambient one produce (O-7, 2026-08-18). Such an equality is \
+            content-free BY CONSTRUCTION — proof-irrelevant, relating \
+            no two operations. An equation at any OTHER type CAN carry \
+            subject content, so it is refused here (fail-closed): route \
+            a bridging fact through a replayed ACL2 book theorem."
+
 /-- Generate one SQUARE for a mirror definition:
 
     ```
@@ -1050,6 +1140,10 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
     else some (⟨stx[11][1]⟩, stx[11][4].getSepArgs.map (⟨·⟩))
   let unfolds : Array Ident :=
     if stx[12].getNumArgs == 0 then #[] else stx[12][2].getSepArgs.map (⟨·⟩)
+  -- THE INSTANCE-FACTS CLAUSE (O-7, ruled 2026-08-18): per-square, scoped
+  -- exactly like `embed … via [fields]`, shape-checked below.
+  let instanceStxs : Array Ident :=
+    if stx[13].getNumArgs == 0 then #[] else stx[13][2].getSepArgs.map (⟨·⟩)
   -- the mirror definition
   let fnName ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo fnId
   let env ← getEnv
@@ -1151,6 +1245,12 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         the square closer unfolds definitions only. A LEMMA here would be \
         exactly the content channel the template gate closes: route a \
         bridging fact through a replayed ACL2 book theorem instead."
+  -- the declared INSTANCE FACTS: shape-checked before anything is
+  -- generated, so a refusal costs no declaration (O-7)
+  let instanceNames ← instanceStxs.mapM fun u => do
+    let n ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo u
+    liftTermElabM <| checkInstanceFact n
+    pure n
   -- the square class + the drift check against the real result type
   let cls : SquareClass ←
     match specStx[0].getAtomVal, specStx[1].getAtomVal with
@@ -1306,9 +1406,13 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
       unless sqs.isEmpty do
         notationSquares := notationSquares ++ sqs
         notationUnfolds := notationUnfolds ++ projs.toArray
+  -- the declared INSTANCE FACTS go LAST, so every square that declares
+  -- none is handed exactly the set it was handed before O-7 (and its
+  -- proof term is unchanged)
   let lemmaNames : Array Name :=
     #[fnName] ++ unfoldNames ++ notationUnfolds
       ++ (calleeSquares ++ notationSquares).eraseDups.toArray
+      ++ instanceNames
   let mut lemmas ← lemmaNames.mapM fun n =>
     `(Lean.Parser.Tactic.simpLemma| $(mkCIdent n):term)
   -- the declared embedding's own fields, AT THIS SQUARE'S BINDER: scoped
@@ -1367,7 +1471,8 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
         {thmId.getId}.\n\
         OBSERVED: {residual}. Rung class `{clsName}`; target \
         `{fnName}`; embedding `{embedStruct}` with fields \
-        {embedFacts.toList}; the closer was given the lemma set \
+        {embedFacts.toList}; declared instance facts \
+        {instanceNames.toList}; the closer was given the lemma set \
         {lemmaNames.toList} (the definition's own equations, the \
         declared unfoldings, and the registered squares of \
         {fnName}'s callees). The residual GOALS are reported \
