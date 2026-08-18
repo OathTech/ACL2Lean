@@ -177,4 +177,78 @@ mirror_iso% evil_rev_via_instances for ACL2Lean.Basics.rev
   unfold [Worlds.RevAcc.revAccL]
   instances [smuggledInstanceFact]
 
+/-
+  THE SIXTH AND SEVENTH NEGATIVE TESTS (close-out arc item 2): the
+  square table gained a FOURTH class, `hom elem` — a mirror definition
+  whose RESULT is the element type, carried by the embedding rather
+  than invariant under it. Like the other three the declared class is
+  CHECKED AGAINST THE DEFINITION'S OWN RESULT TYPE, in both directions:
+  `hom elem` at a list result, and `hom scalar` at an element result
+  (the drift a reader is most likely to make, since `hom scalar` was
+  the only non-list class before). Both are refused before any
+  declaration is produced, so these pins cost no `sorryAx`.
+
+  Same threat model as the five above: a SPEEDBUMP against the honest
+  mistake, not a barrier. If either becomes fragile, delete it.
+-/
+
+/-- a probe-only definition whose RESULT is the element type. -/
+def probeElemResult {α : Type} : List α → α → α
+  | [], a => a
+  | b :: _, _ => b
+
+/-- error: mirror_iso%: ACL2Lean.Basics.app's result is NOT the element type, but `hom elem` was declared — declare `hom list` for a list result and `hom scalar` for anything the embedding does not act on (the declared class is checked against the definition's type so a drift fails closed)
+-/
+#guard_msgs (whitespace := lax) in
+mirror_iso% evil_app_as_elem for ACL2Lean.Basics.app
+  vars [xs, ys]
+  square hom elem
+
+/-- error: mirror_iso%: ACL2.Tests.IsoGenGate.probeElemResult's result IS the element type, but `hom scalar` was declared — an element result is CARRIED by the embedding, not invariant under it, so declare `hom elem` (the declared class is checked against the definition's type so a drift fails closed)
+-/
+#guard_msgs (whitespace := lax) in
+mirror_iso% evil_elem_as_scalar for ACL2.Tests.IsoGenGate.probeElemResult
+  vars [xs, a]
+  square hom scalar
+
+/-
+  THE OPTION ROW'S FAIL-CLOSED SHAPE CHECK, pinned as a REFUTATION
+  rather than as an error message (close-out arc item 2).
+
+  `IsoKit.lean`'s `optEmbed` renders ACL2's value-or-nil idiom as
+  `Acl2Embed (Option α)` — `none ↦ nil`, `some a ↦ e.enc a` — under one
+  side condition: the underlying encoding AVOIDS `nil`. The condition is
+  a HYPOTHESIS of the row's constructor, so the row simply does not
+  build without it; there is no unchecked variant to reach for and
+  therefore no error message to pin. What CAN be pinned is that the
+  condition is load-bearing, and the two theorems below do that: an
+  embedding that hits `nil` fails it, and any value-or-nil map at a type
+  where it fails CONFLATES two distinct `Option` values — which is
+  exactly the injectivity the row would otherwise claim.
+
+  The second theorem is also the record of the row's BOUND at the ACL2
+  value type itself (`α := SExpr`, identity encoding), which is why a
+  `mirror_transport%` CROSSING — always stated at `SExpr` — cannot carry
+  an `Option`-VALUED spec definition.
+-/
+
+/-- A perfectly good embedding whose image HITS `nil`. -/
+def boolEmbed : ACL2Lean.MirrorProofs.Acl2Embed Bool where
+  enc b := if b then SExpr.t else SExpr.nil
+  inj := by intro a b h; cases a <;> cases b <;> simp_all
+
+/-- The row's side condition FAILS for it — so `optEmbed boolEmbed …`
+    cannot be written, which is the fail-closed direction. -/
+theorem boolEmbed_hits_nil : ¬ (∀ b : Bool, boolEmbed.enc b ≠ SExpr.nil) :=
+  fun h => h false rfl
+
+/-- …and that is not a technicality: WITHOUT the side condition the
+    value-or-nil map is not injective at all. Stated over an ARBITRARY
+    candidate map so it is about the IDIOM, not about one embedding. -/
+theorem valueOrNil_conflates_when_nil_is_hit
+    {α : Type} (f : Option α → SExpr) (a₀ : α)
+    (hnone : f none = SExpr.nil) (hhit : f (some a₀) = SExpr.nil) :
+    f none = f (some a₀) ∧ (none : Option α) ≠ some a₀ :=
+  ⟨hnone.trans hhit.symm, fun h => by simp at h⟩
+
 end ACL2.Tests.IsoGenGate

@@ -117,4 +117,124 @@ def intOrderedEmbed : OrderedEmbed Int where
     rw [lexorderB_intEmbed]
     exact decide_eq_true_iff
 
+/-! ## THE `Option` ROW'S WITNESS AT `Int` (close-out arc item 2)
+
+`IsoKit.lean`'s `optEmbed` is the generic row (`none ↦ nil`,
+`some a ↦ e.enc a`, under the fail-closed nil-avoidance side
+condition). This section discharges that side condition for `intEmbed`
+and gives `Option Int` the order interface the mirror layer's spec
+`Prop`s bind — the ELEMENT TYPE at which ACL2's value-or-nil idiom is a
+Lean type rather than a junk value.
+
+WHY `none` IS THE TOP. Measured against our own LEXORDER
+implementation, not assumed: `lexorderB (intEmbed.enc n) SExpr.nil` is
+`true` and `lexorderB SExpr.nil (intEmbed.enc n)` is `false` for every
+integer atom — ACL2 orders numbers before symbols, and `nil` is a
+symbol. So the order below puts `none` above every `some`, and the PIN
+at the end of this section is the kernel-checked statement that this
+choice is LEXORDER's on the image.
+
+WHAT THE ORDER IS AND IS NOT LOAD-BEARING FOR, honestly: no square or
+transport of the value-or-nil element type consumes the order —
+`permWitness_complete`'s `[TotalOrder α]` binder is not used by its
+body (the `Prop` is stated in `Permuted`/`howMany`/`permWitness`, all
+of which take `[DecidableEq α]` alone). The instance exists so the spec
+`Prop` ELABORATES at this element type; the pin exists so the choice of
+instance cannot silently drift away from LEXORDER's. It is a pin in the
+`LadderPins` sense, not machinery with a consumer. -/
+
+/-- `Option α` under `α`'s order with `none` as the TOP element — the
+    order ACL2's LEXORDER induces on the value-or-nil image (numbers
+    before symbols; `nil` is a symbol). `ACL2Lean.Sorting.TotalOrder`
+    is the mirror layer's own minimal interface, so this is an
+    ordinary instance of it and helps itself to no order library. -/
+instance instTotalOrderOption {α : Type u} [ACL2Lean.Sorting.TotalOrder α] :
+    ACL2Lean.Sorting.TotalOrder (Option α) where
+  le x y :=
+    match x, y with
+    | _, none => True
+    | none, some _ => False
+    | some a, some b => a ≤ b
+  le_refl a := by
+    cases a
+    · exact True.intro
+    · exact ACL2Lean.Sorting.TotalOrder.le_refl _
+  le_trans {a b c} h1 h2 := by
+    cases a <;> cases b <;> cases c <;> first
+      | exact True.intro
+      | exact absurd h1 (by exact id)
+      | exact absurd h2 (by exact id)
+      | exact ACL2Lean.Sorting.TotalOrder.le_trans h1 h2
+  le_antisymm {a b} h1 h2 := by
+    cases a <;> cases b
+    · rfl
+    · exact absurd h1 (by exact id)
+    · exact absurd h2 (by exact id)
+    · exact congrArg some (ACL2Lean.Sorting.TotalOrder.le_antisymm h1 h2)
+  le_total a b := by
+    cases a <;> cases b
+    · exact Or.inl True.intro
+    · exact Or.inr True.intro
+    · exact Or.inl True.intro
+    · exact (ACL2Lean.Sorting.TotalOrder.le_total _ _).imp id id
+  decLE x y :=
+    match x, y with
+    | _, none => isTrue True.intro
+    | none, some _ => isFalse (by exact id)
+    | some a, some b => ACL2Lean.Sorting.TotalOrder.decLE a b
+
+/-- The `Option` row's SIDE CONDITION, discharged for `intEmbed`: an
+    integer atom is never `nil`, so `none` has the image to itself and
+    the row's map is injective. -/
+theorem intEmbed_enc_ne_nil (n : Int) : intEmbed.enc n ≠ SExpr.nil := by
+  intro h; exact SExpr.noConfusion h
+
+/-- **`Option Int` embeds** — the value-or-nil element type, by the
+    generic row at `intEmbed`. The row lands a `ValueOrNilEmbed`, so
+    `none ↦ nil` is available to an element-result square as the
+    declared `encDefault` field. -/
+def optIntEmbed : ValueOrNilEmbed (Option Int) :=
+  optEmbed intEmbed intEmbed_enc_ne_nil
+
+/-- MEASURED, then PROVED: LEXORDER puts every integer atom BELOW
+    `nil` (ACL2 orders numbers before symbols). -/
+theorem lexorderB_intEmbed_nil (n : Int) :
+    lexorderB (intEmbed.enc n) SExpr.nil = true := by
+  simp only [lexorderB, intEmbed, ACL2.lexorder, ACL2.lexView?,
+    ACL2.alphLe, ACL2.viewKind]
+  rfl
+
+/-- …and never the other way round. -/
+theorem lexorderB_nil_intEmbed (n : Int) :
+    lexorderB SExpr.nil (intEmbed.enc n) = false := by
+  simp only [lexorderB, intEmbed, ACL2.lexorder, ACL2.lexView?,
+    ACL2.alphLe, ACL2.viewKind]
+  rfl
+
+/-- THE ORDER PIN (see the section header): LEXORDER on the
+    value-or-nil image IS the `Option Int` order above, in `ord`'s own
+    shape. Proved, not assumed — the `none` legs are the two LEXORDER
+    facts about `nil` against an integer atom, and the `some` leg is
+    `intOrderedEmbed`'s restriction lemma. Nothing consumes it; it
+    exists so the instance's choice cannot drift. -/
+example : ∀ a b : Option Int,
+    lexorderB (optIntEmbed.enc a) (optIntEmbed.enc b) = true
+      ↔ @LE.le (Option Int) ACL2Lean.Sorting.TotalOrder.toLE a b := by
+  intro a b
+  cases a <;> cases b
+  · exact ⟨fun _ => True.intro, fun _ => by
+      simp [lexorderB, ACL2.lexorder_refl]⟩
+  · rename_i n
+    refine ⟨fun h => ?_, fun h => h.elim⟩
+    rw [show optIntEmbed.enc none = SExpr.nil from rfl,
+      show optIntEmbed.enc (some n) = intEmbed.enc n from rfl,
+      lexorderB_nil_intEmbed] at h
+    exact absurd h (by decide)
+  · rename_i m
+    exact ⟨fun _ => True.intro, fun _ => lexorderB_intEmbed_nil m⟩
+  · rename_i m n
+    show lexorderB (intEmbed.enc m) (intEmbed.enc n) = true ↔ _
+    rw [lexorderB_intEmbed]
+    exact decide_eq_true_iff
+
 end ACL2Lean.MirrorProofs

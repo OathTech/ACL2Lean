@@ -76,9 +76,11 @@ private def libRoots : List Name := [`Init, `Lean, `Std, `Batteries, `Mathlib]
 
 /-- The DOT-NOTATION carriers: the types the spec files actually mention,
     so `xs.foo`-style resolution is in scope for them. `List`/`Nat`/`Bool`
-    (`Mirrors/Basics.lean`: `List α`, `Nat`, `DecidableEq`), `Option`
-    (`permWitness`), `Int` (the type the mirror theorems instantiate the
-    Props at), plus `Prod`/`Function` as cheap defensive entries. -/
+    (`Mirrors/Basics.lean`: `List α`, `Nat`, `DecidableEq`), `Int` and
+    `Option` (the types the mirror theorems instantiate the `Prop`s at —
+    `Option Int` is ACL2's value-or-nil element type, which
+    `permWitness_complete`'s product uses), plus `Prod`/`Function` as
+    cheap defensive entries. -/
 private def carriers : List Name :=
   [`List, `Option, `Nat, `Int, `Bool, `Prod, `Function]
 

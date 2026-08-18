@@ -207,7 +207,7 @@ than predicted:
 | NEW `qsort_howMany` | **LANDED** (`qsort_howMany_int`) — the native existed all along and nothing named it |
 | `ordered_perm_unique` → iff | **RE-LANDED as the iff** — cost: one decode corollary (`ordered_perms_iff_driver`) and one closer alternative through `map_inj_iff` |
 | NEW `permuted_equivalence` | **LANDED** (`permuted_equivalence_int`) — needed no machinery at all |
-| `permWitness_complete` unconditional | Prop now correct; the `Int` product remains structurally unavailable (part 6) |
+| `permWitness_complete` unconditional | Prop now correct; the `Int` product remains structurally unavailable (part 6) — **and is still unavailable, but the PRODUCT LANDED at `Option Int` in the close-out arc: part 7** |
 | `sorts_agree` → three `Prop`s | the composition-mechanism blocker is GONE from the statement; all three remain unlanded on the missing `sorts-equivalent` waypoint module (a real gap, now correctly attributed) |
 | `sorter_unique` reshaped | Prop now the book's; reachability recorded below |
 | `perm_iff_howMany` dropped | a permanent frontier removed from the definition of done |
@@ -314,6 +314,15 @@ an embedding whose `default` is in range (a spec/type question), or a
 composition through a theorem the corpus does not prove. The `Prop` is
 correct and the product is absent; the scoreboard says exactly that.
 
+> **[SUPERSEDED 2026-08-18, close-out arc item 2 — the paragraph above
+> is kept because its refutation STILL STANDS and is now the REASON for
+> the product's element type, not an obstacle.]** There is still no
+> `Int` product and there cannot be one. What landed is the FIRST of
+> the two named routes, taken GENERICALLY: `permWitness_complete_optint
+> : ACL2Lean.Sorting.permWitness_complete (Option Int)`, receipt
+> `[propext, Classical.choice, Quot.sound]`, seam-gate-paired to
+> `convertPermToHowManyReplayedCond`. See part 7 below.
+
 ### ADDENDUM (Mike, 2026-08-18) — THE TWO STRUCTURAL ENTRIES REST
 
 Appended after the ruling above, altering nothing in it. Both remaining
@@ -326,6 +335,127 @@ alone on purpose:
 * **`sorter_unique`** — round-trip functional instantiation (an arbitrary
   Lean `f` carried back to a `World` defun) is the named direction,
   deliberately not taken: no toolchain contortions.
+
+> **[SUPERSEDED for `permWitness_complete` ONLY, 2026-08-18 — the
+> direction was TAKEN by Mike's later direction the same day. The
+> `sorter_unique` bullet is untouched and still rests.]** "A junk arm
+> the embedding can hit" is exactly what landed, and it cost no
+> toolchain contortions: see part 7.
+
+---
+
+## Part 7 — THE `Option` REFINEMENT ROW, AND THE PRODUCT (close-out arc item 2, 2026-08-18)
+
+Appended when the close-out arc's item 2 landed. It changes the two
+structural rows of parts 4/6 for `permWitness_complete` and nothing
+else in this note.
+
+### What landed
+
+**`permWitness_complete_optint : ACL2Lean.Sorting.permWitness_complete
+(Option Int)`** — receipt `[propext, Classical.choice, Quot.sound]`,
+crossing `permWitness_complete_sexpr` citing
+`convert_perm_to_how_many_iff_driver` (a `beq_iff_eq` decode of the
+catalogued CONVERT-PERM-TO-HOW-MANY native) and nothing else; the mirror
+seam gate pairs it to `convertPermToHowManyReplayedCond`. The `Prop` is
+the book's, unchanged and unconditional — its STATEMENT is byte-identical
+to the one this note ruled in part 3.
+
+**The machinery is a ROW, not a shim.** `IsoKit.lean`'s `optEmbed`
+renders ACL2's value-or-nil return idiom (`MEMBER`, `ASSOC`,
+`PERM-COUNTER-EXAMPLE` — the shape `(car nil)` exists to serve) as
+`Acl2Embed α → ValueOrNilEmbed (Option α)`, `none ↦ nil`,
+`some a ↦ enc a`, keyed by the TYPE SHAPE with zero constants of any
+consuming spec. Its FAIL-CLOSED shape check is a hypothesis of the
+constructor — the underlying encoding must AVOID `nil`, without which
+the map is not injective — so the row cannot be built unchecked. The
+square table gained its fourth class, `hom elem` (the element result
+carried by `e.enc`), drift-checked both ways like the other three.
+
+**Why `Option Int` and not `Int`.** The wave-2e refutation above is not
+worked around; it is the reason. The element-result square is true
+exactly for an embedding with `e.enc default = default`, `intEmbed`
+provably has no such property, and `Option`'s own `default` IS `none` —
+which the row sends to `nil`. So the hypothesis is discharged BY THE ROW,
+generically, for every element type it applies to.
+
+### The `Option`-VALUED re-spell is REFUTED (measured, two layers)
+
+The close-out charter's item 2 asked for a different thing: `permWitness`
+re-spelled with an `Option α` WITNESS, the junk arm and its
+`[Inhabited α]` binder eliminated. **That does not go through**, and the
+record matters because it is why the spec KEEPS the junk arm:
+
+1. **At the crossing.** A `mirror_transport%` crossing is stated at
+   `SExpr` by construction. There the value-or-nil refinement
+   `Option SExpr → SExpr` is NOT injective — `none` and `some nil` share
+   an image — so an `Option`-VALUED mirror function distinguishes cases
+   the ACL2 function conflates. The crossing's `none` arm would need
+   *"the walk names no witness exactly when the lists are permutations"*,
+   which appears in NONE of the 75 `(:DEFTHM …)` rows inventoried in part
+   1. It was verified to be provable — by a six-line pure-Lean induction
+   over our own definitions — which is exactly what makes it
+   inadmissible: canon line 1 (no Lean-side theorems specific to an
+   example), and it would be the ONLY content on the `Permuted` half.
+2. **At the reading layer.** The same failure one rung down: an
+   `Option`-valued waypoint reading cannot be `derive_sim%`-validated
+   against an `SExpr`-valued exec, because the decode is lossy and the
+   sim statement would not determine the reading.
+
+Both are pinned in the tree rather than left as prose: `Tests/
+IsoGenGateTests.lean` carries `valueOrNil_conflates_when_nil_is_hit`
+(over an ARBITRARY candidate map, so it is about the IDIOM) and
+`boolEmbed_hits_nil` (a real embedding that fails the side condition).
+
+### The one spec change that WAS needed
+
+`permWitness`'s `(CAR Y)` arm now DESTRUCTURES `ys` — behaviour-identical,
+and the same access-pattern rendering ruling Q1 gave `Permuted` for
+`(IF (CONSP Y) 'NIL 'T)`:
+
+```lean
+-- before                              -- after
+| [], ys => List.headD ys default      | [], [] => default
+                                       | [], y :: _ => y
+```
+
+Measured, not preferred: with the old body the square's residual is
+`e.enc (match ys, default with …) = match List.map e.enc ys, default with …`
+even with `List.headD` in the unfold list; the alternative was a new
+closer capability (splitting a non-guarded undestructured argument),
+which is a ruling. The re-render needs none and removes a library-idiom
+use. `permWitness_complete`'s statement is unaffected.
+
+### MIKE'S RULINGS (2026-08-18, verbatim: "1. agree, 2. agree, 3, agree. All good news!")
+
+1. **`permWitness_complete_optint` COUNTS as the product for that
+   `Prop`** — the product page and this note state exactly why it lives
+   at `Option Int` (the embedding must be able to hit the witness's
+   fallback; `intEmbed` provably cannot, and the kernel refutation is
+   cited rather than paraphrased).
+2. **The `(CAR Y)` destructuring re-render is BLESSED** and lands.
+3. **The six proof-term movements are ACCEPTED** under the
+   STATEMENT-byte-identity reading of the regression net (the wave-2d
+   precedent: registering a square before the transports moves every
+   later transport's fixed simp set; statements and pinned receipts are
+   unchanged). The affected products are `isort_ordered_int`,
+   `isort_howMany_int`, `msort_ordered_int`, `msort_howMany_int`,
+   `msort_is_isort_int`, `qsort_is_isort_int`.
+
+### The net, for the record
+
+752 declarations before, 777 after, over `ACL2Lean.MirrorProofs`,
+`ACL2Lean.Sorting`, `ACL2Lean.Basics`, `ACL2.Worlds.Sorting`,
+`ACL2.Worlds.Perm` (statement + `pp.all` proof-term hash, two real
+builds): **732 byte-identical, 27 added, 2 removed, 5
+statement-changed, 13 value-only.** The 2 removed are Lean-generated
+`permWitness.match_1.congr_eq_*` auxiliaries of the OLD two-arm match —
+zero real declarations deleted. The 5 statement changes are
+`SquareClass.rec/casesOn/recOn` (the enum gained a constructor) and
+`permWitness.eq_def`/`.induct_unfolding` (the blessed re-render);
+**no target `Prop`'s statement moved**, `ACL2Lean.Sorting.
+permWitness_complete` included. The coverage golden is UNTOUCHED and
+`check-golden-current` passes against a fresh live assembly.
 
 ---
 
@@ -346,7 +476,10 @@ The checkpoint put five questions and all five were approved:
 4. **`permWitness` KEPT IN BOOK FORM, WITH NO `Int` PRODUCT** — the
    precondition comes off; the missing product is recorded as an
    honest structural entry on the scoreboard rather than driving a
-   spec change.
+   spec change. *(Still no `Int` product. The structural entry was
+   RETIRED later the same day by the `Option Int` product — part 7 —
+   and the function is still in book form: the junk arm stayed, and the
+   only change to it is the blessed `(CAR Y)` destructuring.)*
 5. **`sorter_unique`'s `Prop` LANDS AS THE BOOK'S**, with the
    REACHABILITY QUESTION RECORDED: the mirror quantifies over an
    arbitrary Lean `f : List α → List α`, while a world-parametric

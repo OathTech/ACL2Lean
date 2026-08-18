@@ -178,6 +178,9 @@ inductive SquareClass where
   | homList
   /-- `<fn> (xs.map e.enc) … = <fn> xs …` (scalar-valued). -/
   | homScalar
+  /-- `e.enc (<fn> xs …) = <fn> (xs.map e.enc) …` (ELEMENT-valued — the
+      close-out arc's fourth class; see `mirrorFnShape`). -/
+  | homElem
   deriving BEq, Inhabited
 
 /-- One registered AGREEMENT square: the theorem, and the CONSTRUCTOR
@@ -281,7 +284,7 @@ def registerSquare (fn : Name) (cls : SquareClass) (thm : Name)
               lookup ambiguous, and a lookup must match EXACTLY ONE \
               (fail-closed)"
         pure { cur with agree := cur.agree ++ [{ thmName := thm, key := key }] }
-    | .homList | .homScalar =>
+    | .homList | .homScalar | .homElem =>
       unless cur.homName == .anonymous do
         throwError "mirror_iso%: {fn} already has a homomorphism square \
             ({cur.homName}) — a second one would silently redirect the \
@@ -349,6 +352,8 @@ syntax "agree " term:max : mirrorSquareSpec
 syntax "hom " &"list" : mirrorSquareSpec
 /-- The map-invariance square of a SCALAR-valued mirror definition. -/
 syntax "hom " &"scalar" : mirrorSquareSpec
+/-- The map-homomorphism square of an ELEMENT-valued mirror definition. -/
+syntax "hom " &"elem" : mirrorSquareSpec
 
 syntax (name := mirrorIsoCmd)
   (docComment)? "mirror_iso% " ident &" for " ident
@@ -410,7 +415,11 @@ private inductive VarEntry where
 
 /-- The mirror definition's shape, as the generator must read it: the
     per-binder READING VECTOR of its explicit arguments (in order), and
-    whether the RESULT is a `List`.
+    the RESULT's own reading — `.list`, `.elem` (the element type
+    itself: the close-out arc's fourth square class, whose witness is
+    `permWitness`, the book's `PERM-COUNTER-EXAMPLE`), or `.fixed`
+    (anything else — a `Nat`, a `Bool`, a `Prop`), which is the
+    invariance/SCALAR class.
 
     The readings are inferred from the binder TYPES against the
     definition's own type variable `α` (the thing an `Acl2Embed`
@@ -429,7 +438,7 @@ private inductive VarEntry where
     naming it (a frontier — the generator never guesses a binder it
     cannot state). -/
 private def mirrorFnShape (fnName : Name) (ty : Expr) :
-    MetaM (Array ArgReading × Bool × Array Name) :=
+    MetaM (Array ArgReading × Bool × Bool × Array Name) :=
   forallTelescopeReducing ty fun xs body => do
     -- the definition's own type variable: the sole binder that is a type
     let mut elemTy? : Option Expr := none
@@ -508,7 +517,15 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
               statement builder — this is the reading table's own bound, \
               and widening it is a design change to the square classes, \
               never a hand square (thin-Lean ruling 2026-08-11)."
-    return (readings, (← whnf body).isAppOf ``List, instClasses)
+    let res ← whnf body
+    -- the RESULT's own reading, read against the SAME element type the
+    -- argument positions are read against (so the three classes are one
+    -- table, not two): a `List` result is `hom list`, the element type
+    -- ITSELF is `hom elem`, and anything else is `hom scalar`
+    let resIsElem : Bool := match elemTy? with
+      | some t => res == t
+      | none => false
+    return (readings, res.isAppOf ``List, resIsElem, instClasses)
 
 /-- THE INSTANCE-FACTS SHAPE CHECK (O-7, ruled 2026-08-18) — see "the
     instance-facts clause" in the header.
@@ -613,7 +630,7 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
     throwError "mirror_iso%: {fnName} is part of a MUTUAL recursion block \
         ({di.all}) — mutual recursion is a named frontier of the square \
         template (which inducts on ONE definition's recursion)"
-  let (readings, resIsList, instClasses) ←
+  let (readings, resIsList, resIsElem, instClasses) ←
     liftTermElabM <| mirrorFnShape fnName di.type
   unless varStxs.size == readings.size do
     throwError "mirror_iso%: {fnName} takes {readings.size} explicit \
@@ -716,6 +733,7 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
     | "agree", _ => pure .agree
     | "hom", "list" => pure .homList
     | "hom", "scalar" => pure .homScalar
+    | "hom", "elem" => pure .homElem
     | k, k' => throwError "mirror_iso%: unknown square spec {k}{k'}"
   match cls with
   | .homList =>
@@ -728,6 +746,19 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
       throwError "mirror_iso%: {fnName}'s result IS a list, but `hom \
           scalar` was declared — declare `hom list` (the declared class is \
           checked against the definition's type so a drift fails closed)"
+    if resIsElem then
+      throwError "mirror_iso%: {fnName}'s result IS the element type, but \
+          `hom scalar` was declared — an element result is CARRIED by the \
+          embedding, not invariant under it, so declare `hom elem` (the \
+          declared class is checked against the definition's type so a \
+          drift fails closed)"
+  | .homElem =>
+    unless resIsElem do
+      throwError "mirror_iso%: {fnName}'s result is NOT the element type, \
+          but `hom elem` was declared — declare `hom list` for a list \
+          result and `hom scalar` for anything the embedding does not act \
+          on (the declared class is checked against the definition's type \
+          so a drift fails closed)"
   | .agree => pure ()
   -- the EMBEDDING the statement binds, and the fields of it THIS square's
   -- closer may use (the order-respect route — see the header). Default:
@@ -830,6 +861,12 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
     | .homScalar =>
       let lhs := Syntax.mkApp fnC encoded
       `($lhs = $plainApp)
+    | .homElem =>
+      -- the ELEMENT-RESULT class, oriented exactly like `homList` (the
+      -- encoding is pulled OUT of the result), so the transport's
+      -- reversed rewrite set carries it with no special case
+      let rhs := Syntax.mkApp fnC encoded
+      `(($eId:ident).enc $plainApp = $rhs)
   -- the closer's lemmas: the definition's own equations, the declared
   -- unfoldings, and the registered squares of the definition's callees
   -- (an agreement callee may carry a whole PER-CONSTRUCTOR FAMILY; each
@@ -957,6 +994,7 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
       | .agree => "agree"
       | .homList => "homList"
       | .homScalar => "homScalar"
+      | .homElem => "homElem"
     throwError "mirror_iso%: the square template did not close \
         {thmId.getId}.\n\
         OBSERVED: {residual}. Rung class `{clsName}`; target \

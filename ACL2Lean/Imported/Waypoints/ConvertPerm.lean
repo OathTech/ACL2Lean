@@ -191,4 +191,18 @@ theorem convert_perm_to_how_many_native_driver (xs ys : List SExpr) :
 
 #print axioms convert_perm_to_how_many_native_driver
 
+/-- The same fact as the EQUIVALENCE — the native's Bool identity read
+    as the `Iff` it is (`beq_iff_eq`, and nothing else). A DECODE-SHAPE
+    corollary in the class of `ordered_perms_iff_driver`, carrying no
+    content of its own; it exists because that is the shape
+    `permWitness_complete`'s crossing meets. -/
+theorem convert_perm_to_how_many_iff_driver (xs ys : List SExpr) :
+    Worlds.Sorting.permL xs ys = true ↔
+      Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) xs
+        = Worlds.Sorting.howManyL (Worlds.Sorting.pceL xs ys) ys := by
+  rw [convert_perm_to_how_many_native_driver]
+  exact beq_iff_eq
+
+#print axioms convert_perm_to_how_many_iff_driver
+
 end ACL2.Imported.Waypoints

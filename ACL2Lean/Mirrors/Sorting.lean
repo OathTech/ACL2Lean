@@ -433,10 +433,12 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     `PERM-COUNTER-EXAMPLE`), as the book writes it: walk `xs`, removing
     each element from `ys` as it is found; the FIRST element of `xs`
     that is not found is the witness, and if every one is found the
-    head of what is left of `ys` is. `List.headD … default` is Lean's
-    stand-in for the book's `(CAR Y)` on an exhausted list (ACL2's
-    `(car nil)` is `nil`); the book's function returns a VALUE, never
-    an option, which is why this one does too.
+    head of what is left of `ys` is. The book's function returns a
+    VALUE, never an option, which is why this one does too.
+
+    The `(CAR Y)` arm DESTRUCTURES `ys`, exactly as ACL2's `(CAR Y)`
+    dispatches on `(CONSP Y)` — the same access-pattern rendering
+    `Permuted` above carries for `(IF (CONSP Y) 'NIL 'T)`.
 
     **THE JUNK ARM.** At `xs = ys = []` — and at NO other input — the
     value is `Inhabited.default`: this type's stand-in for ACL2's
@@ -445,9 +447,16 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     must invent a value, and it is harmless to the property below,
     which holds for ANY witness on that input (both sides of its `Iff`
     are true there). The function stays total and stays exactly as the
-    book writes it. -/
+    book writes it.
+
+    The junk arm is also what decides WHICH ELEMENT TYPE the property
+    below is proved at: a type whose `default` is the same junk value
+    ACL2 has. `Option α` is that type — its `default` is `none` — which
+    is why `permWitness_complete`'s theorem is instantiated at
+    `Option Int` rather than `Int` (Mike's ruling, 2026-08-18). -/
 def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
-  | [], ys => List.headD ys default
+  | [], [] => default
+  | [], y :: _ => y
   | a :: xs, ys => if memb a ys then permWitness xs (rm a ys) else a
 
 /-! ## The target properties — the definition of done

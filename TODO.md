@@ -1,5 +1,9 @@
 # ACL2Lean — project TODO
 
+> **COLLECTED COUNT (settled at this merge): the sorting shop window is
+> 15 Props / 15 PROVEN; mirror products 21.** The two lane blocks below
+> each claimed only their own line; this line is the merger's.
+>
 > **CLOSE-OUT ARC, items 0 + 1 (2026-08-18; branch `mdd/close-out`, ARC
 > LOG in `docs/plans/2026-08-18_close-out-arc-charter.md`).** The
 > sorting shop window loses a `Prop` and gains a theorem. NO DENOMINATOR
@@ -42,6 +46,51 @@
 > Records corrected in place where the mis-aim entered: the N1 guard's
 > error text, the wave-2g ARC LOG entry, the catalogue row, and the
 > charter's item 1.
+>
+> **CLOSE-OUT ARC ITEM 2 — THE `Option` REFINEMENT ROW, AND THE WITNESS
+> PRODUCT (2026-08-18; branch `mdd/close-out-item2`, fast-gate; record
+> in `docs/notes/2026-08-18_sorting-spec-reshape.md` part 7).**
+> `permWitness_complete` STOPS BEING A STRUCTURAL ENTRY: the product is
+> `permWitness_complete_optint : ACL2Lean.Sorting.permWitness_complete
+> (Option Int)`, receipt `[propext, Classical.choice, Quot.sound]`,
+> seam-gate-paired to `convertPermToHowManyReplayedCond`. Mirror
+> PRODUCTS **19 → 20**. *(This entry states ITEM 2's line only — items
+> 0 and 1 of the close-out arc are a parallel lane and own their own
+> numbers, including the `Prop` denominator and `bsort_is_isort`.)*
+> **THE MACHINERY IS A ROW, NOT A SHIM.** `IsoKit.lean`'s `optEmbed`
+> renders ACL2's value-or-nil return idiom (`MEMBER`, `ASSOC`,
+> `PERM-COUNTER-EXAMPLE`) as `Acl2Embed α → ValueOrNilEmbed (Option α)`,
+> `none ↦ nil` / `some a ↦ enc a`, keyed by the TYPE SHAPE with zero
+> constants of any consuming spec, under a FAIL-CLOSED side condition
+> that is a HYPOTHESIS of the constructor (the underlying encoding must
+> avoid `nil`, without which the map is not injective — so there is no
+> unchecked variant). The square table gained its FOURTH class,
+> `hom elem`, drift-checked both ways.
+> **WHY `Option Int` AND NOT `Int`:** wave 2e's kernel refutation is not
+> worked around, it is the REASON — the element-result square is true
+> exactly for an embedding that can hit the witness's fallback
+> (`e.enc default = default`), `intEmbed` provably cannot, and
+> `Option`'s own `default` IS `none`, which the row sends to `nil`.
+> **THE `Option`-VALUED RE-SPELL IS REFUTED** (the charter's literal
+> ask), measured at two layers and pinned in the tree: at `SExpr` the
+> value-or-nil refinement is not injective (`none` vs `some nil`), so
+> the crossing's `none` arm would need a fact absent from all 75
+> `(:DEFTHM …)` rows — provable only by a Lean-side induction, canon
+> line 1 — and an `Option`-valued waypoint reading cannot be
+> `derive_sim%`-validated against an `SExpr`-valued exec. That is why
+> the spec KEEPS the junk arm and `[Inhabited α]`.
+> **ONE BLESSED SPEC CHANGE:** `permWitness`'s `(CAR Y)` arm now
+> DESTRUCTURES `ys` — behaviour-identical, the same access-pattern
+> rendering ruling Q1 gave `Permuted`; `permWitness_complete`'s
+> statement is byte-identical. Mike 2026-08-18, verbatim: *"1. agree,
+> 2. agree, 3, agree. All good news!"* — (1) the `Option Int` product
+> counts, (2) the re-render lands, (3) six existing products'
+> PROOF-TERM movements are accepted under the STATEMENT-byte-identity
+> reading of the regression net (wave-2d precedent: registering a square
+> before the transports moves every later transport's fixed simp set).
+> Net: 752 → 777 decls, 732 byte-identical, 27 added, 2 removed
+> (Lean-generated match-congruence auxiliaries only), 5
+> statement-changed, 13 value-only. Golden UNTOUCHED.
 
 > **R4 WAVE 2g — THE LAST BUILDS (2026-08-18; branch `mdd/r4-wave2`,
 > ARC LOG in `docs/plans/2026-08-17_r4-wave2-charter.md`).** Mirror
