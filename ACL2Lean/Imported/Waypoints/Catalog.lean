@@ -11,6 +11,9 @@ import ACL2Lean.Imported.Waypoints.IsChain
 import ACL2Lean.Imported.Waypoints.Bsort
 import ACL2Lean.Imported.Waypoints.BsortCap
 import ACL2Lean.Imported.Waypoints.SortsEquivalent
+import ACL2Lean.Imported.Waypoints.RuleApp
+import ACL2Lean.Imported.Waypoints.Linear
+import ACL2Lean.Imported.Waypoints.NestedInduction
 -- the pattern-pin natives' seam check (audit F6) needs the native
 import ACL2Lean.Imported.Waypoints.P8ClausifyDetail
 -- the axiom gate carries the equisort parametric/at-canonical receipts
@@ -138,8 +141,18 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- passes the fixed `derive_sim%` template.
   ("02-rev", "REV-APP", .native ``rev_app_native_driver ``revAppReplayedCond),
   ("02-rev", "REV-REV", .native ``rev_rev_native_driver ``revRevReplayedCond),
-  ("03-linear", "LEN2-NONNEG", .pending "len2 dischargers; Nat form is type-absorbed"),
-  ("03-linear", "LEN2-CDR-SMALLER", .pending "len2 dischargers"),
+  -- PROMOTED to `.native` (zero-ruling broadening lane, 2026-08-18). The
+  -- "len2 dischargers" reason was STALE in exactly the 02-rev way (R0
+  -- item 7): both rows' `cond[…]` labels sit inside `[DISCHARGE: …]`, on
+  -- the informational DP probe, and the driver emits both replayed
+  -- statements UNCONDITIONAL. What was genuinely missing was an ENDER —
+  -- the decode family was EQUAL-only and both rows conclude in a
+  -- COMPARISON; `Imported/LiftingRel.lean` supplies `≤`/`<`. No exec kit
+  -- was needed: `LEN2`'s emitted body IS `Lifting.lenBody "LEN2"`.
+  ("03-linear", "LEN2-NONNEG",
+    .native ``len2_nonneg_native_driver ``len2NonnegReplayedCond),
+  ("03-linear", "LEN2-CDR-SMALLER",
+    .native ``len2_cdr_smaller_native_driver ``len2CdrSmallerReplayedCond),
   ("03-linear", "LINEAR-CHAIN", .pending "#50 DP tactic decode"),
   ("04-multi-case-induction", "EVENLEN-BOOLEANP", .pending "boolean-recognizer decode (near type-absorbed)"),
   -- NEWLY GREEN 2026-08-15 (T1+2 sprint P3b: the `:LHS-TS`/`:RHS-TS`
@@ -183,10 +196,28 @@ def liftCatalog : List (String × String × LiftStatus) := [
   -- has been unconditional since the TP finale.
   ("14-accumulator", "LEN-REV-ACC",
     .native ``len_rev_acc_native_driver ``lenRevAccReplayedCond),
-  ("15-nested-induction", "NESTED-INDUCTION", .pending "backlog (validator/lifter survey)"),
+  -- PROMOTED to `.native` (zero-ruling broadening lane, 2026-08-18): the
+  -- first CONJUNCTIVE row to decode. Its replayed statement is the
+  -- macroexpanded `AND` — `(IF (EQUAL …) (EQUAL …) 'NIL)` — which no
+  -- ender took until `Lifting.native_of_replayed_and`; the only new
+  -- simulation was `DUP`'s (`APP` reused from 02-rev, `LEN` read through
+  -- the builtin).
+  ("15-nested-induction", "NESTED-INDUCTION",
+    .native ``nested_induction_native_driver ``nestedInductionReplayedCond),
   ("16-three-way", "LEN-ZIP3", .pending "zip3 correspondence (backlog)"),
-  ("17-rule-application", "TLP-APP-NIL", .pending "rule-application family decode (backlog)"),
-  ("17-rule-application", "TLP-APP-NIL-TWICE", .pending "rule-application family decode (backlog)"),
+  -- PROMOTED to `.native` (zero-ruling broadening lane, 2026-08-18): the
+  -- decode needed nothing new but a `TLP` kit — this book's `APP` is the
+  -- SAME symbol with the SAME emitted body as 02-rev's, so
+  -- `Worlds.Rev.appExec`/`app_exec_corr`/`appExec_enc` instantiate at this
+  -- world directly (world-parametricity paying off across books). The
+  -- `(TLP X)` antecedent of BOTH rows is discharged at the encoded
+  -- instance by `Worlds.RuleApp.tlpL_true` (this book's OWN recognizer
+  -- accepts every enc image — the `Lifting.trueListp_enc` analogue for a
+  -- DEFUN recognizer), never assumed.
+  ("17-rule-application", "TLP-APP-NIL",
+    .native ``tlp_app_nil_native_driver ``tlpAppNilReplayedCond),
+  ("17-rule-application", "TLP-APP-NIL-TWICE",
+    .native ``tlp_app_nil_twice_native_driver ``tlpAppNilTwiceReplayedCond),
   ("sorting/perm", "PERM-CONS", .native ``perm_cons_native_driver ``permConsReplayedCond),
   ("sorting/perm", "PERM-SYMMETRIC", .native ``perm_symmetric_native_driver ``permSymmetricReplayed),
   ("sorting/perm", "MEMB-RM", .native ``memb_rm_native_driver ``membRmReplayed),
