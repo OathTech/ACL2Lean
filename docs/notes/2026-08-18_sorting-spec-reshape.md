@@ -88,7 +88,7 @@ function:
 REPRESENTED-BY-INSTANCES: it is an instantiation device whose
 Lean-facing content reaches the spec through `MSORT-IS-ISORT`,
 `QSORT-IS-ISORT` and `BSORT-IS-ISORT`, so it has no `Prop` of its own.
-See Part 7, 2026-08-18.)
+See Part 8, 2026-08-18.)
 
 **SUPPORT TIER (38)** — lemmas about HELPER functions, steps inside
 those proofs: `HOW-MANY-SMALLER-BNEXT`, `HOW-MANY-BAD-PAIRS-BNEXT`,
@@ -187,10 +187,10 @@ carries (stated in the spec file's header, enforced by review):
 
 Sixteen and sixteen, and the map is a bijection in both directions.
 
-**SUPERSEDED for the last row — see Part 7 (2026-08-18, close-out
+**SUPERSEDED for the last row — see Part 8 (2026-08-18, close-out
 arc):** `sorter_unique` was reclassified OUT of the spec, leaving
 FIFTEEN `Prop`s. The bijection now runs against the result tier MINUS
-the instantiation-device class, which Part 7 defines and justifies.
+the instantiation-device class, which Part 8 defines and justifies.
 
 ---
 
@@ -358,7 +358,7 @@ The checkpoint put five questions and all five were approved:
 
 ---
 
-## Part 7 — `sorter_unique` RECLASSIFIED OUT (2026-08-18, close-out arc)
+## Part 8 — `sorter_unique` RECLASSIFIED OUT (2026-08-18, close-out arc)
 
 Appended after the close-out arc's binding pre-check. This part records
 a REFUTATION and a RE-RULING, in that order, because the order is the
