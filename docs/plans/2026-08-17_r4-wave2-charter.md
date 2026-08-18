@@ -1776,3 +1776,35 @@ machinery gap this layer can close: an ASSUMED leaf whose remedy is at
 EMISSION (`bsort_is_isort`), and the two SETTLED structural entries
 Mike ruled to REST. There is no unbuilt mirror machinery named by any
 of the three.
+
+## ARC EXIT — COLLECTION (2026-08-18)
+
+Full claim-gate **TRUE_EXIT=0 on d3f22f4** (artifact:
+`.gate-runs/d3f22f4-20260818T200544Z.log`) — the collection branch
+`mdd/r4-collect` assembles the arc's three lanes:
+1. **wave 2g** (`mdd/r4-wave2` @ cc6c864): sorting 13/16, the generic
+   userFn-measure row, the usefi route, zero spec change;
+2. **the broadening lane** (`mdd/r4-broaden` @ 8ceeb6b, cherry-picked):
+   CAPABILITY ONLY — the le/lt/and decode layer + the implies-peel
+   transformer, 5 waypoint natives (54→59), NO products (Mike's
+   PRODUCT BAR, ruled 2026-08-18: Mirrors/ admission requires a truly
+   worthwhile Lean theorem; admission is a PRIOR question to the
+   bijection; capability-greened books stay at the metric layer);
+3. **the eval record** (`mdd/r4-eval` @ d6cab13): net-zero code after
+   the product-bar YANK of the two morning-blessed products; the doc
+   carries complete paste-back appendices (Filler/BEqEmbed/F3
+   shelved-not-invalidated).
+
+The three submodule statics owed by every worktree wave re-ran GREEN
+in this tree: `check-acl2-tags` OK (104 round-trip origins), 91 logs
+stamped at submodule HEAD e8d78e5, provenance gates all fail closed.
+Sweep 116/116, golden byte-identical, sorries 0. One cherry-pick
+conflict (Catalog.lean imports, both-additive) resolved take-both.
+
+The branch is the merge candidate awaiting explicit approval. main is
+one docs-only commit (43c8114, the incident note) ahead of the branch
+point — the merge is a trivial merge commit or a final rebase, Mike's
+choice at sign-off. NEXT ARC (charter drafted, uncommitted:
+`docs/plans/2026-08-18_close-out-arc-charter.md`): sorter_unique
+reclassified OUT (15-Prop window), the bsort emission fix (fork
+round-trip), the Option refinement row — target 15/15.
