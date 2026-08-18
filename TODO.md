@@ -1,5 +1,48 @@
 # ACL2Lean — project TODO
 
+> **CLOSE-OUT ARC, items 0 + 1 (2026-08-18; branch `mdd/close-out`, ARC
+> LOG in `docs/plans/2026-08-18_close-out-arc-charter.md`).** The
+> sorting shop window loses a `Prop` and gains a theorem. NO DENOMINATOR
+> IS CLAIMED HERE — item 2 ran as a parallel lane and the collected
+> count is settled at the merge.
+>
+> **Item 0 — `sorter_unique` OUT, and the charter's own reason was
+> WRONG.** The binding pre-check refuted it before any edit: its
+> correspondent `STRONG-SSORTFN1-IS-SSORTFN2` is NOT encapsulate-internal
+> (equisort.lisp's encapsulate closes at line 102; the theorem is at 104,
+> top level, non-`local`, and the consumer book's log carries it
+> `:SOURCE :INCLUDE-BOOK` as an active `:REWRITE` rule). Mike re-ruled on
+> the corrected facts — "still remove, this seems fine" — on the argument
+> that holds: EXPORTED-BUT-AN-INSTANTIATION-DEVICE, its Lean-facing
+> content fully represented by the three `*_is_isort` instance products.
+> The spec header gains THE INSTANTIATION-DEVICE CLASS; record in the
+> reshape note, Part 8.
+>
+> **Item 1 — `bsort_is_isort` LANDED, with NO fork round-trip and the
+> golden BYTE-IDENTICAL.** The charter aimed at ACL2 instrumentation;
+> all three of its load-bearing claims were refuted by measurement
+> (J-1-1). The fork has emitted `:TAU-BASIS` since 2026-08-10; the leaf
+> DISCHARGES by CITING the already-replayed `TRUE-LISTP-BSORT` — as do
+> all five tau-basis leaves in the corpus, with zero fallbacks. The `◌
+> assumed` that started the wave belongs to the STANDALONE informational
+> DP probe, which has no `ReplayCtx` and so can only ever print `◌`; the
+> row's own verdict was `REPLAYED ✓` UNCONDITIONAL all along. **All six
+> `ASSUMED:dp-fact` golden rows are of this kind — none is blocked and
+> none is `sorryAx`-class debt.**
+>
+> The REAL bug (J-1-2) was `Waypoints/Macro.lean`'s `usefi` termination
+> pre-pass recording `[]` conds on its cache branches. BSORT's is the
+> corpus's one CONDITIONAL admission (decrease licensed by
+> `HOW-MANY-BAD-PAIRS-BNEXT`, a `:LINEAR` rule), so its constant has a
+> premise binder and applying it bare is a type error — which surfaced
+> as a frontier naming a DIFFERENT theorem (`ORDEREDP-BSORT`), which is
+> how wave 2g mis-read it. Fixed with the companion `_conds` constant
+> `crossBookRegistry` has always used, fail-closed.
+>
+> Records corrected in place where the mis-aim entered: the N1 guard's
+> error text, the wave-2g ARC LOG entry, the catalogue row, and the
+> charter's item 1.
+
 > **R4 WAVE 2g — THE LAST BUILDS (2026-08-18; branch `mdd/r4-wave2`,
 > ARC LOG in `docs/plans/2026-08-17_r4-wave2-charter.md`).** Mirror
 > PRODUCTS go **15 → 19** and the sorting scoreboard **11 → 13 of 16**:
