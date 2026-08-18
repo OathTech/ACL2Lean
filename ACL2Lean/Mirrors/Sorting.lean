@@ -63,6 +63,23 @@ rendering of an untyped logic in a typed one, not a gap — and each
 absorption is noted in one clause on the `Prop` that carries the rest
 of its book.
 
+THE INSTANTIATION-DEVICE CLASS — the second place a result-tier book
+theorem legitimately has no `Prop` of its own, because its Lean-facing
+content arrives through its INSTANCES. The equisort book's
+`STRONG-SSORTFN1-IS-SSORTFN2` and `WEAK-SORTFN1-IS-SORTFN2` are stated
+over that book's `encapsulate`d CONSTRAINED SORTER SYMBOLS
+(`ssortfn1`/`ssortfn2`, `sortfn1`/`sortfn2`) — symbols with no
+definition, introduced solely so the capstone can be instantiated —
+and downstream the corpus consumes them EXCLUSIVELY through
+`:functional-instance`, which is how `sorts-equivalent` mints
+`MSORT-IS-ISORT`, `QSORT-IS-ISORT` and `BSORT-IS-ISORT`. Those three
+ARE the book's external face and each has its `Prop` below, so the
+capstone's content is fully represented here; a `Prop` for the
+capstone itself would quantify over an arbitrary Lean function, which
+no `:functional-instance` can be carried back to (there is no
+construction taking an arbitrary Lean function to an ACL2 world). The
+device is mirrored by its instances, which is what the device is for.
+
 CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
 would write as a reasonably close Lean analog of the ACL2 theorem —
 step (1) of a two-step use, step (2) being ordinary Lean reasoning
@@ -435,13 +452,13 @@ def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
 
 /-! ## The target properties — the definition of done
 
-SIXTEEN `Prop`s, one per RESULT-TIER theorem of the ACL2 sorting
+FIFTEEN `Prop`s, one per RESULT-TIER theorem of the ACL2 sorting
 corpus, in the corpus's own order (`isort`, `msort`, `qsort`, `bsort`,
 `ordered-perms`, `perm`, `convert-perm-to-how-many`,
-`sorts-equivalent`, `equisort`). Each names its book theorem; the
-bijection invariant and the type-absorbed class are stated in the
-file header. The buildout is DONE for sorting when every one is a
-`theorem` proved via replay. -/
+`sorts-equivalent`). Each names its book theorem; the bijection
+invariant, the type-absorbed class and the instantiation-device class
+are stated in the file header. The buildout is DONE for sorting when
+every one is a `theorem` proved via replay. -/
 
 /-- ISORT orders (the book's `ORDEREDP-ISORT`). -/
 def isort_ordered (α : Type u) [TotalOrder α] : Prop :=
@@ -527,22 +544,5 @@ def qsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
     type-absorbed). -/
 def bsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), bsort xs = isort xs
-
-/-- The abstract capstone (the equisort book's
-    `STRONG-SSORTFN1-IS-SSORTFN2`, its `encapsulate` content): any TWO
-    functions that order and preserve multiplicity are THE SAME
-    function. The book's constraints on each constrained sorter are
-    `ORDEREDP-SSORTFN…` and `HOW-MANY-SSORTFN…` — the two hypotheses
-    per sorter here — plus `TRUE-LISTP-SSORTFN…`, which the types
-    absorb. (`WEAK-SORTFN1-IS-SORTFN2` is the same capstone over
-    sorters whose constraints carry `TRUE-LISTP` hypotheses, so it
-    collapses into this one rather than standing as a second result.) -/
-def sorter_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
-  ∀ (f g : List α → List α),
-    (∀ xs, Ordered (f xs)) →
-    (∀ (a : α) (xs : List α), howMany a (f xs) = howMany a xs) →
-    (∀ xs, Ordered (g xs)) →
-    (∀ (a : α) (xs : List α), howMany a (g xs) = howMany a xs) →
-    ∀ xs, f xs = g xs
 
 end ACL2Lean.Sorting

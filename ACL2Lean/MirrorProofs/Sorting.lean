@@ -70,13 +70,6 @@ The THREE that are not, with their real distance and no euphemism:
   point the then-ruled precondition admitted. The two remaining routes
   are a spec/type question and a theorem the corpus does not prove;
   neither is an executor call.
-* **`sorter_unique` — THE `Prop` IS CORRECT AND ITS REACHABILITY IS
-  OPEN.** Recorded with the ruling of 2026-08-18: the `Prop` quantifies
-  over an ARBITRARY Lean `f : List α → List α`, while a world-parametric
-  constant can only be instantiated at the `evalOpt` image of a `World`
-  defun, and no construction takes an arbitrary Lean function to an
-  ACL2 world. Whether the statement is reachable AS STATED is a design
-  question, not a machinery gap.
 
 **WHAT THE FIRST TRANSPORT COST IN MACHINERY: NOTHING.** The charter
 predicted a machinery gap here — `mirror_transport%`'s binder check is
@@ -550,35 +543,16 @@ the two squares needed the FIXPOINT-GUARD capability
 (`MirrorProofs/IsoKit.lean`) — wave 2d-prep's recorded looping closer —
 and both are LIVE in `MirrorProofs/SortingBsortSquares.lean`.
 
-**`sorter_unique` — THE `Prop` IS THE BOOK'S AND ITS REACHABILITY IS
-THE RECORDED OPEN QUESTION.** The reshape put the `Prop` in the
-equisort capstone's own shape (TWO constrained sorters, constrained by
-`ORDEREDP-SSORTFN…` and `HOW-MANY-SSORTFN…`), which removes wave 2e's
-second route-A obstacle — "the book's capstone relates TWO CONSTRAINED
-SORTERS, not one sorter and `ISORT`" is now what the `Prop` says. Two
-things are left, and neither is an executor call.
-
-* ROUTE A, the encapsulate/parametric lane (prototype:
-  `Imported/Waypoints/EquisortParametric.lean`). (1) The transport's
-  binder table hard-errors on a FUNCTION binder — `sorter_unique`'s
-  `f` and `g`. (2) THE DEEP ONE, and it is not a machinery gap: the
-  `Prop` quantifies over an ARBITRARY Lean `f : List α → List α`, while
-  a parametric constant can only be instantiated at a function that is
-  the `evalOpt` image of a `World` defun. There is no construction
-  taking an arbitrary Lean function to an ACL2 world, so route A cannot
-  reach the `Prop` AS STATED however much machinery is built. That is
-  the REACHABILITY QUESTION recorded with the 2026-08-18 ruling: the
-  `Prop` is correct, and whether it is reachable is a design decision.
-* ROUTE B, COMPOSITION FROM LANDED PRODUCTS, whose shape the reshape
-  changed and simplified. `ordered_perm_unique` is a THEOREM (and now
-  an `Iff`, which is the direction this route needs), and the two
-  sorters' hypotheses give count agreement between `f xs` and `g xs`
-  directly — so what is left is `permWitness_complete`'s `←` direction
-  (counts agree AT THE WITNESS → `Permuted`) plus a COMPOSITION
-  mechanism. The first is the structurally-unavailable product above.
-  What route B is NOT is free: the glue is logical REASONING over
-  replayed facts, and whether that is "thin generic lifting" (canon
-  line 1's exception) or a Lean-side theorem specific to this example
-  is a RULING, not an executor call. Recorded for it. -/
+**THE EQUISORT CAPSTONE IS NO LONGER A `Prop` (Mike, 2026-08-18).**
+`sorter_unique` was RECLASSIFIED OUT of the spec: the equisort
+capstone is an INSTANTIATION DEVICE — stated over the book's
+`encapsulate`d constrained sorter symbols and consumed downstream
+exclusively via `:functional-instance` — whose Lean-facing content is
+fully represented by the three instance products `msort_is_isort`,
+`qsort_is_isort` and `bsort_is_isort`. The spec's header carries the
+class; the reshape note carries the record, including the binding
+pre-check that fired and the re-ruling on the corrected facts. The
+reachability question that used to live here went with it: it was a
+question about a `Prop` the spec no longer states. -/
 
 end ACL2Lean.MirrorProofs

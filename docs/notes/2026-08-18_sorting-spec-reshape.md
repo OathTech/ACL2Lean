@@ -84,6 +84,12 @@ function:
 `CONVERT-PERM-TO-HOW-MANY`, `MSORT-IS-ISORT`, `QSORT-IS-ISORT`,
 `BSORT-IS-ISORT`, `STRONG-SSORTFN1-IS-SSORTFN2`.
 
+(`STRONG-SSORTFN1-IS-SSORTFN2` stays RESULT TIER here and is annotated
+REPRESENTED-BY-INSTANCES: it is an instantiation device whose
+Lean-facing content reaches the spec through `MSORT-IS-ISORT`,
+`QSORT-IS-ISORT` and `BSORT-IS-ISORT`, so it has no `Prop` of its own.
+See Part 7, 2026-08-18.)
+
 **SUPPORT TIER (38)** — lemmas about HELPER functions, steps inside
 those proofs: `HOW-MANY-SMALLER-BNEXT`, `HOW-MANY-BAD-PAIRS-BNEXT`,
 `ORDEREDP-WHEN-BNEXT-CONSTANT`, `HOW-MANY-BNEXT` (bsort, 4);
@@ -180,6 +186,11 @@ carries (stated in the spec file's header, enforced by review):
 | `sorter_unique` | `STRONG-SSORTFN1-IS-SSORTFN2` |
 
 Sixteen and sixteen, and the map is a bijection in both directions.
+
+**SUPERSEDED for the last row — see Part 7 (2026-08-18, close-out
+arc):** `sorter_unique` was reclassified OUT of the spec, leaving
+FIFTEEN `Prop`s. The bijection now runs against the result tier MINUS
+the instantiation-device class, which Part 7 defines and justifies.
 
 ---
 
@@ -346,6 +357,85 @@ The checkpoint put five questions and all five were approved:
    The `Prop` is correct regardless, which is why it lands.
 
 ---
+
+## Part 7 — `sorter_unique` RECLASSIFIED OUT (2026-08-18, close-out arc)
+
+Appended after the close-out arc's binding pre-check. This part records
+a REFUTATION and a RE-RULING, in that order, because the order is the
+point: the first version of this change rested on a premise that was
+false, the pre-check caught it before any edit, and the change was
+re-ruled on the real facts.
+
+### The premise that was REFUTED
+
+The close-out arc charter justified removing `sorter_unique` on an
+ASYMMETRY: that its correspondent `STRONG-SSORTFN1-IS-SSORTFN2` is
+*"encapsulate-internal … not a book export"*, whereas
+`permWitness_complete`'s `CONVERT-PERM-TO-HOW-MANY` *"IS a
+book-exported top-level defthm"*. The charter made the pre-check
+BINDING and required a STOP if either half was contradicted. Both
+named sources contradicted the first half:
+
+* **The book source.** In `acl2/books/sorting/equisort.lisp` the second
+  `encapsulate` CLOSES at line 102; `strong-ssortfn1-is-ssortfn2` is at
+  line **104 — outside it, top level, not `local`**.
+* **The captured artifact.** In the CONSUMER book's log
+  (`acl2_samples/sorting/sorts-equivalent.proof-log:187`), which reaches
+  equisort only through `include-book`, the row reads
+  `:SOURCE :INCLUDE-BOOK` and is installed as an active rewrite rule
+  (`:189`) — the same export test `CONVERT-PERM-TO-HOW-MANY` passes.
+* **This note's own inventory.** Part 1 places
+  `STRONG-SSORTFN1-IS-SSORTFN2` in the **RESULT TIER (16)**; the
+  ENCAPSULATE CONSTRAINTS tier (8) holds only the
+  `ORDEREDP-/HOW-MANY-SORTFN…` rows. The charter's instruction to move
+  the catalog entry "to the constraints tier" named a tier the row was
+  never in.
+
+Both correspondents are book-exported top-level defthms. The asymmetry
+does not exist. The pre-check fired and the edit was not made.
+
+(Likely origin of the error: the `Prop`'s own docstring read "its
+`encapsulate` content" — true in the sense that the theorem is stated
+ABOUT the encapsulate's constrained symbols, which is not the same as
+being INSIDE the encapsulate.)
+
+### The re-ruling, on the corrected facts
+
+Put to Mike with the refutation above. **Mike, 2026-08-18, verbatim:
+"still remove, this seems fine".**
+
+The corrected argument — the one that actually holds — is
+EXPORTED-BUT-AN-INSTANTIATION-DEVICE:
+
+1. The capstone is stated over the equisort `encapsulate`'s CONSTRAINED
+   SORTER SYMBOLS (`ssortfn1`/`ssortfn2`), symbols with no definition,
+   introduced solely so the theorem can be instantiated.
+2. Downstream consumption in the corpus is EXCLUSIVELY via
+   `:functional-instance` — `sorts-equivalent.lisp` uses it (and its
+   `WEAK-` twin) for exactly three things: `MSORT-IS-ISORT`,
+   `QSORT-IS-ISORT`, `BSORT-IS-ISORT`.
+3. Those three instances ARE the book's external face, and each has its
+   own `Prop`. The capstone's Lean-facing content is therefore fully
+   represented in the spec by its instances.
+
+Note what this argument does NOT rest on: exportedness. The row stays
+RESULT TIER in Part 1's inventory — the inventory was right — and is
+annotated there as REPRESENTED-BY-INSTANCES rather than moved to a tier
+it does not belong to.
+
+### What changed
+
+* `ACL2Lean/Mirrors/Sorting.lean`: `sorter_unique` REMOVED, 16 → 15
+  `Prop`s, no tombstone (shop-window rule). The file header gains THE
+  INSTANTIATION-DEVICE CLASS beside the type-absorbed class — the
+  second principled reason a result-tier book theorem legitimately has
+  no `Prop` of its own.
+* `ACL2Lean/MirrorProofs/Sorting.lean`: the two scoreboard entries for
+  the `Prop` are gone. The REACHABILITY QUESTION recorded with ruling 5
+  of 2026-08-18 goes with them — it was a question about a `Prop` the
+  spec no longer states, not an open machinery gap. (Ruling 5 itself
+  stands as the record of what was decided THEN; this part supersedes
+  its consequence.)
 
 ## What this note does not claim
 
