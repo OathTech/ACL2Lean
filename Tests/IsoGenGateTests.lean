@@ -44,6 +44,13 @@ private theorem accLaw : ∀ (xs acc : List SExpr),
     show Worlds.RevAcc.revAccL t (a :: acc) = Worlds.RevAcc.revAccL t [a] ++ acc
     rw [ih (a :: acc), ih [a], List.append_assoc]; rfl
 
+-- linter.defProp: this is the ONE deliberate prop-valued `def` in the
+-- tree — the ATTACK FIXTURE of the negative test below, which exists to
+-- pin the unfold gate's Prop-valued-DEF rejection; a `theorem` here
+-- would dissolve the very thing being tested. Deliberate-pattern
+-- exemption ruled by Mike 2026-08-19 (toolchain-bump arc), not a
+-- silenced warning.
+set_option linter.defProp false in
 /-- THE SMUGGLE: the terminating orientation of exactly the residual the
     square template leaves open, dressed as a `def` so it passes a check
     that asks only "is it a definition?". (Not `private`: the gate's error

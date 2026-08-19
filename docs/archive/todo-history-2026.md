@@ -4801,3 +4801,27 @@ obligation is stated precisely in its conditional proof's type:
 
 _Conventions: `[ ]` open, `[x]` done. Task numbers (#NN) refer to the live task list.
 Tracks A and B are independent; A needs no new instrumentation, B does._
+
+## APPENDED AT THE DOCS-POLISH MERGE (2026-08-19) — the toolchain-bump
+## arc's TODO entry, folded per the new convention (narrative to the
+## record docs; the tstack residue went to the live backlog)
+
+> **TOOLCHAIN BUMP ARC — COMPLETE AT THE CLAIM POINT (2026-08-19, branch
+> `mdd/toolchain-bump`; ARC LOG + ARC EXIT in
+> `docs/plans/2026-08-19_toolchain-bump-charter.md`).** v4.28.0 →
+> v4.33.0. Full claim-gate TRUE_EXIT=0
+> (`.gate-runs/c68bb1f-20260819T121241Z.log`); **the SymbolFrequency
+> panic is GONE** (zero occurrences in the fresh artifact; upstream
+> #13202, OVERVIEW.md updated); golden BYTE-IDENTICAL, never repinned
+> (the two bump-flipped `type-set-fc` rows were diagnosed to 4.33
+> #13895 severing `dpLeafTactic`'s `trueListp_cdr_of_consp` row and
+> restored by the `consp` `instance_reducible` fix); zero
+> warnings/errors, no linter disabled; `linter.defProp` resolved by
+> Mike's ruling via the `replayed_theorem` macro-emitted theorem kind
+> (93/94 converted, 1 ruled fixture exemption; regression net:
+> statement-changed 0, kind-only 91); seam gate: 21 products / 59
+> seams; 3 receipts gained `Quot.sound` (pinned, in-family, no
+> sorryAx); `backward.*` ledger ZERO. RESIDUE for a future arc:
+> `--tstack=524288` is now SMALLER than the 1 GB default (4.30 #12971 /
+> 4.33 #14343) — measure-then-remove. Merged to main 2026-08-19 with
+> explicit sign-off.

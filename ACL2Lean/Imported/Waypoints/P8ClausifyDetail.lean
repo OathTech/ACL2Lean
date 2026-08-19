@@ -25,7 +25,7 @@ def p8Dev : Development := load_development% p8Log
 derive_world p8WorldD from p8Dev
 
 /-- The UNCONDITIONAL driver replayed statement (zero hypotheses). -/
-def consNeqDetailReplayed := driver_replayed% p8Dev p8WorldD
+replayed_theorem consNeqDetailReplayed := driver_replayed% p8Dev p8WorldD
   "cons-neq-detail"
 
 private def aS : Symbol := { package := "ACL2", name := "A" }

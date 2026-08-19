@@ -981,7 +981,8 @@ run_cmd Lean.Elab.Command.liftTermElabM do
           decodes := decodes ++ [c]
   for c in decodes do
     let ci ← getConstInfo c
-    let some val := ci.value?
+    -- v4.33 (4.30 #12973): theorem values need `allowOpaque`
+    let some val := ci.value? (allowOpaque := true)
       | throwError "hreplayed-usage gate: {c} has no proof value"
     lambdaTelescope val fun xs body => do
       let mut sawReplayed := false

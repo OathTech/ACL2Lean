@@ -61,7 +61,9 @@ def oddsL : List SExpr → List SExpr
     syntactically. This states the same fact at the normalised spelling. -/
 theorem evensExec_nil : evensExec SExpr.nil = SExpr.nil := by
   have h := evensExec_enc []
-  simpa only [enc, evensL] using h
+  -- v4.33 (4.31 #13636): the reducible close no longer reduces
+  -- `List.foldr` on the nil literal; name the rfl-lemma explicitly.
+  simpa only [enc, evensL, List.foldr_nil] using h
 
 /-- Stage 2: `oddsExec` on an encoded list computes `oddsL` —
     GENERATED. The exec is non-recursive, so the structural induction

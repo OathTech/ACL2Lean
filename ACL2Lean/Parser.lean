@@ -614,7 +614,7 @@ private def parsedUppercaseDefunLooksRight : Bool :=
 
 private def parsedQualifiedBuiltinLooksRight : Bool :=
   match parseOne "ACL2::CAR" with
-  | .ok (SExpr.atom (.symbol { package := "ACL2", name := "CAR" })) => true
+  | .ok (SExpr.atom (.symbol { package := "ACL2", name := "CAR", .. })) => true
   | _ => false
 
 private def parsedUppercaseKeywordLooksRight : Bool :=

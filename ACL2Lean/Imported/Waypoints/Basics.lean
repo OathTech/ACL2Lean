@@ -23,7 +23,7 @@ def simpleDev : Development :=
 
 derive_world simpleWorldD from simpleDev
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT). -/
-def mylenReplayedCond := driver_replayed% simpleDev simpleWorldD "my-len-my-app"
+replayed_theorem mylenReplayedCond := driver_replayed% simpleDev simpleWorldD "my-len-my-app"
 
 /-! ### The unconditional driver replayed statement — direct world-parametric discharge
 
@@ -74,7 +74,7 @@ derive_world revWorldD from revDev
 /-- The conditional replayed statement as a definition (the driver's proof OBJECT):
     `∀ env, total:app → <EvTrue of (equal (app (app a b) c)
     (app a (app b c)))>` (truthiness, G2). -/
-def appAssocReplayedCond := driver_replayed% revDev revWorldD "app-assoc"
+replayed_theorem appAssocReplayedCond := driver_replayed% revDev revWorldD "app-assoc"
 
 /-- The driver replayed statement — UNCONDITIONAL: its sole `total:app` hypothesis is
     AUTO-DISCHARGED by the driver from the emitted admission data (#37). -/
@@ -111,7 +111,7 @@ derive_world directWorldD from directDev
 
 /-- The replayed statement as a definition (UNCONDITIONAL — the tree is a pure preprocess
     discharge, so the driver emits no hypotheses). -/
-def groundArithReplayedCond := driver_replayed% directDev directWorldD "ground-arith"
+replayed_theorem groundArithReplayedCond := driver_replayed% directDev directWorldD "ground-arith"
 
 /-- ENTRY 3, PROVED — the ground arithmetic fact through the DRIVER's
     replayed statement (executable-counterpart class). -/
@@ -135,7 +135,7 @@ unfolds the definition (`conv_defn_1`) and evaluates the body symbolically —
 
 /-- The replayed statement as a definition (UNCONDITIONAL — executable-counterpart
     discharge; `sq`'s unfold is part of the replayed evaluation). -/
-def sqOf3ReplayedCond := driver_replayed% directDev directWorldD "sq-of-3"
+replayed_theorem sqOf3ReplayedCond := driver_replayed% directDev directWorldD "sq-of-3"
 
 private def n_sym : Symbol := { package := "ACL2", name := "N" }
 private def nT : SExpr := .atom (.symbol { name := "N" })
@@ -187,9 +187,9 @@ def eqDev : Development :=
 
 derive_world eqWorldD from eqDev
 
-def cdrConsReplayedCond := driver_replayed% eqDev eqWorldD "cdr-cons-refl"
-def equalSymmReplayedCond := driver_replayed% eqDev eqWorldD "equal-symm"
-def equalTransReplayedCond := driver_replayed% eqDev eqWorldD "equal-trans"
+replayed_theorem cdrConsReplayedCond := driver_replayed% eqDev eqWorldD "cdr-cons-refl"
+replayed_theorem equalSymmReplayedCond := driver_replayed% eqDev eqWorldD "equal-symm"
+replayed_theorem equalTransReplayedCond := driver_replayed% eqDev eqWorldD "equal-trans"
 
 private def xT : SExpr := .atom (.symbol { name := "X" })
 private def yT : SExpr := .atom (.symbol { name := "Y" })
@@ -292,7 +292,7 @@ def multiDev : Development :=
 
 derive_world multiWorldD from multiDev
 
-def appConsCarReplayedCond := driver_replayed% multiDev multiWorldD "app-cons-car"
+replayed_theorem appConsCarReplayedCond := driver_replayed% multiDev multiWorldD "app-cons-car"
 
 private def aT : SExpr := .atom (.symbol { name := "A" })
 private def bT : SExpr := .atom (.symbol { name := "B" })
@@ -449,7 +449,7 @@ def accDev : Development :=
 derive_world accWorldD from accDev
 
 /-- The driver's replayed statement as a definition (the proof OBJECT). -/
-def lenRevAccReplayedCond := driver_replayed% accDev accWorldD "len-rev-acc"
+replayed_theorem lenRevAccReplayedCond := driver_replayed% accDev accWorldD "len-rev-acc"
 
 /-- The driver replayed statement — UNCONDITIONAL, and STATEMENT-PINNED to the
     hand `len_rev_accFormula` (read off the log's root Goal clause:
@@ -483,7 +483,7 @@ discharged at the seam by `Lifting.trueListp_enc` (every `enc` image is a
 true list), never assumed. -/
 
 /-- The driver's replayed statement for APP-NIL (the proof OBJECT). -/
-def appNilReplayedCond := driver_replayed% revDev revWorldD "app-nil"
+replayed_theorem appNilReplayedCond := driver_replayed% revDev revWorldD "app-nil"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to the
     hand `app_nilFormula` (read off the log's root Goal clause:
@@ -502,7 +502,7 @@ theorem app_nil_native_driver (xs : List SExpr) : xs ++ [] = xs :=
     appNilReplayed_uncond xs
 
 /-- The driver's replayed statement for REV-APP (the proof OBJECT). -/
-def revAppReplayedCond := driver_replayed% revDev revWorldD "rev-app"
+replayed_theorem revAppReplayedCond := driver_replayed% revDev revWorldD "rev-app"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to the
     hand `rev_appFormula`
@@ -521,7 +521,7 @@ theorem rev_app_native_driver (xs ys : List SExpr) :
     revAppReplayed_uncond xs ys
 
 /-- The driver's replayed statement for REV-REV (the proof OBJECT). -/
-def revRevReplayedCond := driver_replayed% revDev revWorldD "rev-rev"
+replayed_theorem revRevReplayedCond := driver_replayed% revDev revWorldD "rev-rev"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to the
     hand `rev_revFormula`

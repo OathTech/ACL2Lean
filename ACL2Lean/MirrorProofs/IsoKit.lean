@@ -559,10 +559,18 @@ open Lean.Parser.Tactic in
     input is `xs`: the mirror definition's equations, the declared
     definitions to unfold, and the registered squares of its callees. -/
 macro "mirror_square_close" "[" xs:simpLemma,* "]" : tactic =>
+  -- `+instances` (v4.33 bump, 4.29 #12244): simp stopped processing
+  -- typeclass-instance arguments by default, which severed the ladder's
+  -- documented route of unfolding a declared ORDER INSTANCE
+  -- (`unfold [instTotalOrderSExpr]`) so the split's case hypothesis meets
+  -- the reading's `bif`. `+instances` is the release's own supported
+  -- restore of exactly the old behavior, applied to the FIXED ladder once
+  -- (the alternative — instance-bridge LEMMAS in the `unfold` list — is
+  -- refused by the definitions-only gate below, by design).
   `(tactic|
     (first
       | rfl
-      | simp_all only [List.map_nil, List.map_cons, List.nil_append,
+      | simp_all +instances only [List.map_nil, List.map_cons, List.nil_append,
           List.cons_append, List.length_nil, List.length_cons,
           Bool.cond_true, Bool.cond_false, ite_true, ite_false,
           decide_true, decide_false,

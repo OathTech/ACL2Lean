@@ -28,7 +28,7 @@ derive_world permWorldD from permDev
 /-- The driver's replayed-statement proof OBJECT — UNCONDITIONAL as produced (totality
     by the admission prover, TP corollaries by the TP prover): no
     hypotheses left to discharge. -/
-def permConsReplayedCond := driver_replayed% permDev permWorldD "perm-cons"
+replayed_theorem permConsReplayedCond := driver_replayed% permDev permWorldD "perm-cons"
 
 theorem permConsReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f permWorldD env
@@ -60,13 +60,13 @@ Every remaining theorem's UNCONDITIONAL driver replayed statement, decoded nativ
 through the same `corr_*` layer with the Lifting decode kit. The whole ACL2
 book is now imported: 8 replayed statements, 8 native facts, zero hypotheses. -/
 
-def permSymmetricReplayed := driver_replayed% permDev permWorldD "perm-symmetric"
-def membRmReplayed := driver_replayed% permDev permWorldD "memb-rm"
-def permMembReplayed := driver_replayed% permDev permWorldD "perm-memb"
-def commRmReplayed := driver_replayed% permDev permWorldD "comm-rm"
-def permRmReplayed := driver_replayed% permDev permWorldD "perm-rm"
-def permTransitiveReplayed := driver_replayed% permDev permWorldD "perm-transitive"
-def permEquivReplayed := driver_replayed% permDev permWorldD "perm-is-an-equivalence"
+replayed_theorem permSymmetricReplayed := driver_replayed% permDev permWorldD "perm-symmetric"
+replayed_theorem membRmReplayed := driver_replayed% permDev permWorldD "memb-rm"
+replayed_theorem permMembReplayed := driver_replayed% permDev permWorldD "perm-memb"
+replayed_theorem commRmReplayed := driver_replayed% permDev permWorldD "comm-rm"
+replayed_theorem permRmReplayed := driver_replayed% permDev permWorldD "perm-rm"
+replayed_theorem permTransitiveReplayed := driver_replayed% permDev permWorldD "perm-transitive"
+replayed_theorem permEquivReplayed := driver_replayed% permDev permWorldD "perm-is-an-equivalence"
 
 /-- ENTRY 10, PROVED — perm-symmetric: `isPerm` is symmetric. -/
 theorem perm_symmetric_native_driver (xs ys : List SExpr)

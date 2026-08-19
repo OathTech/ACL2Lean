@@ -149,7 +149,7 @@ private theorem number_eq_of_cross_eq {v1 v2 : Number}
     `String` order relations its compiled `if`s carry. -/
 
 private theorem symbolLe_refl (n p : String) : symbolLe n p n p = true := by
-  simp [symbolLe, String.le_refl]
+  simp [symbolLe]
 
 private theorem symbolLe_antisymm {n1 p1 n2 p2 : String}
     (h12 : symbolLe n1 p1 n2 p2 = true) (h21 : symbolLe n2 p2 n1 p1 = true) :
@@ -225,9 +225,9 @@ private theorem symbolLe_total (n1 p1 n2 p2 : String) :
 
 theorem alphLe_refl (a : LexView) : alphLe a a = true := by
   cases a with
-  | number v => simp [alphLe, viewKind, Int.le_refl]
-  | char c => simp [alphLe, viewKind, UInt8.le_refl]
-  | string s => simp [alphLe, viewKind, String.le_refl]
+  | number v => simp [alphLe, viewKind]
+  | char c => simp [alphLe, viewKind]
+  | string s => simp [alphLe, viewKind]
   | sym n p => simp [alphLe, viewKind, symbolLe_refl]
 
 theorem alphLe_antisymm : ∀ {a b : LexView},

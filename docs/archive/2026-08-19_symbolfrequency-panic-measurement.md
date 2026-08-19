@@ -98,3 +98,19 @@ rebuilds.
 Upstream: `withCurrHeartbeats` around the export pass, or a budget derived
 from it. Until then the panic is accepted, disclosed noise — and it is never
 a licence to wave through a genuine proof, replay or gate failure.
+
+---
+
+## RESOLUTION POSTSCRIPT (2026-08-19, the toolchain-bump arc)
+
+The real fix WAS upstream, exactly as this note predicted:
+leanprover/lean4#13202 (first stable in v4.31.0) sets
+`maxHeartbeats := 0` in the export pass's context — the same mechanism
+the diagnosis above isolated (fixing leanprover/lean4#12989, the
+fresh-context/ignored-options bug). The 2026-08-19 toolchain bump to
+v4.33.0 removed the panic from our builds: the bump arc's full
+claim-gate artifact (`.gate-runs/c68bb1f-20260819T121241Z.log`) greps
+CLEAN — zero `SymbolFrequency` occurrences — with the heavy coverage
+modules freshly rebuilt, so the Lake job-log replay caveat documented
+above masks nothing. Record: the bump charter's ARC LOG/EXIT
+(`docs/plans/2026-08-19_toolchain-bump-charter.md`).

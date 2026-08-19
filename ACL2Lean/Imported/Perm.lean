@@ -146,7 +146,10 @@ private theorem bindArgs_ax_a (va vx : SExpr) :
 private theorem bindArgs_ax_x (va vx : SExpr) :
     (bindArgs [aS, xS] [va, vx]).get? xS = some vx := by
   show ((({} : Env).insert xS vx).insert aS va).get? xS = some vx
-  simp [Env.get?_insert, aS, xS]
+  -- v4.33 (4.29 #12244 family): simp no longer decides the ground
+  -- `xS = aS` ite condition through the unreduced `Decidable` instance;
+  -- discharge the mismatch branch explicitly (same for the two below).
+  rw [Env.get?_insert, if_neg (by decide)]; simp [Env.get?_insert]
 private theorem bindArgs_ex_e (ve vx : SExpr) :
     (bindArgs [eS, xS] [ve, vx]).get? eS = some ve := by
   show ((({} : Env).insert xS vx).insert eS ve).get? eS = some ve
@@ -154,7 +157,7 @@ private theorem bindArgs_ex_e (ve vx : SExpr) :
 private theorem bindArgs_ex_x (ve vx : SExpr) :
     (bindArgs [eS, xS] [ve, vx]).get? xS = some vx := by
   show ((({} : Env).insert xS vx).insert eS ve).get? xS = some vx
-  simp [Env.get?_insert, eS, xS]
+  rw [Env.get?_insert, if_neg (by decide)]; simp [Env.get?_insert]
 private theorem bindArgs_xy_x (vx vy : SExpr) :
     (bindArgs [xS, yS] [vx, vy]).get? xS = some vx := by
   show ((({} : Env).insert yS vy).insert xS vx).get? xS = some vx
@@ -162,7 +165,7 @@ private theorem bindArgs_xy_x (vx vy : SExpr) :
 private theorem bindArgs_xy_y (vx vy : SExpr) :
     (bindArgs [xS, yS] [vx, vy]).get? yS = some vy := by
   show ((({} : Env).insert yS vy).insert xS vx).get? yS = some vy
-  simp [Env.get?_insert, xS, yS]
+  rw [Env.get?_insert, if_neg (by decide)]; simp [Env.get?_insert]
 
 /-! ## Exec functions (the two-stage lift, stage 1)
 

@@ -387,22 +387,20 @@ sequencing are superseded by the governing plan.
 self-enforcing differential corpus by `scripts/check-bugs.sh` so an entry can
 neither rot nor be silently dropped.
 
-<!-- PANIC NOTE — compact by design; full measurement record lives in
-     docs/archive/2026-08-19_symbolfrequency-panic-measurement.md. A
-     toolchain bump may remove this section entirely. -->
-**A non-fatal toolchain panic in the build output.** A full build — and
-`just test`, and the claim gate — prints, while building the heaviest coverage
-modules (`Tests.Coverage.BSsortsEquivalent` is the usual one), a deterministic
-`PANIC at … Lean.LibrarySuggestions.SymbolFrequency … (deterministic) timeout
-at whnf`. It is Lean's own premise-frequency environment extension blowing its
-heartbeat budget in an EXPORT pass that runs strictly after the module's
-declarations are elaborated and kernel-checked: the module still writes its
-`.olean`, the build reports success, and nothing we check reads that extension
-(no proof, receipt, `#guard_msgs` pin, golden row or gate). It is accepted,
-disclosed noise, tracked in `TODO.md`, and **never a licence to wave through a
-genuine proof, replay or gate failure**. Elimination was attempted and refuted
-by measurement in 2026-08-19 — no project-local switch exists and no module
-split can reach the budget; the real fix is upstream. Full record:
+<!-- PANIC NOTE — resolved; the measurement record lives in
+     docs/archive/2026-08-19_symbolfrequency-panic-measurement.md. -->
+**A historical build-output panic — ELIMINATED at v4.31.0+ (upstream
+leanprover/lean4#13202); bumped to v4.33.0 2026-08-19.** Builds on the
+v4.28.0 toolchain printed a deterministic non-semantic
+`PANIC at … Lean.LibrarySuggestions.SymbolFrequency …` on the heaviest
+coverage modules — Lean's own premise-frequency extension blowing an
+unreachable heartbeat budget in a post-elaboration export pass; nothing we
+check read that extension. In-repo elimination was attempted and refuted by
+measurement; the upstream fix (#13202, `maxHeartbeats := 0` in the export
+pass's context) is exactly the mechanism the diagnosis isolated, and the
+2026-08-19 toolchain-bump gate artifact
+(`.gate-runs/c68bb1f-20260819T121241Z.log`) greps CLEAN — zero occurrences
+with the heavy modules freshly rebuilt. Full diagnosis + resolution record:
 [`archive/2026-08-19_symbolfrequency-panic-measurement.md`](archive/2026-08-19_symbolfrequency-panic-measurement.md).
 <!-- END PANIC NOTE -->
 

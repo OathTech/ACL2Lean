@@ -22,7 +22,7 @@ derive_world qsortWorldD from qsortDev
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-APPEND
     (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
-def howManyAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem howManyAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "how-many-append" deps [convertPermDev]
 
 /-- The unconditional form. -/
@@ -47,7 +47,7 @@ set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for CAR-APPEND — now
     UNCONDITIONAL (its one hypothesis, the if-lifting rule
     `(equal (if a b c) x)`, is discharged by the D5 registry, P4b). -/
-def carAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem carAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "car-append"
 
 /-- The unconditional form. -/
@@ -73,7 +73,7 @@ theorem car_append_native_driver (xs ys : List SExpr) :
 set_option maxHeartbeats 1600000 in
 /-- The UNCONDITIONAL driver replayed statement for
     PERM-IMPLIES-EQUAL-ALL-REL-2 (ACL2's defcong). -/
-def permImpliesAllRel2Replayed := driver_replayed% qsortDev qsortWorldD
+replayed_theorem permImpliesAllRel2Replayed := driver_replayed% qsortDev qsortWorldD
   "perm-implies-equal-all-rel-2"
 
 /-- ENTRY, PROVED — PERM-IMPLIES-EQUAL-ALL-REL-2 natively: `allRelL` is
@@ -92,7 +92,7 @@ set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-RM-1, now
     UNCONDITIONAL (its sole `tp:ALL-REL` hypothesis is supplied by the
     driver's TP prover — TP-replay arc increment 4, 2026-08-13). -/
-def allRelRm1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem allRelRm1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-rm-1"
 
 /-- The unconditional form. -/
@@ -116,7 +116,7 @@ theorem all_rel_rm_1_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-RM-2, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
-def allRelRm2ReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem allRelRm2ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-rm-2"
 
 /-- The unconditional form. -/
@@ -141,7 +141,7 @@ theorem all_rel_rm_2_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-FILTER-1, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
-def allRelFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem allRelFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-filter-1"
 
 theorem allRelFilter1Replayed_uncond (env : Env) :
@@ -163,7 +163,7 @@ theorem all_rel_filter_1_native_driver (ev : SExpr) (xs : List SExpr) :
 set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-FILTER-2, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
-def allRelFilter2ReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem allRelFilter2ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "all-rel-filter-2"
 
 theorem allRelFilter2Replayed_uncond (env : Env) :
@@ -188,7 +188,7 @@ set_option maxHeartbeats 1600000 in
     `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` by the TP prover and the
     dependency transfer; the three arithmetic-3 comm/assoc rules by the
     D5 registry, P4b). -/
-def howManyFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem howManyFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
   "how-many-filter-1" deps [convertPermDev]
 
 theorem howManyFilter1Replayed_uncond (env : Env) :
@@ -224,7 +224,7 @@ set_option maxHeartbeats 4000000 in
     TP prover (TP-replay arc increments 4 and 5, 2026-08-13), and the
     last one left, the if-lifting rule `(equal (if a b c) x)`, from the
     D5 registry (P4b). -/
-def orderedpAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem orderedpAppendReplayedCond := driver_replayed% qsortDev qsortWorldD
   "orderedp-append"
 
 /-- The unconditional form. -/
@@ -259,7 +259,7 @@ set_option maxHeartbeats 4000000 in
 /-- HOW-MANY-QSORT's conditional replayed statement (ten hypotheses:
     `total:O<`, `tp:HOW-MANY`, `tp:ACL2-COUNT`, and the seven rule
     conditions). -/
-def howManyQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem howManyQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "how-many-qsort" with_termination deps [convertPermDev]
 
 set_option maxHeartbeats 1600000 in
@@ -295,7 +295,7 @@ set_option maxHeartbeats 4000000 in
 /-- PERM-QSORT's conditional replayed statement (THE FLAGSHIP — twelve
     hypotheses: PCE/O< totality, the HOW-MANY/ACL2-COUNT TP corollaries,
     and the seven rule conditions incl. CONVERT-PERM-TO-HOW-MANY). -/
-def permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "perm-qsort" with_termination
   deps [permDev, convertPermDev, orderedPermsDev]
 
@@ -364,7 +364,7 @@ set_option maxHeartbeats 4000000 in
     PERM-QSORT's remaining hypotheses plus the in-book
     `rule:ORDEREDP-APPEND`; `tp:ALL-REL` is now supplied by the
     driver's TP prover). -/
-def orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
+replayed_theorem orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "orderedp-qsort" with_termination
   deps [permDev, convertPermDev, orderedPermsDev]
 

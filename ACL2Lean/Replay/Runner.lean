@@ -24,6 +24,51 @@ open ACL2 ACL2.Replay.Driver Lean Lean.Elab Lean.Meta
 
 namespace ACL2.Replay.Runner
 
+/-- `replayed_theorem N := e` — a THEOREM-kind declaration whose TYPE is
+    the MACHINE-computed type of the emitted proof `e` (ruled by Mike
+    2026-08-19, toolchain-bump arc, for v4.33's `linter.defProp`).
+
+    The replay pins (`def N := driver_replayed% …`, `acl2_replay% …`,
+    `parametric_replayed% …`, …) are proofs of Props whose statements are
+    deliberately NEVER hand-spelled — the machine-emitted type IS the
+    record, and the hand statement pins are the adjacent `example`s.
+    `theorem` syntax requires an explicit type, so the linter's own advice
+    is unavailable; this command emits the theorem KIND with the inferred
+    type — machine ascription, not hand ascription, so the pin design is
+    intact and no linter is touched. Fail-closed: a residual metavariable
+    or a non-Prop emission is a hard error.
+
+    The `True`-typed gate-runner pins (`… : True := …_pins%`) use this
+    command too, for a SECOND v4.33 reason: a plain `theorem`'s body now
+    elaborates in an ASYNC task where `addDecl` is RESTRICTED to the
+    theorem's own name prefix — the pin elaborators `addDecl` replay
+    constants (`ReplayedStatements.*`) and registry entries, which that
+    restriction rejects (measured: the pins report `replayed 0/N`). This
+    command elaborates synchronously in the command context, where the
+    macros' declarations land as they did under `def`. -/
+elab dc:(Lean.Parser.Command.docComment)? "replayed_theorem " id:ident
+    " := " t:term : command => do
+  let name := (← Lean.Elab.Command.liftCoreM Lean.getCurrNamespace) ++ id.getId
+  Lean.Elab.Command.liftTermElabM <| Lean.Elab.Term.withDeclName name do
+    -- `withDeclName`: the replay macros register their replayed statement
+    -- under the ENCLOSING DECLARATION NAME (`Term.getDeclName?`,
+    -- Waypoints/Macro.lean) — without it registration silently skips and
+    -- every registry-route consumer keeps its hypothesis.
+    let e ← Lean.Elab.Term.elabTermAndSynthesize t none
+    Lean.Elab.Term.synthesizeSyntheticMVarsNoPostponing
+    let e ← instantiateMVars e
+    if e.hasMVar then
+      throwError "replayed_theorem {id.getId}: the emitted proof has \
+        residual metavariables (fail-closed)"
+    let ty ← instantiateMVars (← inferType e)
+    unless ← Meta.isProp ty do
+      throwError "replayed_theorem {id.getId}: the emitted type is not a \
+        Prop ({ty}) — this command is for proof pins only; use `def`"
+    Lean.addDecl (.thmDecl { name, levelParams := [], type := ty, value := e })
+    if let some d := dc then
+      Lean.addDocStringCore name (← Lean.getDocStringText d)
+    Lean.Elab.Term.addTermInfo' id (Lean.mkConst name) (isBinder := true)
+
 /-- Defuns carrying a RECORDED termination proof whose decrease arguments
     are beyond the destructor-chain walk (the recorded-termination route's
     DEMAND filter, sorting arc 2026-07-28 — plain destructor admissions
@@ -228,7 +273,10 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     match env.find? c with
     | some (.axiomInfo _) => axioms := axioms ++ [c]
     | some ci =>
-      if let some v := ci.value? then
+      -- v4.33 (4.30 #12973): theorems are opaque — `.value?` returns none
+      -- without `allowOpaque`, which would silently DROP axioms reached
+      -- through theorem proofs from this walk.
+      if let some v := ci.value? (allowOpaque := true) then
         work := work ++ v.getUsedConstants.toList
     | none => pure ()
   return axioms.eraseDups

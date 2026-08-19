@@ -33,7 +33,7 @@ derive_world treeWorldD from treeDev
 
 /-- The UNCONDITIONAL driver replayed statement (zero hypotheses — see the coverage row
     `TRUE-LISTP-FLATTEN → REPLAYED ✓`). -/
-def trueListpFlattenReplayed := driver_replayed% treeDev treeWorldD "true-listp-flatten"
+replayed_theorem trueListpFlattenReplayed := driver_replayed% treeDev treeWorldD "true-listp-flatten"
 
 private def flattenXT : SExpr := Lifting.app1 "FLATTEN" (.atom (.symbol { name := "X" }))
 

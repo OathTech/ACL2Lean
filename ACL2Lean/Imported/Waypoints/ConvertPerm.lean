@@ -26,7 +26,7 @@ derive_world convertPermWorldD from convertPermDev
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 (hypothesis: `tp:HOW-MANY`). -/
-def notMembHowMany0ReplayedCond := driver_replayed% convertPermDev
+replayed_theorem notMembHowMany0ReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "not-memb-implies-how-many-is-0"
 
 /-- The unconditional form (the `tp:HOW-MANY` hypothesis discharged by the
@@ -51,7 +51,7 @@ theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-RM-IS-NO-OP (hypothesis: `rule:CONS-CAR-CDR`). -/
-def notMembRmNoopReplayedCond := driver_replayed% convertPermDev
+replayed_theorem notMembRmNoopReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "not-memb-implies-rm-is-no-op"
 
 /-- The unconditional form (the ground-zero rule now discharged inside
@@ -76,7 +76,7 @@ theorem not_memb_rm_noop_native_driver (av : SExpr) (xs : List SExpr)
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM
     (hypothesis: `tp:HOW-MANY`). -/
-def howManyRmReplayedCond := driver_replayed% convertPermDev
+replayed_theorem howManyRmReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "how-many-rm"
 
 /-- The unconditional form. -/
@@ -100,7 +100,7 @@ theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM-GENERAL
     (hypothesis: `tp:HOW-MANY`). -/
-def howManyRmGeneralReplayedCond := driver_replayed% convertPermDev
+replayed_theorem howManyRmGeneralReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "how-many-rm-general"
 
 /-- The unconditional form. -/
@@ -130,7 +130,7 @@ set_option maxHeartbeats 3200000 in
     `total:PERM-COUNTER-EXAMPLE`, cleared with the ATOM leg: PCE's
     emitted `(ATOM X)`-ruled decrease obligation is covered on the
     branch, so the totality arrives by replayed admission). -/
-def pceIsCounterexampleReplayedCond := driver_replayed% convertPermDev
+replayed_theorem pceIsCounterexampleReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "perm-counter-example-is-counterexample-for-true-lists"
 
 /-- The unconditional form — no telescope left to discharge (the
@@ -164,7 +164,7 @@ set_option maxHeartbeats 3200000 in
 /-- The driver's replayed statement for the book's CAPSTONE,
     CONVERT-PERM-TO-HOW-MANY — UNCONDITIONAL since 2026-08-14 (T1+2
     sprint G1-M; the catalogue's row records the retirement history). -/
-def convertPermToHowManyReplayedCond := driver_replayed% convertPermDev
+replayed_theorem convertPermToHowManyReplayedCond := driver_replayed% convertPermDev
   convertPermWorldD "convert-perm-to-how-many" deps [permDev]
 
 /-- The unconditional form. -/

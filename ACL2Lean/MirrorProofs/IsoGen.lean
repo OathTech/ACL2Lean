@@ -527,6 +527,28 @@ private def mirrorFnShape (fnName : Name) (ty : Expr) :
       | none => false
     return (readings, res.isAppOf ``List, resIsElem, instClasses)
 
+/-- The constants a mirror definition's value uses, FOLLOWING its own
+    name-prefixed satellites — v4.33 (4.30 #12987): structural recursion now
+    extracts the functional passed to `brecOn` into a `<fn>._f` helper, so a
+    recursive definition's callees no longer appear in its own value. The
+    same walk `SimGen.execCallees` does for `._unary`/WF helpers; satellite
+    names themselves are walked, not emitted. -/
+private partial def usedConstsThroughSatellites
+    (env : Environment) (fnName : Name) : List Name :=
+  go [fnName] [] []
+where
+  go : List Name → List Name → List Name → List Name
+  | [], _, out => out.eraseDups
+  | c :: rest, seen, out =>
+    if seen.contains c then go rest seen out
+    else
+      match env.find? c with
+      | none => go rest (c :: seen) out
+      | some ci =>
+        let used := ((ci.value? (allowOpaque := true)).getD ci.type).getUsedConstants.toList
+        let (sat, other) := used.partition (fnName.isPrefixOf ·)
+        go (sat ++ rest) (c :: seen) (other ++ out)
+
 /-- THE INSTANCE-FACTS SHAPE CHECK (O-7, ruled 2026-08-18) — see "the
     instance-facts clause" in the header.
 
@@ -872,7 +894,8 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
   -- (an agreement callee may carry a whole PER-CONSTRUCTOR FAMILY; each
   -- member is stated at a distinct literal, so the family cannot redirect
   -- a rewrite the way a second GENERAL square would — see `agreeSquares`)
-  let usedConsts : List Name := di.value.getUsedConstants.toList
+  -- (v4.33 #12987: through the `._f`-style satellites, not just the value)
+  let usedConsts : List Name := usedConstsThroughSatellites env fnName
   let squaresOf (c : Name) : List Name :=
     match cls with
     | .agree => agreeSquares env c
@@ -984,7 +1007,9 @@ private def checkInstanceFact (n : Name) : MetaM Unit := do
     match env'.find? thmName with
     | none => "no declaration was produced"
     | some ci =>
-      if (ci.value?.getD ci.type).hasSorry then
+      -- v4.33 (4.30 #12973): `allowOpaque`, or a sorry inside a THEOREM
+      -- proof would slip past this check (type-only fallback)
+      if ((ci.value? (allowOpaque := true)).getD ci.type).hasSorry then
         "the declaration was produced but carries `sorryAx` (the closer \
          left goals open)"
       else ""

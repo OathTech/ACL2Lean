@@ -346,7 +346,9 @@ syntax (name := mirrorTransportCmd)
       match env3.find? nm with
       | none => "no declaration was produced"
       | some ci =>
-        if (ci.value?.getD ci.type).hasSorry then
+        -- v4.33 (4.30 #12973): `allowOpaque`, or a sorry inside a THEOREM
+        -- proof would slip past this check (type-only fallback)
+        if ((ci.value? (allowOpaque := true)).getD ci.type).hasSorry then
           "the declaration was produced but carries `sorryAx` (the \
            assembly left goals open)"
         else ""

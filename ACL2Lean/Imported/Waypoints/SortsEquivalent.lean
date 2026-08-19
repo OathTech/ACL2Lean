@@ -65,7 +65,7 @@ set_option maxHeartbeats 0 in
 set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for MSORT-IS-ISORT (the
     telescope is EMPTY — the row is unconditional). -/
-def msortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
+replayed_theorem msortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
   "msort-is-isort" with_termination usefi
   deps [permDev, convertPermDev, isortDev, bsortDev, orderedPermsDev,
         equisortDev, msortDev, qsortDev]
@@ -90,7 +90,7 @@ theorem msort_is_isort_native_driver (xs : List SExpr) :
 set_option maxHeartbeats 0 in
 set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for QSORT-IS-ISORT. -/
-def qsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
+replayed_theorem qsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
   "qsort-is-isort" with_termination usefi
   deps [permDev, convertPermDev, isortDev, bsortDev, orderedPermsDev,
         equisortDev, msortDev, qsortDev]
@@ -136,7 +136,7 @@ accurate half of the old record was the SECOND observation — the
 set_option maxHeartbeats 0 in
 set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for BSORT-IS-ISORT. -/
-def bsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
+replayed_theorem bsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
   "bsort-is-isort" with_termination usefi
   deps [permDev, convertPermDev, isortDev, bsortDev, orderedPermsDev,
         equisortDev, msortDev, qsortDev]

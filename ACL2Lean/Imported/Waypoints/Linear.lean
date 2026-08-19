@@ -31,7 +31,7 @@ def linearDev : Development :=
 derive_world linearWorldD from linearDev
 
 /-- The driver's replayed statement for LEN2-NONNEG (the proof OBJECT). -/
-def len2NonnegReplayedCond := driver_replayed% linearDev linearWorldD
+replayed_theorem len2NonnegReplayedCond := driver_replayed% linearDev linearWorldD
   "len2-nonneg"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to
@@ -54,7 +54,7 @@ theorem len2_nonneg_native_driver (xs : List SExpr) :
 
 /-- The driver's replayed statement for LEN2-CDR-SMALLER (the proof
     OBJECT). -/
-def len2CdrSmallerReplayedCond := driver_replayed% linearDev linearWorldD
+replayed_theorem len2CdrSmallerReplayedCond := driver_replayed% linearDev linearWorldD
   "len2-cdr-smaller"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to

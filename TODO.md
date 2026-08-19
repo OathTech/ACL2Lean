@@ -686,6 +686,13 @@ LIBRARY.
 
 ### Build and iteration performance
 
+- [ ] **`--tstack=524288` measure-then-remove (2026-08-19, the
+      toolchain-bump arc's residue).** The explicit tstack the
+      sorts-equivalent work added is now SMALLER than the v4.33 default
+      (1 GB — 4.30 #12971 / 4.33 #14343), so the flag likely only
+      shrinks headroom. Measure a full build without it, then remove;
+      record in the bump charter
+      (`docs/plans/2026-08-19_toolchain-bump-charter.md`).
 - [ ] **Build-gate parallelization (2026-08-01, MDD-raised).** The dev
       machine has many cores/memory; iteration speed is gated by two
       SERIAL artifacts, distinct from what users need:

@@ -35,10 +35,13 @@ theorem tau_leaf_07_subgoal_1'
   match n with
   | .atom (.number (.int k)) =>
     simp only [zp, toInt] at h
-    split at h
-    · exact absurd h (by simp [SExpr.t])
-    · rename_i hk
-      -- k > 0; now (+ -1 k) = k-1 as an int atom, and k-1 < k by omega.
+    -- v4.33 (4.29 #12244): `simp` no longer rewrites the ite's `Decidable`
+    -- instance argument, so `split at h` cannot match the ite (same pattern
+    -- as `toNat_minus_one`, Logic.lean). Same case analysis, spelled on the
+    -- condition directly.
+    by_cases hk : k ≤ 0
+    · exact absurd h (by simp [hk, SExpr.t])
+    · -- k > 0; now (+ -1 k) = k-1 as an int atom, and k-1 < k by omega.
       simp [plus, toRat, negOne, mkNumber, lt]
       omega
   | .atom (.number (.rational a b _)) => simp [zp, toInt] at h

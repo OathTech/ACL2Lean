@@ -131,11 +131,13 @@ theorem len2_cdr_smaller_native_of_replayed (w : World)
     have h := conv_builtin1 w e { name := "CONSP" } xT (enc (a :: t))
       (Logic.consp (enc (a :: t))) (by decide) h_no_consp hx
       (callBuiltin_consp _)
-    simpa [enc, Logic.consp] using h
+    -- v4.33 (4.31 #13636): `simpa using h` closes at reducible transparency;
+    -- name the plain-`def` `app1` under `conspT`/`cdrT` explicitly.
+    simpa [enc, Logic.consp, app1] using h
   have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT xT) = some (enc t) := by
     have h := conv_builtin1 w e { name := "CDR" } xT (enc (a :: t))
       (Logic.cdr (enc (a :: t))) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-    simpa [enc, Logic.cdr] using h
+    simpa [enc, Logic.cdr, app1] using h
   exact native_of_replayed_lt_of_implies w e (conspT xT)
     (len2T (cdrT xT)) (len2T xT) (t.length : Int) ((a :: t).length : Int)
     h_no_lt h_no_implies hconsp

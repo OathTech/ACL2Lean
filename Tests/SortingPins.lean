@@ -346,7 +346,7 @@ Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]"),
 -- unlimited at the command like the coverage sweep — the harness enforces
 -- REAL per-theorem budgets internally (withRealMaxHeartbeats)
 set_option maxHeartbeats 0 in
-def sortingStatementPinsRun : True := sorting_statement_pins_run%
+replayed_theorem sortingStatementPinsRun := sorting_statement_pins_run%
 
 /-! ## Term helpers (transcription vocabulary) -/
 
@@ -702,7 +702,7 @@ elab "p3_conj_statement_pin_run% " : term => do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def p3ConjStatementPinRun : True := p3_conj_statement_pin_run%
+replayed_theorem p3ConjStatementPinRun := p3_conj_statement_pin_run%
 
 /-- `(not x)` term. -/
 private def notOf (x : SExpr) : SExpr := .cons (sym "NOT") (.cons x .nil)
@@ -895,7 +895,7 @@ elab "pattern_statement_pins_run% " : term => do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def patternStatementPinsRun : True := pattern_statement_pins_run%
+replayed_theorem patternStatementPinsRun := pattern_statement_pins_run%
 
 /-- PIN the machine-generated statement of `DUPP-REP-MID` (p5): the replayed statement
     of the book's defthm, unconditional. -/
@@ -1011,7 +1011,7 @@ elab "equisort_scope_pins% " : term => do
     witnesses each on the two constrained scopes)"
   return Lean.mkConst ``True.intro
 
-def equisortScopePins : True := equisort_scope_pins%
+replayed_theorem equisortScopePins := equisort_scope_pins%
 
 -- (The sorts-equivalent CAPSTONE statement pins — MSORT-IS-ISORT and
 -- QSORT-IS-ISORT bound to the SWEEP'S OWN registered constants — MOVED

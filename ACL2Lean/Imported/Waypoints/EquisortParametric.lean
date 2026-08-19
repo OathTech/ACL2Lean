@@ -45,7 +45,7 @@ set_option maxHeartbeats 3200000 in
     NON-VACUITY (kernel-checked satisfiability of the telescope) is the
     Phase 3 (R7b) instantiation at a concrete world — deliberately NOT
     claimed here (audit 2026-08-08 outside F6). -/
-def weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
+replayed_theorem weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
 set_option maxHeartbeats 3200000 in
@@ -54,7 +54,7 @@ set_option maxHeartbeats 3200000 in
     constraints in stored-rule form, `use:ORDERED-PERMS`), conclusion
     `EvTrue w env (EQUAL (SSORTFN1 X) (SSORTFN2 X))`. Same non-vacuity
     deferral as WEAK. -/
-def strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
+replayed_theorem strongSsortfn1IsSsortfn2Parametric := parametric_replayed% equisortDev
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
 /-! ## The canonical-world instantiations (Phase 3 queue item 1 — the
@@ -88,7 +88,7 @@ derive_world equisortWaypointsWorld from equisortDev
 set_option maxHeartbeats 12000000 in
 /-- WEAK at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/
-def weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
+replayed_theorem weakSortfn1IsSortfn2AtCanonical := instantiate_parametric%
   weakSortfn1IsSortfn2Parametric equisortDev equisortWaypointsWorld
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
@@ -125,7 +125,7 @@ trio-clean list. -/
 set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/
-def strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
+replayed_theorem strongSsortfn1IsSsortfn2AtCanonical := instantiate_parametric%
   strongSsortfn1IsSsortfn2Parametric equisortDev equisortWaypointsWorld
   "strong-ssortfn1-is-ssortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 

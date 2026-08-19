@@ -39,7 +39,9 @@ def seamReachesAny? (env : Lean.Environment) (start : Lean.Name)
           found := some c
         else if expandUnder.any (·.isPrefixOf c) then
           if let some ci := env.find? c then
-            if let some v := ci.value? then
+            -- v4.33 (4.30 #12973): theorem values need `allowOpaque`,
+            -- or the seam walk cannot see through in-namespace theorems
+            if let some v := ci.value? (allowOpaque := true) then
               frontier := v.getUsedConstants.toList ++ frontier
     return found
 
@@ -326,7 +328,10 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       (congTrees := some ch.localTrees)
     -- register the enclosing definition for later same-world consumers.
     -- INVARIANT (audit F6): the registered decl must be a plain
-    -- `def X := driver_replayed% …` — the entry records THIS elaboration's
+    -- `def X := driver_replayed% …` — or, since the v4.33 bump, the
+    -- theorem-kind twin `replayed_theorem X := driver_replayed% …`
+    -- (Runner.lean), which sets `Term.withDeclName` so this registration
+    -- still sees the enclosing name — the entry records THIS elaboration's
     -- kept-cond list as the constant's binder telescope; a differently-
     -- ascribed enclosing decl would register a lying shape (caught loudly
     -- by unification at the consumer, never silently).
