@@ -4894,8 +4894,22 @@ obligation is stated precisely in its conditional proof's type:
       `builtin_initialize`-registered in the shared library, has no
       option gate or CLI flag, and its `Core.Context` is built with
       `options := {}` so `maxHeartbeats` is unreachable from the module
-      or the command line (v4.28.0 source). Fix is upstream, or falls
-      out of a module split done for its own reasons. Full
+      or the command line (v4.28.0 source).
+      **Elimination attempted and REFUTED by measurement (2026-08-19).**
+      The same fresh `Core.Context` takes `initHeartbeats := 0`, so the
+      check compares the ABSOLUTE thread heartbeat count for the whole
+      module elaboration against a fixed 200 000 000 — not the export
+      pass's own cost (reproduced directly; byte-identical timeout
+      string). At the measured ~16 heartbeat-units/ms of `runBook`, the
+      budget is gone after ~12 s of replay; the offending module replays
+      for ~477 s (~38x) and `BSqsort` at ~423 s (~35x) does not panic, so
+      weight is not the discriminator. A section split cannot reach the
+      budget, and `coverage_book%` has no sub-book unit anyway (one
+      module per book per golden section; the aggregate tiling check
+      requires exactly one section per `corpusOrder` entry). The
+      deny-list surface was measured too and NOT taken (an `ACL2` type
+      prefix covers 79/81; the residue is a rotting name list). Fix is
+      upstream (`withCurrHeartbeats` around the export pass). Full
       classification: `docs/OVERVIEW.md` § *Building and commands*.
 
 - [ ] **Carve-out drift test (MDD 2026-08-02, standing revisit).**
