@@ -308,3 +308,69 @@ POST-MERGE SEQUENCE (Mike, 2026-08-18): the final adversarial audit
 (two Fable auditors — trust-chain inside + statement-fidelity outside —
 plus a records auditor, plan pre-presented), then the public README
 rewrite, then the champagne.
+
+## POST-MERGE AUDIT ROUND + FIX BATCH (2026-08-19, branch `mdd/audit-fixes`)
+
+The post-merge sequence above, executed. **Three auditors** ran against
+the closed arc — a trust-chain reviewer (inside: is the TCB story what
+the tree actually implements?), a statement-fidelity reviewer (outside:
+do the Props say what the ACL2 books say?), and a records reviewer
+(claims, counts, provenance) — followed by orchestrator spot-checks of
+every falsifiable finding. **No finding touched soundness**: no product
+lost a receipt, no statement was found unfaithful, the golden never
+moved. What the round DID find was one spurious binder, one claim that
+was true of a probe and false of the page that cited it, and a scatter
+of miscounts and stale prose — i.e. exactly the class the two-standard
+rule reserves adversarial review for (claims and records), landing on
+the records rather than on the proofs.
+
+The batch, in the order it landed (each commit carries its own receipts):
+
+0. **The spec change (Mike-blessed).** `permWitness_complete` loses its
+   `[TotalOrder α]` binder — `CONVERT-PERM-TO-HOW-MANY` is order-free
+   and so is everything the `Prop` is stated in. Consequence chased and
+   reported deleted-vs-kept: `instTotalOrderOption`, the two
+   LEXORDER-against-`nil` facts and the order pin all go (they existed
+   only to satisfy the binder — item 2's own report said "nothing
+   consumes the order"); `intEmbed_enc_ne_nil` and `optIntEmbed` stay
+   (the product consumes them). The product re-derived unchanged.
+1. **The refutation elaborates.** `conditional_elem_square_false` had
+   been sitting inside a fence inside a docstring while the page said
+   "the refutation is kernel-checked rather than argued" — true of wave
+   2e's probe, false of the page. It is now a live theorem on that page
+   with a pinned receipt.
+2. **SIX tau-basis leaves, not five** (`ordered-perms.proof-log` carries
+   two) — corrected here and in TODO.md; `e9fa5b1`'s message is
+   immutable and its correction is recorded under J-1-1.
+3. **Seven prose/docstring corrections**, each verified against the
+   primary source: the junk arm's TRUE case set (every permuting pair,
+   not just `[] []`); `permuted_equivalence`'s THREE replayed seams (not
+   one); wave 2g's "sorting 11 → 13" (truly 9 → 13); this charter's "not
+   yet section" phrasing; item 2's missing superseded block (added
+   above); the P2 carve-out DISCLOSED in the spec header (audit B's
+   signing condition — `howManySmaller_bnext` and
+   `howManyBadPairs_bnext_lt` ARE the book's two lemmas, proved
+   natively because Lean's kernel demands the decrease before `bsort`
+   exists); BUG-020's present-tense body under a `fixed` status.
+4. **The retrospective** gets a dated closing addendum (its live counts
+   were true at writing; the close landed hours later) plus four
+   in-place count corrections.
+5. **The README rewrite** (added to the batch by Mike mid-round): the
+   295-line README moves to `docs/OVERVIEW.md` with two stale claims
+   re-measured, and the root `README.md` becomes a short front page.
+
+**GATE.** Full claim gate `TRUE_EXIT=0` on `8d934b9`, artifact
+`.gate-runs/8d934b9-20260819T060913Z.log`: 13 statics green (incl. the
+submodule triple — 91 logs stamped at `e8d78e513d68`), `lake build`
+zero warnings, `just test`, sweep **116/116** (116 unconditional, 0
+conditional), `check-golden-current: golden matches the live assembly`,
+zero `sorry` / `native_decide` in the log. The coverage golden is
+BYTE-IDENTICAL to the arc's — nothing in this batch touches the driver,
+the logs or the corpus. Disclosed, as in J-1-4: the log again carries
+the non-fatal toolchain PANIC from Lean's own
+`LibrarySuggestions.SymbolFrequency` background pass (a heartbeat
+timeout in the toolchain, not in our elaboration); the build completes
+successfully around it.
+
+The branch is a merge candidate. NOT merged, NOT pushed — awaiting
+explicit approval at the moment of merge.
