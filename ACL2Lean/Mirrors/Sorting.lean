@@ -534,8 +534,15 @@ def permuted_equivalence (α : Type u) [DecidableEq α] : Prop :=
     one. (The corpus's `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-
     TRUE-LISTS` is this same statement under `TRUE-LISTP` hypotheses
     the types absorb, and is the step the book proves it from, not a
-    second result.) -/
-def permWitness_complete (α : Type u) [TotalOrder α] [DecidableEq α]
+    second result.)
+
+    ORDER-FREE, like the book theorem: `CONVERT-PERM-TO-HOW-MANY` says
+    nothing about LEXORDER, and neither does anything this `Prop` is
+    stated in (`Permuted`, `howMany`, `permWitness` all take
+    `[DecidableEq α]`, and the witness additionally `[Inhabited α]` for
+    its junk arm). So the binders are those two and no order — the same
+    reading `permuted_equivalence` above carries. -/
+def permWitness_complete (α : Type u) [DecidableEq α]
     [Inhabited α] : Prop :=
   ∀ (xs ys : List α),
     (Permuted xs ys ↔
