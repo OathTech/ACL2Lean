@@ -4909,8 +4909,11 @@ obligation is stated precisely in its conditional proof's type:
       requires exactly one section per `corpusOrder` entry). The
       deny-list surface was measured too and NOT taken (an `ACL2` type
       prefix covers 79/81; the residue is a rotting name list). Fix is
-      upstream (`withCurrHeartbeats` around the export pass). Full
-      classification: `docs/OVERVIEW.md` § *Building and commands*.
+      upstream (`withCurrHeartbeats` around the export pass). Disposition:
+      `docs/OVERVIEW.md` § *Known limitations*; the full measurement
+      record moved to
+      `docs/archive/2026-08-19_symbolfrequency-panic-measurement.md`
+      (docs-polish round, 2026-08-19).
 
 - [ ] **Carve-out drift test (MDD 2026-08-02, standing revisit).**
       The widened DP-leaf premise/verdict machinery is ratified FOR NOW

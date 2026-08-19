@@ -1,8 +1,11 @@
 # LEXICON — the words this project uses precisely
 
-The canonical glossary (2026-08-12). Where older dated docs conflict
-with this file, this file wins; the three load-bearing terms first,
-because each has historically been used for the others' referents.
+The canonical glossary. Where older dated docs conflict with this
+file, **this file wins**. The three load-bearing terms come first —
+*replayed statement*, *waypoint*, *mirror* — because they name three
+different things and the whole trust story depends on not confusing
+them. (Why the file exists, and the drift it was written to stop, is
+the [history note](#history--why-this-file-exists) at the end.)
 
 ## The three load-bearing terms
 
@@ -186,3 +189,26 @@ records; gates/lints are speedbumps against honest mistakes, reviewed
 by "does it catch the honest mistake, is it simple enough to never be
 wrong, could we delete it" — never hardened against motivated
 evasion, ruthlessly deleted when fragile.
+
+## History — why this file exists
+
+This file was written on **2026-08-12**, and the definitions above are
+current as of that ruling and its later amendments (dated where they
+appear).
+
+It exists because the three load-bearing terms had each been used for
+the others' referents. "Mirror" in particular drifted: it came to name
+the ACL2-like Lean restatement layer — what is now called a WAYPOINT —
+which quietly made the METRIC look like the PRODUCT, and a waypoint
+presented as a top-level theorem is exactly the failure the definition
+of *waypoint* above forbids. On 2026-08-12 the word was reclaimed for
+Mike's original meaning (the pure-Lean, zero-ACL2 product), the
+waypoint layer was renamed to match (`NativeMirrors.lean` became
+`WaypointCatalog.lean`), and this glossary was made canonical so the
+reclamation could not silently reverse.
+
+**Consequence when reading older material.** Dated docs, notes, audits
+and plans written before 2026-08-12 use "mirror" / "native mirror" for
+the waypoint layer; read those as WAYPOINT. Several such files carry a
+header note saying so. Where any of them conflicts with this file, this
+file wins.
