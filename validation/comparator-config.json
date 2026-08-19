@@ -1,0 +1,29 @@
+{
+    "challenge_module": "Challenge",
+    "solution_module": "Solution",
+    "theorem_names": [
+        "Validation.len_app_int",
+        "Validation.app_assoc_int",
+        "Validation.app_nil_int",
+        "Validation.rev_app_int",
+        "Validation.rev_rev_int",
+        "Validation.len_revAcc_int",
+        "Validation.isort_ordered_int",
+        "Validation.isort_howMany_int",
+        "Validation.msort_ordered_int",
+        "Validation.msort_howMany_int",
+        "Validation.qsort_ordered_int",
+        "Validation.qsort_howMany_int",
+        "Validation.qsort_perm_int",
+        "Validation.bsort_ordered_int",
+        "Validation.bsort_howMany_int",
+        "Validation.ordered_perm_unique_int",
+        "Validation.permuted_equivalence_int",
+        "Validation.permWitness_complete_optint",
+        "Validation.msort_is_isort_int",
+        "Validation.qsort_is_isort_int",
+        "Validation.bsort_is_isort_int"
+    ],
+    "permitted_axioms": ["propext", "Quot.sound", "Classical.choice"],
+    "enable_nanoda": true
+}

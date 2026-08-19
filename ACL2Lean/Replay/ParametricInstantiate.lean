@@ -73,6 +73,16 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
   let rules := ACL2.Replay.Runner.combineRules
     (Driver.rulesBefore dev nm) ch.crossRules
   let ctx : ReplayCtx := {}
+  -- OFFER-ATTEMPT runaway guard (heartbeat sweep, 2026-08-19), shared by all
+  -- five attempt sites below (they carried the literal 3000000 three times —
+  -- single-sourced here, behaviour-identical). It is a GUARD, not a tuning
+  -- knob: every site it bounds is an ATTEMPT whose failure keeps the premise
+  -- as an honest KEPT hypothesis (see the note at the `dischargeOne` site),
+  -- so a tripped bound can only widen the declared constant's hypothesis
+  -- list — never change a proof. Same value and methodology as
+  -- `Runner.tryReplay`'s per-theorem default (a dependency re-replay is at
+  -- most a theorem replay; margin over the ~1.9M-unit worst observed
+  -- theorem).
   let dischargeBudget : Nat := 3000000
   let totalEnv ← withRealMaxHeartbeats dischargeBudget <|
     buildTotalEnv cfg (dev.justifications ++ extraJusts) (tpCors := ch.tps)
@@ -107,7 +117,7 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
       let tpTy ← try Driver.mkTpHypType cfg { name := fn } formals cor
         catch _ => pure (mkConst ``True)
       if !tpTy.isConst then
-        match ← (some <$> withRealMaxHeartbeats 3000000
+        match ← (some <$> withRealMaxHeartbeats dischargeBudget
             (proveTp cfg totalEnv (dev.justifications ++ extraJusts)
               fn cor (cors := ch2.tps))) <|> pure none with
         | some pf => tpAug := tpAug ++ [(fn, cor, pf)]
@@ -156,7 +166,7 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
             (some <$> Driver.dischargeGzRuleHyp cfg spec decl nsFn)
               <|> pure none
           | none =>
-            (some <$> withRealMaxHeartbeats 3000000
+            (some <$> withRealMaxHeartbeats dischargeBudget
               (dischargeRuleHyp cfg cur spec ch.depProofs []))
               <|> pure none
         if let some pf := pf? then
@@ -169,7 +179,7 @@ def instantiateParametricAt (dev : Development) (worldVal : World)
       let cur ← ctxRef.get
       unless cur.equivReflHyps.any (fun (sp, _) => sp.name == spec.name) do
         let er? ← try
-            some <$> withRealMaxHeartbeats 3000000
+            some <$> withRealMaxHeartbeats dischargeBudget
               (Driver.dischargeEquivReflHyp cfg cur spec ch.depProofs [])
           catch _ => pure none
         if let some pf := er? then

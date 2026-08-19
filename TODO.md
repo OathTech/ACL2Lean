@@ -607,19 +607,119 @@ LIBRARY.
       created them (the qsort-frontiers arc will carry one); this backlog
       item is the standing habit + the periodic broader sweep.
 
-- [ ] **Sweep for heartbeat/recursion-limit raises ("heartbeat hacking" — a
-      bad smell).** Audit every `withRealMaxHeartbeats` / `withRealMaxRecDepth`
-      site (and any `maxHeartbeats`/`maxRecDepth` option set): each raise can
-      mask a pathological algorithm (exponential blowup, deep non-tail
-      recursion on big worlds) instead of fixing it, and limits tuned to make
-      today's corpus pass can silently gate future books (same trap as
-      corpus-calibrated budgets — see the #65 two-tier budget policy). For
-      each site: justify the bound as a runaway GUARD with stated margin, or
-      profile and fix the underlying recursion/cost. Added 2026-07-17 after
-      raising maxRecDepth to 8192 for qsort's 206-defun world (DP-leaf
-      discharge; default 512 genuinely too small for its clause terms, but
-      the depth driver was not profiled).
+- [ ] **Heartbeat/recursion-limit raises — SWEEP DONE 2026-08-19 (release-hygiene
+      round, branch `mdd/release-hygiene`); the item now carries TWO open halves:
+      the unmeasurable RECURSION-DEPTH bounds, and the SCALING/DECOMPOSITION
+      triage of every surviving heartbeat raise.**
 
+      **WHAT THE ORIGINAL ITEM WAS ACTUALLY ABOUT (Mike, 2026-08-19 — the sweep
+      answered a different question first).** Verbatim: *"there's often a brute
+      force way of solving a proof, by just letting Lean grind, and a clever way
+      with decomposition. So the heartbeat hacking is not a trust issue, it's a
+      sign that we maybe did the stupidest thing rather than the 'right' thing."*
+      And on the tight ones: *"if we want to scale, we obviously can't tolerate a
+      1.8 heartbeat overhead. That'll blow up the moment we do an even slightly
+      larger proof."* So the ledger below is a COST MAP, and each surviving raise
+      is a DIAGNOSIS SITE, not a settled exception.
+
+      **THE TRUST QUESTION — ANSWERED, CLOSED.** All 71 heartbeat sites were
+      enumerated and MEASURED (`lake env lean -D trace.profiler=true -D
+      trace.profiler.useHeartbeats=true -D trace.profiler.threshold=<raw>`; USER
+      units = 1000 heartbeats; Lean default 200 000). The verdict is structural,
+      not 71 judgement calls: every bounded region is a DETERMINISTIC replay of a
+      recorded ACL2 tree — no proof SEARCH lives under any of these bounds — so a
+      raise cannot make a theorem replay that would otherwise have taken another
+      route; there is no other route. The bounds are ALARMS. What protects the run
+      is the internal per-unit guards (`Runner.tryReplay` 3M/theorem, 10M
+      admission-class; `tryDischarge` 1M/DP-leaf; `Harness.dischargeBudget`
+      3M/window; `Discharge.dpOnlyProverGuard` 1M), each with its own measured
+      margin at its docstring.
+
+      **THE RULED BOUND POLICY (Mike, applied at the sweep; recorded at
+      `driver_replayed%`).** (1) No raise unless the default is insufficient — 54
+      raises whose measured cost was under 200 000 units were DELETED outright,
+      no tombstones. (2) A needed raise stands UNMODIFIED — not snugged, not
+      inflated. (3) Every surviving raise is a diagnosis site; the fix for an
+      expensive one is DECOMPOSITION, never budget engineering in either
+      direction. 28 raises survive.
+
+      **OPEN HALF 1 — THE SCALING TRIAGE (input queue for the next perf/design
+      round).** Per-theorem sites first: these are single grinds, and the ones
+      that matter.
+
+      | measured | site | shape burning |
+      |---|---|---|
+      | 14.32M | SortsEquivalent MSORT-IS-ISORT | usefi functional-instance discharge: a parametric replay nested inside a row replay, over the 215-defun SE world, plus the recorded-admission pre-pass |
+      | 8.67M | SortingPins (module total, 3 pins) | aggregate |
+      | 8.17M | PatternPins sortingArc (module total) | aggregate |
+      | 3.73M | SortingPins (module total, 2nd pin group) | aggregate |
+      | 3.06M | Qsort HOW-MANY-QSORT (`with_termination deps [convertPerm]`) | recorded-admission pre-pass (qsort's admission is the 4.7M-unit one at the internal guard) + cross-book dep tree offers |
+      | 1.90M | SortsEquivalent QSORT-IS-ISORT | same usefi shape as MSORT |
+      | 1.72M | SortsEquivalent BSORT-IS-ISORT | same usefi shape as MSORT |
+      | 1.35M | EquisortParametric STRONG-SSORTFN1-IS-SSORTFN2 | `instantiate_parametric%`'s THREE-ROUND offer loop: each round re-attempts every still-undischarged rule/equivrefl under a 3M budget — a brute-force fixpoint by construction |
+      | 1.34M | EquisortParametric WEAK-SORTFN1-IS-SORTFN2 | same |
+      | 876k | Qsort HOW-MANY-APPEND (`deps [convertPerm]`) | **shape undiagnosed — needs profiling round.** It costs more than PERM-QSORT while being a far smaller theorem; the only distinctive machinery is the cross-book dep-tree offer |
+      | 701k | Qsort PERM-QSORT (`with_termination`) | admission pre-pass, no deps |
+      | 628k | OrderedPerms ORDERED-PERMS (`deps [permDev]`) | book capstone + cross-book offers |
+      | 430k | OrderedPerms ORDEREDP-MEMB | shape undiagnosed — needs profiling round |
+      | 358k | Msort HOW-MANY-MERGE2 (`deps [convertPerm]`) | the HOW-MANY family, below |
+      | 354k | Isort HOW-MANY-ISORT (`deps [convertPerm]`) | the HOW-MANY family, below |
+      | 351k | Bsort HOW-MANY-BNEXT (`deps [convertPerm]`) | the HOW-MANY family, below |
+      | 287k | Qsort PERM-IMPLIES-EQUAL-ALL-REL-2 | unconditional defcong replay; the R-lane congruence collapse (G1) is the only distinctive machinery — otherwise undiagnosed |
+      | 212k | Qsort ORDEREDP-APPEND | smallest over-default site; shape undiagnosed |
+
+      ONE MECHANISM EXPLAINS THREE CLUSTERS, which is what makes this a
+      decomposition queue rather than a list of unrelated slow spots:
+      - the **usefi composition** (14.32M / 1.90M / 1.72M) — and note the 8x
+        spread across three structurally identical capstones, itself a lead. This
+        is the same mechanism as the `withRealMaxRecDepth 131072` sites and as the
+        (now removed) `--tstack` flag: a native frame per telescope binder.
+      - the **HOW-MANY-\* family with `deps [convertPermDev]`** (876k / 358k /
+        354k / 351k) — four sites, same signature, 350k–880k. The dep offer looks
+        re-derived and re-consumed per row.
+      - the **parametric three-round offer loop** (1.35M / 1.34M) — the one shape
+        that is a brute-force fixpoint by construction rather than by accident.
+
+      TWO SITES ARE NEAR THEIR BOUND and stay unmodified per the ruling: Qsort
+      HOW-MANY-APPEND 876k against 1.6M (1.8x) and HOW-MANY-QSORT 3.06M against
+      4M (1.3x). At ISA-book scale (the 1.0 bar) these shapes are walls; a bound
+      change would only move the wall.
+
+      Book/module TOTALS (sums over many replays and leaves — the corpus-cost
+      headline, not targets in themselves): sorts-equivalent 12.43M, qsort 5.28M,
+      bsort 1.81M, ordered-perms 1.66M, msort 1.42M, equisort 510k,
+      convert-perm-to-how-many 467k, 11-custom-measure 343k, isort 204k,
+      03-linear 201k.
+
+      **OPEN HALF 2 — THE RECURSION-DEPTH BOUNDS.** Heartbeats can be measured
+      directly; depth cannot, so these four are still unprofiled:
+      - `withRealMaxRecDepth 8192` (Runner x3) — the ONE measured depth claim in
+        the tree: the lazy `buildTotalEnv` site records the totality sweep running
+        "within ~1 frame of the default 512", i.e. ~16x. One observation at one
+        site, not a profile of the other two.
+      - `withRealMaxRecDepth 131072` (Waypoints/Macro + its twin in
+        Tests/Coverage/Harness) — the `prepareUseFi` pre-pass, landed with the
+        D2-a shallow-stack architecture (de629e9). 256x the default with no
+        measurement behind it. THE INTERESTING ONE: same phenomenon as `--tstack`
+        and as the usefi cluster above — profile all three together.
+      - `set_option maxRecDepth 100000` (Waypoints/SortsEquivalent, file level) —
+        justified in kind (215-defun `by decide` world facts), not in magnitude.
+        The three per-capstone `maxRecDepth 1000000` raises stacked on top of it
+        were DELETED 2026-08-19 (probed: the module elaborates clean without
+        them) — pure over-provision, the one outright fix the sweep produced.
+      Wanted: an actual depth measurement (a `withRealMaxRecDepth`-wrapping probe
+      reporting `currRecDepth` at its deepest, or a bisect harness), then
+      justify-or-shrink each of the four.
+
+      **ONE MEASUREMENT DID NOT RECONCILE — recorded, not smoothed over.**
+      Waypoints/OrderedPerms carried a bump-era `maxHeartbeats 400000` added for a
+      trip of the 200 000 default; the command it guarded MEASURES 19k units, and
+      the module elaborates clean under `lake env lean` with the raise deleted. So
+      the trip reproduces only under the full `lake build` — an ACCOUNTING effect
+      (async elaboration / compilation-phase heartbeats), not a cost. The raise was
+      deleted under the ruled policy (19k < default) and the full build is green,
+      so the effect did not recur; if a sub-default site ever trips again in-build,
+      THIS is the explanation to chase, not the site's cost.
 - [ ] **Committed golden coverage-table snapshot.** Persist the DriverCoverage
       table as a checked artifact so refactor claims of unchanged coverage
       diff against a saved baseline instead of re-asserted numbers (from the
@@ -632,13 +732,6 @@ LIBRARY.
       independently recommended a mechanical checker that re-derives every dump
       claim (steps, ids, results, runes, LHS/RHS) from the raw `.proof-log`.
       Build it; run in ci.
-
-- [ ] **DP-proof sorry/axiom gate.** The coverage harness `Meta.check`s each
-      DP-leaf proof, but `Meta.check` does NOT reject `sorryAx` — with
-      `assumeFact` there is no `mkSorry` path left, but guard it mechanically:
-      scan emitted DP proof terms for `sorryAx`/`Lean.ofReduceBool` (and keep the
-      `#guard_msgs` axiom gates on the spike/test theorems).
-
 - [ ] **Audit residue: relativizeFrames prefix frames are contextual, unvalidated.**
       Frames ABOVE the d-th boundary (the parent-context navigation) are dropped
       without cross-checking them against the actual nesting position; a
@@ -655,13 +748,6 @@ LIBRARY.
 
 ### Build and iteration performance
 
-- [ ] **`--tstack=524288` measure-then-remove (2026-08-19, the
-      toolchain-bump arc's residue).** The explicit tstack the
-      sorts-equivalent work added is now SMALLER than the v4.33 default
-      (1 GB — 4.30 #12971 / 4.33 #14343), so the flag likely only
-      shrinks headroom. Measure a full build without it, then remove;
-      record in the bump charter
-      (`docs/plans/2026-08-19_toolchain-bump-charter.md`).
 - [ ] **Build-gate parallelization (2026-08-01, MDD-raised).** The dev
       machine has many cores/memory; iteration speed is gated by two
       SERIAL artifacts, distinct from what users need:

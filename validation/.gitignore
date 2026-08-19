@@ -1,0 +1,7 @@
+# Fetched/built tools and run outputs — the committed surface is the
+# harness DEFINITION; see README.md "Fetching the tools".
+tools/
+.lake/
+probe/
+comparator-run.log
+.parent-lean-path

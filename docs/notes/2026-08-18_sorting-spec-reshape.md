@@ -580,3 +580,34 @@ ACL2. The bijection is checked by reading the extracted `(:DEFTHM …)`
 rows against the `Prop`s — by review, not by a gate. That is
 deliberate: a census gate over 75 rows is exactly the fragile
 gate-cruft the two-standard rule says to delete rather than write.
+
+## Appendix (2026-08-19, mirror-polish) — the wave-2f mirror-rung residual, verbatim
+
+Moved here from `ACL2Lean/MirrorProofs/Sorting.lean` when that page's
+wave narrative was digested (the rest of the wave-2f re-measurement is
+in the R4 wave-2 charter's ARC LOG, which records the residual as
+"verbatim identical to wave 2e's" without quoting it; this appendix is
+the quote). The measurement: `permWitness_complete` at `Int`, re-run in
+wave 2f against the unconditional book-form `Prop` — the CROSSING closes
+with no residual, and the MIRROR rung's entire residual is:
+
+```
+h has type
+  Sorting.Permuted xs ys ↔
+    Sorting.howMany (Sorting.permWitness (List.map intOrderedEmbed.enc xs)
+        (List.map intOrderedEmbed.enc ys)) (List.map intOrderedEmbed.enc xs) =
+      Sorting.howMany (Sorting.permWitness (List.map intOrderedEmbed.enc xs)
+        (List.map intOrderedEmbed.enc ys)) (List.map intOrderedEmbed.enc ys)
+but is expected to have type
+  Sorting.Permuted xs ys ↔
+    Sorting.howMany (Sorting.permWitness xs ys) xs =
+      Sorting.howMany (Sorting.permWitness xs ys) ys
+```
+
+— `permuted_map_invariant` fired (the left side is already the
+mirror's), and `howMany_map_invariant` was reported UNUSED, which is
+the precise statement of the gap: it cannot fire until the witness
+argument is `e.enc (permWitness xs ys)`, i.e. until the element-result
+homomorphism square exists — the square `conditional_elem_square_false`
+(live on the product page) refutes at `Int`, and the reason the product
+landed at `Option Int` (close-out arc item 2).

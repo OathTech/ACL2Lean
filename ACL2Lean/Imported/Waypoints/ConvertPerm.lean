@@ -23,7 +23,6 @@ def convertPermDev : Development :=
 
 derive_world convertPermWorldD from convertPermDev
 
-set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 (hypothesis: `tp:HOW-MANY`). -/
 replayed_theorem notMembHowMany0ReplayedCond := driver_replayed% convertPermDev
@@ -48,7 +47,6 @@ theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_how_many_0_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-RM-IS-NO-OP (hypothesis: `rule:CONS-CAR-CDR`). -/
 replayed_theorem notMembRmNoopReplayedCond := driver_replayed% convertPermDev
@@ -73,7 +71,6 @@ theorem not_memb_rm_noop_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_rm_noop_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM
     (hypothesis: `tp:HOW-MANY`). -/
 replayed_theorem howManyRmReplayedCond := driver_replayed% convertPermDev
@@ -97,7 +94,6 @@ theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
 
 #print axioms how_many_rm_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM-GENERAL
     (hypothesis: `tp:HOW-MANY`). -/
 replayed_theorem howManyRmGeneralReplayedCond := driver_replayed% convertPermDev
@@ -123,7 +119,6 @@ theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_rm_general_native_driver
 
-set_option maxHeartbeats 3200000 in
 /-- The driver's replayed statement for
     PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — now
     UNCONDITIONAL (the row's last kept condition,
@@ -160,7 +155,6 @@ theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
 
 #print axioms pce_is_counterexample_native_driver
 
-set_option maxHeartbeats 3200000 in
 /-- The driver's replayed statement for the book's CAPSTONE,
     CONVERT-PERM-TO-HOW-MANY — UNCONDITIONAL since 2026-08-14 (T1+2
     sprint G1-M; the catalogue's row records the retirement history). -/

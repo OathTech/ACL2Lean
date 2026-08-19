@@ -1,0 +1,20 @@
+# The comparator validation harness (untracked draft — see README.md).
+# Deliberately NO `require`: the Solution's imports of the project's
+# modules resolve through LEAN_PATH (the parent workspace's oleans),
+# so this workspace can never trigger a rebuild inside the parent tree.
+name = "validation"
+version = "0.1.0"
+
+[[lean_lib]]
+name = "Challenge"
+
+[[lean_lib]]
+name = "Solution"
+
+# The challenge's spec modules: BYTE-IDENTICAL copies of the project's
+# two zero-import mirror spec files, under the project's own MODULE
+# NAMES (private auxiliary constants embed the defining module name, so
+# any other module name breaks the transitive statement comparison).
+[[lean_lib]]
+name = "ChallengeSpec"
+roots = ["ACL2Lean.Mirrors.Basics", "ACL2Lean.Mirrors.Sorting"]

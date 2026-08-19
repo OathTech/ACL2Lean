@@ -4825,3 +4825,78 @@ Tracks A and B are independent; A needs no new instrumentation, B does._
 > `--tstack=524288` is now SMALLER than the 1 GB default (4.30 #12971 /
 > 4.33 #14343) — measure-then-remove. Merged to main 2026-08-19 with
 > explicit sign-off.
+
+## APPENDED AT THE FINAL DOCS RECONCILIATION (2026-08-19) — the
+## release-hygiene round's completed-item records, folded per the
+## convention (tstack CLEARED; DP-proof gate DONE; the in-flight bump
+## block's final form incl. the tstack clearance)
+
+> **TOOLCHAIN BUMP ARC — COMPLETE AT THE CLAIM POINT (2026-08-19, branch
+> `mdd/toolchain-bump`; ARC LOG + ARC EXIT in
+> `docs/plans/2026-08-19_toolchain-bump-charter.md`).** v4.28.0 →
+> v4.33.0. Full claim-gate TRUE_EXIT=0
+> (`.gate-runs/c68bb1f-20260819T121241Z.log`); **the SymbolFrequency
+> panic is GONE** (zero occurrences in the fresh artifact; upstream
+> #13202, OVERVIEW.md updated); golden BYTE-IDENTICAL, never repinned
+> (the two bump-flipped `type-set-fc` rows were diagnosed to 4.33
+> #13895 severing `dpLeafTactic`'s `trueListp_cdr_of_consp` row and
+> restored by the `consp` `instance_reducible` fix); zero
+> warnings/errors, no linter disabled; `linter.defProp` resolved by
+> Mike's ruling via the `replayed_theorem` macro-emitted theorem kind
+> (93/94 converted, 1 ruled fixture exemption; regression net:
+> statement-changed 0, kind-only 91); seam gate: 21 products / 59
+> seams; 3 receipts gained `Quot.sound` (pinned, in-family, no
+> sorryAx); `backward.*` ledger ZERO. **Merge candidate awaiting
+> explicit sign-off; never merged, never pushed.**
+> RESIDUE `--tstack=524288` — **CLEARED 2026-08-19** (release-hygiene
+> round, branch `mdd/release-hygiene`): the flag is REMOVED from both
+> `lean_lib` blocks in `lakefile.toml`. It had become an active
+> LIABILITY, not a safeguard — 512 MB is now BELOW the toolchain's own
+> default (4.30 #12971 / 4.33 #14343), so it was capping the worker
+> stack rather than raising it. Measured by three cold full builds
+> (`rm -rf .lake/build` each time) on the same source: WITH the flag
+> 31:42 (user 6146 s, peak RSS 9.40 GB); WITHOUT 32:37 (user 6414 s,
+> 9.24 GB) and 31:30 (user 5938 s, 9.40 GB). The two no-flag runs
+> differ from each other by 67 s (3.5%) and straddle the with-flag run,
+> so the removal is inside run-to-run variance on this (shared) box —
+> no regression. All three exited 0 with zero warnings and zero errors,
+> and the paths the flag was added for still elaborate: the usefi
+> capstones (`SortsEquivalent`, `BSsortsEquivalent` 3/3) build clean
+> with no "deep recursion was detected" and no SIGABRT.
+
+- [x] **DP-proof sorry/axiom gate — DONE 2026-08-19** (release-hygiene round).
+      The ask: `Meta.check` does NOT reject `sorryAx`, so scan emitted DP proof
+      terms for `sorryAx`/`Lean.ofReduceBool` mechanically. Landed as
+      `Driver/Discharge.checkDpProofClean` — a transitive constant walk (same
+      shape as `Runner.collectProofAxioms`, `allowOpaque := true` so v4.33's
+      opaque theorem values are seen through) for
+      `sorryAx`/`Lean.ofReduceBool`/`Lean.ofReduceNat`, called at
+      `proveDpFact`'s single return, i.e. at the EMISSION point, on BOTH
+      routes (bounded-direct and the value split) and on EVERY leaf the
+      carve-out emits. That placement is the point of it: the pre-existing
+      walks (`tryReplay`/`tryDischarge`'s trio filters, the waypoint `_driver`
+      axiom gate) only see leaves that reach a checked consumer, and the leaf
+      TACTIC is the one place in the replay where an arbitrary tactic script
+      runs. `Tests/TamperTests.lean` T5 pins that the speedbump is ARMED (all
+      three constants rejected, a clean term accepted), in the same
+      assert-the-joint-fires style as T1–T4. Runs in `just ci` via `test`
+      (T5) and via `build`/`driver-coverage` (every corpus leaf).
+      NOTE ON FORM: this is NOT a `scripts/check-*.sh` static, because a
+      static cannot see the thing being checked — DP-leaf proofs are anonymous
+      SUBTERMS of replay proofs, never declared constants, so there is nothing
+      on disk to grep. Deterrent standard: simple, one hunk, deletable. DO NOT
+      HARDEN IT.
+- [x] **c3 end-to-end audit (2026-06-09, task #38) — DONE.** 3 decorrelated
+      adversarial reviewers (schematic fidelity / statement / lemma soundness) +
+      per-finding independent verification. Statement + lemma dimensions: CLEAN
+      (statement = the genuine defthm mirror; hypotheses honest and non-vacuous;
+      `fix` matches axioms.lisp; axioms `[propext, Classical.choice, Quot.sound]`,
+      no cheats on the path). Fidelity: 1 critical refuted (relativizeFrames does
+      NOT over-strip — paths are absolute, verified against the raw log); the
+      solidify litFact "incoherence" finding refuted by spot-check (the spine
+      stores the BRIDGED proof at the post-rewrite value, Driver.lean
+      `replayClauseSpine`; any mismatch is a kernel type error). Actionable
+      residue landed: strip-scope docstring, strip-mismatch negative test, and a
+      type-PINNING `example` asserting the mirror's exact conditional statement
+      in Tests/DriverTests.lean.
+

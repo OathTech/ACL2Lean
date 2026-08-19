@@ -128,7 +128,7 @@ run_cmd do
       Rename the spec declaration (take the name from the ACL2 BOOK, \
       Lean-cased — `isort`/`msort`/`howMany` were derived that way); \
       the ACL2 rune stays in the docstring as the cross-reference. \
-      See the rule in ACL2Lean/Mirrors/Sorting.lean."
+      See the rule in this file's header (Tests/MirrorNameCheck.lean)."
   logInfo m!"mirror name check: {specs.length} spec names, no collision \
     with {libRoots} over carriers {carriers}"
 

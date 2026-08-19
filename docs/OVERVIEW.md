@@ -106,6 +106,15 @@ The kernel is the sole trust anchor, but it does not certify everything a
 reader might assume. Three properties are DISTINCT and separately enforced;
 conflating them is the standing documentation hazard here.
 
+**Independent validation.** The mirror products are additionally checked by
+[leanprover/comparator](https://github.com/leanprover/comparator) — statement
+match against a zero-import challenge file, a permitted-axioms check pinned to
+the classical trio, and replay of the exported proof terms from an empty
+environment by BOTH Lean's kernel and [nanoda](https://github.com/ammkrn/nanoda_lib),
+an independently developed Rust kernel. `just validate-products` runs it; the
+harness, its trust boundaries, and the tool-fetch instructions are in
+[`validation/README.md`](../validation/README.md).
+
 1. **Lean logical soundness — kernel-certified.** A declared Lean theorem
    follows from Lean's trusted basis plus its listed axioms (`propext`,
    `Classical.choice`, `Quot.sound`; a build-failing axiom gate pins the
@@ -282,7 +291,9 @@ lake exe acl2lean gen-world <file>      # generate World + theorem stubs from .l
 lake exe acl2lean eval "<expr>"         # evaluate an s-expression
 ```
 
-`just ci` is the conformance gate for a merge; `just claim-gate` is the full
+`just validate-products` re-checks the mirror products through the external
+comparator + nanoda kernels (see *Trust model*; tools fetched per
+`validation/README.md`). `just ci` is the conformance gate for a merge; `just claim-gate` is the full
 recorded gate required at any commit claiming green (see `CLAUDE.md` on the
 two gating tiers). When inspecting a proof, use `dump-proof-tree` — the flat
 log misleads about how nodes compose.

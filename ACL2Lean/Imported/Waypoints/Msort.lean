@@ -17,6 +17,9 @@ def msortDev : Development :=
 
 derive_world msortWorldD from msortDev
 
+-- hb guard: measured 358k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MERGE2's conditional replayed statement. -/
 replayed_theorem howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
@@ -39,7 +42,6 @@ theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
 
 #print axioms how_many_merge2_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-EVENS-AND-ODDS's conditional replayed statement. -/
 replayed_theorem howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
   "how-many-evens-and-odds" deps [convertPermDev]
@@ -65,7 +67,6 @@ theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
 
 #print axioms how_many_evens_and_odds_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- ORDEREDP-MSORT's replayed statement — now UNCONDITIONAL: its two
     `total:` hypotheses (`MERGE2`'s sum measure, `MSORT`'s EVENS/ODDS
     decrease) arrive by replay as of the R3 measure table (2026-08-14),
@@ -90,7 +91,6 @@ theorem orderedp_msort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_msort_native_driver
 
-set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MSORT's conditional replayed statement. -/
 replayed_theorem howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD
   "how-many-msort" deps [convertPermDev]

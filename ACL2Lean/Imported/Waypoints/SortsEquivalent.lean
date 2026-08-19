@@ -49,7 +49,13 @@ scope's WITNESS defuns do not appear in the consumer's world — and the
 `usefi` route is exactly the mechanism that does not need them. -/
 
 -- The SE world carries 215 defuns, so the `by decide` world facts of the
--- native entries below evaluate deeper than the default limit.
+-- native entries below evaluate deeper than the default limit (512).
+-- RECURSION-DEPTH sweep 2026-08-19: the three per-capstone
+-- `set_option maxRecDepth 1000000 in` raises that used to sit on the
+-- `replayed_theorem`s below were DELETED — the module elaborates clean
+-- under this file-level 100000 alone (probed 2026-08-19), so they were
+-- pure over-provision. The 100000 itself is still an UNPROFILED bound:
+-- named residue in the TODO heartbeat/recursion sweep item.
 set_option maxRecDepth 100000
 
 private def sortsEqLog : String :=
@@ -61,8 +67,10 @@ def sortsEqDev : Development :=
 
 derive_world sortsEqWorldD from sortsEqDev
 
+-- hb guard: measured 14.32M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
-set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for MSORT-IS-ISORT (the
     telescope is EMPTY — the row is unconditional). -/
 replayed_theorem msortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
@@ -87,8 +95,10 @@ theorem msort_is_isort_native_driver (xs : List SExpr) :
 
 #print axioms msort_is_isort_native_driver
 
+-- hb guard: measured 1.9M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
-set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for QSORT-IS-ISORT. -/
 replayed_theorem qsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
   "qsort-is-isort" with_termination usefi
@@ -133,8 +143,10 @@ is `REPLAYED ✓` with no trailing `cond[…]`, i.e. UNCONDITIONAL. The
 accurate half of the old record was the SECOND observation — the
 `usefi` bridge — which is what this row actually had to cross. -/
 
+-- hb guard: measured 1.72M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
-set_option maxRecDepth 1000000 in
 /-- The driver's CONDITIONAL replayed statement for BSORT-IS-ISORT. -/
 replayed_theorem bsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
   "bsort-is-isort" with_termination usefi

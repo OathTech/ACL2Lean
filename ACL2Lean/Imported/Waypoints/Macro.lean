@@ -59,7 +59,48 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
     them as independent arguments; a mismatched pair is fail-closed
     (the `by decide` world facts and defeq statement pins at every
     consumer die), never silently wrong, but the pairing itself is by
-    convention. -/
+    convention.
+
+    HEARTBEAT-BOUND POLICY for the `set_option maxHeartbeats N in` lines
+    that precede consumers of this macro (Mike's ruling at the
+    release-hygiene sweep, 2026-08-19 — the TODO "heartbeat hacking"
+    audit). Three rules, and they are the whole policy:
+
+    1. NO RAISE UNLESS THE DEFAULT IS INSUFFICIENT. A site whose measured
+       cost is under Lean's 200 000-unit default carries no
+       `set_option maxHeartbeats` at all — the default IS the alarm.
+       (54 such raises were deleted at the sweep; no tombstones are left
+       at their sites, the record is in the commit.)
+    2. A NEEDED RAISE STANDS UNMODIFIED, with its measured cost at the
+       site. It is not re-tuned in either direction: not snugged (that
+       manufactures corpus-calibrated failures — the #65 two-tier budget
+       trap) and not inflated into a generous envelope (that hides the
+       signal the number carries).
+    3. EVERY SURVIVING RAISE IS A DIAGNOSIS SITE. Mike: "there's often a
+       brute force way of solving a proof, by just letting Lean grind,
+       and a clever way with decomposition. So the heartbeat hacking is
+       not a trust issue, it's a sign that we maybe did the stupidest
+       thing rather than the 'right' thing." A step that burns millions
+       of heartbeats in one grind is a step that probably wants to be
+       several composed lemma applications. THE FIX FOR AN EXPENSIVE SITE
+       IS DECOMPOSITION, NEVER BUDGET ENGINEERING. The surviving sites
+       are triaged, with a burning-shape diagnosis each, in the TODO
+       heartbeat/recursion sweep item.
+
+    Why the bounds are alarms and not correctness gates: every one of
+    them wraps ONE invocation of this macro, and this macro does no PROOF
+    SEARCH — it walks a recorded ACL2 clause tree deterministically. A
+    raise cannot make a theorem replay that would otherwise have taken
+    some other route; there is no other route. What protects the replay
+    is the INTERNAL per-unit guards (`Runner.tryReplay` 3M/theorem, 10M
+    admission-class; `Runner.tryDischarge` 1M/DP-leaf;
+    `Harness.dischargeBudget` 3M/window; `Discharge.dpOnlyProverGuard`
+    1M), each with its own measured margin at its own docstring.
+
+    Units at every site are USER units (1 unit = 1000 heartbeats).
+    Re-measure with `lake env lean -D trace.profiler=true -D
+    trace.profiler.useHeartbeats=true <module>`; a number without a date
+    is stale by construction. -/
 syntax depsClauseDR := &" deps " "[" ident,* "]"
 
 elab "driver_replayed%" devId:ident worldId:ident nm:str
@@ -255,6 +296,15 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         { name := thmName, subst := sigma, formula := hypI }
       let key := thmName ++ "|" ++ toString (hash (toString (repr hypI)))
       unless preparedUseFi.any (·.1 == key) do
+        -- RECURSION-DEPTH guard (heartbeat/recursion sweep 2026-08-19,
+        -- status recorded honestly): 131072 = 256x the 512 default, landed
+        -- with the D2-a shallow-stack pre-pass (de629e9) as one of the three
+        -- pieces that eliminated the usefi SIGABRT class. The DEPTH DRIVER
+        -- IS UNPROFILED — `prepareUseFi` spends a native frame per telescope
+        -- binder, so the depth is O(#binders of the FI telescope), but no
+        -- measurement pins the constant. Same site as
+        -- Tests/Coverage/Harness's copy. Named residue in TODO
+        -- "heartbeat/recursion-limit raises".
         let (cName, argTys) ← Driver.withRealMaxRecDepth 131072 <|
           prepareUseFi crossDevs dev wVal wExpr spec termByFn libParametric
         preparedUseFi := preparedUseFi ++ [(key, cName, argTys)]

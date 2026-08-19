@@ -104,7 +104,7 @@ template failure — the generator fails CLOSED, which is the honest
 outcome. (A once-per-datatype constructor↦ACL2-value table for a
 closed enum in a `.fixed` position — the finite sibling of
 `Acl2Embed` — is the ruled next instance of this frame; it is NOT
-built, see `MirrorProofs/Sorting.lean`'s W3 for the measurement that
+built, see `MirrorProofs/SortingSquares.lean`'s W3 for the measurement that
 blocks it.)
 
 **Debt / FORBIDDEN-DEBT** — a fact ACL2 discharged whose replay route

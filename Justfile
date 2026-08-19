@@ -273,3 +273,13 @@ lint-sh:
     # silencing.
     shellcheck -x -P scripts scripts/*.sh
     echo "shellcheck: all scripts clean"
+
+# Independent validation of the mirror products via the Lean FRO comparator
+# (kernel + nanoda replay from exported terms; see validation/README.md).
+# Requires the tools fetched per that README ("Fetching the tools").
+validate-products:
+    cd validation && ./link-parent-libs.sh
+    cd validation && COMPARATOR_LANDRUN=$PWD/tools/landrun/landrun \
+      COMPARATOR_LEAN4EXPORT=$PWD/tools/lean4export/.lake/build/bin/lean4export \
+      COMPARATOR_NANODA=$PWD/tools/nanoda_lib/target/release/nanoda_bin \
+      lake env ./tools/comparator/.lake/build/bin/comparator comparator-config.json

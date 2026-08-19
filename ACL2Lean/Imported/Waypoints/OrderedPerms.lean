@@ -74,16 +74,15 @@ theorem equal_cons_native_driver (av bv xv : SExpr) :
 
 #print axioms equal_cons_native_driver
 
--- v4.33 (4.31 #13030): the heartbeat counter now also counts allocations
--- (the release notes' own guidance is a 20–50% budget bump); this replay sat
--- just under the 200000 default and now trips it at an `isDefEq`.
-set_option maxHeartbeats 400000 in
 /-- TRUE-LISTP-RM's replayed statement (unconditional) — registered so the
     capstone's `rule:TRUE-LISTP-RM` discharge takes the registry route
     (its re-replay inside the consumer telescope frontiers). -/
 replayed_theorem trueListpRmReplayed := driver_replayed% orderedPermsDev
   orderedPermsWorldD "true-listp-rm"
 
+-- hb guard: measured 628k user units vs bound 3.2M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for ORDERED-PERMS — the
     book's capstone (deps: the perm book, riding the 2a trees + P3
@@ -159,6 +158,9 @@ theorem ordered_perms_native_perm_driver (xs ys : List SExpr)
 #print axioms ordered_perms_native_driver
 #print axioms ordered_perms_native_perm_driver
 
+-- hb guard: measured 430k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-MEMB (one
     hypothesis: `rule:DEFAULT-CAR`). The raised heartbeat budget covers

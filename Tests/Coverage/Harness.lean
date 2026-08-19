@@ -129,7 +129,33 @@ def depPayload (dep : String) :
   return (dep, dev, bookTrees dev, allBookRules dev)
 
 /-- Run ONE corpus book with the sweep's exact semantics and check its
-    golden section byte-exactly; emits `covCounts_<sanitized>`. -/
+    golden section byte-exactly; emits `covCounts_<sanitized>`.
+
+    HEARTBEAT BOUNDS AT THE CALL SITES (release-hygiene sweep, 2026-08-19 —
+    the TODO "heartbeat hacking" audit; the policy itself is written out at
+    `driver_replayed%` in Waypoints/Macro.lean and applies unchanged here).
+    A book's elaboration is a whole corpus book's replay: `runBook` walks
+    every theorem's recorded clause tree and every DP leaf, deterministically.
+    Every book was MEASURED; 19 of the 29 came in under Lean's 200 000-unit
+    default and their `set_option maxHeartbeats 0` lines were DELETED — the
+    default is the alarm. The 10 that exceed it keep `0` UNMODIFIED, each with
+    its measured total at the site.
+
+    `0` (no bound at all) is the right shape for the ones that keep it,
+    because the guards that actually protect the run are INTERNAL and per
+    unit of work (`Runner.tryReplay` 3M user units per theorem / 10M
+    admission-class, `Runner.tryDischarge` 1M per DP leaf): one pathological
+    theorem or leaf is caught by ITS OWN guard while the rest of the book
+    still reports, and any per-book number here would be a corpus-calibrated
+    bar of exactly the kind the #65 two-tier budget policy bans.
+
+    A book total is a SUM over many replays and leaves, not one grind — so
+    these sites are the corpus-cost headline, not decomposition targets in
+    themselves. The per-theorem sites that ARE targets are triaged in the
+    TODO item. Measured range 2026-08-19: 5k (`09-defn-unfold`) to 12.43M
+    (`sorting/sorts-equivalent`), USER units (1 unit = 1000 heartbeats).
+    Re-measure with `lake env lean -D trace.profiler=true -D
+    trace.profiler.useHeartbeats=true <module>`. -/
 elab "coverage_book% " nameLit:str : command => do
   let name := nameLit.getString
   liftTermElabM do
@@ -228,6 +254,10 @@ elab "coverage_book% " nameLit:str : command => do
                   -- declines and the capstone rows stay on the honest
                   -- offer route (unlocks = with_termination coverage +
                   -- TP-replay discharge).
+                  -- RECURSION-DEPTH guard: see the twin site in
+                  -- Waypoints/Macro.lean for the verdict — landed with the
+                  -- D2-a shallow-stack pre-pass, depth driver UNPROFILED,
+                  -- named residue in the TODO sweep item.
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
                     ACL2.Imported.Waypoints.prepareUseFi crossDevs

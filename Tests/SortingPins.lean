@@ -343,8 +343,9 @@ Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]"),
     HOW-MANY-BNEXT + QSORT termination replayed statement)"
   return mkConst ``True.intro
 
--- unlimited at the command like the coverage sweep — the harness enforces
--- REAL per-theorem budgets internally (withRealMaxHeartbeats)
+-- hb guard: measured 8.67M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 replayed_theorem sortingStatementPinsRun := sorting_statement_pins_run%
 
@@ -701,6 +702,9 @@ elab "p3_conj_statement_pin_run% " : term => do
   logInfo "p3-conj statement pin: replay status holds (ORDD-INS-MID)"
   return mkConst ``True.intro
 
+-- hb guard: measured 3.73M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 replayed_theorem p3ConjStatementPinRun := p3_conj_statement_pin_run%
 
@@ -894,7 +898,6 @@ elab "pattern_statement_pins_run% " : term => do
     P7-TARGET, SAME-LN-IMPLIES-EQUAL-LN-1)"
   return mkConst ``True.intro
 
-set_option maxHeartbeats 0 in
 replayed_theorem patternStatementPinsRun := pattern_statement_pins_run%
 
 /-- PIN the machine-generated statement of `DUPP-REP-MID` (p5): the replayed statement
