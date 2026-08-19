@@ -288,7 +288,9 @@ theorem evalOpt_fnfree_agree (names : List Symbol) (w w' : World)
               | none => rfl
               | some argVals =>
                 refine some_bind_congr argVals ?_
-                dsimp only []
+                -- v4.33 (4.31 #13807): the goal now arrives beta-reduced, so
+                -- the `dsimp only []` step that stood here made no progress
+                -- and was deleted.
                 have hs : names.contains s = false := by
                   cases hns : names.contains s with
                   | false => rfl

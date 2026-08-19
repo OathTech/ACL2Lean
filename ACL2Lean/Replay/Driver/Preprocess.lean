@@ -271,10 +271,12 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
     unless curL == cur do
       throwError "replayPreprocessChain: reconstructed {repr curL} ≠ current {repr cur}"
     -- compose
+    -- v4.33 (4.32 #13912): `return` inside an embedded `(← match …)` now
+    -- early-returns the ENCLOSING `do`; `pure` keeps the old meaning.
     acc := some (← match acc, innerIff with
       | none, _ => pure (inner, innerIff)
       | some (a, false), false =>
-        return (← mkAppM ``fuel_chain_eq #[a, inner], false)
+        pure (← mkAppM ``fuel_chain_eq #[a, inner], false)
       | some (a, aIff), _ => do
         -- iff composite: inject any eval-equality side via refinement
         let aS ← if aIff then pure a else do
@@ -283,7 +285,7 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         let iS ← if innerIff then pure inner else do
           let pConv ← ctxValProof cfg ctx curR
           mkAppM ``evrel_of_fuel_eq #[mkConst ``siff_refl, inner, pConv]
-        return (← mkAppM ``evrel_trans #[mkConst ``siff_trans, aS, iS], true))
+        pure (← mkAppM ``evrel_trans #[mkConst ``siff_trans, aS, iS], true))
     cur := curR
   return (acc, cur)
 

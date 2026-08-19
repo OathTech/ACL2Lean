@@ -172,7 +172,9 @@ where
       match env.find? c with
       | none => go rest (c :: seen) out
       | some ci =>
-        let used := (ci.value?.getD ci.type).getUsedConstants.toList
+        -- v4.33 (4.30 #12973): `allowOpaque` so theorem satellites keep
+        -- contributing their VALUE's constants, as before the bump
+        let used := ((ci.value? (allowOpaque := true)).getD ci.type).getUsedConstants.toList
         let (sat, other) := used.partition (execName.isPrefixOf ·)
         go (sat ++ rest) (c :: seen) (other ++ out)
 
@@ -367,7 +369,7 @@ syntax (name := deriveSimCmd)
   let bad :=
     match env'.find? thmName with
     | none => true
-    | some ci => ((ci.value?.getD ci.type).hasSorry)
+    | some ci => (((ci.value? (allowOpaque := true)).getD ci.type).hasSorry)
   if bad then
     throwError "derive_sim%: the iso template did not close \
         {thmId.getId} — the chosen NATIVE READING DOES NOT ALIGN WITH \

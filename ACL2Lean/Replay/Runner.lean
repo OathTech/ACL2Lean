@@ -228,7 +228,10 @@ def collectProofAxioms (e : Expr) : MetaM (List Name) := do
     match env.find? c with
     | some (.axiomInfo _) => axioms := axioms ++ [c]
     | some ci =>
-      if let some v := ci.value? then
+      -- v4.33 (4.30 #12973): theorems are opaque — `.value?` returns none
+      -- without `allowOpaque`, which would silently DROP axioms reached
+      -- through theorem proofs from this walk.
+      if let some v := ci.value? (allowOpaque := true) then
         work := work ++ v.getUsedConstants.toList
     | none => pure ()
   return axioms.eraseDups

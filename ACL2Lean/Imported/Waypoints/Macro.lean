@@ -39,7 +39,9 @@ def seamReachesAny? (env : Lean.Environment) (start : Lean.Name)
           found := some c
         else if expandUnder.any (·.isPrefixOf c) then
           if let some ci := env.find? c then
-            if let some v := ci.value? then
+            -- v4.33 (4.30 #12973): theorem values need `allowOpaque`,
+            -- or the seam walk cannot see through in-namespace theorems
+            if let some v := ci.value? (allowOpaque := true) then
               frontier := v.getUsedConstants.toList ++ frontier
     return found
 

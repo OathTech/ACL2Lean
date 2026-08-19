@@ -74,6 +74,10 @@ theorem equal_cons_native_driver (av bv xv : SExpr) :
 
 #print axioms equal_cons_native_driver
 
+-- v4.33 (4.31 #13030): the heartbeat counter now also counts allocations
+-- (the release notes' own guidance is a 20–50% budget bump); this replay sat
+-- just under the 200000 default and now trips it at an `isDefEq`.
+set_option maxHeartbeats 400000 in
 /-- TRUE-LISTP-RM's replayed statement (unconditional) — registered so the
     capstone's `rule:TRUE-LISTP-RM` discharge takes the registry route
     (its re-replay inside the consumer telescope frontiers). -/
