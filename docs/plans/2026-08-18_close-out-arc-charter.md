@@ -374,3 +374,102 @@ successfully around it.
 
 The branch is a merge candidate. NOT merged, NOT pushed — awaiting
 explicit approval at the moment of merge.
+
+## EXTERNAL REVIEWER ROUND + FIX BATCH (2026-08-19, branch `mdd/reviewer-fixes`)
+
+An EXTERNAL reviewer (outside the arc, outside the audit round above) was
+pointed at the repository's public top-level claims — principally the new
+front-page `README.md` — and read them against the live declarations, the
+ACL2 sorting books, the provenance/proof-log gates, the mirror assembly, and
+this project's own canonical trust model. The report is committed VERBATIM,
+before any fix, as `docs/audits/2026-08-19_top-level-claims-audit.md`
+(commit `24b075f`), so the claim and the response stay separable in history.
+
+**Nothing it found touched soundness.** It re-established mechanically, and
+we did not dispute: fifteen sorting `Prop`s with fifteen `mirror_transport%`
+products and fifteen guarded receipts, the products ACL2-free, the seam gate
+reporting 21 products each with a replayed-statement witness, 91 logs stamped
+at the pinned submodule commit with all four negative fixtures failing closed,
+`just test` exit 0. Every finding landed on the CLAIMS and the RECORDS — the
+two classes the two-standard rule reserves adversarial review for — and the
+harshest of them was ours: a binding document that had gone stale under a
+result it was supposed to describe.
+
+The batch, Mike-triaged, docs-only, in one commit (`755f3cb`):
+
+1. **`README.md` — three sentence replacements, Mike-blessed verbatim, plus
+   one count.** The fifteen products are INSTANCE products (fourteen at
+   `Int`, `permWitness_complete_optint` at `Option Int`) and one of them —
+   `permuted_equivalence_int` — bundles THREE replayed theorems, so
+   "the corresponding `defthm`" became "the corresponding theorem" with the
+   bundle disclosed. The trust paragraph now separates what the kernel
+   certifies (the theorems) from what is enforced one level down (generated
+   templates, provenance hashes, seam gates — named as strong engineering
+   evidence, "deliberately distinguished from the kernel's guarantee").
+   "No `sorry` … anywhere" became "in anything checked", with the native
+   termination lemmas described as they are: a handful, two of which are
+   themselves named ACL2 book theorems. The Learn-more bullet's
+   "seven-stage pipeline" is now NINE, matching the document it names.
+2. **`CLAUDE.md` — the P1, and the one that mattered.** Its trust note still
+   said the bridge "reaches only the WAYPOINT layer" and called the product
+   layer a north star — text that had been false since the arc exit above,
+   in the file that binds every agent. Refreshed and dated: for the
+   DEMONSTRATED CORPUS the fully-untrusted property is LIVE (21 products,
+   receipts pinned, seam-gated), and the caution is re-aimed at the two
+   places it still binds — BREADTH beyond that corpus, and
+   ATTRIBUTION/FIDELITY, where statement authenticity and replay fidelity
+   are engineering-evidenced and never kernel-certified ("Never report it as
+   one"). "Suspect any stage" is kept, pointed at every new import. The
+   Current-status paragraph now records the 2026-08-19 close-out.
+3. **`docs/plans/2026-08-12_master-plan.md` — a disposition note, not a
+   rewrite.** The dated plan keeps its text; a header note marks its
+   "13 Props" figure and its still-open sorting description superseded (the
+   reshape's fifteen, the close-out's 15/15) and states what still governs:
+   the two-category model and Track FREE / Track REAL.
+4. **`docs/OVERVIEW.md` — the fresh-clone instruction was WRONG, and the
+   reviewer proved it from the build graph.** The reduced capture (simple +
+   recon-tests) cannot build the default targets: `defaultTargets` → `Main`
+   → the root `ACL2Lean` library → the sorting mirror proofs, and the
+   waypoint modules `include_str` their books' logs at compile time.
+   `just recapture-all` is now the instruction. The reduced path was not
+   kept on faith — the one genuinely smaller cone was MEASURED (import
+   closure of `ACL2Lean.Replay.Runner`: 66 modules, zero `Imported/`, one
+   compile-time log, `simple.proof-log`) and is documented as the focused
+   `acl2lean-replay` dev loop, explicitly not a way to build the library.
+   Separately, the quoted 2026-08-16 TCB passage keeps its wording as dated
+   history and gains a current-disposition line: the mirror-level seam gate
+   it records as ABSENT now exists and finds 21 products mechanically — and
+   its conclusion ("strongly-evidenced engineering, not mathematics") is
+   unchanged and still governs.
+5. **The PANIC (P2) — investigated, then DOCUMENTED, because no switch
+   exists.** Lean's own `LibrarySuggestions.SymbolFrequency` runs its
+   `exportEntriesFnEx` over a module's constants AT EXPORT and blows its
+   heartbeat budget on our heaviest coverage modules. There is no
+   project-local way to turn it off: the extension is
+   `builtin_initialize`-registered in the shared library, carries no
+   `register_builtin_option` gate and no `lean` CLI flag, and its budget is
+   unreachable — `Environment.unsafeRunMetaM` builds a FRESH `Core.Context`
+   with `options := {}` and `maxHeartbeats` defaults off THOSE options
+   (`Lean/CoreM.lean:217,225`, v4.28.0 source), so neither `set_option
+   maxHeartbeats` nor `-DmaxHeartbeats=…` reaches it. Classified instead in
+   `docs/OVERVIEW.md` § *Building and commands* (post-elaboration pass, no
+   olean / receipt / `#guard_msgs` pin / golden row / gate reads it, gate
+   `TRUE_EXIT=0` alongside) and tracked in `TODO.md`, with the line that
+   matters written down: it is never a licence to wave through a real proof,
+   replay or gate failure.
+
+**GATE.** Full claim gate `TRUE_EXIT=0` on `755f3cb`, artifact
+`.gate-runs/755f3cb-20260819T070120Z.log`: statics green (shellcheck clean,
+`check-log-provenance` 91 logs at `e8d78e513d68`, `check-pattern-map` 61
+books, `check-mirrors-pure`, `check-dark-files` 183 sources, the provenance
+gates failing closed), `lake build` **zero warnings**, `just test`, sweep
+**116/116** (116 unconditional, 0 conditional), `check-golden-current: golden
+matches the live assembly`, zero `sorry` / `native_decide` in the log. The
+diff is documentation ONLY — no `.lean`, no build configuration, no corpus —
+so the coverage golden is byte-identical by construction as well as by cmp.
+Disclosed, unchanged and now classified above: the log carries the same three
+non-fatal `LibrarySuggestions.SymbolFrequency` panics; the build completes
+successfully around them.
+
+The branch is a merge candidate. NOT merged, NOT pushed — awaiting explicit
+approval at the moment of merge.
