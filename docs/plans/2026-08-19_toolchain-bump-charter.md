@@ -285,3 +285,17 @@ Target state, item by item, all verified on the fresh artifact:
 **Merge candidate: this branch (`mdd/toolchain-bump`), at the claim-point
 commit. Not merged, not pushed — per the law, merge only on explicit
 sign-off at the moment of merge.**
+
+## RELEASE POINT — v0.1.0 (2026-08-19)
+
+The release claim gate: **TRUE_EXIT=0 on 2e4246c** (artifact:
+`.gate-runs/2e4246c-20260819T212249Z.log` — zero warnings, zero
+errors, zero SymbolFrequency, sweep 116/116, golden matches). The
+assembled tree: the v4.33.0 bump, the release-hygiene round (raise
+policy + DP scan + tstack removal), the independent-validation
+harness (comparator + nanoda, verdict clean, negative control
+demonstrated), the sorting-mirror shop-window polish, and the full
+docs package (OVERVIEW/LEXICON/TODO restructure, versioning policy,
+heartbeat policy, trust reframe). Tagged v0.1.0 per
+`docs/notes/2026-08-19_versioning-policy.md`, tag text blessed by
+Mike verbatim.
