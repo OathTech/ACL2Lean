@@ -485,10 +485,10 @@ induction. Measured, not argued — see the arc's report. -/
 
     `intEmbed` PROVABLY CANNOT: its image is `.atom (.number (.int ·))`
     and never `nil`. That is not an opinion about difficulty — it is
-    kernel-refuted, and the refutation is cited below (wave 2e's
-    `conditional_elem_square_false`, in the record section; it stands and
-    is the REASON for the element type, not an obstacle that was worked
-    around).
+    kernel-refuted by the LIVE THEOREM `conditional_elem_square_false`
+    below (first proved in wave 2e; elaborated on this page, with its
+    axiom receipt pinned). It stands, and is the REASON for the element
+    type, not an obstacle that was worked around.
 
     `Option Int` is the type at which ACL2's junk value is a VALUE of the
     Lean type rather than an invented one: `Option`'s own `default` is
@@ -571,20 +571,43 @@ mirror's), and `howMany_map_invariant` is reported UNUSED, which is the
 precise statement of the gap: it cannot fire until the WITNESS ARGUMENT
 is `e.enc (permWitness xs ys)`, i.e. until the ELEMENT-RESULT
 homomorphism square exists. That square is FALSE, and the refutation is
-kernel-checked rather than argued (wave 2e, at a point the then-ruled
-precondition ADMITTED — so it refutes the square for the unconditional
-`Prop` a fortiori):
+kernel-checked rather than argued: it is the LIVE THEOREM immediately
+below — elaborated on this page, with its axiom receipt pinned — stated
+(as in wave 2e, where it was first proved) at a point the then-ruled
+precondition ADMITTED, so it refutes the square for the unconditional
+`Prop` A FORTIORI. -/
 
-```
+/-- **THE ELEMENT-RESULT SQUARE IS FALSE AT `Int`** — the refutation the
+    section above cites, kernel-checked rather than argued, and the
+    REASON `permWitness_complete`'s product lives at `Option Int`.
+
+    The counterexample is `xs = ys = [1]`: a permuting pair, so the walk
+    bottoms out at `permWitness [] []` and both sides return their own
+    type's junk value — `(0 : Int)` on the mirror side, `nil` on the
+    encoded side — and `intOrderedEmbed.enc 0` is an integer ATOM, never
+    `nil`. Nothing about the difficulty of a proof: the two values are
+    distinct and `decide` says so.
+
+    Stated with wave 2e's precondition `(xs ≠ [] ∨ ys ≠ [])` still on it,
+    which the counterexample SATISFIES — so this refutes the square for
+    the unconditional `Prop` the spec now carries a fortiori. (The
+    statement mentions `intOrderedEmbed`, so the mirror seam gate's
+    mechanical product criterion correctly does not count it as a
+    product: it is a refutation about the encoding, not a mirror.) -/
 theorem conditional_elem_square_false :
     ¬ (∀ (xs ys : List Int), (xs ≠ [] ∨ ys ≠ []) →
         Sorting.permWitness (List.map intOrderedEmbed.enc xs)
             (List.map intOrderedEmbed.enc ys)
           = intOrderedEmbed.enc (Sorting.permWitness xs ys)) := by
-  intro h; have hc := h [1] [1] (Or.inl (by simp)); exact absurd hc (by decide)
-```
+  intro h
+  have hc := h [1] [1] (Or.inl (by simp))
+  exact absurd hc (by decide)
 
-AND THE CHARACTERISATION, which is what makes it structural rather than
+/-- info: 'ACL2Lean.MirrorProofs.conditional_elem_square_false' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs (whitespace := lax) in
+#print axioms conditional_elem_square_false
+
+/-! AND THE CHARACTERISATION, which is what makes it structural rather than
 a boundary case: `permWitness xs ys` IS the junk value on the ENTIRE
 `Permuted` half. The walk consumes `xs`, removing each element from
 `ys`; it reaches `permWitness [] []` exactly when every element of `xs`
