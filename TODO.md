@@ -5066,6 +5066,13 @@ obligation is stated precisely in its conditional proof's type:
       circle-breakers.
 - [ ] **Mirror-statement builder / `gen-world`** (`WorldGen.lean`) — completeness &
       correctness for new theorems the driver targets.
+      **RE-TAGGED CONVENIENCE (Mike, 2026-08-19):** this is NOT the second
+      trust-note circle-breaker and not a 1.0 prerequisite. On the product
+      path the user authors the idiomatic Lean `Prop` and the kernel covers
+      it, so statement derivation is automation convenience; attribution
+      stays review-checked and the caveat keeps its force only on the
+      un-mirrored METRIC layer. Rationale + the withdrawn 1.0 bar:
+      `docs/notes/2026-08-19_versioning-policy.md`.
 - [ ] **Reconstruction coverage** — work through `docs/notes/2026-06-07_silent-drop-inventory.md`
       and the recon-tests findings; ensure no silent drops.
 

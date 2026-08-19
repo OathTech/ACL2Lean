@@ -27,27 +27,62 @@ Three things stay in sync at every release:
 
 | bump | means |
 | --- | --- |
-| **MINOR** (`0.N.0`) | a **capability or corpus milestone**: a new mirrored book family, a named broadening of what the pipeline handles, or a structural gate landing (the statement-identity gate is the archetype). |
+| **MINOR** (`0.N.0`) | a **capability or corpus milestone**: a second (third, …) mirrored book family, a named broadening of what the pipeline handles, workflow ergonomics for user-authored statements, or `gen-world` automation landing. |
 | **PATCH** (`0.N.P`) | fixes and documentation. No new capability claimed. |
 | **MAJOR** | **reserved** — see the 1.0.0 bar below. |
 
 ### The ratified 1.0.0 bar
 
-`1.0.0` is not a maturity vibe; it is two concrete things, both required:
+**`1.0.0` = the importer demonstrated at full ACL2 scale — EITHER coverage of
+essentially all reasonable community books, OR end-to-end replay-and-mirror of
+one vast industrial development (e.g. an ISA semantics model such as
+`x86isa`).**
 
-1. **The independent statement frontend is wired into the certified
-   pipeline.** `gen-world` / `Translator.lean` must produce the replayed
-   statement, closing the statement-derivation caveat that stands today:
-   *the statement currently comes from the same untrusted fork emission as
-   the proof* (`docs/OVERVIEW.md` § *The pipeline*, stage 5), anchored to the
-   `.lisp` source only by sidecar hashes and hand statement pins. Until an
-   independent frontend derives the statement from the source, statement
-   authenticity rests on provenance and pins rather than on two independent
-   derivations agreeing.
-2. **At least one mirrored corpus beyond sorting.** One demonstrated corpus
-   is an existence proof; two is evidence of a method.
+Mike, 2026-08-19, verbatim:
 
-Both, together. Neither alone promotes the major version.
+> I think 1.0.0 would be *complete coverage* of ACL2 - all reasonable books.
+> Or maybe replaying some vast book, one of the ISA semantics books.
+
+Either disjunct suffices; both are scale demonstrations rather than
+architectural checkboxes. Everything short of that is a `0.x` MINOR — a second
+mirrored corpus, user-authored-statement workflow ergonomics, named
+broadenings of what the pipeline handles, `gen-world` automation.
+
+### The withdrawn bar, and why (2026-08-19)
+
+An earlier draft of this note set the bar at *the independent statement
+frontend (`gen-world`/`Translator`) wired into the certified pipeline, plus at
+least one mirrored corpus beyond sorting*. **That bar is WITHDRAWN.** It rests
+on treating statement derivation as a trust surface, and Mike re-ruled that
+framing on 2026-08-19, verbatim:
+
+> I actually think the aim for the statement to come from the ACL2 book isn't
+> quite right - If we think about what the user wants here, it seems reasonable
+> they would write some somewhat idiomatic Lean themselves. This isn't really a
+> trust surface, it's just automation convenience.
+
+**The analysis this rests on.** On the PRODUCT path the user authors the
+idiomatic Lean `Prop` and the kernel covers it end to end. If statement
+derivation produced something divergent, one of two things happens, and
+neither is a false user-facing theorem: the transport either **fails to
+close** — loud incompleteness, the honest outcome — or it **closes**, in which
+case the replayed statement still entails the user's own `Prop`, which is the
+theorem the kernel then certifies. A wrong statement cannot make the user's
+`Prop` true. So the risk statement derivation carries is not soundness.
+
+What the caveat does still cover is narrower, and stays on the books:
+
+- **Attribution** — that a product is the ACL2 theorem it is named for. This
+  is review-checked (the bijection reading of spec against book, plus the hand
+  statement pins as honest-mistake tripwires, not trust anchors), exactly as
+  `docs/OVERVIEW.md` § *Trust model* property 2 says.
+- **The METRIC layer** — un-mirrored replayed statements and waypoints, where
+  no user-authored `Prop` sits downstream to catch a divergence. There the
+  caveat has full force; it is also why the lexicon forbids presenting those as
+  results.
+
+`gen-world` therefore moves to the **convenience backlog**: automation that
+saves the user writing the statement, not a trust prerequisite.
 
 ## v0.1.0 — the first release
 

@@ -45,16 +45,26 @@ proof search is this repository's code**, and can contain bugs.
    development: the clause tree ACL2's waterfall actually is, with per-literal
    rewriter detail hanging off the simplification nodes. Linking is
    deterministic and unlinkable structure hard-fails.
-5. **Statement derivation** — the stage that decides *what theorem we are
-   proving*. **As wired today this is the PROOF-LOG path** (audit 2026-07-26
-   F5b): the certified `World` is `Development.toWorld` from the log's
-   `:DEFUN` events, and the replayed statement is truth of the log's root Goal
-   clause — i.e. the statement comes from the same untrusted emission as the
+5. **Statement derivation** — the stage that decides *what theorem the replay
+   discharges*. **As wired today this is the PROOF-LOG path** (audit
+   2026-07-26 F5b): the certified `World` is `Development.toWorld` from the
+   log's `:DEFUN` events, and the replayed statement is truth of the log's
+   root Goal clause — i.e. it comes from the same untrusted emission as the
    proof, anchored to the `.lisp` source by the sidecar source hashes and the
-   hand statement pins. `ACL2Lean/WorldGen.lean` / `ACL2Lean/Translator.lean`
-   translate the source directly and are the intended INDEPENDENT frontend,
-   but they are **not** in the certified pipeline yet (tracked; the follow-on
-   arc's statement-identity gate).
+   hand statement pins. **This is not a trust surface on the product path**
+   (ruled 2026-08-19): the user writes the idiomatic Lean `Prop` they want,
+   and the kernel covers it end to end — a divergent replayed statement either
+   fails to close the transport (loud incompleteness) or closes it, in which
+   case it still entails the user's `Prop`. What the stage does bear on is
+   ATTRIBUTION (that a product is the ACL2 theorem it is named for —
+   review-checked, with the statement pins as honest-mistake tripwires) and
+   the METRIC layer, where no user-authored `Prop` sits downstream; see
+   [*Trust model*](#trust-model) and
+   [*Known limitations*](#known-limitations). `ACL2Lean/WorldGen.lean` /
+   `ACL2Lean/Translator.lean` translate the `.lisp` source directly and would
+   derive the statement without the fork's help; they are **not** wired in
+   today, and that is **automation convenience** — saving the user from
+   writing the statement — not a trust prerequisite.
 6. **ACL2-logic interpreter** (`ACL2Lean/EvalOpt.lean`,
    `ACL2Lean/Logic.lean`) — the fuel-bounded semantic model that *defines*
    what the replayed statement means. It is run as a PEER of ACL2 (same
@@ -110,8 +120,13 @@ conflating them is the standing documentation hazard here.
    presented under the intended name (BUG-019 was a concrete incident of
    exactly this class). Enforced instead by source/include-closure hash
    provenance with fatal capture (`scripts/check-log-provenance.sh`), hand
-   statement pins per book (the `Tests/*Pins*.lean` class), tamper tests, and
-   adversarial audits.
+   statement pins per book (the `Tests/*Pins*.lean` class — honest-mistake
+   tripwires, never trust anchors), tamper tests, review of the spec-against-
+   book reading, and adversarial audits. Note what this property is *not*: on
+   the product path the user's own idiomatic `Prop` is what the kernel
+   certifies, so a divergence here costs ATTRIBUTION (the right theorem under
+   the wrong name, or a failure to close), never the truth of the theorem the
+   user reads.
 3. **Replay fidelity — engineering evidence, not kernel-certified.** That the
    proof retraces ACL2's recorded reasoning rather than taking a stronger
    Lean-side route is enforced by the replay drivers' hard-fail frontiers, the
@@ -353,11 +368,12 @@ decision-procedure leaves awaiting an SMT backend.
   calibrated heuristic that predicts which replay route can discharge rather
   than reading a recorded route choice.
 
-**Translator scope.** `gen-world` (stage 5's intended independent frontend)
-currently handles `defun` / `defthm` / `mutual-recursion` / `local` /
-`in-theory`; `encapsulate`, `include-book`, `defconst`, macros, stobjs and
-guard verification are rejected fail-closed, so the larger ACL2 books are
-aspirational targets rather than passing imports. The intended scope (a CORE
+**Translator scope.** `gen-world` (the source-side frontend — automation
+convenience, not a trust prerequisite; see stage 5) currently handles `defun` /
+`defthm` / `mutual-recursion` / `local` / `in-theory`; `encapsulate`,
+`include-book`, `defconst`, macros, stobjs and guard verification are rejected
+fail-closed, so the larger ACL2 books are aspirational targets rather than
+passing imports. The intended scope (a CORE
 tier targeting roughly the Milawa fragment plus the ratified carve-out, with
 EXTENDED and OUT tiers) is set out in
 [`plans/2026-06-10_generality-design.md`](plans/2026-06-10_generality-design.md)

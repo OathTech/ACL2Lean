@@ -51,10 +51,14 @@ those failures are invisible to the Lean kernel (see the trust note below).
    `Tests/DriverTests.lean` (a handful of theorems; the rest are
    type/axiom-checked but compared to nothing). `WorldGen.lean` /
    `Translator.lean` (`gen-world`) translate the `.lisp` source directly
-   and are the intended independent frontend, but they are NOT in the
-   certified pipeline yet (a tracked TODO item) — the reader they use had
-   a fail-open tokenizer gap (BUG-020, fixed 2026-07-26) that was a
-   prerequisite for that wiring.
+   and are NOT wired in — which is **automation convenience, not a trust
+   prerequisite** (Mike, 2026-08-19: the user writes the idiomatic Lean
+   `Prop` themselves, and the kernel covers it end to end, so a divergent
+   replayed statement either fails to close or still entails the user's
+   `Prop`; what remains at stake is ATTRIBUTION and the un-mirrored METRIC
+   layer — `docs/notes/2026-08-19_versioning-policy.md`). The reader they
+   use had a fail-open tokenizer gap (BUG-020, fixed 2026-07-26) that was
+   a prerequisite for that wiring.
 6. **ACL2-logic interpreter** — `EvalOpt.lean` (`evalOpt`, fuel-bounded) +
    `Logic.lean` (the primitives): the Lean semantic model that *defines what the
    replayed statement means*. If this diverges from ACL2's semantics, a "correct"
