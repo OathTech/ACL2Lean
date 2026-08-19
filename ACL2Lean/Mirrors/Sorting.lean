@@ -167,7 +167,7 @@ class TotalOrder (α : Type u) extends LE α where
   le_total : ∀ a b : α, a ≤ b ∨ b ≤ a
   decLE : DecidableRel (α := α) (· ≤ ·)
 
-attribute [instance] TotalOrder.decLE
+attribute [instance_reducible, instance] TotalOrder.decLE
 
 /-- Strict order, derived: `a < b` iff not `b ≤ a`. -/
 instance (priority := low) {α : Type u} [TotalOrder α] : LT α :=
