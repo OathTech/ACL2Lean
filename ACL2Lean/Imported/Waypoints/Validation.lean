@@ -151,7 +151,9 @@ theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
     have hcar0 := conv_builtin1 p5WorldD env { name := "CAR" } p5xT
       (.cons e (enc tl)) (Logic.car (.cons e (enc tl))) (by decide)
       (by decide) hx (callBuiltin_car _)
-    simpa [Logic.car] using hcar0
+    -- v4.33 (4.31 #13636): name the plain-`def` `app1`/`app2` under the
+    -- `carT`/`consT` abbrevs explicitly (reducible-transparency close).
+    simpa [Logic.car, app1] using hcar0
   have heqcar : ∃ N, ∀ f ≥ N,
       evalOpt f p5WorldD env (equalT (carT p5xT) p5eT)
       = some (Logic.equal e e) :=
@@ -207,7 +209,7 @@ theorem p5_dupp_prepend_native_driver (e : SExpr) (tl : List SExpr)
     have h0 := conv_builtin2 p5WorldD env { name := "CONS" } p5eT p5xT
       e (enc (e :: tl)) (Logic.cons e (enc (e :: tl))) (by decide)
       (by decide) he hx (callBuiltin_cons _ _)
-    simpa [Logic.cons, enc] using h0
+    simpa [Logic.cons, enc, app2] using h0
   have hdupcons : ∃ N, ∀ f ≥ N,
       evalOpt f p5WorldD env (app1 "DUPP" (consT p5eT p5xT))
       = some (boolEnc (duppRec (e :: e :: tl))) :=

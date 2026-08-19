@@ -137,7 +137,9 @@ private theorem conv_tlp_enc (w : World) (e : Env)
     ∃ N, ∀ f ≥ N, evalOpt f w e (tlpT t) = some SExpr.t := by
   have h := tlp_exec_corr w h_tlp h_no_consp h_no_equal h_no_cdr e t (enc l) ht
   rw [tlpExec_enc] at h
-  simpa [tlpL_true l, boolEnc] using h
+  -- v4.33 (4.31 #13636): `simpa using h` closes at reducible transparency;
+  -- name the plain defs (`app1` under `tlpT`, `tlp_sym`, `ConvTo`) explicitly.
+  simpa [tlpL_true l, boolEnc, ConvTo, app1, tlp_sym] using h
 
 /-- TLP-APP-NIL, at the waypoint layer: appending nothing changes
     nothing. Parameterized by the replayed statement — consumed at

@@ -502,13 +502,17 @@ theorem corr_append_enc (w : World) (fn : String)
         = some hd := by
       have h := conv_builtin1 w _ { name := "CAR" } xT (.cons hd (enc tl))
         (Logic.car (.cons hd (enc tl))) (by decide) h_no_car hx_ba (callBuiltin_car _)
-      simpa [Logic.car] using h
+      -- v4.33 (4.31 #13636): `simpa using h` now closes at REDUCIBLE
+      -- transparency, which no longer unfolds the plain-`def` `app1`/`app2`
+      -- under the `carT`/`cdrT`/`consT` abbrevs — so the failing `simpa`s in
+      -- this file name the def explicitly (same closes, spelled out).
+      simpa [Logic.car, app1] using h
     have hcdrx_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys]) (cdrT xT)
         = some (enc tl) := by
       have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
+      simpa [Logic.cdr, app1] using h
     have hrec : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS, yS] [enc (hd :: tl), enc ys])
           (app2 fn (cdrT xT) yT) = some (enc (tl ++ ys)) :=
@@ -590,7 +594,7 @@ theorem corr_len_enc (w : World) (fn : String)
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (cdrT xT) = some (enc tl) := by
       have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
+      simpa [Logic.cdr, app1] using h
     have hq1_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) q1
         = some (.atom (.number (.int 1))) :=
@@ -698,7 +702,7 @@ theorem corr_mapconst_enc (w : World) (c : SExpr) (fn : String)
       have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba
         (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
+      simpa [Logic.cdr, app1] using h
     have hqc_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)])
           (.cons (.atom (.symbol { name := "QUOTE" })) (.cons c .nil))
@@ -716,7 +720,7 @@ theorem corr_mapconst_enc (w : World) (c : SExpr) (fn : String)
         (app1 fn (cdrT xT)) c (enc (tl.map (fun _ => c)))
         (Logic.cons c (enc (tl.map (fun _ => c))))
         (by decide) h_no_cons hqc_ba ⟨Nk, hk⟩ (callBuiltin_cons _ _)
-      simpa [Logic.cons] using h
+      simpa [Logic.cons, app2] using h
     have hbody : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (mapConstBody c fn)
         = some (.cons c (enc (tl.map (fun _ => c)))) := by
@@ -842,7 +846,7 @@ theorem corr_chain2_enc (w : World) (cmp fn : String)
       have h := conv_builtin1 w _ { name := "CDR" } xT (.cons hd (enc tl))
         (Logic.cdr (.cons hd (enc tl))) (by decide) h_no_cdr hx_ba
         (callBuiltin_cdr _)
-      simpa [Logic.cdr] using h
+      simpa [Logic.cdr, app1] using h
     have hconspcdr_ba : ∃ N, ∀ f ≥ N,
         evalOpt f w (bindArgs [xS] [enc (hd :: tl)]) (conspT (cdrT xT))
         = some (Logic.consp (enc tl)) :=
@@ -890,14 +894,14 @@ theorem corr_chain2_enc (w : World) (cmp fn : String)
         have h := conv_builtin1 w _ { name := "CAR" } xT
           (.cons hd (enc (b :: t2))) (Logic.car (.cons hd (enc (b :: t2))))
           (by decide) h_no_car hx_ba (callBuiltin_car _)
-        simpa [Logic.car] using h
+        simpa [Logic.car, app1] using h
       have hcarcdr_ba : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)]) (carT (cdrT xT))
           = some b := by
         have h := conv_builtin1 w _ { name := "CAR" } (cdrT xT)
           (.cons b (enc t2)) (Logic.car (.cons b (enc t2)))
           (by decide) h_no_car hcdrx_ba (callBuiltin_car _)
-        simpa [Logic.car] using h
+        simpa [Logic.car, app1] using h
       have hcmp_ba : ∃ N, ∀ f ≥ N,
           evalOpt f w (bindArgs [xS] [enc (hd :: b :: t2)])
             (app2 cmp (carT xT) (carT (cdrT xT)))

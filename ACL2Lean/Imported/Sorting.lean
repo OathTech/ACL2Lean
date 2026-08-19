@@ -223,11 +223,11 @@ theorem car_rm_native_of_replayed (w : World)
       have hcarA : ∃ N, ∀ f ≥ N, evalOpt f w e (carT aT) = some a := by
         have h0 := conv_builtin1 w e { name := "CAR" } aT _ _ (by decide)
           h_no_car ha (callBuiltin_car _)
-        simpa [enc, Logic.car] using h0
+        simpa [enc, Logic.car, app1, app2] using h0  -- v4.33 #13636 (cf. Lifting.lean)
       have hcdrA : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT aT) = some (enc t) := by
         have h0 := conv_builtin1 w e { name := "CDR" } aT _ _ (by decide)
           h_no_cdr ha (callBuiltin_cdr _)
-        simpa [enc, Logic.cdr] using h0
+        simpa [enc, Logic.cdr, app1, app2] using h0
       have heq : ∃ N, ∀ f ≥ N, evalOpt f w e (equalT eT (carT aT))
           = some (Logic.equal ev a) :=
         conv_equalT w e eT (carT aT) ev a h_no_equal he hcarA
@@ -480,11 +480,11 @@ theorem equal_cons_native_of_replayed (w : World)
       have hcar : ∃ N, ∀ f ≥ N, evalOpt f w e (carT xT) = some c := by
         have h0 := conv_builtin1 w e { name := "CAR" } xT (.cons c d)
           (Logic.car (.cons c d)) (by decide) h_no_car hx (callBuiltin_car _)
-        simpa [Logic.car] using h0
+        simpa [Logic.car, app1, app2] using h0
       have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT xT) = some d := by
         have h0 := conv_builtin1 w e { name := "CDR" } xT (.cons c d)
           (Logic.cdr (.cons c d)) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-        simpa [Logic.cdr] using h0
+        simpa [Logic.cdr, app1, app2] using h0
       have heqA := conv_builtin2 w e { name := "EQUAL" } aT (carT xT) av c
         (Logic.equal av c) (by decide) h_no_equal ha hcar
         (callBuiltin_equal _ _)
@@ -508,7 +508,7 @@ theorem equal_cons_native_of_replayed (w : World)
         | false =>
           have heqAn : ∃ N, ∀ f ≥ N,
               evalOpt f w e (equalT aT (carT xT)) = some SExpr.nil := by
-            simpa [Logic.equal, hac] using heqA
+            simpa [Logic.equal, hac, app1, app2] using heqA
           have := conv_if_false' w e (equalT aT (carT xT))
             (equalT bT (cdrT xT)) qNil SExpr.nil heqAn
             (re_val_quote w e SExpr.nil)
@@ -740,19 +740,19 @@ theorem orderedp_memb_native_of_replayed (w : World)
   have hcarA : ∃ N, ∀ f ≥ N, evalOpt f w e (carT aT) = some a := by
     have h0 := conv_builtin1 w e { name := "CAR" } aT (enc (a :: t))
       (Logic.car (enc (a :: t))) (by decide) h_no_car ha (callBuiltin_car _)
-    simpa [enc, Logic.car] using h0
+    simpa [enc, Logic.car, app1, app2] using h0
   have hEq : ∃ N, ∀ f ≥ N, evalOpt f w e (equalT eT (carT aT))
       = some SExpr.nil := by
     have h0 := conv_builtin2 w e { name := "EQUAL" } eT (carT aT) ev a
       (Logic.equal ev a) (by decide) h_no_equal he hcarA
       (callBuiltin_equal _ _)
-    simpa [Logic.equal, hne] using h0
+    simpa [Logic.equal, hne, app1, app2] using h0
   have hNot : ∃ N, ∀ f ≥ N,
       evalOpt f w e (notT (equalT eT (carT aT))) = some SExpr.t := by
     have h0 := conv_builtin1 w e { name := "NOT" } (equalT eT (carT aT))
       SExpr.nil (Logic.not SExpr.nil) (by decide) h_no_not hEq
       (callBuiltin_not _)
-    simpa [Logic.not] using h0
+    simpa [Logic.not, app1, app2] using h0
   have hLex : ∃ N, ∀ f ≥ N, evalOpt f w e (lexT eT (carT aT))
       = some SExpr.t := by
     have h0 := conv_builtin2 w e { name := "LEXORDER" } eT (carT aT) ev a
@@ -1276,7 +1276,7 @@ theorem car_append_native_of_replayed (w : World)
         have h0 := conv_builtin1 w e { name := "CAR" } aT (enc (a :: t))
           (Logic.car (enc (a :: t))) (by decide) h_no_car ha
           (callBuiltin_car _)
-        simpa [enc, Logic.car] using h0
+        simpa [enc, Logic.car, app1, app2] using h0
       exact conv_if_true w e (conspT aT) (carT aT) (carT bT)
         (Logic.consp (enc (a :: t))) a hconsp rfl hcarA
   have hnat := native_of_replayed_equal w e idRep _ _
@@ -2476,11 +2476,11 @@ theorem how_many_evens_and_odds_native_of_replayed (w : World)
     have h0 := conv_builtin1 w e { name := "CONSP" } xT (enc (a :: t))
       (Logic.consp (enc (a :: t))) (by decide) h_no_consp hx
       (callBuiltin_consp _)
-    simpa [enc, Logic.consp] using h0
+    simpa [enc, Logic.consp, app1, app2] using h0
   have hcdr : ∃ N, ∀ f ≥ N, evalOpt f w e (cdrT xT) = some (enc t) := by
     have h0 := conv_builtin1 w e { name := "CDR" } xT (enc (a :: t))
       (Logic.cdr (enc (a :: t))) (by decide) h_no_cdr hx (callBuiltin_cdr _)
-    simpa [enc, Logic.cdr] using h0
+    simpa [enc, Logic.cdr, app1, app2] using h0
   have hev1 := evens_exec_corr w h_evens h_no_consp h_no_car h_no_cdr
     h_no_cons e xT (enc (a :: t)) hx
   rw [evensExec_enc] at hev1
