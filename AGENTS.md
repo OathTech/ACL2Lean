@@ -13,9 +13,12 @@ Also canonical:
 - [`docs/plans/2026-08-12_master-plan.md`](docs/plans/2026-08-12_master-plan.md)
   — the governing plan.
 - [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — the pipeline, the trust model,
-  build commands (this was `README.md` until 2026-08-19; the root
-  `README.md` is now a short front page).
-- [`TODO.md`](TODO.md) — the running backlog.
+  build commands, known limitations. The technical entry point; the root
+  `README.md` is the short front page.
+- [`TODO.md`](TODO.md) — the LIVE backlog (open items only; per-arc narrative
+  lives in the arc charters under `docs/plans/`, and the pre-2026-08-19
+  journal in [`docs/archive/`](docs/archive/README.md)).
+- [`docs/BUGS.md`](docs/BUGS.md) — the single index of known fidelity bugs.
 
 Note for anyone restoring boilerplate here: the previous contents of this file
 were an unmodified Lake starter template describing a different project, and

@@ -190,7 +190,9 @@ books; the record is `docs/plans/2026-08-18_close-out-arc-charter.md` (ARC EXIT
 + the post-merge audit round) and the spec's bijection is
 `docs/notes/2026-08-18_sorting-spec-reshape.md`. What remains at the product
 layer is BREADTH beyond that corpus — read live counts off
-`ACL2Lean/MirrorProofs/` and `TODO.md`, never off this page.
+`ACL2Lean/MirrorProofs/` and the mirror seam gate's build-time report, never
+off this page (and no longer off `TODO.md`, which since its 2026-08-19
+restructure is a backlog and carries no counts).
 **The governing plan is `docs/plans/2026-08-12_master-plan.md`** (ruled
 2026-08-13): the two-category model (METRIC vs PRODUCT), Track FREE / Track
 REAL, and the phase sequencing to the sorting close-out.
@@ -391,7 +393,13 @@ against it structurally:
   all tracks (A: the rewriting-replay driver; B: type-set/decision-procedure
   instrumentation; and the rest of the pipeline). Update it whenever a milestone
   lands, scope changes, or a new gap/frontier is found — don't let it drift from
-  reality.
+  reality. **It is a BACKLOG, not a journal (restructured 2026-08-19):** per-arc
+  narrative lives in the arc's charter (`docs/plans/`) or a dated note
+  (`docs/notes/`), and the pre-2026-08-19 journal is preserved in
+  `docs/archive/todo-history-2026.md`. In-flight arcs prepend short entries to
+  the marked IN-FLIGHT ZONE at the head of the file; at arc exit, fold what
+  survives into the live backlog and leave the narrative in the charter. When an
+  item is done, DELETE it — the record is the charter's, not the backlog's.
 - **Module-size norm (perf arc 3d, 2026-08-07).** New `.lean` modules stay
   under ~1500 lines and new LEMMA FAMILIES get their own module; the ci
   ratchet (`just check-file-weight`, baseline in
