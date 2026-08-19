@@ -15,10 +15,23 @@
 > (93/94 converted, 1 ruled fixture exemption; regression net:
 > statement-changed 0, kind-only 91); seam gate: 21 products / 59
 > seams; 3 receipts gained `Quot.sound` (pinned, in-family, no
-> sorryAx); `backward.*` ledger ZERO. RESIDUE for a future arc:
-> `--tstack=524288` is now SMALLER than the 1 GB default (4.30 #12971 /
-> 4.33 #14343) — measure-then-remove. **Merge candidate awaiting
+> sorryAx); `backward.*` ledger ZERO. **Merge candidate awaiting
 > explicit sign-off; never merged, never pushed.**
+> RESIDUE `--tstack=524288` — **CLEARED 2026-08-19** (release-hygiene
+> round, branch `mdd/release-hygiene`): the flag is REMOVED from both
+> `lean_lib` blocks in `lakefile.toml`. It had become an active
+> LIABILITY, not a safeguard — 512 MB is now BELOW the toolchain's own
+> default (4.30 #12971 / 4.33 #14343), so it was capping the worker
+> stack rather than raising it. Measured by three cold full builds
+> (`rm -rf .lake/build` each time) on the same source: WITH the flag
+> 31:42 (user 6146 s, peak RSS 9.40 GB); WITHOUT 32:37 (user 6414 s,
+> 9.24 GB) and 31:30 (user 5938 s, 9.40 GB). The two no-flag runs
+> differ from each other by 67 s (3.5%) and straddle the with-flag run,
+> so the removal is inside run-to-run variance on this (shared) box —
+> no regression. All three exited 0 with zero warnings and zero errors,
+> and the paths the flag was added for still elaborate: the usefi
+> capstones (`SortsEquivalent`, `BSsortsEquivalent` 3/3) build clean
+> with no "deep recursion was detected" and no SIGABRT.
 
 > **COLLECTED COUNT (settled at this merge): the sorting shop window is
 > 15 Props / 15 PROVEN; mirror products 21.** The two lane blocks below
