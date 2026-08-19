@@ -511,18 +511,22 @@ fixed 2026-07-26 by giving `isAtomChar` the same terminator set as
 `isCharTokChar` / `*acl2-read-character-terminators*`; `;` cannot be
 pinned in the corpus format and backquote/comma are unmodeled forms —
 they now TERMINATE tokens, and a backquote form fails parse loudly)
-`Parser.lean` `isAtomChar` ends tokens on only `( ) space \n \r \t` —
-CL's terminating macro characters `"` `'` `` ` `` `,` `;` do NOT end a
-token, while `isCharTokChar` (the `#\` path) carries ACL2's real
-terminator list — an internal inconsistency. Verified head-to-head
-(audit F5): ACL2 reads `(A B;C D)` as `(A B D)`, `(A'B)` as `(A 'B)`,
-`(A"b")` as `(A "b")`; we read `B;C`, `A'B`, `A"B"` as single tokens —
-SILENTLY. Distinct from BUG-010/BUG-015, which hard-fail: this is the
-reader's one fail-open gap, and it becomes a live soundness hole the
-moment gen-world output is wired into the certified pipeline
-(TODO's frontend-replacement item). Fix direction: make `isAtomChar`
-use the same terminator set as `isCharTokChar`
-(`*acl2-read-character-terminators*`), then differential-pin the family.
+`Parser.lean`'s `isAtomChar` USED TO end tokens on only
+`( ) space \n \r \t` — CL's terminating macro characters
+`"` `'` `` ` `` `,` `;` did NOT end a token, while `isCharTokChar` (the
+`#\` path) already carried ACL2's real terminator list: an internal
+inconsistency. Verified head-to-head (audit F5): ACL2 reads
+`(A B;C D)` as `(A B D)`, `(A'B)` as `(A 'B)`, `(A"b")` as `(A "b")`;
+the old reader took `B;C`, `A'B`, `A"B"` as single tokens — SILENTLY.
+Unlike BUG-010/BUG-015, which hard-fail, this WAS the reader's one
+fail-open gap, and it WOULD HAVE BECOME a live soundness hole the
+moment gen-world output was wired into the certified pipeline (TODO's
+frontend-replacement item) — which is why it was closed as a
+prerequisite for that wiring rather than left open.
+Fix (2026-07-26): `isAtomChar` was given the same terminator set as
+`isCharTokChar` (`*acl2-read-character-terminators*`), and the family
+was differential-pinned (the `Pinned-by` line above records what could
+and could not be pinned in the corpus format).
 
 ## BUG-019 — `local` witnesses entered the World: replayed statements stated about the witness
 Status: fixed

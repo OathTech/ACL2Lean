@@ -28,6 +28,33 @@ the definitions to exist — including `bsort`'s bad-pair decrease, the
 same obligation ACL2 discharges at `BSORT`'s admission — plus the
 decidable-equality derivation `decEqOfOrder` — see its docstring.)
 
+**DISCLOSED IN FULL — THE TWO NATIVELY-PROVED BOOK THEOREMS (the P2
+exception).** Two of those termination facts are not merely
+*obligations ACL2 also has*: they are, statement for statement, THE
+BOOK'S OWN THEOREMS, and they are proved HERE IN LEAN rather than via
+replay.
+
+| this file | `acl2/books/sorting/bsort.lisp` |
+|---|---|
+| `howManySmaller_bnext` | `HOW-MANY-SMALLER-BNEXT` (line 28) |
+| `howManyBadPairs_bnext_lt` | `HOW-MANY-BAD-PAIRS-BNEXT` (line 45, `:rule-classes :linear`) |
+
+The reason is Lean-metatheoretic and not a matter of convenience:
+Lean's kernel demands the measure decrease BEFORE `bsort` may exist as
+a definition at all, so the decrease cannot be supplied by a theorem
+whose statement mentions `bsort`, and no ACL2 artifact can stand in.
+That is the RATIFIED P2 exception — "Lean-metatheoretic necessity",
+`docs/notes/2026-08-11_thin-lean-boundary.md` — which covers exactly
+what a definition's EXISTENCE requires and never a theorem about the
+defined function beyond its admission. (The other two facts here,
+`howManySmaller_cons` and `howManyBadPairs_bnext_le`, are our own
+lemmas with no book correspondent at all.)
+
+These two are therefore OUTSIDE the fifteen via-replay `Prop`s below
+and are not counted among them — a reader auditing "what did ACL2
+prove for us" must know that these two came from Lean. They are also
+the whole of that class in this file.
+
 VOCABULARY PRACTICE (Mike, 2026-08-13 — disambiguate hard, as
 design practice): body constructs that MIRROR A BOOK FUNCTION are
 OWN-DEFINITIONS (`relMode` = REL, `filterRel` = FILTER, `memb` = MEMB,
@@ -440,14 +467,33 @@ def Permuted [DecidableEq α] : List α → List α → Prop
     dispatches on `(CONSP Y)` — the same access-pattern rendering
     `Permuted` above carries for `(IF (CONSP Y) 'NIL 'T)`.
 
-    **THE JUNK ARM.** At `xs = ys = []` — and at NO other input — the
-    value is `Inhabited.default`: this type's stand-in for ACL2's
+    **THE JUNK ARM.** When the walk bottoms out at `[], []` the value
+    is `Inhabited.default`: this type's stand-in for ACL2's
     `(car nil)`, carrying no information about either list. It is the
     one place where a TOTAL Lean rendering of an untyped ACL2 function
-    must invent a value, and it is harmless to the property below,
-    which holds for ANY witness on that input (both sides of its `Iff`
-    are true there). The function stays total and stays exactly as the
-    book writes it.
+    must invent a value. The function stays total and stays exactly as
+    the book writes it.
+
+    WHICH INPUTS REACH IT — EVERY PERMUTING PAIR, not only `[] []`.
+    The walk consumes `xs`, removing each element from `ys` as it is
+    found, so it reaches the `[], []` arm exactly when every element of
+    `xs` was found AND `ys` is exhausted — which is `Permuted`'s own
+    recursion, clause for clause. So the arm is reached on precisely
+    the pairs with `Permuted xs ys`: `permWitness [1,2] [2,1]` is the
+    junk value just as `permWitness [] []` is, against
+    `permWitness [1,2] [2,1,5] = 5` (leftover head) and
+    `permWitness [9] [2] = 9` (not found), which are real witnesses.
+    ACL2's `PERM-COUNTER-EXAMPLE` returns `(car nil)` on exactly the
+    same set, so this is the book's behaviour and not a rendering
+    artefact.
+
+    WHY THAT IS HARMLESS TO THE PROPERTY BELOW: on exactly that set
+    BOTH sides of the property's `Iff` are true whatever the witness
+    is — the left side is `Permuted xs ys`, which is what put the walk
+    there, and the right side compares counts in two lists that
+    permute each other, which agree at every element. The invented
+    value is therefore never what decides the `Iff`. (It IS what makes
+    the ENCODING square false at `Int` — the next paragraph.)
 
     The junk arm is also what decides WHICH ELEMENT TYPE the property
     below is proved at: a type whose `default` is the same junk value

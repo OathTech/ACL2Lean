@@ -294,12 +294,36 @@ admits three list binders, and the body check only refuses a nested
 is. The waypoint cited is `perm_equivalence_permL_driver`, the bundle
 re-spelled in the own-definition `permL` vocabulary (the decode class
 `ordered_perms_eq_driver` established), and the seam gate checks that
-the product's proof term reaches `permEquivReplayed`. -/
+the product's proof term reaches `permEquivReplayed`.
+
+THE BUNDLE IS THREE SEAMS, NOT ONE — stated precisely because "cites the
+PERM-IS-AN-EQUIVALENCE native, and nowhere else" would be false here.
+ACL2's `(defequiv perm)` mints the reflexivity conjunct only; the other
+two conjuncts are the perm book's own LOCAL lemmas, and the bundle
+consumes all three replayed statements (`Imported/Waypoints/PermBook.lean`,
+catalog entries 16/10/15):
+
+| conjunct | book theorem | replayed statement |
+|---|---|---|
+| reflexive | `PERM-IS-AN-EQUIVALENCE` (`defequiv`, perm.lisp:68) | `permEquivReplayed` |
+| symmetric | `PERM-SYMMETRIC` (`local`, perm.lisp:39) | `permSymmetricReplayed` |
+| transitive | `PERM-TRANSITIVE` (`local`, perm.lisp:64) | `permTransitiveReplayed` |
+
+All three are ACL2-PROVED IN THE BOOK — `local` is a scope marker, not a
+weaker status — so canon line 4 (proved BY REPLAYING the ACL2 theorems)
+holds for the whole conjunction, which is the point of naming them. The
+seam gate reaches `permEquivReplayed` because it checks for ANY
+registered seam, not all of them (its stated bound: it rules out
+DETACHMENT, not mis-pairing). -/
 
 /-- **`permuted_equivalence` at `Int`, via ACL2 replay** — permutation
     is an equivalence relation. Content enters through the generated
-    crossing `permuted_equivalence_sexpr`, which cites the catalogued
-    PERM-IS-AN-EQUIVALENCE native's bundle exactly, and nowhere else. -/
+    crossing `permuted_equivalence_sexpr`, which cites
+    `perm_equivalence_permL_driver` — the catalogued bundle assembled
+    from THREE replayed book theorems (`PERM-IS-AN-EQUIVALENCE` for
+    reflexivity, the book's `local` `PERM-SYMMETRIC` and
+    `PERM-TRANSITIVE` for the other two conjuncts; the table in the
+    section above) — and nothing else. -/
 mirror_transport% permuted_equivalence_int :
     ACL2Lean.Sorting.permuted_equivalence Int
   embed intOrderedEmbed

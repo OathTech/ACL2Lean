@@ -27,7 +27,10 @@
 > all three of its load-bearing claims were refuted by measurement
 > (J-1-1). The fork has emitted `:TAU-BASIS` since 2026-08-10; the leaf
 > DISCHARGES by CITING the already-replayed `TRUE-LISTP-BSORT` — as do
-> all five tau-basis leaves in the corpus, with zero fallbacks. The `◌
+> all SIX tau-basis leaves in the corpus, with zero fallbacks
+> [count corrected 2026-08-19: the arc said "five"; the corpus has SIX
+> `:TAU-BASIS` leaves across FIVE books / five golden rows —
+> `ordered-perms.proof-log` carries TWO (Subgoal *1/6 and *1/4)]. The `◌
 > assumed` that started the wave belongs to the STANDALONE informational
 > DP probe, which has no `ReplayCtx` and so can only ever print `◌`; the
 > row's own verdict was `REPLAYED ✓` UNCONDITIONAL all along. **All six

@@ -54,8 +54,9 @@ came from carries a dated correction):
 2. the citation consumer is LIVE and the leaf DISCHARGES in the real
    replay by citing that already-replayed dependency theorem
    (instrumented measurement: gate passes, match succeeds,
-   `proveDpFact` + `dischargeSpine` both OK — for all five tau-basis
-   leaves in the sorting corpus, zero fallbacks);
+   `proveDpFact` + `dischargeSpine` both OK — for all SIX tau-basis
+   leaves in the sorting corpus, zero fallbacks; see the count
+   correction under J-1-1);
 3. the N1 guard never fired on this row: the golden's `REPLAYED ✓`
    with no trailing `cond[…]` means UNCONDITIONAL, and the `cond[…]`
    that was read as the row's belongs to the standalone informational
@@ -81,6 +82,38 @@ there.
   wave), the wave-2g ARC LOG entry, and this charter.
 
 ## Item 2 — the Option refinement row + permWitness_complete re-spell
+
+> **THE SPEC-CHANGE BULLET BELOW IS SUPERSEDED — all three of its
+> predictions were refuted by the landed outcome (block added
+> 2026-08-19, audit round; items 0 and 1 got theirs in place at the
+> time and this one did not, which left the section reading as though
+> it had been executed as written).** What actually landed is recorded
+> in `docs/notes/2026-08-18_sorting-spec-reshape.md` **Part 7**:
+>
+> 1. *"permWitness re-spelled with an `Option α` witness"* — REFUTED at
+>    two layers. The witness is UNCHANGED; a crossing is stated at
+>    `SExpr`, where `Option SExpr → SExpr` is not injective (`none` and
+>    `some nil` share an image), so an `Option`-VALUED spec definition
+>    cannot cross at all. What moved was the ELEMENT TYPE, not the
+>    witness: the `Option` row is applied to `α`, giving the product at
+>    `Option Int`.
+> 2. *"the junk arm and its `[Inhabited α]` instance eliminated"* —
+>    REFUTED with (1). Both are still there, and the junk arm is now
+>    load-bearing in the honest direction: `Option`'s own `default` IS
+>    `none`, which the row sends to `nil`, which is exactly what
+>    discharges the element-result square's hypothesis generically.
+> 3. *"the Int product landed"* — REFUTED. There is NO `Int` product
+>    and there cannot be one: the element-result square is FALSE at
+>    `Int`, kernel-refuted by `conditional_elem_square_false`
+>    (`MirrorProofs/Sorting.lean`, live theorem). The product is
+>    `permWitness_complete_optint` at `Option Int`, approved by Mike as
+>    THE product for that `Prop`. Scoreboard 15/15 as predicted — at a
+>    different type than predicted.
+>
+> [Also corrected 2026-08-19: the `Prop`'s spurious `[TotalOrder α]`
+> binder came off in the post-merge audit round — `CONVERT-PERM-TO-
+> HOW-MANY` is order-free — taking with it the `TotalOrder (Option Int)`
+> instance and the order pin this item had landed to satisfy it.]
 
 - **Generic machinery (not a shim):** an Option row in the
   data-refinement calculus — Lean `Option α` refines ACL2's value-or-nil
@@ -165,10 +198,21 @@ exit commit; the merge candidate presented for explicit approval.
   item I (2026-08-10); the BSORT leaf's slice decodes to exactly the
   `TRUE-LISTP-BSORT` spec; that rule IS in `ctx.ruleHyps`; the gate
   passes; `oneWayMatch` succeeds; `proveDpFact` and `dischargeSpine`
-  both succeed. ALL FIVE tau-basis leaves in the sorting corpus
+  both succeed. ALL SIX tau-basis leaves in the sorting corpus
   discharge by citation, with ZERO fallbacks. The leaf was already
   doing what Mike's principle asks ("we should ALWAYS replay ACL2 when
   we have the material at hand").
+  **[COUNT CORRECTED 2026-08-19 — post-merge audit round.]** This entry,
+  the item-1 framing above, the ARC EXIT below and TODO.md all said
+  "FIVE tau-basis leaves". Re-counted directly from the corpus
+  (`grep -c TAU-BASIS acl2_samples/**/*.proof-log`): there are **SIX**,
+  across **FIVE books / five golden rows** — `convert-perm-to-how-many`,
+  `equisort`, `sorts-equivalent`, `bsort` one each, and
+  `ordered-perms.proof-log` **TWO** (Subgoal *1/6 and Subgoal *1/4 of
+  the same theorem). The finding is unchanged: every one of them
+  discharges by citation with zero fallbacks; only the count was wrong.
+  Commit `e9fa5b1`'s message carries the same miscount ("All FIVE
+  tau-basis leaves") and is immutable — this is its correction.
   **The `◌` that started the wave is a SCOREBOARD-READING error.** The
   `[DISCHARGE: … ◌ assumed cond[…]]` annotation is the STANDALONE
   informational DP probe's (`Runner.lean:855-878`), which by
@@ -226,8 +270,12 @@ Full claim-gate **TRUE_EXIT=0 on a1bb171** (artifact:
 IS CLOSED: FIFTEEN Props, FIFTEEN proven-via-replay theorems** —
 fourteen at `Int`, `permWitness_complete` at `Option Int` (the
 value-or-nil element type; the `Int` refutation stands as the reason).
-Zero structural asterisks; the products page's "not yet" section
-retired EMPTY.
+Zero structural asterisks; the products page's scoreboard section that
+listed "the ones that are not, with their real distance and no
+euphemism" is retired EMPTY — every `Prop` now has a product.
+[Phrasing corrected 2026-08-19, audit round: this line said "the
+products page's 'not yet' section", and no section of that name ever
+existed on the page. The retired section is the one quoted above.]
 
 How each of the three closed, against the charter's own predictions —
 all three of which were corrected by measurement:
@@ -237,7 +285,8 @@ all three of which were corrected by measurement:
   instantiation-device argument (reshape Part 8).
 - **item 1**: NO fork round-trip — the emission was complete since
   fork-batch item I (2026-08-10) and the citation route was already
-  live (all five tau-basis leaves, zero fallbacks); the `◌ assumed`
+  live (all six tau-basis leaves, zero fallbacks — count corrected
+  2026-08-19, see J-1-1); the `◌ assumed`
   reading belonged to the standalone informational DP probe (J-1-1);
   the real bug was the usefi pre-pass's cached-conds shortcut vs
   BSORT's one conditional admission (J-1-2, fixed fail-closed).

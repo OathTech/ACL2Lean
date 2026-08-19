@@ -1410,7 +1410,20 @@ trio-clean `[propext, Classical.choice, Quot.sound]`; the new negative
 test's message is pinned; regression net as above from a real
 reverted-source build.
 
-### Wave 2g (2026-08-18) — THE LAST BUILDS: the `userFn` MEASURE ROW and the `usefi` ROUTE; sorting 11 → 13 of 16, products 15 → 19
+### Wave 2g (2026-08-18) — THE LAST BUILDS: the `userFn` MEASURE ROW and the `usefi` ROUTE; sorting 9 → 13 of 16, products 15 → 19
+
+> **[CORRECTED 2026-08-19 — audit round.]** This heading read "sorting
+> 11 → 13 of 16". The sorting count going into this wave was **NINE**,
+> not eleven: `dc1cadd` (wave 2f) left exactly nine
+> `mirror_transport%` declarations on `MirrorProofs/Sorting.lean`, and
+> its own commit message says so ("PRODUCTS 11->15 (9 of 16
+> sorting…)"). The stray "11" is the TOTAL-PRODUCT count from BEFORE
+> wave 2f (11 → 15 across all mirror pages), transplanted onto the
+> sorting row. The four products this wave adds are unchanged, so the
+> arrival value 13 and the product totals 15 → 19 are right; only the
+> departure value was wrong. Commit `cc6c864`'s message carries the
+> same error ("sorting 11 -> 13 of 16") and is immutable — this is its
+> correction.
 
 Executed in the same isolated worktree; nothing committed there. Two
 GENERIC machinery items, each witnessed by the work it unblocks, and
