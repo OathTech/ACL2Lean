@@ -141,8 +141,16 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
 @[inline, simp] def equal (a b : SExpr) : SExpr :=
   if a == b then .t else .nil
 
-/-- ACL2 `consp`. -/
-@[inline, simp] def consp (s : SExpr) : SExpr :=
+/-- ACL2 `consp`.
+
+    `instance_reducible` (v4.33 bump, 4.33 #13895): metavariable-assignment
+    type checks now run at `.instances` transparency, and the DP leaf kit's
+    conditional rows (`trueListp_cdr_of_consp`) have `consp`-shaped side
+    conditions whose discharge proofs arrive in `consp`-unfolded form — the
+    assignment then needs `consp x` ≡ its match at that transparency, or the
+    row silently stops firing ("failed to assign proof"). Reducibility
+    metadata only; zero semantic content. -/
+@[inline, simp, instance_reducible] def consp (s : SExpr) : SExpr :=
   match s with
   | .cons _ _ => .t
   | _ => .nil
@@ -504,8 +512,12 @@ instance : OfNat SExpr n where
       | rational _ _ _ => simp [zp, toInt, toBool] at h
       | int k =>
         simp only [zp, toInt] at h
-        split at h
-        · simp [toBool] at h
+        -- v4.33 (4.29 #12244): `simp` no longer rewrites inside the ite's
+        -- `Decidable` instance argument, so `split at h` can no longer match
+        -- the ite (condition says `k ≤ 0`, instance still mentions `toInt`).
+        -- Same case analysis, spelled on the condition directly.
+        by_cases hk : k ≤ 0
+        · simp [hk, toBool] at h
         · simp [minus, toRat, mkNumber, toNat, toInt]
           omega
 

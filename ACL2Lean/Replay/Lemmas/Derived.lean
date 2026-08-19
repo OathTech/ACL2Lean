@@ -33,7 +33,10 @@ theorem Logic.eq_of_equal_ne_nil {a b : SExpr}
 /-- Logic.not returns NIL iff the argument is truthy (non-nil). -/
 theorem Logic.not_nil_iff (a : SExpr) :
     Logic.not a = SExpr.nil ↔ Logic.toBool a = true := by
-  simp [Logic.not]
+  -- v4.33: the default simp set no longer closes the residual
+  -- `(if c = true then nil else t) = nil ↔ c = true` over the stuck
+  -- `toBool` match; case on `a` so both sides compute.
+  cases a <;> simp [Logic.not, Logic.toBool]
 
 /-- normalizedName for lowercase symbols is identity (needed because
     String.map Char.toLower is @[irreducible]). -/

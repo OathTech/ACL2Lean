@@ -603,8 +603,12 @@ theorem inTs_zp_false {v : SExpr}
   | .atom (.number (.int n)) =>
       have hn : 0 < n := by
         by_contra hc
-        simp only [Logic.zp, Logic.toInt, if_pos (show n ≤ 0 by omega)] at h
-        exact absurd h (by decide)
+        -- v4.33 (4.29 #12244): the `if_pos` simp arg no longer fires (simp
+        -- leaves the ite's `Decidable` instance argument unrewritten); give
+        -- simp the condition as a fact instead and it closes the
+        -- contradiction directly.
+        have hle : n ≤ 0 := by omega
+        simp [Logic.zp, Logic.toInt, hle] at h
       show tsMember 6 (tsIndex (.atom (.number (.int n)))) = true
       simp only [tsIndex_int, if_neg (show ¬(n = 0) by omega)]
       split_ifs with h1 h2

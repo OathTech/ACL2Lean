@@ -162,9 +162,12 @@ theorem toNat_lt_of_lt_truthy {a b : SExpr} (ha : NatValued a)
   obtain ⟨m, rfl⟩ := ha
   obtain ⟨n, rfl⟩ := hb
   simp only [Logic.lt, Logic.toRat, Logic.toNat, Logic.toInt] at h ⊢
-  split at h
+  -- v4.33 (4.29 #12244): `split at h` can no longer match the ite (simp
+  -- leaves its `Decidable` instance argument unrewritten); case on the
+  -- condition directly.
+  by_cases hlt : m < n
   · omega
-  · simp [Logic.toBool] at h
+  · simp [hlt, Logic.toBool] at h
 
 /-- The ELSE-branch guard, in the two spellings the two consumers see:
     `decreasing_by` meets Lean's `¬(… = true)` from the `if`, while the
