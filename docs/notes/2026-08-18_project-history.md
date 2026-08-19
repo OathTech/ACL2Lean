@@ -22,7 +22,11 @@ line long: `# ACL2Lean`.
 
 Over three weeks it grows a DSL (#acl { }), tactics (acl2_simp, acl2_grind,
 acl2_induct), stobjs, bitvectors. Then, on 7 January 2026, it stops.
-Seventeen commits, and silence for ten weeks.
+Ten commits, and silence for ten weeks. *[corrected 2026-08-19: this
+said "Seventeen commits". Seventeen is Alok Singh's LIFETIME total in
+the repository; the prehistory window this chapter covers
+(2025-12-17 → 2026-01-07) holds TEN of them, the other seven landing on
+19–20 March 2026, alongside the handover.]*
 
 ## Chapter 1 — The handover, and the day sorting arrived (2026-03-19 → 03-21)
 
@@ -614,7 +618,7 @@ isn't there. Five hundred and forty-eight lines, and not one import — not
 Mathlib, not Batteries, not the replay machinery; the file elaborates from
 Lean's core prelude alone. No SExpr, no lexorder, no evalOpt, no sorry. A
 TotalOrder class with five fields, deliberately not Mathlib's LinearOrder.
-Seventeen definitions named off the ACL2 book and Lean-cased. Eight
+Nineteen definitions named off the ACL2 book and Lean-cased. Six
 theorems, every one of them a termination obligation Lean's kernel demands
 before the definitions may exist — the last being bsort's bad-pair
 decrease, which is the same obligation ACL2 discharges to admit BSORT. And
@@ -625,8 +629,26 @@ Ordered ys → (xs = ys ↔ Permuted xs ys). Thirteen are theorems today, each
 with a pinned receipt reading exactly [propext, Classical.choice,
 Quot.sound].
 
+*[corrected 2026-08-19: the two counts above read "Seventeen
+definitions" and "Eight theorems". Counted off the file: 34 top-level
+`def`s, of which 15 are the target Props, leaves NINETEEN definitions —
+evens, odds, Ordered, insertOrd, isort, merge2, msort, relMode,
+filterRel, qsort, bnext, howManySmaller, howManyBadPairs, bsort,
+howMany, memb, rm, Permuted, permWitness; and SIX theorems —
+length_evens_le, length_filterRel_le, howManySmaller_cons,
+howManySmaller_bnext, howManyBadPairs_bnext_le,
+howManyBadPairs_bnext_lt. TWO of those six are the book's own
+HOW-MANY-SMALLER-BNEXT and HOW-MANY-BAD-PAIRS-BNEXT, proved natively
+under the ratified P2 (Lean-termination-necessity) exception — the
+spec file's header now discloses that explicitly rather than leaving
+it to be inferred from "every one of them a termination obligation".
+"Thirteen are theorems today" was true at writing; see the closing
+addendum.]*
+
 Six hundred and forty lines of product, standing on seventy thousand lines
-of machinery — 38,771 in the replay driver alone, 16,372 in the lifting
+of machinery — 38,734 in the replay driver alone *[corrected 2026-08-19:
+"38,771"; `find ACL2Lean/Replay -name '*.lean' | xargs wc -l` gives
+38,734]*, 16,372 in the lifting
 and waypoint layer, plus 228 instrumentation tags in a forked theorem
 prover, 91 captured proof logs, 61 authored pattern books, a 122-row
 waypoint catalog with zero entries in the forbidden-debt class, and 27
@@ -713,3 +735,57 @@ red build" as one named incident (the primary sources treat it as two,
 separated above), and the 2026-06-09 merge rule and 2026-06-12 audit-plan
 rule read as corrections to inferred permission but have no linked
 postmortem — that causal story is inferred from wording.*
+
+---
+
+## Closing addendum — the close landed (added 2026-08-19)
+
+*This history was written on the EVE of the sorting close-out, and its
+live counts were true when written (the evening of 2026-08-18: THIRTEEN
+of fifteen Props proven, nineteen products in the layer). The close
+landed a few hours later, so Chapter 12's "the two outstanding" and the
+"Thirteen are theorems today" of the closing section read as of that
+evening and not as of the final state.*
+
+**The final state.** FIFTEEN Props; FIFTEEN proven-via-replay theorems;
+TWENTY-ONE products in the mirror layer (six in `MirrorProofs/Basics.lean`
++ fifteen in `MirrorProofs/Sorting.lean`), each with a `#guard_msgs`-pinned
+receipt reading exactly `[propext, Classical.choice, Quot.sound]`. Full
+claim gate `TRUE_EXIT=0` on `a1bb171` (artifact
+`.gate-runs/a1bb171-20260819T000915Z.log`); the coverage golden
+byte-identical through the whole arc; zero `sorry` anywhere in
+`ACL2Lean/` or `Tests/`.
+
+**How the two outstanding entries actually closed**, both differently
+from what Chapter 12 predicted:
+
+* **`bsort_is_isort`** — no fork round-trip and no emission change. The
+  diagnosis Chapter 12 records ("the fork already emits the record")
+  was right; the residual it named ("an eligibility gate that fails to
+  match") was NOT — the citation route was already live and matching,
+  for every tau-basis leaf in the corpus. The `◌ assumed` that started
+  the wave was a scoreboard-reading error (it belonged to a standalone
+  informational probe with no `ReplayCtx`), and the real bug was one
+  layer away: the `usefi` pre-pass caching `[]` conditions against
+  BSORT's conditional admission. Close-out ARC LOG J-1-1 / J-1-2.
+* **`permWitness_complete`** — the route Chapter 12 names ("item 2's
+  Option α row … which eliminates the junk arm and the `[Inhabited α]`
+  alike") is exactly the prediction that was refuted. The witness is
+  UNCHANGED, junk arm and `[Inhabited α]` and all: an `Option`-VALUED
+  spec function cannot cross, because a crossing is stated at `SExpr`
+  and `Option SExpr → SExpr` is not injective. What the `Option` row
+  actually did was move the ELEMENT TYPE — the product is
+  `permWitness_complete_optint` at `Option Int`, where ACL2's `(car nil)`
+  IS a value of the Lean type. Mike's "morally the same theorem" held;
+  the mechanism did not. Reshape note Part 7.
+
+**Post-close corrections to this document itself** (audit round,
+2026-08-19) are marked in place above: the prehistory commit count, the
+definition/theorem counts of the spec file, and the replay-driver line
+count. One substantive record was corrected elsewhere and is noted here
+because this document repeats the era's framing: the corpus holds SIX
+`:TAU-BASIS` leaves, not five (`ordered-perms.proof-log` carries two).
+
+*The counts in the body are otherwise left as written. A history that is
+silently updated to the present is no longer a record of what was known
+when.*
