@@ -22,7 +22,7 @@ derive_world orderedPermsWorldD from orderedPermsDev
 
 /-- The UNCONDITIONAL driver replayed statement (zero hypotheses — see the
     coverage row). -/
-def orderedpRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
+replayed_theorem orderedpRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
   "orderedp-rm"
 
 /-- ENTRY, PROVED — ORDEREDP-RM natively: erasing an element preserves
@@ -38,7 +38,7 @@ theorem orderedp_rm_native_driver (ev : SExpr) (xs : List SExpr)
 #print axioms orderedp_rm_native_driver
 
 /-- The UNCONDITIONAL driver replayed statement for CAR-RM. -/
-def carRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
+replayed_theorem carRmReplayed := driver_replayed% orderedPermsDev orderedPermsWorldD
   "car-rm"
 
 /-- ENTRY, PROVED — CAR-RM natively: the head of `xs.erase ev` — nil on
@@ -54,7 +54,7 @@ theorem car_rm_native_driver (ev : SExpr) (xs : List SExpr) :
 
 /-- The driver's CONDITIONAL replayed statement for EQUAL-CONS (one
     hypothesis: `rule:CONS-CAR-CDR`, the stored ground-zero rule). -/
-def equalConsReplayedCond := driver_replayed% orderedPermsDev
+replayed_theorem equalConsReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "equal-cons"
 
 /-- The unconditional form — the ground-zero rule now discharged inside
@@ -81,7 +81,7 @@ set_option maxHeartbeats 400000 in
 /-- TRUE-LISTP-RM's replayed statement (unconditional) — registered so the
     capstone's `rule:TRUE-LISTP-RM` discharge takes the registry route
     (its re-replay inside the consumer telescope frontiers). -/
-def trueListpRmReplayed := driver_replayed% orderedPermsDev
+replayed_theorem trueListpRmReplayed := driver_replayed% orderedPermsDev
   orderedPermsWorldD "true-listp-rm"
 
 set_option maxHeartbeats 3200000 in
@@ -90,7 +90,7 @@ set_option maxHeartbeats 3200000 in
     cross-rules channels; the equivrefl and ORDEREDP-MEMB conditions
     discharge there; TRUE-LISTP-RM via the macro registry — leaving the
     two ground-zero rules). -/
-def orderedPermsCapReplayedCond := driver_replayed% orderedPermsDev
+replayed_theorem orderedPermsCapReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "ordered-perms" deps [permDev]
 
 /-- The unconditional form — the two ground-zero rules now discharged
@@ -163,7 +163,7 @@ set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-MEMB (one
     hypothesis: `rule:DEFAULT-CAR`). The raised heartbeat budget covers
     the replay-time `isDefEq` pinning over this row's larger tree. -/
-def orderedpMembReplayedCond := driver_replayed% orderedPermsDev
+replayed_theorem orderedpMembReplayedCond := driver_replayed% orderedPermsDev
   orderedPermsWorldD "orderedp-memb"
 
 /-- The unconditional form — `rule:DEFAULT-CAR` now discharged inside

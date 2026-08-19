@@ -29,7 +29,7 @@ def p7Dev : Development :=
 
 derive_world p7WorldD from p7Dev
 
-def p7TargetReplayedCond := driver_replayed% p7Dev p7WorldD "p7-target"
+replayed_theorem p7TargetReplayedCond := driver_replayed% p7Dev p7WorldD "p7-target"
 
 private def q0Atom : SExpr := .atom (.number (.int 0))
 private def xVarT : SExpr := .atom (.symbol { name := "X" })
@@ -96,7 +96,7 @@ def p5Dev : Development :=
 
 derive_world p5WorldD from p5Dev
 
-def duppRepReplayed := driver_replayed% p5Dev p5WorldD "dupp-rep-mid"
+replayed_theorem duppRepReplayed := driver_replayed% p5Dev p5WorldD "dupp-rep-mid"
 
 private def p5eSym : Symbol := { package := "ACL2", name := "E" }
 private def p5xSym : Symbol := { package := "ACL2", name := "X" }

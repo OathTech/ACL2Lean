@@ -27,7 +27,7 @@ derive_world nestedWorldD from nestedDev
 /-- The driver's replayed statement for NESTED-INDUCTION (the proof
     OBJECT) — the row whose tree carries TWO inductions under a
     synthesized `*1.k` pool root. -/
-def nestedInductionReplayedCond := driver_replayed% nestedDev nestedWorldD
+replayed_theorem nestedInductionReplayedCond := driver_replayed% nestedDev nestedWorldD
   "nested-induction"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to

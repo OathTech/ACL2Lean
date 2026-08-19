@@ -26,7 +26,7 @@ derive_world isortWorldD from isortDev
 
 /-- The driver's replayed statement, now UNCONDITIONAL (its sole
     `tp:INSERT` hypothesis is supplied by the driver's TP prover). -/
-def orderedpIsortReplayedCond := driver_replayed% isortDev isortWorldD
+replayed_theorem orderedpIsortReplayedCond := driver_replayed% isortDev isortWorldD
   "orderedp-isort"
 
 /-- The unconditional form — nothing left to discharge hand-side. -/
@@ -51,7 +51,7 @@ set_option maxHeartbeats 1600000 in
     (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`;
     `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` discharged CROSS-BOOK from the
     dependency's replayed tree — 2a). -/
-def howManyIsortReplayedCond := driver_replayed% isortDev isortWorldD
+replayed_theorem howManyIsortReplayedCond := driver_replayed% isortDev isortWorldD
   "how-many-isort" deps [convertPermDev]
 
 /-- The unconditional form — both remaining hypotheses discharged

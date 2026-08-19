@@ -24,7 +24,7 @@ set_option maxHeartbeats 3200000 in
     (hypotheses: `total:BNEXT`, `tp:HOW-MANY`; the cross-book
     `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` condition discharges from the
     convert-perm dependency trees — the 2a channel, matching the sweep). -/
-def howManyBnextReplayedCond := driver_replayed% bsortDev
+replayed_theorem howManyBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bnext" deps [convertPermDev]
 
 /-- The unconditional form — bnext's totality now arrives BY REPLAY of
@@ -50,7 +50,7 @@ theorem how_many_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for
     ORDEREDP-WHEN-BNEXT-CONSTANT (hypothesis: `total:BNEXT`). -/
-def orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
+replayed_theorem orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "orderedp-when-bnext-constant"
 
 /-- The unconditional form — bnext's totality by replay (the R3 measure
@@ -77,7 +77,7 @@ theorem orderedp_when_bnext_constant_native_driver (xs : List SExpr)
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-SMALLER-BNEXT
     (hypotheses: `total:BNEXT`, `tp:HOW-MANY-SMALLER`). -/
-def howManySmallerBnextReplayedCond := driver_replayed% bsortDev
+replayed_theorem howManySmallerBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-smaller-bnext"
 
 /-- The unconditional form — bnext's totality and how-many-smaller's TP
@@ -109,7 +109,7 @@ set_option maxHeartbeats 3200000 in
     `(BINARY-+ (HOW-MANY-SMALLER (CAR X) (CDR X)) (BNEXT-SIZE (CDR X)))`
     now closes with the `BINARY-+` summand's P-fact supplied by
     HOW-MANY-SMALLER's OWN emitted non-negative-integer corollary. -/
-def howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
+replayed_theorem howManyBadPairsBnextReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bad-pairs-bnext"
 
 /-- The unconditional form — bnext's totality and the count TPs all

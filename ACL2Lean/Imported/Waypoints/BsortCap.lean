@@ -20,7 +20,7 @@ function (the measure table's `userFn` row). -/
 
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-BSORT. -/
-def orderedpBsortReplayedCond := driver_replayed% bsortDev
+replayed_theorem orderedpBsortReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "orderedp-bsort" with_termination
 
 /-- The unconditional form. -/
@@ -42,7 +42,7 @@ theorem orderedp_bsort_native_driver (xs : List SExpr) :
 
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-BSORT. -/
-def howManyBsortReplayedCond := driver_replayed% bsortDev
+replayed_theorem howManyBsortReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bsort" with_termination
 
 /-- The unconditional form. -/

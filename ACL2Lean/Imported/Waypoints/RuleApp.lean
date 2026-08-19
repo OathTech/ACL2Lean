@@ -33,7 +33,7 @@ def ruleAppDev : Development :=
 derive_world ruleAppWorldD from ruleAppDev
 
 /-- The driver's replayed statement for TLP-APP-NIL (the proof OBJECT). -/
-def tlpAppNilReplayedCond := driver_replayed% ruleAppDev ruleAppWorldD
+replayed_theorem tlpAppNilReplayedCond := driver_replayed% ruleAppDev ruleAppWorldD
   "tlp-app-nil"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to
@@ -57,7 +57,7 @@ theorem tlp_app_nil_native_driver (xs : List SExpr) : xs ++ [] = xs :=
 /-- The driver's replayed statement for TLP-APP-NIL-TWICE (the proof
     OBJECT) — the RULE-APPLICATION row: its tree has no induction, only
     the two `(:REWRITE TLP-APP-NIL)` applications. -/
-def tlpAppNilTwiceReplayedCond := driver_replayed% ruleAppDev ruleAppWorldD
+replayed_theorem tlpAppNilTwiceReplayedCond := driver_replayed% ruleAppDev ruleAppWorldD
   "tlp-app-nil-twice"
 
 /-- The driver replayed statement — UNCONDITIONAL, STATEMENT-PINNED to

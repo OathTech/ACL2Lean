@@ -133,7 +133,7 @@ chain still IFF at the literal root") do
 -- unlimited at the command like the coverage sweep — the harness enforces
 -- REAL per-theorem/per-leaf budgets internally (withRealMaxHeartbeats)
 set_option maxHeartbeats 0 in
-def sortingArcPatternPins : True := sorting_arc_pattern_pins%
+replayed_theorem sortingArcPatternPins := sorting_arc_pattern_pins%
 
 /-! ## Perm-lane arc (2026-07-30, G2 rung 2): the congruence collapse,
     validated DECORRELATED from the qsort book (fresh relation family,
@@ -165,7 +165,7 @@ elab "perm_arc_pattern_pins% " : term => do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def permArcPatternPins : True := perm_arc_pattern_pins%
+replayed_theorem permArcPatternPins := perm_arc_pattern_pins%
 
 /-! ## G1 R-lane (2026-08-14): the R-parameterized collapse's DECORRELATED
     exerciser — a different relation (SAME-LEN2), a different licence
@@ -221,7 +221,7 @@ carries 1 hyps").length ≥ 2) do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def rLanePatternPins : True := r_lane_pattern_pins%
+replayed_theorem rLanePatternPins := r_lane_pattern_pins%
 
 /-! ## Swap family (fold-back audit fix round 2026-07-31): the books whose
     headers exist to pin rewrite-if's `(if x nil t)` branch swap — the
@@ -259,7 +259,7 @@ elab "swap_family_pattern_pins% " : term => do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def swapFamilyPatternPins : True := swap_family_pattern_pins%
+replayed_theorem swapFamilyPatternPins := swap_family_pattern_pins%
 
 /-! ## Empty-encapsulate success exits (fresh-verify N1, 2026-08-03): a
     LOCAL-ONLY encapsulate exits by `:empty-encapsulate` on BOTH the
@@ -298,6 +298,6 @@ elab "encapsulate_empty_pins% " : term => do
   return mkConst ``True.intro
 
 set_option maxHeartbeats 0 in
-def encapsulateEmptyPins : True := encapsulate_empty_pins%
+replayed_theorem encapsulateEmptyPins := encapsulate_empty_pins%
 
 end ACL2.Tests.PatternPins

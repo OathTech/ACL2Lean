@@ -86,7 +86,7 @@ elab "acl2_replay% " t:term : term => do
 
 /-- The driver-emitted proof that, under the replayed-statement semantics, `(equal x x)` evaluates
     to `t` for EVERY environment (every binding of `x`). -/
-def s2_replayed := acl2_replay% s2Tree
+replayed_theorem s2_replayed := acl2_replay% s2Tree
 
 -- The emitted type IS the intended universal replayed statement (no weakening: `env`
 -- universally quantified, `x` a free variable).
@@ -123,7 +123,7 @@ private def s3Goal : ClauseNode :=
 private def s3Tree : ClauseProof := { name := "CDR-CONS-REFL", formula := litCdrCons, root := some s3Goal }
 
 /-- Driver-emitted proof that `(equal (cdr (cons a b)) b)` evaluates to `t` for every env. -/
-def s3_replayed := acl2_replay% s3Tree
+replayed_theorem s3_replayed := acl2_replay% s3Tree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
@@ -147,7 +147,7 @@ private def consEqGoal : ClauseNode :=
     induction := none, children := [] }
 private def consEqTree : ClauseProof := { name := "CONS-SELF", formula := litConsEq, root := some consEqGoal }
 
-def consEq_replayed := acl2_replay% consEqTree
+replayed_theorem consEq_replayed := acl2_replay% consEqTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
@@ -177,7 +177,7 @@ private def builtinsEqGoal : ClauseNode :=
 private def builtinsEqTree : ClauseProof :=
   { name := "BUILTINS-SELF", formula := litBuiltinsEq, root := some builtinsEqGoal }
 
-def builtinsEq_replayed := acl2_replay% builtinsEqTree
+replayed_theorem builtinsEq_replayed := acl2_replay% builtinsEqTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
@@ -231,7 +231,7 @@ private def pairGoal : ClauseNode :=
     induction := none, children := [] }
 private def pairTree : ClauseProof := { name := "PAIR-REWRITES", formula := litPair, root := some pairGoal }
 
-def pair_replayed := acl2_replay_pair% pairTree
+replayed_theorem pair_replayed := acl2_replay_pair% pairTree
 
 example :
     ∀ (env : Env), ∃ N, ∀ f ≥ N, ∃ v,
@@ -295,7 +295,7 @@ elab "acl2_replay_sq_real% " : term => do
 
 /-- FIRST REAL TREE replayed end-to-end: the driver-emitted proof of the `sq-rewrites`
     replayed statement, from ACL2's actual proof-log. -/
-def sq_real_replayed := acl2_replay_sq_real%
+replayed_theorem sq_real_replayed := acl2_replay_sq_real%
 
 -- The emitted type is the real theorem (the clause literal, `*` normalized to binary-*).
 example :
@@ -352,7 +352,7 @@ elab "acl2_replay_mylen_real% " : term => do
     AUTO-DISCHARGES the totality hypotheses from the emitted admission data
     (justification + raw termination clauses), so only the TP hypothesis
     remains explicit in the type. -/
-def my_len_my_app_real_replayed := acl2_replay_mylen_real%
+replayed_theorem my_len_my_app_real_replayed := acl2_replay_mylen_real%
 
 /-- PIN the machine-generated statement (audit #38, updated for #37): the
     conclusion is the genuine replayed statement of the ACL2 defthm
@@ -657,7 +657,7 @@ elab "acl2_replay_permcons_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first replayed theorem of the SORTING corpus (R1). -/
-def perm_cons_real_replayed := acl2_replay_permcons_real%
+replayed_theorem perm_cons_real_replayed := acl2_replay_permcons_real%
 
 /-- PIN the machine-generated statement: the UNCONDITIONAL replayed statement of the
     ACL2 defthm
@@ -715,7 +715,7 @@ elab "acl2_replay_permtrans_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first theorem-to-theorem dependency replay of the sorting corpus. -/
-def perm_transitive_real_replayed := acl2_replay_permtrans_real%
+replayed_theorem perm_transitive_real_replayed := acl2_replay_permtrans_real%
 
 example :
     ∀ (env : Env),
@@ -1001,7 +1001,7 @@ elab "wp3_gz_discharge_pin% " : term => do
     logInfo "WP3 pin: D5 prelude constants discharge the EMITTED gz rule specs"
     return mkConst ``True.intro
 
-def wp3GzDischargePin : True := wp3_gz_discharge_pin%
+replayed_theorem wp3GzDischargePin := wp3_gz_discharge_pin%
 
 end ACL2.Tests.Driver
 
@@ -1052,7 +1052,7 @@ elab "acl2_replay_fsq_real% " : term => do
     mkLambdaFVars #[env] proof
 
 /-- The first replayed translated-`let` theorem (S2). -/
-def fsq_unfolds_real_replayed := acl2_replay_fsq_real%
+replayed_theorem fsq_unfolds_real_replayed := acl2_replay_fsq_real%
 
 /-! ### The fsq-unfolds STATEMENT PIN (validator/lifter arc W1 item 1 — the
 survey's top gap: the cond-set pin above cannot catch a mis-navigated
@@ -1120,7 +1120,7 @@ elab "s2b_beta_books_pin% " : term => do
   logInfo "S2b pin: p2-beta-preprocess 2/2 + p2-beta-iff-context 1/1 replay (axiom-clean)"
   return mkConst ``True.intro
 
-def s2bBetaBooksPin : True := s2b_beta_books_pin%
+replayed_theorem s2bBetaBooksPin := s2b_beta_books_pin%
 
 
 -- BUILD-FAILING axiom gate (validator/lifter arc W1 item 7, survey gap:

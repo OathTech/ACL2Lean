@@ -19,7 +19,7 @@ derive_world msortWorldD from msortDev
 
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MERGE2's conditional replayed statement. -/
-def howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
+replayed_theorem howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
   "how-many-merge2" deps [convertPermDev]
 
 theorem howManyMerge2Replayed_uncond (env : Env) :
@@ -41,7 +41,7 @@ theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
 
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-EVENS-AND-ODDS's conditional replayed statement. -/
-def howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
+replayed_theorem howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
   "how-many-evens-and-odds" deps [convertPermDev]
 
 theorem howManyEvensOddsReplayed_uncond (env : Env) :
@@ -71,7 +71,7 @@ set_option maxHeartbeats 1600000 in
     decrease) arrive by replay as of the R3 measure table (2026-08-14),
     and its former `tp:EVENS` hypothesis from the driver's TP prover
     (TP-replay arc increment 2, 2026-08-13). -/
-def orderedpMsortReplayedCond := driver_replayed% msortDev msortWorldD
+replayed_theorem orderedpMsortReplayedCond := driver_replayed% msortDev msortWorldD
   "orderedp-msort"
 
 theorem orderedpMsortReplayed_uncond (env : Env) :
@@ -92,7 +92,7 @@ theorem orderedp_msort_native_driver (xs : List SExpr) :
 
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MSORT's conditional replayed statement. -/
-def howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD
+replayed_theorem howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD
   "how-many-msort" deps [convertPermDev]
 
 theorem howManyMsortReplayed_uncond (env : Env) :
