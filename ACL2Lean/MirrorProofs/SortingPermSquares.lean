@@ -96,7 +96,9 @@ mirror_iso% memb_map_invariant for ACL2Lean.Sorting.memb
   vars [a, xs]
   square hom scalar
 
-/-- info: 'ACL2Lean.MirrorProofs.memb_map_invariant' depends on axioms: [propext] -/
+-- (v4.33 bump: proof-term movement added `Quot.sound` — still inside the
+-- pinned {propext, Classical.choice, Quot.sound} family, no sorryAx)
+/-- info: 'ACL2Lean.MirrorProofs.memb_map_invariant' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms memb_map_invariant
 
@@ -305,7 +307,9 @@ mirror_iso% permWitness_map_hom for ACL2Lean.Sorting.permWitness
   square hom elem
   embed ValueOrNilEmbed via [encDefault]
 
-/-- info: 'ACL2Lean.MirrorProofs.permWitness_map_hom' depends on axioms: [propext] -/
+-- (v4.33 bump: proof-term movement added `Quot.sound` — still inside the
+-- pinned {propext, Classical.choice, Quot.sound} family, no sorryAx)
+/-- info: 'ACL2Lean.MirrorProofs.permWitness_map_hom' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms permWitness_map_hom
 

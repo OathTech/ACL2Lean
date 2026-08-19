@@ -431,7 +431,9 @@ mirror_iso% howMany_map_invariant for ACL2Lean.Sorting.howMany
   vars [a, xs]
   square hom scalar
 
-/-- info: 'ACL2Lean.MirrorProofs.howMany_map_invariant' depends on axioms: [propext] -/
+-- (v4.33 bump: proof-term movement added `Quot.sound` — still inside the
+-- pinned {propext, Classical.choice, Quot.sound} family, no sorryAx)
+/-- info: 'ACL2Lean.MirrorProofs.howMany_map_invariant' depends on axioms: [propext, Quot.sound] -/
 #guard_msgs (whitespace := lax) in
 #print axioms howMany_map_invariant
 
