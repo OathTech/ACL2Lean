@@ -12,7 +12,9 @@ Also canonical:
   conflicts, the lexicon wins).
 - [`docs/plans/2026-08-12_master-plan.md`](docs/plans/2026-08-12_master-plan.md)
   — the governing plan.
-- [`README.md`](README.md) — the pipeline, the trust model, build commands.
+- [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — the pipeline, the trust model,
+  build commands (this was `README.md` until 2026-08-19; the root
+  `README.md` is now a short front page).
 - [`TODO.md`](TODO.md) — the running backlog.
 
 Note for anyone restoring boilerplate here: the previous contents of this file
