@@ -5242,11 +5242,28 @@ obligation is stated precisely in its conditional proof's type:
       independently recommended a mechanical checker that re-derives every dump
       claim (steps, ids, results, runes, LHS/RHS) from the raw `.proof-log`.
       Build it; run in ci.
-- [ ] **DP-proof sorry/axiom gate.** The coverage harness `Meta.check`s each
-      DP-leaf proof, but `Meta.check` does NOT reject `sorryAx` — with
-      `assumeFact` there is no `mkSorry` path left, but guard it mechanically:
-      scan emitted DP proof terms for `sorryAx`/`Lean.ofReduceBool` (and keep the
-      `#guard_msgs` axiom gates on the spike/test theorems).
+- [x] **DP-proof sorry/axiom gate — DONE 2026-08-19** (release-hygiene round).
+      The ask: `Meta.check` does NOT reject `sorryAx`, so scan emitted DP proof
+      terms for `sorryAx`/`Lean.ofReduceBool` mechanically. Landed as
+      `Driver/Discharge.checkDpProofClean` — a transitive constant walk (same
+      shape as `Runner.collectProofAxioms`, `allowOpaque := true` so v4.33's
+      opaque theorem values are seen through) for
+      `sorryAx`/`Lean.ofReduceBool`/`Lean.ofReduceNat`, called at
+      `proveDpFact`'s single return, i.e. at the EMISSION point, on BOTH
+      routes (bounded-direct and the value split) and on EVERY leaf the
+      carve-out emits. That placement is the point of it: the pre-existing
+      walks (`tryReplay`/`tryDischarge`'s trio filters, the waypoint `_driver`
+      axiom gate) only see leaves that reach a checked consumer, and the leaf
+      TACTIC is the one place in the replay where an arbitrary tactic script
+      runs. `Tests/TamperTests.lean` T5 pins that the speedbump is ARMED (all
+      three constants rejected, a clean term accepted), in the same
+      assert-the-joint-fires style as T1–T4. Runs in `just ci` via `test`
+      (T5) and via `build`/`driver-coverage` (every corpus leaf).
+      NOTE ON FORM: this is NOT a `scripts/check-*.sh` static, because a
+      static cannot see the thing being checked — DP-leaf proofs are anonymous
+      SUBTERMS of replay proofs, never declared constants, so there is nothing
+      on disk to grep. Deterrent standard: simple, one hunk, deletable. DO NOT
+      HARDEN IT.
 - [x] **c3 end-to-end audit (2026-06-09, task #38) — DONE.** 3 decorrelated
       adversarial reviewers (schematic fidelity / statement / lemma soundness) +
       per-finding independent verification. Statement + lemma dimensions: CLEAN

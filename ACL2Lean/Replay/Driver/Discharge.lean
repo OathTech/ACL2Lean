@@ -621,6 +621,45 @@ partial def dpSplitAndClose (tac : Lean.TSyntax `tactic) (l : Lean.MVarId)
       unless ← dpSplitAndClose tac sg.mvarId (fuel - 1) do return false
     return true
 
+/-- The constants a DP-leaf proof term may never mention: `sorryAx` (an
+    admitted hole) and the two `native_decide` reduction axioms. -/
+def dpForbiddenAxioms : List Name :=
+  [``sorryAx, ``Lean.ofReduceBool, ``Lean.ofReduceNat]
+
+/-- EMISSION-POINT SCAN of a DP-leaf proof term for `dpForbiddenAxioms`,
+    transitively (same walk shape as `Runner.collectProofAxioms`, incl.
+    `allowOpaque := true` — v4.33 theorems are opaque and a walk without it
+    silently drops everything reached through a theorem's proof).
+
+    WHY HERE: the carve-out's leaf tactic is the one place in the replay
+    where an arbitrary tactic script runs, so it is the one place a hole
+    could enter a proof term without a declaration to `#print axioms`. The
+    downstream walks (`Runner.tryReplay` / `Runner.tryDischarge`, the
+    waypoint `_driver` axiom gate) only see leaves that reach a checked
+    consumer; this one fires on EVERY leaf the carve-out emits, at the
+    moment it is emitted, so a future consumer cannot inherit an unchecked
+    one.
+
+    THREAT MODEL: a speedbump against forgetting — someone reaching for
+    `native_decide` or a `sorry` placeholder in `dpLeafTactic` — not a
+    barrier against circumvention. DO NOT HARDEN IT. -/
+def checkDpProofClean (pf : Expr) : MetaM Unit := do
+  let env ← getEnv
+  let mut visited : NameSet := {}
+  let mut work := pf.getUsedConstants.toList
+  while !work.isEmpty do
+    let c :: rest := work | break
+    work := rest
+    if visited.contains c then continue
+    visited := visited.insert c
+    if dpForbiddenAxioms.contains c then
+      throwError "DP-leaf proof term mentions {c} — the carved-out decision \
+                  procedure must emit a kernel-checked proof with no \
+                  admitted or natively-reduced step"
+    if let some ci := env.find? c then
+      if let some v := ci.value? (allowOpaque := true) then
+        work := work ++ v.getUsedConstants.toList
+
 /-- PROVE the DP fact by the carved-out decision procedure: one BOUNDED run
     of the fixed tactic on the unsplit goal, else a one-level value split
     (policy-bounded) and the fixed tactic per leaf. Hard-fails if any case
@@ -644,10 +683,15 @@ def proveDpFact (stmt : Expr) (total : Nat) (coneIdxs : List Nat := []) : MetaM 
   -- fvars AND no mvars (an unassigned mvar would carry the outer context —
   -- the audit's F2; instantiate first so assigned mvars don't trip it).
   let stmt ← instantiateMVars stmt
-  if stmt.hasFVar || stmt.hasMVar then
-    proveDpFactCore stmt total coneIdxs
-  else
-    Meta.withLCtx {} #[] do proveDpFactCore stmt total coneIdxs
+  let pf ←
+    if stmt.hasFVar || stmt.hasMVar then
+      proveDpFactCore stmt total coneIdxs
+    else
+      Meta.withLCtx {} #[] do proveDpFactCore stmt total coneIdxs
+  -- the single emission choke point for BOTH routes (bounded-direct and
+  -- the value split) — see `checkDpProofClean`
+  checkDpProofClean pf
+  return pf
 where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM Expr := do
   let tac ← dpLeafTactic
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the

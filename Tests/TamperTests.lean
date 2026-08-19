@@ -126,6 +126,28 @@ elab "run_tamper_tests% " : command => Lean.Elab.Command.liftTermElabM do
   let cpNoMarkers := mapProof
     (dropHypChildren (fun c => (runeOf c).1 == "hyp-relief")) cp
   assertRejected "relief markers dropped" "NO emitted relief record" cpNoMarkers rules
+  -- T5 (release hygiene 2026-08-19): the DP-leaf EMISSION-POINT scan
+  -- (`checkDpProofClean`) must reject an admitted or natively-reduced proof
+  -- term and pass a clean one. Same shape as T1–T4: assert the joint FIRES.
+  -- Deterrent standard — this pins that the speedbump is ARMED; it is not an
+  -- attempt to enumerate every way a hole could be built. DO NOT HARDEN IT.
+  let holed ← Meta.mkSorry (mkConst ``True) (synthetic := false)
+  for (label, bad) in [("sorryAx", holed),
+                       ("ofReduceBool", mkConst ``Lean.ofReduceBool),
+                       ("ofReduceNat", mkConst ``Lean.ofReduceNat)] do
+    try
+      checkDpProofClean bad
+      throwError "DP-AXIOM SCAN NOT REJECTED ({label}): checkDpProofClean \
+                  accepted a proof term mentioning it"
+    catch e =>
+      let msg ← e.toMessageData.toString
+      if (msg.splitOn "DP-AXIOM SCAN NOT REJECTED").length > 1 then throw e
+      unless (msg.splitOn "DP-leaf proof term mentions").length > 1 do
+        throwError "DP-AXIOM SCAN ({label}): threw, but not at the scan — \
+                    got: {msg}"
+  checkDpProofClean (mkConst ``trivial)
+  logInfo m!"DP-leaf axiom scan armed: sorryAx/ofReduceBool/ofReduceNat \
+    rejected, a clean term accepted"
 
 run_tamper_tests%
 
