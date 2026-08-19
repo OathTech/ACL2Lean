@@ -59,7 +59,27 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
     them as independent arguments; a mismatched pair is fail-closed
     (the `by decide` world facts and defeq statement pins at every
     consumer die), never silently wrong, but the pairing itself is by
-    convention. -/
+    convention.
+
+    HEARTBEAT-BOUND POLICY for the `set_option maxHeartbeats N in` lines
+    that precede consumers of this macro (release-hygiene sweep,
+    2026-08-19 — the TODO "heartbeat hacking" audit). Every such site
+    guards ONE invocation of this macro, and this macro does no PROOF
+    SEARCH: it walks a recorded ACL2 clause tree deterministically. A
+    raise therefore cannot make a theorem replay that would otherwise
+    fail on some other route — there is no other route — it only changes
+    how long a runaway takes to surface. The bounds that actually protect
+    the replay are INTERNAL and separately calibrated: `Runner.tryReplay`
+    (3M user units per theorem, 10M for the admission class),
+    `Runner.tryDischarge` (1M per DP leaf), `Harness.dischargeBudget` (3M
+    per discharge window), `Discharge.dpOnlyProverGuard` (1M per DP
+    attempt) — each with its own measured margin at its own docstring.
+    So the module-level values are OUTER ENVELOPES over that same work.
+    Each site below carries its MEASURED cost from the 2026-08-19 sweep
+    (`lake env lean -D trace.profiler=true -D
+    trace.profiler.useHeartbeats=true`), in USER units (1 unit = 1000
+    heartbeats; the Lean default bound is 200 000 units). Re-measure with
+    that command; a number without a date is stale by construction. -/
 syntax depsClauseDR := &" deps " "[" ident,* "]"
 
 elab "driver_replayed%" devId:ident worldId:ident nm:str
@@ -255,6 +275,15 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         { name := thmName, subst := sigma, formula := hypI }
       let key := thmName ++ "|" ++ toString (hash (toString (repr hypI)))
       unless preparedUseFi.any (·.1 == key) do
+        -- RECURSION-DEPTH guard (heartbeat/recursion sweep 2026-08-19,
+        -- status recorded honestly): 131072 = 256x the 512 default, landed
+        -- with the D2-a shallow-stack pre-pass (de629e9) as one of the three
+        -- pieces that eliminated the usefi SIGABRT class. The DEPTH DRIVER
+        -- IS UNPROFILED — `prepareUseFi` spends a native frame per telescope
+        -- binder, so the depth is O(#binders of the FI telescope), but no
+        -- measurement pins the constant. Same site as
+        -- Tests/Coverage/Harness's copy. Named residue in TODO
+        -- "heartbeat/recursion-limit raises".
         let (cName, argTys) ← Driver.withRealMaxRecDepth 131072 <|
           prepareUseFi crossDevs dev wVal wExpr spec termByFn libParametric
         preparedUseFi := preparedUseFi ++ [(key, cName, argTys)]

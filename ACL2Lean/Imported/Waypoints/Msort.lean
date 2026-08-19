@@ -17,6 +17,7 @@ def msortDev : Development :=
 
 derive_world msortWorldD from msortDev
 
+-- hb guard (2026-08-19 sweep): measured 358k units, bound 1.6M — 4x margin
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MERGE2's conditional replayed statement. -/
 replayed_theorem howManyMerge2ReplayedCond := driver_replayed% msortDev msortWorldD
@@ -39,6 +40,7 @@ theorem how_many_merge2_native_driver (ev : SExpr) (xs ys : List SExpr) :
 
 #print axioms how_many_merge2_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 96k units, bound 1.6M — 17x margin
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-EVENS-AND-ODDS's conditional replayed statement. -/
 replayed_theorem howManyEvensOddsReplayedCond := driver_replayed% msortDev msortWorldD
@@ -65,6 +67,7 @@ theorem how_many_evens_and_odds_native_driver (ev a : SExpr)
 
 #print axioms how_many_evens_and_odds_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 110k units, bound 1.6M — 15x margin
 set_option maxHeartbeats 1600000 in
 /-- ORDEREDP-MSORT's replayed statement — now UNCONDITIONAL: its two
     `total:` hypotheses (`MERGE2`'s sum measure, `MSORT`'s EVENS/ODDS
@@ -90,6 +93,7 @@ theorem orderedp_msort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_msort_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 33k units, bound 1.6M — 48x margin
 set_option maxHeartbeats 1600000 in
 /-- HOW-MANY-MSORT's conditional replayed statement. -/
 replayed_theorem howManyMsortReplayedCond := driver_replayed% msortDev msortWorldD

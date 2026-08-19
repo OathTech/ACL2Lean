@@ -317,6 +317,11 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
   -- call site passes a guard set by the same methodology as this default:
   -- margin over the observed legitimate cost (qsort admission ≈ 4.7M
   -- units → 10M). Ordinary theorems keep the 1M default.
+  -- `withRealMaxRecDepth 8192` — the engineering limit, MEASURED at the
+  -- third site of this constant (the lazy `buildTotalEnv` below): the
+  -- totality sweep over a large included world runs within ~1 frame of the
+  -- default 512, so 8192 is ~16x the observed depth. Not proof search; a
+  -- tripped depth is a runtime-class throw, never a wrong proof.
   withRealMaxHeartbeats budget <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let p ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do
@@ -898,7 +903,9 @@ def tryDischarge (w : World) (wExpr : Expr) (tps : List (String × SExpr))
   -- one pathological leaf must neither hang nor poison the rest), and runtime
   -- (timeout) exceptions report ✗ instead of failing the build. REAL bound
   -- (P1, see tryReplay): ~1M user units ≈ 40 s, margin over the slowest
-  -- legitimate leaf (~17 s observed).
+  -- legitimate leaf (~17 s observed). `withRealMaxRecDepth 8192`: the same
+  -- engineering limit as tryReplay's — ~16x the ~512 depth measured at the
+  -- `buildTotalEnv` site below.
   withRealMaxHeartbeats 1000000 <| withRealMaxRecDepth 8192 <| tryCatchRuntimeEx
     (try
       let (p, conds) ← Meta.withLocalDeclD `env (mkConst ``ACL2.Env) fun envFV => do

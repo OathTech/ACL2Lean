@@ -46,6 +46,7 @@ theorem orderedp_isort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_isort_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 354k units, bound 1.6M — 5x margin
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-ISORT
     (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`;

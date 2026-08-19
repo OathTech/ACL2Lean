@@ -5161,18 +5161,76 @@ obligation is stated precisely in its conditional proof's type:
 
 ### Audit / correctness debt (revisit — do not drop)
 
-- [ ] **Sweep for heartbeat/recursion-limit raises ("heartbeat hacking" — a
-      bad smell).** Audit every `withRealMaxHeartbeats` / `withRealMaxRecDepth`
-      site (and any `maxHeartbeats`/`maxRecDepth` option set): each raise can
-      mask a pathological algorithm (exponential blowup, deep non-tail
-      recursion on big worlds) instead of fixing it, and limits tuned to make
-      today's corpus pass can silently gate future books (same trap as
-      corpus-calibrated budgets — see the #65 two-tier budget policy). For
-      each site: justify the bound as a runaway GUARD with stated margin, or
-      profile and fix the underlying recursion/cost. Added 2026-07-17 after
-      raising maxRecDepth to 8192 for qsort's 206-defun world (DP-leaf
-      discharge; default 512 genuinely too small for its clause terms, but
-      the depth driver was not profiled).
+- [ ] **Sweep for heartbeat/recursion-limit raises ("heartbeat hacking") —
+      HEARTBEAT HALF DONE 2026-08-19 (release-hygiene round, branch
+      `mdd/release-hygiene`); NARROWED to the RECURSION-DEPTH residue below.**
+      Original ask: each raise can mask a pathological algorithm instead of
+      fixing it, and limits tuned to make today's corpus pass can silently
+      gate future books (the #65 two-tier budget trap). For each site: justify
+      the bound as a runaway GUARD with stated margin, or profile and fix the
+      underlying cost. Added 2026-07-17 after raising maxRecDepth to 8192 for
+      qsort's 206-defun world (the depth driver was not profiled).
+
+      **HEARTBEAT SITES — CLOSED.** All 71 were enumerated and every one
+      MEASURED (`lake env lean -D trace.profiler=true -D
+      trace.profiler.useHeartbeats=true -D trace.profiler.threshold=…`, 2026-08-19;
+      USER units = 1000 heartbeats, Lean default bound 200 000). Each now
+      carries its measured usage / bound / margin in a comment AT the site;
+      the class rationale is at `driver_replayed%` (Waypoints/Macro.lean) and
+      `coverage_book%` (Tests/Coverage/Harness.lean). The verdict is (a)
+      RUNAWAY GUARD at every site, and the reason is structural, not a
+      per-site judgement call: every bounded region is a DETERMINISTIC replay
+      of a recorded ACL2 tree — there is no proof SEARCH anywhere under these
+      bounds — so a raise cannot make a theorem replay that would otherwise
+      have taken a different route; it can only change how fast a runaway
+      surfaces. The bounds that actually protect the run are the INTERNAL
+      per-unit ones (`Runner.tryReplay` 3M/theorem, 10M admission-class;
+      `tryDischarge` 1M/DP-leaf; `Harness.dischargeBudget` 3M/discharge
+      window; `Discharge.dpOnlyProverGuard` 1M; `ParametricInstantiate`'s
+      offer-attempt 3M), each already carrying a measured margin at its
+      docstring. Measured spread: waypoint sites 11k–1.35M units against
+      400k–12M bounds (margins 3.7x–290x); the `maxHeartbeats 0` sites
+      (27 coverage books + 5 pattern pins + 3 sorting pins + the 3
+      sorts-equivalent capstones) have no outer envelope by policy and
+      measured 5k–14.3M units per command.
+      TWO TIGHT GUARDS found and flagged at their sites (not changed — a
+      trip is a LOUD build failure, never a silent wrong answer, so this is
+      build-flakiness risk, not a correctness one): Waypoints/Qsort's
+      HOW-MANY-APPEND replay runs 876k units against a 1.6M bound (1.8x) and
+      its ORDEREDP-APPEND replay 3.06M against 4M (1.3x). Both are the
+      nearest-to-boundary class that produced the F1 golden nondeterminism;
+      if either starts flapping, RAISE it (that is what a guard is for) —
+      do not tune the replay to fit.
+      One thing did NOT reconcile and is recorded rather than smoothed over:
+      Waypoints/OrderedPerms' `maxHeartbeats 400000` (added by the toolchain
+      bump for a trip of the 200000 default) guards a command measuring 19k
+      units, and the module elaborates clean under `lake env lean` with the
+      raise deleted — so the trip reproduces only under the full `lake build`
+      and is an ACCOUNTING effect (async elaboration / compilation-phase
+      heartbeats), not a cost. Kept; comment at the site.
+
+      **RESIDUE — the RECURSION-DEPTH half (this item stays open for it).**
+      Heartbeats can be measured directly; depth cannot, so these bounds are
+      still unprofiled:
+      - `withRealMaxRecDepth 8192` (Runner ×3) — the ONE measured depth claim
+        in the tree: the lazy `buildTotalEnv` site records the totality sweep
+        running "within ~1 frame of the default 512", i.e. ~16x margin. That
+        is one observation at one site, not a profile of the other two.
+      - `withRealMaxRecDepth 131072` (Waypoints/Macro + its twin in
+        Tests/Coverage/Harness) — the `prepareUseFi` pre-pass, landed with the
+        D2-a shallow-stack architecture (de629e9) as one of three pieces that
+        killed the usefi SIGABRT class. 256x the default with no measurement
+        behind the number. THIS is the interesting one: it is the same
+        phenomenon as the `--tstack` flag (a native frame per telescope
+        binder), so profile the two together.
+      - `set_option maxRecDepth 100000` (Waypoints/SortsEquivalent, file
+        level) — justified in kind (215-defun `by decide` world facts), not in
+        magnitude. The three per-capstone `maxRecDepth 1000000` raises that
+        used to sit on top of it were DELETED 2026-08-19 (probed: the module
+        elaborates clean without them) — pure over-provision.
+      Wanted: an actual depth measurement (a `withRealMaxRecDepth`-wrapping
+      probe that reports `currRecDepth` at its deepest, or a bisect harness),
+      then justify-or-shrink each of the four surviving bounds.
 - [ ] **Committed golden coverage-table snapshot.** Persist the DriverCoverage
       table as a checked artifact so refactor claims of unchanged coverage
       diff against a saved baseline instead of re-asserted numbers (from the

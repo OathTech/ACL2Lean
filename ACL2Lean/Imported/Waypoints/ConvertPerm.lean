@@ -23,6 +23,7 @@ def convertPermDev : Development :=
 
 derive_world convertPermWorldD from convertPermDev
 
+-- hb guard (2026-08-19 sweep): measured 21k units, bound 1.6M — 75x margin
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-HOW-MANY-IS-0 (hypothesis: `tp:HOW-MANY`). -/
@@ -48,6 +49,7 @@ theorem not_memb_how_many_0_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_how_many_0_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 21k units, bound 1.6M — 78x margin
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for
     NOT-MEMB-IMPLIES-RM-IS-NO-OP (hypothesis: `rule:CONS-CAR-CDR`). -/
@@ -73,6 +75,7 @@ theorem not_memb_rm_noop_native_driver (av : SExpr) (xs : List SExpr)
 
 #print axioms not_memb_rm_noop_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 17k units, bound 1.6M — 96x margin
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM
     (hypothesis: `tp:HOW-MANY`). -/
@@ -97,6 +100,7 @@ theorem how_many_rm_native_driver (av bv : SExpr) (xs : List SExpr)
 
 #print axioms how_many_rm_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 38k units, bound 1.6M — 42x margin
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-RM-GENERAL
     (hypothesis: `tp:HOW-MANY`). -/
@@ -123,6 +127,7 @@ theorem how_many_rm_general_native_driver (av bv : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_rm_general_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 85k units, bound 3.2M — 38x margin
 set_option maxHeartbeats 3200000 in
 /-- The driver's replayed statement for
     PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS — now
@@ -160,6 +165,7 @@ theorem pce_is_counterexample_native_driver (xs ys : List SExpr) :
 
 #print axioms pce_is_counterexample_native_driver
 
+-- hb guard (2026-08-19 sweep): measured 191k units, bound 3.2M — 17x margin
 set_option maxHeartbeats 3200000 in
 /-- The driver's replayed statement for the book's CAPSTONE,
     CONVERT-PERM-TO-HOW-MANY — UNCONDITIONAL since 2026-08-14 (T1+2

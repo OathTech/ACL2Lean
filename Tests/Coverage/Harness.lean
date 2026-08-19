@@ -129,7 +129,30 @@ def depPayload (dep : String) :
   return (dep, dev, bookTrees dev, allBookRules dev)
 
 /-- Run ONE corpus book with the sweep's exact semantics and check its
-    golden section byte-exactly; emits `covCounts_<sanitized>`. -/
+    golden section byte-exactly; emits `covCounts_<sanitized>`.
+
+    WHY EVERY CALL SITE CARRIES `set_option maxHeartbeats 0` (release-hygiene
+    sweep, 2026-08-19 — the TODO "heartbeat hacking" audit). A book's
+    elaboration is a whole corpus book's replay: `runBook` walks every
+    theorem's recorded clause tree and every DP leaf, deterministically. `0`
+    means this command gets NO OUTER ENVELOPE, deliberately — the bounds that
+    actually protect the run are INTERNAL and per unit of work
+    (`Runner.tryReplay` 3M user units per theorem / 10M for the admission
+    class, `Runner.tryDischarge` 1M per DP leaf), so one pathological theorem
+    or leaf is caught by ITS OWN guard while the rest of the book still
+    reports. An outer per-book bound would add nothing (any runaway is inside
+    one of those windows) and would be a corpus-calibrated number of exactly
+    the kind the #65 two-tier budget policy bans: it would silently gate a
+    FUTURE book on today's totals.
+
+    Measured book totals, 2026-08-19 sweep (USER units, 1 unit = 1000
+    heartbeats; the Lean default bound is 200 000): 5k (`09-defn-unfold`) to
+    1.8M (`sorting/bsort`) over the 27 books measured; 19 of them are under
+    the default and 8 above it, so the sites are NOT interchangeable with
+    "just drop the option" — and which side of the default a book sits on is
+    a function of corpus growth, not of the book. The per-site numbers are on
+    the call sites. Re-measure with `lake env lean -D trace.profiler=true -D
+    trace.profiler.useHeartbeats=true <module>`. -/
 elab "coverage_book% " nameLit:str : command => do
   let name := nameLit.getString
   liftTermElabM do
@@ -228,6 +251,10 @@ elab "coverage_book% " nameLit:str : command => do
                   -- declines and the capstone rows stay on the honest
                   -- offer route (unlocks = with_termination coverage +
                   -- TP-replay discharge).
+                  -- RECURSION-DEPTH guard: see the twin site in
+                  -- Waypoints/Macro.lean for the verdict — landed with the
+                  -- D2-a shallow-stack pre-pass, depth driver UNPROFILED,
+                  -- named residue in the TODO sweep item.
                   let (cName, argTys) ←
                     ACL2.Replay.Driver.withRealMaxRecDepth 131072 <|
                     ACL2.Imported.Waypoints.prepareUseFi crossDevs

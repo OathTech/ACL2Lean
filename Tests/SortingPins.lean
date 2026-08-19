@@ -345,6 +345,9 @@ Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]"),
 
 -- unlimited at the command like the coverage sweep — the harness enforces
 -- REAL per-theorem budgets internally (withRealMaxHeartbeats)
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 8.67M units.
 set_option maxHeartbeats 0 in
 replayed_theorem sortingStatementPinsRun := sorting_statement_pins_run%
 
@@ -701,6 +704,9 @@ elab "p3_conj_statement_pin_run% " : term => do
   logInfo "p3-conj statement pin: replay status holds (ORDD-INS-MID)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 3.73M units.
 set_option maxHeartbeats 0 in
 replayed_theorem p3ConjStatementPinRun := p3_conj_statement_pin_run%
 
@@ -894,6 +900,9 @@ elab "pattern_statement_pins_run% " : term => do
     P7-TARGET, SAME-LN-IMPLIES-EQUAL-LN-1)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 67k units.
 set_option maxHeartbeats 0 in
 replayed_theorem patternStatementPinsRun := pattern_statement_pins_run%
 

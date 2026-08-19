@@ -132,6 +132,9 @@ chain still IFF at the literal root") do
 
 -- unlimited at the command like the coverage sweep — the harness enforces
 -- REAL per-theorem/per-leaf budgets internally (withRealMaxHeartbeats)
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 8.17M units.
 set_option maxHeartbeats 0 in
 replayed_theorem sortingArcPatternPins := sorting_arc_pattern_pins%
 
@@ -164,6 +167,9 @@ elab "perm_arc_pattern_pins% " : term => do
     congruence collapse validated decorrelated)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 55k units.
 set_option maxHeartbeats 0 in
 replayed_theorem permArcPatternPins := perm_arc_pattern_pins%
 
@@ -220,6 +226,9 @@ carries 1 hyps").length ≥ 2) do
     class-D consumption pinned at the SYNP-guarded R-rule frontier)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 41k units.
 set_option maxHeartbeats 0 in
 replayed_theorem rLanePatternPins := r_lane_pattern_pins%
 
@@ -258,6 +267,9 @@ elab "swap_family_pattern_pins% " : term => do
     p1-swap-double-neg 1/1, p1-swap-joint 1/1)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 43k units.
 set_option maxHeartbeats 0 in
 replayed_theorem swapFamilyPatternPins := swap_family_pattern_pins%
 
@@ -297,6 +309,9 @@ elab "encapsulate_empty_pins% " : term => do
     empty-encapsulate balanced + reconstructed)"
   return mkConst ``True.intro
 
+-- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
+-- per-theorem/per-leaf guards are internal (see coverage_book%). This book
+-- measured 2k units.
 set_option maxHeartbeats 0 in
 replayed_theorem encapsulateEmptyPins := encapsulate_empty_pins%
 
