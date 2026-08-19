@@ -4884,6 +4884,12 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Other pipeline / cross-cutting work
 
+- [ ] **Cut `v0.1.0`** per `docs/notes/2026-08-19_versioning-policy.md`
+      (ratified 2026-08-19) once the toolchain-bump arc AND the docs
+      polish are both on `main` and the gate is green — annotated tag on
+      a commit with a recorded full `just claim-gate` (`TRUE_EXIT=0`);
+      GitHub Release wraps the tag at the next networked push.
+
 - [ ] **Toolchain PANIC in the build output — classified, ACCEPTED, not
       fixed (2026-08-19, external claims audit P2).** Lean's own
       `LibrarySuggestions.SymbolFrequency` export pass blows its
