@@ -405,6 +405,20 @@ against it structurally:
   ratchet (`just check-file-weight`, baseline in
   `scripts/file-weight-baseline.txt`) enforces it — grandfathered giants
   may only shrink.
+- **Heartbeat/resource-limit raises are a BAD SMELL (Mike, 2026-08-19).**
+  An explicit heartbeat or recursion-limit increase indicates
+  NON-SCALABLE tool design — usually a monolithic grind where a
+  decomposed route exists. The default budget IS the tripwire, and we
+  WANT it to fire: it is a sign of a performance issue to resolve.
+  Raises are permitted only as TRANSITORY fixes and are by definition
+  DEFECTS — each carries a minimal measured/bound comment plus a
+  pointer to the TODO triage list, where it stays until the underlying
+  shape is decomposed — unless judged unsolvable and explicitly
+  approved by the user. No raise exists where the default suffices
+  (deleted without residue), and no budget engineering in either
+  direction: never snug corpus-calibrated bounds, never padded
+  envelopes — the fix for an expensive site is decomposition, not a
+  bigger number.
 - **Take clean engineering-quality opportunities as you go.** Arc-by-arc buildout
   accumulates near-clones (the same helper re-derived in two walkers, the same
   composition idiom pasted at a third site). When a clean de-duplication /
