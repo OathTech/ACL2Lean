@@ -318,11 +318,13 @@ Set either to any value to enable, e.g.
 | `Tests/` | Unit tests, driver tests, statement pins, the corpus-wide coverage harness |
 | `acl2_samples/` | Authored corpus sources (`recon-tests/` is the reconstruction suite, `pattern-tests/` the pattern corpus) + captured logs; upstream books are referenced directly from the `acl2/` submodule (see `books.txt`) |
 | `scripts/` | The gate scripts (provenance, tags, dark files, file weight, …) |
-| `docs/plans/` | Design plans — `2026-08-12_master-plan.md` is the governing plan |
-| `docs/notes/` | Investigation notes and surveys |
+| `docs/README.md` | The index of `docs/`, with the live-vs-dated reading rule |
+| `docs/plans/` | Design plans and arc charters — `2026-08-12_master-plan.md` is the governing plan |
+| `docs/notes/` | Investigation notes, surveys, dated findings |
 | `docs/audits/` | Dated audit reports |
-| `docs/archive/` | Passages retired from live documents, kept verbatim |
-| `TODO.md` | The running backlog across all tracks |
+| `docs/archive/` | Retired material kept verbatim (passages moved out of live docs, the pre-2026-08-19 `TODO.md` journal) |
+| `docs/reference/` | Parked material — not built, not trusted, not part of any result |
+| `TODO.md` | The live backlog across all tracks (open items only) |
 | `CLAUDE.md` | The working rules (fidelity requirements, audit practices) |
 
 ## Known limitations

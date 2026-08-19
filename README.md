@@ -49,14 +49,14 @@ book theorems. The file says so where they appear.)
 
 ## Try it
 
-    git submodule update --init   # the instrumented ACL2 fork (pinned)
-    lake build                    # type-check everything
-    just test                     # run the test suite
-
 One caveat for a fresh clone: the captured ACL2 proof logs are build
 inputs and are *not* in git, so they must be generated once before
 `lake build` will succeed — see
 [`docs/OVERVIEW.md`](docs/OVERVIEW.md) § *Getting started*.
+
+    git submodule update --init   # the instrumented ACL2 fork (pinned)
+    lake build                    # type-check everything
+    just test                     # run the test suite
 
 ## Learn more
 

@@ -19,6 +19,8 @@ Also canonical:
   lives in the arc charters under `docs/plans/`, and the pre-2026-08-19
   journal in [`docs/archive/`](docs/archive/README.md)).
 - [`docs/BUGS.md`](docs/BUGS.md) — the single index of known fidelity bugs.
+- [`docs/README.md`](docs/README.md) — the index of `docs/`, with the live-vs-dated
+  reading rule (a file with a date in its name is a RECORD of that date).
 
 Note for anyone restoring boilerplate here: the previous contents of this file
 were an unmodified Lake starter template describing a different project, and

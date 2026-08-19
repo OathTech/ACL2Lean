@@ -48,6 +48,13 @@ zone empty on purpose, so in-flight arcs land their entries in a clean file.
       a commit with a recorded full `just claim-gate` (`TRUE_EXIT=0`);
       GitHub Release wraps the tag at the next networked push.
 
+- [ ] **Backlog triage pass with Mike — scheduled AFTER `v0.1.0`.** The
+      2026-08-19 restructure preserved all 51 open items verbatim by design
+      (reorganization, not triage), so the list still carries June-era
+      entries whose frontier may have moved or closed. Walk it once with
+      Mike: close what is done, drop what is superseded, re-rank what is
+      left. Priorities are his call, not the file's.
+
 - [ ] **Toolchain PANIC in the build output — classified, ACCEPTED, not
       fixed (2026-08-19, external claims audit P2).** Lean's own
       `LibrarySuggestions.SymbolFrequency` export pass blows its
@@ -536,14 +543,6 @@ LIBRARY.
       circle-breakers.
 
 ### Audit and correctness debt (revisit — do not drop)
-
-- [ ] **Retire or wire `Verify.py`** — an unreferenced ACL2 comparator script
-      sitting at the repo root, reachable by nothing (`Justfile`, `scripts/`,
-      no doc). Tracked since `docs/plans/2026-07-30_validator-lifter-arc.md`
-      item 15 but never in the backlog; SURFACED here by the 2026-08-19
-      docs-polish outsider pass because it is one of the first things a
-      stranger sees in the root listing. *Which way it goes — retire or wire —
-      is not decided here.*
 
 - [ ] **Carve-out drift test (MDD 2026-08-02, standing revisit).**
       The widened DP-leaf premise/verdict machinery is ratified FOR NOW
