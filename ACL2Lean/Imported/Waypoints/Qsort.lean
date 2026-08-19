@@ -19,9 +19,9 @@ def qsortDev : Development :=
 
 derive_world qsortWorldD from qsortDev
 
--- hb guard (2026-08-19 sweep): measured 876k units, bound 1.6M — 1.8x
--- margin (TIGHTEST in the tree; flagged in the TODO sweep item — a trip here
--- is a loud build failure, not a silent one)
+-- hb guard: measured 876k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-APPEND
     (hypotheses: `tp:HOW-MANY`, `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0`). -/
@@ -46,8 +46,6 @@ theorem how_many_append_native_driver (ev : SExpr) (xs ys : List SExpr) :
 
 #print axioms how_many_append_native_driver
 
--- hb guard (2026-08-19 sweep): measured 62k units, bound 1.6M — 26x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for CAR-APPEND — now
     UNCONDITIONAL (its one hypothesis, the if-lifting rule
     `(equal (if a b c) x)`, is discharged by the D5 registry, P4b). -/
@@ -74,7 +72,9 @@ theorem car_append_native_driver (xs ys : List SExpr) :
 
 #print axioms car_append_native_driver
 
--- hb guard (2026-08-19 sweep): measured 287k units, bound 1.6M — 5.6x margin
+-- hb guard: measured 287k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- The UNCONDITIONAL driver replayed statement for
     PERM-IMPLIES-EQUAL-ALL-REL-2 (ACL2's defcong). -/
@@ -93,8 +93,6 @@ theorem perm_implies_equal_all_rel_2_native_driver (fv ev : SExpr)
 
 #print axioms perm_implies_equal_all_rel_2_native_driver
 
--- hb guard (2026-08-19 sweep): measured 99k units, bound 1.6M — 16x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-RM-1, now
     UNCONDITIONAL (its sole `tp:ALL-REL` hypothesis is supplied by the
     driver's TP prover — TP-replay arc increment 4, 2026-08-13). -/
@@ -119,8 +117,6 @@ theorem all_rel_rm_1_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 
 #print axioms all_rel_rm_1_native_driver
 
--- hb guard (2026-08-19 sweep): measured 169k units, bound 1.6M — 9.5x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-RM-2, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 replayed_theorem allRelRm2ReplayedCond := driver_replayed% qsortDev qsortWorldD
@@ -145,8 +141,6 @@ theorem all_rel_rm_2_native_driver (fv ev dv : SExpr) (xs : List SExpr)
 
 #print axioms all_rel_rm_2_native_driver
 
--- hb guard (2026-08-19 sweep): measured 88k units, bound 1.6M — 18x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-FILTER-1, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 replayed_theorem allRelFilter1ReplayedCond := driver_replayed% qsortDev qsortWorldD
@@ -168,8 +162,6 @@ theorem all_rel_filter_1_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms all_rel_filter_1_native_driver
 
--- hb guard (2026-08-19 sweep): measured 86k units, bound 1.6M — 19x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for ALL-REL-FILTER-2, now
     UNCONDITIONAL (`tp:ALL-REL` supplied by the driver's TP prover). -/
 replayed_theorem allRelFilter2ReplayedCond := driver_replayed% qsortDev qsortWorldD
@@ -191,8 +183,6 @@ theorem all_rel_filter_2_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms all_rel_filter_2_native_driver
 
--- hb guard (2026-08-19 sweep): measured 142k units, bound 1.6M — 11x margin
-set_option maxHeartbeats 1600000 in
 /-- The driver's replayed statement for HOW-MANY-FILTER-1 — now
     UNCONDITIONAL (`tp:HOW-MANY` and
     `rule:NOT-MEMB-IMPLIES-HOW-MANY-IS-0` by the TP prover and the
@@ -227,7 +217,9 @@ theorem how_many_filter_1_native_driver (ev dv : SExpr)
 
 #print axioms how_many_filter_1_native_driver
 
--- hb guard (2026-08-19 sweep): measured 212k units, bound 4M — 19x margin
+-- hb guard: measured 212k user units vs bound 4M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 4000000 in
 /-- The driver's replayed statement for ORDEREDP-APPEND — now
     UNCONDITIONAL: both TP conditions (`tp:ALL-REL`, and
@@ -266,8 +258,9 @@ theorem orderedp_append_native_driver (ev : SExpr) (as bs : List SExpr)
 
 #print axioms orderedp_append_native_driver
 
--- hb guard (2026-08-19 sweep): measured 3.06M units, bound 4M — 1.3x
--- margin (the SECOND tight one; same note as the 1.8x site above)
+-- hb guard: measured 3.06M user units vs bound 4M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 4000000 in
 /-- HOW-MANY-QSORT's conditional replayed statement (ten hypotheses:
     `total:O<`, `tp:HOW-MANY`, `tp:ACL2-COUNT`, and the seven rule
@@ -275,9 +268,6 @@ set_option maxHeartbeats 4000000 in
 replayed_theorem howManyQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "how-many-qsort" with_termination deps [convertPermDev]
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 theorem howManyQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.how_many_qsortFormula = some v ∧ v ≠ SExpr.nil :=
@@ -293,9 +283,6 @@ theorem howManyQsortReplayed_uncond (env : Env) :
     -- CITED rune from the prelude constant, so the hypotheses left the
     -- telescope and the hand-applied `dis_*` arguments went with them.)
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — HOW-MANY-QSORT natively: QUICKSORT PRESERVES
     MULTIPLICITY. -/
 theorem how_many_qsort_native_driver (ev : SExpr) (xs : List SExpr) :
@@ -308,7 +295,9 @@ theorem how_many_qsort_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_qsort_native_driver
 
--- hb guard (2026-08-19 sweep): measured 701k units, bound 4M — 5.7x margin
+-- hb guard: measured 701k user units vs bound 4M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 4000000 in
 /-- PERM-QSORT's conditional replayed statement (THE FLAGSHIP — twelve
     hypotheses: PCE/O< totality, the HOW-MANY/ACL2-COUNT TP corollaries,
@@ -317,9 +306,6 @@ replayed_theorem permQsortReplayedCond := driver_replayed% qsortDev qsortWorldD
   "perm-qsort" with_termination
   deps [permDev, convertPermDev, orderedPermsDev]
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 theorem permQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.perm_qsortFormula = some v ∧ v ≠ SExpr.nil :=
@@ -342,9 +328,6 @@ theorem permQsortReplayed_uncond (env : Env) :
     -- CITED rune from the prelude constant, so the hypotheses left the
     -- telescope and the hand-applied `dis_*` arguments went with them.)
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — PERM-QSORT natively: QUICKSORT PERMUTES —
     `qsortL xs` is a permutation of `xs` (the book's own `PERM`, read as
     `permL`).
@@ -381,8 +364,6 @@ theorem perm_qsort_own_driver (xs : List SExpr) :
 
 #print axioms perm_qsort_native_driver
 
--- hb guard (2026-08-19 sweep): measured 105k units, bound 4M — 38x margin
-set_option maxHeartbeats 4000000 in
 /-- ORDEREDP-QSORT's conditional replayed statement (THE HEADLINE —
     PERM-QSORT's remaining hypotheses plus the in-book
     `rule:ORDEREDP-APPEND`; `tp:ALL-REL` is now supplied by the
@@ -391,9 +372,6 @@ replayed_theorem orderedpQsortReplayedCond := driver_replayed% qsortDev qsortWor
   "orderedp-qsort" with_termination
   deps [permDev, convertPermDev, orderedPermsDev]
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 theorem orderedpQsortReplayed_uncond (env : Env) :
     ∃ N, ∀ f, f ≥ N → ∃ v, evalOpt f qsortWorldD env
       Worlds.Sorting.orderedp_qsortFormula = some v ∧ v ≠ SExpr.nil :=
@@ -422,9 +400,6 @@ theorem orderedpQsortReplayed_uncond (env : Env) :
     -- hand-applied `dis_rule_orderedp_append` — the waypoint layer's
     -- registered DECODE EXCEPTION — went with it, deleted.)
 
--- hb guard (2026-08-19 sweep): one of this pair measured ~24-26k units, the other fell below
--- the 20k trace threshold; either way >60x margin against the 1.6M bound
-set_option maxHeartbeats 1600000 in
 /-- ENTRY, PROVED — ORDEREDP-QSORT natively: QUICKSORT SORTS —
     `qsortL xs` is adjacent-pair lexorder-sorted for EVERY input. -/
 theorem orderedp_qsort_native_driver (xs : List SExpr) :

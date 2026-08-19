@@ -18,8 +18,6 @@ carries them with no `cond[…]`); `with_termination` supplies BSORT's own
 admission, which takes the RECORDED route because its measure is a world
 function (the measure table's `userFn` row). -/
 
--- hb guard (2026-08-19 sweep): measured 133k units, bound 3.2M — 24x margin
-set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-BSORT. -/
 replayed_theorem orderedpBsortReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "orderedp-bsort" with_termination
@@ -41,8 +39,6 @@ theorem orderedp_bsort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_bsort_native_driver
 
--- hb guard (2026-08-19 sweep): measured 11k units, bound 3.2M — 290x margin
-set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-BSORT. -/
 replayed_theorem howManyBsortReplayedCond := driver_replayed% bsortDev
   bsortWaypointsWorld "how-many-bsort" with_termination

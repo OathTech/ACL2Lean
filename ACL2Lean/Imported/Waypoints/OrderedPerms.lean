@@ -74,26 +74,15 @@ theorem equal_cons_native_driver (av bv xv : SExpr) :
 
 #print axioms equal_cons_native_driver
 
--- v4.33 (4.31 #13030): the heartbeat counter now also counts allocations
--- (the release notes' own guidance is a 20–50% budget bump); this replay sat
--- just under the 200000 default and now trips it at an `isDefEq`.
--- hb guard (2026-08-19 sweep): measured 19k units, bound 400k — 21x margin.
--- UNRESOLVED, recorded not smoothed over: 19k is 10x UNDER the 200 000
--- default, so the measured per-command cost does NOT explain the trip this
--- raise was added for, and a standalone `lake env lean` run of this module
--- with the raise deleted elaborates clean. The trip is reproducible only
--- under the full `lake build`, i.e. it is an accounting effect (async
--- elaboration / compilation-phase heartbeats) rather than a cost. Kept
--- because it fixes an observed real-build failure; see TODO
--- "heartbeat/recursion-limit raises" for the narrowed residue.
-set_option maxHeartbeats 400000 in
 /-- TRUE-LISTP-RM's replayed statement (unconditional) — registered so the
     capstone's `rule:TRUE-LISTP-RM` discharge takes the registry route
     (its re-replay inside the consumer telescope frontiers). -/
 replayed_theorem trueListpRmReplayed := driver_replayed% orderedPermsDev
   orderedPermsWorldD "true-listp-rm"
 
--- hb guard (2026-08-19 sweep): measured 628k units, bound 3.2M — 5x margin
+-- hb guard: measured 628k user units vs bound 3.2M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for ORDERED-PERMS — the
     book's capstone (deps: the perm book, riding the 2a trees + P3
@@ -169,7 +158,9 @@ theorem ordered_perms_native_perm_driver (xs ys : List SExpr)
 #print axioms ordered_perms_native_driver
 #print axioms ordered_perms_native_perm_driver
 
--- hb guard (2026-08-19 sweep): measured 430k units, bound 1.6M — 4x margin
+-- hb guard: measured 430k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for ORDEREDP-MEMB (one
     hypothesis: `rule:DEFAULT-CAR`). The raised heartbeat budget covers

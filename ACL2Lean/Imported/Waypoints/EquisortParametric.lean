@@ -31,8 +31,6 @@ private def equisortLog : String :=
 def equisortDev : Development :=
   load_development% equisortLog
 
--- hb guard (2026-08-19 sweep): measured 20k units, bound 3.2M — 158x margin
-set_option maxHeartbeats 3200000 in
 /-- WEAK: `∀ env w`, given the kept premise telescope — 34 builtin
     no-shadow facts, totality of the pre-scope fns and of
     `SORTFN1`/`SORTFN2`, `tp:HOW-MANY`, the six scope-1 constraints in
@@ -49,8 +47,6 @@ set_option maxHeartbeats 3200000 in
 replayed_theorem weakSortfn1IsSortfn2Parametric := parametric_replayed% equisortDev
   "weak-sortfn1-is-sortfn2" deps [permDev, convertPermDev, orderedPermsDev]
 
--- hb guard (2026-08-19 sweep): measured 16k units, bound 3.2M — 201x margin
-set_option maxHeartbeats 3200000 in
 /-- STRONG: the unconditional variant over the strongly-constrained scope
     — same telescope shape (4 no-shadows, sig totality, the six scope-2
     constraints in stored-rule form, `use:ORDERED-PERMS`), conclusion
@@ -87,7 +83,9 @@ declared constants, not debt. -/
 
 derive_world equisortWaypointsWorld from equisortDev
 
--- hb guard (2026-08-19 sweep): measured 1.34M units, bound 12M — 9x margin
+-- hb guard: measured 1.34M user units vs bound 12M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 12000000 in
 /-- WEAK at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/
@@ -125,7 +123,9 @@ forced this promotion review — the promotion-forcing design working
 exactly as intended. Both constants have now moved to the gate's
 trio-clean list. -/
 
--- hb guard (2026-08-19 sweep): measured 1.35M units, bound 12M — 9x margin
+-- hb guard: measured 1.35M user units vs bound 12M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 12000000 in
 /-- STRONG at the canonical world — every premise discharged except the
     two KEPT hypotheses named in the section header. -/

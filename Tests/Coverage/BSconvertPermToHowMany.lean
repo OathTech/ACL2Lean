@@ -7,9 +7,9 @@ import Tests.Coverage.BSperm
 
 namespace ACL2.Tests.Coverage
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 467k units.
+-- hb guard: measured 467k user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 coverage_book% "sorting/convert-perm-to-how-many"
 

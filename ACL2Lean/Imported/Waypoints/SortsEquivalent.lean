@@ -67,9 +67,9 @@ def sortsEqDev : Development :=
 
 derive_world sortsEqWorldD from sortsEqDev
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 14.32M units.
+-- hb guard: measured 14.32M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 /-- The driver's CONDITIONAL replayed statement for MSORT-IS-ISORT (the
     telescope is EMPTY — the row is unconditional). -/
@@ -95,9 +95,9 @@ theorem msort_is_isort_native_driver (xs : List SExpr) :
 
 #print axioms msort_is_isort_native_driver
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 1.9M units.
+-- hb guard: measured 1.9M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 /-- The driver's CONDITIONAL replayed statement for QSORT-IS-ISORT. -/
 replayed_theorem qsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD
@@ -143,9 +143,9 @@ is `REPLAYED ✓` with no trailing `cond[…]`, i.e. UNCONDITIONAL. The
 accurate half of the old record was the SECOND observation — the
 `usefi` bridge — which is what this row actually had to cross. -/
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 1.72M units.
+-- hb guard: measured 1.72M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 /-- The driver's CONDITIONAL replayed statement for BSORT-IS-ISORT. -/
 replayed_theorem bsortIsIsortReplayedCond := driver_replayed% sortsEqDev sortsEqWorldD

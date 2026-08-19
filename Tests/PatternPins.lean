@@ -130,11 +130,9 @@ chain still IFF at the literal root") do
     p8-clausify-detail GREEN at the landed detail-chain replay)"
   return mkConst ``True.intro
 
--- unlimited at the command like the coverage sweep — the harness enforces
--- REAL per-theorem/per-leaf budgets internally (withRealMaxHeartbeats)
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 8.17M units.
+-- hb guard: measured 8.17M user units vs bound UNLIMITED (0) (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 0 in
 replayed_theorem sortingArcPatternPins := sorting_arc_pattern_pins%
 
@@ -167,10 +165,6 @@ elab "perm_arc_pattern_pins% " : term => do
     congruence collapse validated decorrelated)"
   return mkConst ``True.intro
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 55k units.
-set_option maxHeartbeats 0 in
 replayed_theorem permArcPatternPins := perm_arc_pattern_pins%
 
 /-! ## G1 R-lane (2026-08-14): the R-parameterized collapse's DECORRELATED
@@ -226,10 +220,6 @@ carries 1 hyps").length ≥ 2) do
     class-D consumption pinned at the SYNP-guarded R-rule frontier)"
   return mkConst ``True.intro
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 41k units.
-set_option maxHeartbeats 0 in
 replayed_theorem rLanePatternPins := r_lane_pattern_pins%
 
 /-! ## Swap family (fold-back audit fix round 2026-07-31): the books whose
@@ -267,10 +257,6 @@ elab "swap_family_pattern_pins% " : term => do
     p1-swap-double-neg 1/1, p1-swap-joint 1/1)"
   return mkConst ``True.intro
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 43k units.
-set_option maxHeartbeats 0 in
 replayed_theorem swapFamilyPatternPins := swap_family_pattern_pins%
 
 /-! ## Empty-encapsulate success exits (fresh-verify N1, 2026-08-03): a
@@ -309,10 +295,6 @@ elab "encapsulate_empty_pins% " : term => do
     empty-encapsulate balanced + reconstructed)"
   return mkConst ``True.intro
 
--- hb guard (2026-08-19 sweep): NO outer envelope by policy — the real
--- per-theorem/per-leaf guards are internal (see coverage_book%). This book
--- measured 2k units.
-set_option maxHeartbeats 0 in
 replayed_theorem encapsulateEmptyPins := encapsulate_empty_pins%
 
 end ACL2.Tests.PatternPins

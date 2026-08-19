@@ -46,7 +46,9 @@ theorem orderedp_isort_native_driver (xs : List SExpr) :
 
 #print axioms orderedp_isort_native_driver
 
--- hb guard (2026-08-19 sweep): measured 354k units, bound 1.6M — 5x margin
+-- hb guard: measured 354k user units vs bound 1.6M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 1600000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-ISORT
     (hypotheses: `tp:HOW-MANY`, `rule:FOLD-CONSTS-IN-+`;

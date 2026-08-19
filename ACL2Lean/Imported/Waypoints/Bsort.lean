@@ -19,7 +19,9 @@ def bsortDev : Development :=
 
 derive_world bsortWaypointsWorld from bsortDev
 
--- hb guard (2026-08-19 sweep): measured 351k units, bound 3.2M — 9x margin
+-- hb guard: measured 351k user units vs bound 3.2M (2026-08-19 sweep).
+-- Needed — over Lean's 200k default. TRIAGE SITE for the next perf/design
+-- round: see the TODO heartbeat/recursion sweep item.
 set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-BNEXT
     (hypotheses: `total:BNEXT`, `tp:HOW-MANY`; the cross-book
@@ -48,8 +50,6 @@ theorem how_many_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_bnext_native_driver
 
--- hb guard (2026-08-19 sweep): measured 57k units, bound 3.2M — 57x margin
-set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for
     ORDEREDP-WHEN-BNEXT-CONSTANT (hypothesis: `total:BNEXT`). -/
 replayed_theorem orderedpWhenBnextConstantReplayedCond := driver_replayed% bsortDev
@@ -76,8 +76,6 @@ theorem orderedp_when_bnext_constant_native_driver (xs : List SExpr)
 
 #print axioms orderedp_when_bnext_constant_native_driver
 
--- hb guard (2026-08-19 sweep): measured 53k units, bound 3.2M — 60x margin
-set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for HOW-MANY-SMALLER-BNEXT
     (hypotheses: `total:BNEXT`, `tp:HOW-MANY-SMALLER`). -/
 replayed_theorem howManySmallerBnextReplayedCond := driver_replayed% bsortDev
@@ -104,8 +102,6 @@ theorem how_many_smaller_bnext_native_driver (ev : SExpr) (xs : List SExpr) :
 
 #print axioms how_many_smaller_bnext_native_driver
 
--- hb guard (2026-08-19 sweep): measured 163k units, bound 3.2M — 20x margin
-set_option maxHeartbeats 3200000 in
 /-- The driver's CONDITIONAL replayed statement for
     HOW-MANY-BAD-PAIRS-BNEXT (hypothesis: `total:BNEXT`). `tp:BNEXT-SIZE`
     left this telescope with TP-replay arc increment 3 (2026-08-13): the

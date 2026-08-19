@@ -62,24 +62,45 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
     convention.
 
     HEARTBEAT-BOUND POLICY for the `set_option maxHeartbeats N in` lines
-    that precede consumers of this macro (release-hygiene sweep,
-    2026-08-19 — the TODO "heartbeat hacking" audit). Every such site
-    guards ONE invocation of this macro, and this macro does no PROOF
-    SEARCH: it walks a recorded ACL2 clause tree deterministically. A
-    raise therefore cannot make a theorem replay that would otherwise
-    fail on some other route — there is no other route — it only changes
-    how long a runaway takes to surface. The bounds that actually protect
-    the replay are INTERNAL and separately calibrated: `Runner.tryReplay`
-    (3M user units per theorem, 10M for the admission class),
-    `Runner.tryDischarge` (1M per DP leaf), `Harness.dischargeBudget` (3M
-    per discharge window), `Discharge.dpOnlyProverGuard` (1M per DP
-    attempt) — each with its own measured margin at its own docstring.
-    So the module-level values are OUTER ENVELOPES over that same work.
-    Each site below carries its MEASURED cost from the 2026-08-19 sweep
-    (`lake env lean -D trace.profiler=true -D
-    trace.profiler.useHeartbeats=true`), in USER units (1 unit = 1000
-    heartbeats; the Lean default bound is 200 000 units). Re-measure with
-    that command; a number without a date is stale by construction. -/
+    that precede consumers of this macro (Mike's ruling at the
+    release-hygiene sweep, 2026-08-19 — the TODO "heartbeat hacking"
+    audit). Three rules, and they are the whole policy:
+
+    1. NO RAISE UNLESS THE DEFAULT IS INSUFFICIENT. A site whose measured
+       cost is under Lean's 200 000-unit default carries no
+       `set_option maxHeartbeats` at all — the default IS the alarm.
+       (54 such raises were deleted at the sweep; no tombstones are left
+       at their sites, the record is in the commit.)
+    2. A NEEDED RAISE STANDS UNMODIFIED, with its measured cost at the
+       site. It is not re-tuned in either direction: not snugged (that
+       manufactures corpus-calibrated failures — the #65 two-tier budget
+       trap) and not inflated into a generous envelope (that hides the
+       signal the number carries).
+    3. EVERY SURVIVING RAISE IS A DIAGNOSIS SITE. Mike: "there's often a
+       brute force way of solving a proof, by just letting Lean grind,
+       and a clever way with decomposition. So the heartbeat hacking is
+       not a trust issue, it's a sign that we maybe did the stupidest
+       thing rather than the 'right' thing." A step that burns millions
+       of heartbeats in one grind is a step that probably wants to be
+       several composed lemma applications. THE FIX FOR AN EXPENSIVE SITE
+       IS DECOMPOSITION, NEVER BUDGET ENGINEERING. The surviving sites
+       are triaged, with a burning-shape diagnosis each, in the TODO
+       heartbeat/recursion sweep item.
+
+    Why the bounds are alarms and not correctness gates: every one of
+    them wraps ONE invocation of this macro, and this macro does no PROOF
+    SEARCH — it walks a recorded ACL2 clause tree deterministically. A
+    raise cannot make a theorem replay that would otherwise have taken
+    some other route; there is no other route. What protects the replay
+    is the INTERNAL per-unit guards (`Runner.tryReplay` 3M/theorem, 10M
+    admission-class; `Runner.tryDischarge` 1M/DP-leaf;
+    `Harness.dischargeBudget` 3M/window; `Discharge.dpOnlyProverGuard`
+    1M), each with its own measured margin at its own docstring.
+
+    Units at every site are USER units (1 unit = 1000 heartbeats).
+    Re-measure with `lake env lean -D trace.profiler=true -D
+    trace.profiler.useHeartbeats=true <module>`; a number without a date
+    is stale by construction. -/
 syntax depsClauseDR := &" deps " "[" ident,* "]"
 
 elab "driver_replayed%" devId:ident worldId:ident nm:str
