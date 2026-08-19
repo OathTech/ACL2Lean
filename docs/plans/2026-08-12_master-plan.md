@@ -1,5 +1,21 @@
 # THE MASTER PLAN — demo close-out (drafted 2026-08-12, for Mike)
 
+> **DISPOSITION (added 2026-08-19, external-reviewer round).** This is a
+> DATED plan and is left as written. Two of its factual statements are
+> **SUPERSEDED** and must not be read as current status:
+> - the **"13 Props"** figure below — the spec's reshape (2026-08-18) put
+>   `Mirrors/Sorting.lean` in bijection with the corpus at **fifteen**
+>   `Prop`s (record: `docs/notes/2026-08-18_sorting-spec-reshape.md`);
+> - the description of the sorting mirrors as **still open** — the close-out
+>   arc proved **15/15** on 2026-08-19, fourteen at `Int` and
+>   `permWitness_complete` at `Option Int` (record:
+>   `docs/plans/2026-08-18_close-out-arc-charter.md`, ARC EXIT). What is
+>   still open is the ORDER-GENERIC capstone of route 2 below, which was
+>   always deliberately later.
+>
+> What remains GOVERNING is the frame: the two-category model (METRIC vs
+> PRODUCT) and Track FREE / Track REAL.
+
 End state: **Track FREE is genuinely nearly free** (a new ACL2 book's
 metric layer costs ~zero human work) and **Track REAL is maximally
 machine-assisted** (a user's mirror costs the definitions + the

@@ -120,6 +120,16 @@ wording this reproduces):
 > author could evade the template gate, so treat "via replay" as
 > strongly-evidenced engineering, not mathematics.
 
+*Current disposition (2026-08-19) — the quote above is DATED and stays as
+historical record.* Two of its particulars have moved: the mirror-level seam
+gate it records as ABSENT now exists (`ACL2Lean/MirrorProofs/SeamGate.lean`,
+build-failing) and mechanically finds **21** mirror products, each with a
+replayed-statement witness — not nine artifacts checked by hand. Its
+CONCLUSION is unchanged and still governs: "via replay" remains
+strongly-evidenced engineering, not mathematics — the gate catches detachment,
+not mis-pairing, and nothing in it makes attribution kernel-certified (see
+`docs/audits/2026-08-19_top-level-claims-audit.md`).
+
 The long form — three DISTINCT properties, separately enforced (rewritten
 2026-08-06 after the overall-project audit — the earlier text conflated
 them):
@@ -176,9 +186,10 @@ then capture the logs:
 # 1. Build the instrumented ACL2 (SBCL + a full ACL2 build — this is slow)
 just build-acl2
 
-# 2. Regenerate the compile-critical proof logs. This uses only the ACL2
-#    image, no Lean — so it avoids the build bootstrap cycle.
-./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp
+# 2. Regenerate the proof logs — the WHOLE surface (sorting corpus +
+#    simple + recon-tests + pattern-tests). This uses only the ACL2
+#    image, no Lean, so it avoids the build bootstrap cycle.
+just recapture-all
 
 # 3. Fetch the prebuilt mathlib cache (otherwise lake builds mathlib from
 #    source, which takes hours), then build.
@@ -186,8 +197,25 @@ lake exe cache get
 lake build
 ```
 
-`just capture-all-logs` additionally recaptures the larger `books.txt` corpus
-(needed for the full coverage sweep); it is not required just to build.
+**Why the whole surface** *(corrected 2026-08-19 — the instruction here used to
+capture only `simple.lisp` + `recon-tests/*.lisp` and call the rest optional,
+which cannot build the default targets; found by the external claims audit,
+`docs/audits/2026-08-19_top-level-claims-audit.md`)*: `lakefile.toml` makes the
+`acl2lean` exe and the `Tests` library the default targets, `Main.lean` imports
+the root `ACL2Lean` library, that imports the sorting mirror proofs and the seam
+gate, and the waypoint modules embed their books' logs at compile time (e.g.
+`ACL2Lean/Imported/Waypoints/Msort.lean` `include_str`s
+`acl2_samples/sorting/msort.proof-log`; the pattern waypoints likewise embed the
+`pattern-tests/` logs). `just recapture-all` is `capture-all-logs` (the
+`books.txt` sorting corpus) plus simple + recon-tests + pattern-tests in one
+shot — which is also the surface the provenance gate expects (the 91 logs in the
+inventory below).
+
+The one genuinely smaller cone is the FOCUSED replay CLI: `lake build
+acl2lean-replay` (what `just replay` runs) imports only
+`ACL2Lean.Replay.Runner`, whose sole compile-time log is
+`acl2_samples/simple.proof-log` — it reads the book you name from disk at
+runtime. That is a dev loop, not a way to build the library.
 
 **Fresh-clone reproduction inventory** (what it actually takes to
 re-derive the coverage claim from nothing — measured by the
@@ -224,6 +252,44 @@ lake exe acl2lean eval "<expr>"         # evaluate an s-expression
 If a build fails with a missing-`.proof-log` error, regenerate the logs as in
 *Getting started* above (the capture script force-invalidates the Lean modules
 that embed them, so there is no silent staleness).
+
+**A known non-fatal toolchain PANIC in the build output** *(classified
+2026-08-19 at the external claims audit's request, P2)*. A full build — and
+`just test`, and the claim gate — prints, while building the heaviest coverage
+modules (`Tests.Coverage.BSsortsEquivalent` is the usual one):
+
+```
+PANIC at _private.Lean.LibrarySuggestions.SymbolFrequency.0.Lean.Environment.unsafeRunMetaM
+Lean.LibrarySuggestions.SymbolFrequency:75:24: (deterministic) timeout at `whnf`,
+maximum number of heartbeats (200000) has been reached
+```
+
+*What it is:* Lean's own `symbolFrequency` persistent environment extension —
+the premise-frequency index behind library-suggestion tactics — runs its
+`exportEntriesFnEx` over the module's constants **at export**, i.e. after all
+elaboration is done. On our largest modules that post-pass exceeds its heartbeat
+budget and panics out of the extension.
+
+*Why it is not a warning being tolerated* (the "warnings are unacceptable" rule
+in `CLAUDE.md`): it is not our elaboration and carries no semantic content —
+it happens strictly after the module's declarations are elaborated and
+kernel-checked, the module still writes its `.olean` and the build reports
+`Build completed successfully`; nothing we check depends on that extension (no
+proof, no `#print axioms` receipt, no `#guard_msgs` pin, no golden row, no gate
+reads it — its only consumers are suggestion tactics this project does not use);
+and the full claim gate records the panic alongside `TRUE_EXIT=0`.
+
+*Why it is not fixed here:* there is no project-local switch. The extension is
+registered by `builtin_initialize` in the Lean shared library, has no
+`register_builtin_option` gate and no `lean` CLI flag, and its heartbeat budget
+is not user-reachable — `Lean.Environment.unsafeRunMetaM` builds a FRESH
+`Core.Context` with `options := {}`, and `maxHeartbeats` defaults off *those*
+options (`Lean/CoreM.lean:217,225` in the pinned v4.28.0 source), so neither
+`set_option maxHeartbeats` in the module nor `-DmaxHeartbeats=…` on the command
+line reaches it (checked against the toolchain source, 2026-08-19). The real
+fixes are upstream, or splitting the offending module for reasons that would
+have to stand on their own. Until then it is accepted, disclosed noise — and it
+is never a licence to wave through a genuine proof, replay or gate failure.
 
 **Diagnostics.** Two env-gated diagnostic sinks exist in the replay
 driver, both OFF by default, both `stderr`-only, and **neither is read by

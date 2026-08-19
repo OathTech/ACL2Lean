@@ -21,8 +21,10 @@ and you'll find fifteen ordinary Lean statements, for example:
     ∀ (a : α) (xs : List α), howMany a (msort xs) = howMany a xs
     ∀ (xs ys : List α), Ordered xs → Ordered ys → (xs = ys ↔ Permuted xs ys)
 
-Every one is a proved theorem, and every proof was produced by replaying
-the ACL2 book's own proof of the corresponding `defthm`.
+Every one is a proved theorem — fourteen at `Int`, one at `Option Int`
+— and every proof was produced by replaying the ACL2 book's own proof of
+the corresponding theorem (one product bundles three: the
+equivalence-relation conjuncts).
 
 **What you have to trust:** Lean's kernel, your own reading of that one
 file (it imports nothing — not even Mathlib — and elaborates from Lean's
@@ -31,14 +33,19 @@ applied at (`TotalOrder Int` — `Int` under its own `≤`). That's the whole
 list. The other ~70,000 lines — the instrumented ACL2 fork, the
 proof-log parser, the clause-tree reconstruction, the ACL2 interpreter,
 the replay driver — are **untrusted by construction**: they can fail to
-produce a proof, but they cannot produce a false one.
+produce a proof, but they cannot produce a false one. What the kernel
+certifies is the theorems themselves. That each proof faithfully
+retraces ACL2's recorded reasoning is enforced one level down —
+generated proof templates, provenance hashes, and seam gates: strong
+engineering evidence, deliberately distinguished from the kernel's
+guarantee.
 
 Every theorem's axiom footprint is exactly
 `{propext, Classical.choice, Quot.sound}` — no `sorry`, no `native_decide`,
-anywhere. (Two lemmas in the file are proved natively rather than by
-replay: the termination facts Lean's kernel itself demands before `bsort`
-may exist as a definition — the same obligations ACL2 discharges to admit
-it. The file says so where they appear.)
+in anything checked. (A handful of termination lemmas in the file are
+proved natively rather than by replay — Lean's kernel demands them
+before `bsort` may exist as a definition; two are themselves named ACL2
+book theorems. The file says so where they appear.)
 
 ## Try it
 
@@ -54,7 +61,7 @@ inputs and are *not* in git, so they must be generated once before
 ## Learn more
 
 - [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — the architecture and the
-  seven-stage pipeline, in full technical detail
+  nine-stage pipeline, in full technical detail
 - [`docs/LEXICON.md`](docs/LEXICON.md) — the project vocabulary
   (replayed statement / waypoint / mirror)
 - [`docs/notes/2026-08-18_project-history.md`](docs/notes/2026-08-18_project-history.md)

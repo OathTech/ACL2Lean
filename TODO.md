@@ -4884,6 +4884,20 @@ obligation is stated precisely in its conditional proof's type:
 
 ## Other pipeline / cross-cutting work
 
+- [ ] **Toolchain PANIC in the build output — classified, ACCEPTED, not
+      fixed (2026-08-19, external claims audit P2).** Lean's own
+      `LibrarySuggestions.SymbolFrequency` export pass blows its
+      heartbeat budget on the heaviest coverage modules and panics
+      AFTER elaboration; olean, receipts, goldens and gates are
+      unaffected (`TRUE_EXIT=0` alongside). Investigated for a
+      project-local switch and there is NONE: the extension is
+      `builtin_initialize`-registered in the shared library, has no
+      option gate or CLI flag, and its `Core.Context` is built with
+      `options := {}` so `maxHeartbeats` is unreachable from the module
+      or the command line (v4.28.0 source). Fix is upstream, or falls
+      out of a module split done for its own reasons. Full
+      classification: `docs/OVERVIEW.md` § *Building and commands*.
+
 - [ ] **Carve-out drift test (MDD 2026-08-02, standing revisit).**
       The widened DP-leaf premise/verdict machinery is ratified FOR NOW
       under this test: if we find ourselves writing CUSTOM PROOFS OR

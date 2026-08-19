@@ -130,15 +130,38 @@ bug anywhere makes the composed proof fail to typecheck — it can never yield a
 false theorem. ACL2 then serves as a sound (if incomplete) untrusted tactic inside
 Lean proofs.
 
-**Trust note — read this.** That fully-untrusted property holds *only once the
-final MIRROR bridge exists*. Today it reaches only the WAYPOINT layer (the
-ACL2-like Lean restatements of `Imported/`, not the product): the replayed
-statement is stated in `evalOpt` terms, and the kernel certifies only that the proof
-object is valid *for the replayed statement exactly as stated in stages 5–6* — NOT
-that the replayed statement faithfully restates the ACL2 theorem, nor that `evalOpt` faithfully
-models ACL2. So at present a bug in stages 2–6 can produce a kernel-accepted proof
-of a subtly wrong statement. When something looks off, **suspect any stage** —
-wrong instrumentation, a mis-parsed or mis-shaped tree, a mistranslated `World` or
+**Trust note — read this (refreshed 2026-08-19).** That fully-untrusted property
+holds *only once the final MIRROR bridge exists* — and for the DEMONSTRATED
+CORPUS it now does. As of the sorting close-out there are **21 mirror products**
+(6 `Basics` + 15 `Sorting`, `ACL2Lean/MirrorProofs/`): Lean-idiomatic theorems
+with zero ACL2 notions, each carrying the pinned
+`{propext, Classical.choice, Quot.sound}` receipt and each consuming a replayed
+statement through the build-failing mirror seam gate
+(`ACL2Lean/MirrorProofs/SeamGate.lean`). For THOSE theorems the property is live:
+no bug anywhere in stages 1–7 can make one of them false.
+
+The caution this note exists for now has two targets, and both still bind:
+
+- **Breadth — anything outside the demonstrated corpus.** A replayed statement or
+  waypoint that has not been carried across a mirror bridge is stated in
+  `evalOpt` terms, and the kernel certifies only that the proof object is valid
+  *for the replayed statement exactly as stated in stages 5–6* — NOT that the
+  replayed statement faithfully restates the ACL2 theorem, nor that `evalOpt`
+  faithfully models ACL2. There, a bug in stages 2–6 can still produce a
+  kernel-accepted proof of a subtly wrong statement.
+- **Attribution and fidelity — even for the 21.** The kernel does NOT certify
+  that a product is the named ACL2 theorem (**statement authenticity**), nor that
+  its proof retraces ACL2's recorded reasoning rather than taking a Lean-side
+  shortcut (**replay fidelity**). Both are enforced one level down — source-hash
+  provenance, hand statement pins, generated transport templates, seam/axiom
+  gates, and review — which is strong ENGINEERING EVIDENCE, not a kernel
+  guarantee. Never report it as one. See
+  `docs/audits/2026-08-19_top-level-claims-audit.md` and the 2026-08-19
+  three-auditor round (`docs/plans/2026-08-18_close-out-arc-charter.md`).
+
+So when something looks off — and for every NEW import, where no bridge exists
+yet — **suspect any stage**: wrong
+instrumentation, a mis-parsed or mis-shaped tree, a mistranslated `World` or
 replayed statement, an `evalOpt` that diverges from ACL2, or a replay that proves
 something slightly different. Do not assume the bug is where it is most convenient
 to look; only ACL2's proof *search* is off the table.
@@ -153,9 +176,17 @@ replays whole theorems end-to-end from the real logs — including WF-induction
 ratified carve-out) DP leaves — kernel-checked, conditional on emitted
 totality/TP facts; the coverage harness (`just ci`) is the scoreboard. The
 WAYPOINT layer — the ACL2-like Lean restatements the metric scores itself
-against — exists as validated HAND proofs (`Imported/`, catalogued in
-`Imported/WaypointCatalog.lean`); the PRODUCT layer (`ACL2Lean/Mirrors/`,
-Lean-idiomatic zero-ACL2 theorems) is the north star being built toward.
+against — exists as validated HAND proofs (`Imported/`, live catalog
+`Imported/Waypoints/Catalog.lean`). The PRODUCT layer (`ACL2Lean/Mirrors/` +
+`ACL2Lean/MirrorProofs/`, Lean-idiomatic zero-ACL2 theorems) is **no longer
+just the north star**: the sorting close-out landed 2026-08-19 — FIFTEEN
+sorting `Prop`s, fifteen proven-via-replay products (fourteen at `Int`,
+`permWitness_complete` at `Option Int`), 21 products in all with the `Basics`
+books; the record is `docs/plans/2026-08-18_close-out-arc-charter.md` (ARC EXIT
++ the post-merge audit round) and the spec's bijection is
+`docs/notes/2026-08-18_sorting-spec-reshape.md`. What remains at the product
+layer is BREADTH beyond that corpus — read live counts off
+`ACL2Lean/MirrorProofs/` and `TODO.md`, never off this page.
 **The governing plan is `docs/plans/2026-08-12_master-plan.md`** (ruled
 2026-08-13): the two-category model (METRIC vs PRODUCT), Track FREE / Track
 REAL, and the phase sequencing to the sorting close-out.
@@ -163,10 +194,11 @@ REAL, and the phase sequencing to the sorting close-out.
 reference** — its L1–L3 invariants (below) bind; its status and sequencing
 are superseded — carrying the hybrid architecture (certifying walkers as the
 lane, fragment-local consolidation) and the core/extended/out import tiers,
-built on `docs/notes/2026-06-10_acl2-architecture-survey.md`. The trust note still
-applies — a kernel-accepted proof object certifies only the replayed statement as
-stated, not that the replayed statement/`evalOpt` faithfully model ACL2 — so keep checking
-each stage against the real artifact.
+built on `docs/notes/2026-06-10_acl2-architecture-survey.md`. The trust note above
+still applies as refreshed — outside the mirrored corpus a kernel-accepted proof
+object certifies only the replayed statement as stated, and even inside it the
+kernel certifies neither attribution nor replay fidelity — so keep checking each
+stage against the real artifact.
 **The COVERAGE source of truth is the pattern map**
 (`docs/notes/2026-07-22_pattern-map.md`, ci-gated by
 `just check-pattern-map`): the top-down frame over ACL2's situation space,
