@@ -253,10 +253,16 @@ If a build fails with a missing-`.proof-log` error, regenerate the logs as in
 *Getting started* above (the capture script force-invalidates the Lean modules
 that embed them, so there is no silent staleness).
 
-**A known non-fatal toolchain PANIC in the build output** *(classified
-2026-08-19 at the external claims audit's request, P2)*. A full build — and
-`just test`, and the claim gate — prints, while building the heaviest coverage
-modules (`Tests.Coverage.BSsortsEquivalent` is the usual one):
+**A known non-fatal toolchain PANIC in the build output — ELIMINATED at
+v4.31.0+ (upstream leanprover/lean4#13202); bumped to v4.33.0 2026-08-19**
+*(originally classified 2026-08-19 at the external claims audit's request,
+P2; the toolchain-bump gate artifact
+`.gate-runs/c68bb1f-20260819T121241Z.log` greps CLEAN — zero
+`SymbolFrequency` occurrences with the heavy modules freshly rebuilt)*.
+The remainder of this section is the HISTORICAL record of the v4.28.0-era
+panic and its diagnosis. A full build then printed, while building the
+heaviest coverage modules (`Tests.Coverage.BSsortsEquivalent` was the
+usual one):
 
 ```
 PANIC at _private.Lean.LibrarySuggestions.SymbolFrequency.0.Lean.Environment.unsafeRunMetaM
@@ -325,9 +331,10 @@ copies in a single gate artifact are one panic replayed by three lake
 invocations, not three failures — so any future fix only shows up once that
 module actually rebuilds.
 
-The real fix is upstream (`withCurrHeartbeats` around the export pass, or a
-budget derived from it). Until then it is accepted, disclosed noise — and it
-is never a licence to wave through a genuine proof, replay or gate failure.
+The real fix WAS upstream, exactly as this note predicted:
+leanprover/lean4#13202 (v4.31.0) sets `maxHeartbeats := 0` in the export
+pass's context — the same mechanism the diagnosis above isolated. The
+2026-08-19 toolchain bump to v4.33.0 removed the panic from our builds.
 
 **Diagnostics.** Two env-gated diagnostic sinks exist in the replay
 driver, both OFF by default, both `stderr`-only, and **neither is read by

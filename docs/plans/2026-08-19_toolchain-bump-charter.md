@@ -208,3 +208,80 @@ OPEN (gates on a user decision — the goal-design escape hatch):
 - Phase 4 (full sweep/golden verdict, claim-gate TRUE_EXIT=0, panic
   grep) — next executor; note the panic grep can only be run against a
   fresh full-gate artifact.
+
+### J4 — checkpoint rulings + ROUND F (2026-08-19)
+
+Both phase-2 checkpoint items ruled by Mike ("yes, both sound good"):
+1. The SHOP-WINDOW one-liner BLESSED and committed (`Mirrors/Sorting.lean:170`,
+   `attribute [instance_reducible, instance] TotalOrder.decLE`).
+2. `linter.defProp` → MACRO-EMITTED THEOREM KIND. Landed as
+   `replayed_theorem N := e` (Runner.lean): one elaboration, inferred
+   type, Prop-only fail-closed, `.thmDecl`. Two measured v4.33 traps it
+   carries: `Term.withDeclName` (registry entries key on the enclosing
+   decl name) and the async-theorem `addDecl` prefix restriction (which
+   makes plain `theorem N : True := pins%` impossible for the effectful
+   gate-runner pins — they reported `replayed 0/N`). 93/94 converted;
+   ONE fallback (`Tests/IsoGenGateTests.smuggled`, the negative test's
+   attack fixture, scoped `set_option linter.defProp false in` + ruling
+   comment). Regression net: 2758 prop-valued constants before/after;
+   added 0, removed 0, statement-changed 0, kind-only def→thm 91 (+2
+   root-namespace conversions outside the snapshot filter, covered by
+   the zero-error build and their own count pins), untouched 2667.
+
+## ARC EXIT (2026-08-19)
+
+Target state, item by item, all verified on the fresh artifact:
+
+- `lean-toolchain` = `leanprover/lean4:v4.33.0`;
+  `lakefile.toml` mathlib `rev = "v4.33.0"` (tag db584cd6). ✓
+- **Full `just claim-gate` TRUE_EXIT=0** — artifact
+  `.gate-runs/c68bb1f-20260819T121241Z.log` (gate run at ROUND F's
+  commit `c68bb1f`; this exit record and the OVERVIEW update are the
+  docs-only commits on top, per the standing claim-point pattern). ✓
+- **THE PANIC IS GONE**: `grep -c SymbolFrequency` over the fresh gate
+  artifact = **0**, with the heavy coverage modules freshly rebuilt on
+  v4.33.0 (so the Lake job-log replay caveat does not mask anything).
+  `docs/OVERVIEW.md`'s classification updated to "eliminated at
+  v4.31.0+ (upstream #13202); bumped to v4.33.0 2026-08-19"; the
+  diagnosis kept as the historical record. ✓
+- **GOLDEN BYTE-IDENTICAL**, never repinned: `check-golden-current`
+  "golden matches the live assembly" inside the gate. The bump-induced
+  movement (two type-set-fc leaves) was diagnosed to mechanism
+  (J2/Round A) and restored by a real fix. ✓
+- **Zero warnings, zero errors** across the full build (6292 jobs);
+  no linter disabled (one scoped, ruled, commented deliberate-pattern
+  exemption on the attack fixture). ✓
+- **Mirror layer regression net**: seam gate reports "21 mirror product
+  theorems, each consuming a replayed statement (59 seams in scope)"
+  (gate artifact line 150); MirrorNameCheck "55 spec names, no
+  collision"; every `#guard_msgs` receipt pin re-passed in-build.
+  Statement movement across the bump: ZERO (the snapshot net above).
+  Proof-term movement: THREE receipts gained `Quot.sound`
+  (`howMany_map_invariant`, `memb_map_invariant`,
+  `permWitness_map_hom`) — still inside the pinned
+  {propext, Classical.choice, Quot.sound} family, no sorryAx; pins
+  updated with in-file notes (Round D). ✓
+- **sorries 0** — no sorry/admit/axiom added anywhere in the arc
+  (grep + the seam/axiom gates + zero sorryAx in any receipt). ✓
+- Statics all green inside the gate (lint-sh, check-bugs, no-shadow,
+  gz-agreement, mirrors-pure, acl2-tags, dark-files, file-weight,
+  proof-logs, log-provenance ["91 log(s) all stamped at submodule HEAD
+  e8d78e513d68"], provenance-gates, no-getd-done, pattern-map). The
+  acl2 submodule is untouched by this arc (no recapture; pointer
+  unchanged). ✓
+- **Forward-compat debt (phase 3)**: deprecated-API uses ZERO (the one
+  hit, `Lean.levelOne`, fixed in Round E; the inventory's empty sweep
+  otherwise confirmed by the build). **`backward.*` ledger: ZERO
+  entries.** The single restore-old-behavior move is
+  `mirror_square_close`'s `+instances` (supported simp syntax, not a
+  backward option; commented at the kit with the reason the lemma-row
+  alternative is refused by design). Deliberately NOT adopted (churn,
+  not compat): the new `do` elaborator's opt-in forms, `cbv`,
+  `mvcgen`, `lake lint`. Remaining measure-first cleanup, not taken:
+  `--tstack=524288` is now SMALLER than the 1 GB default (4.30
+  #12971/4.33 #14343) and may be removable — needs measurement, noted
+  in TODO.md. ✓
+
+**Merge candidate: this branch (`mdd/toolchain-bump`), at the claim-point
+commit. Not merged, not pushed — per the law, merge only on explicit
+sign-off at the moment of merge.**
