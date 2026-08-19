@@ -55,37 +55,6 @@ zone empty on purpose, so in-flight arcs land their entries in a clean file.
       Mike: close what is done, drop what is superseded, re-rank what is
       left. Priorities are his call, not the file's.
 
-- [ ] **Toolchain PANIC in the build output — classified, ACCEPTED, not
-      fixed (2026-08-19, external claims audit P2).** Lean's own
-      `LibrarySuggestions.SymbolFrequency` export pass blows its
-      heartbeat budget on the heaviest coverage modules and panics
-      AFTER elaboration; olean, receipts, goldens and gates are
-      unaffected (`TRUE_EXIT=0` alongside). Investigated for a
-      project-local switch and there is NONE: the extension is
-      `builtin_initialize`-registered in the shared library, has no
-      option gate or CLI flag, and its `Core.Context` is built with
-      `options := {}` so `maxHeartbeats` is unreachable from the module
-      or the command line (v4.28.0 source).
-      **Elimination attempted and REFUTED by measurement (2026-08-19).**
-      The same fresh `Core.Context` takes `initHeartbeats := 0`, so the
-      check compares the ABSOLUTE thread heartbeat count for the whole
-      module elaboration against a fixed 200 000 000 — not the export
-      pass's own cost (reproduced directly; byte-identical timeout
-      string). At the measured ~16 heartbeat-units/ms of `runBook`, the
-      budget is gone after ~12 s of replay; the offending module replays
-      for ~477 s (~38x) and `BSqsort` at ~423 s (~35x) does not panic, so
-      weight is not the discriminator. A section split cannot reach the
-      budget, and `coverage_book%` has no sub-book unit anyway (one
-      module per book per golden section; the aggregate tiling check
-      requires exactly one section per `corpusOrder` entry). The
-      deny-list surface was measured too and NOT taken (an `ACL2` type
-      prefix covers 79/81; the residue is a rotting name list). Fix is
-      upstream (`withCurrHeartbeats` around the export pass). Disposition:
-      `docs/OVERVIEW.md` § *Known limitations*; the full measurement
-      record moved to
-      `docs/archive/2026-08-19_symbolfrequency-panic-measurement.md`
-      (docs-polish round, 2026-08-19).
-
 ### Capability and coverage — the named broadenings
 
 - [ ] **G4 — Forcing-round emission + composition.** Emit per-assumption

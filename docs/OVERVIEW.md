@@ -387,23 +387,6 @@ sequencing are superseded by the governing plan.
 self-enforcing differential corpus by `scripts/check-bugs.sh` so an entry can
 neither rot nor be silently dropped.
 
-<!-- PANIC NOTE — resolved; the measurement record lives in
-     docs/archive/2026-08-19_symbolfrequency-panic-measurement.md. -->
-**A historical build-output panic — ELIMINATED at v4.31.0+ (upstream
-leanprover/lean4#13202); bumped to v4.33.0 2026-08-19.** Builds on the
-v4.28.0 toolchain printed a deterministic non-semantic
-`PANIC at … Lean.LibrarySuggestions.SymbolFrequency …` on the heaviest
-coverage modules — Lean's own premise-frequency extension blowing an
-unreachable heartbeat budget in a post-elaboration export pass; nothing we
-check read that extension. In-repo elimination was attempted and refuted by
-measurement; the upstream fix (#13202, `maxHeartbeats := 0` in the export
-pass's context) is exactly the mechanism the diagnosis isolated, and the
-2026-08-19 toolchain-bump gate artifact
-(`.gate-runs/c68bb1f-20260819T121241Z.log`) greps CLEAN — zero occurrences
-with the heavy modules freshly rebuilt. Full diagnosis + resolution record:
-[`archive/2026-08-19_symbolfrequency-panic-measurement.md`](archive/2026-08-19_symbolfrequency-panic-measurement.md).
-<!-- END PANIC NOTE -->
-
 ## Where live status lives
 
 Not on this page. Read it off the artifacts:
