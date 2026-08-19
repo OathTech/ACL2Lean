@@ -218,3 +218,44 @@ exit commit; the merge candidate presented for explicit approval.
   scoreboard reaches FIFTEEN Props / FIFTEEN proven.
 * The full claim-gate (`TRUE_EXIT=0`) is owed at the arc exit, after
   collection — the two commits here are FAST-GATE labelled.
+
+## ARC EXIT (2026-08-19)
+
+Full claim-gate **TRUE_EXIT=0 on a1bb171** (artifact:
+`.gate-runs/a1bb171-20260819T000915Z.log`). **THE SORTING SHOP WINDOW
+IS CLOSED: FIFTEEN Props, FIFTEEN proven-via-replay theorems** —
+fourteen at `Int`, `permWitness_complete` at `Option Int` (the
+value-or-nil element type; the `Int` refutation stands as the reason).
+Zero structural asterisks; the products page's "not yet" section
+retired EMPTY.
+
+How each of the three closed, against the charter's own predictions —
+all three of which were corrected by measurement:
+- **item 0**: the binding pre-check REFUTED the charter's
+  encapsulate-internal premise (book source, artifact, inventory all
+  three); Mike re-ruled removal on the corrected
+  instantiation-device argument (reshape Part 8).
+- **item 1**: NO fork round-trip — the emission was complete since
+  fork-batch item I (2026-08-10) and the citation route was already
+  live (all five tau-basis leaves, zero fallbacks); the `◌ assumed`
+  reading belonged to the standalone informational DP probe (J-1-1);
+  the real bug was the usefi pre-pass's cached-conds shortcut vs
+  BSORT's one conditional admission (J-1-2, fixed fail-closed).
+  Golden BYTE-IDENTICAL throughout.
+- **item 2**: the Option-VALUED re-spell was REFUTED at two layers
+  (reshape Part 7); the Option ROW landed generically and the product
+  lives at the honest element type per Mike's three approvals.
+
+Mike's principle, ruled this arc and recorded durably: "we should
+ALWAYS replay ACL2 when we have the material at hand" — the DP
+carve-out yields to dep-theorem citation wherever a proof record
+exists.
+
+Also collected: `docs/notes/2026-08-18_project-history.md` (the
+retrospective, written at Mike's request on the eve of the close).
+
+The branch is the merge candidate awaiting explicit approval.
+POST-MERGE SEQUENCE (Mike, 2026-08-18): the final adversarial audit
+(two Fable auditors — trust-chain inside + statement-fidelity outside —
+plus a records auditor, plan pre-presented), then the public README
+rewrite, then the champagne.
