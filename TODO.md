@@ -1,5 +1,28 @@
 # ACL2Lean — project TODO
 
+> **TOOLCHAIN BUMP ARC (2026-08-19, branch `mdd/toolchain-bump`, ARC LOG
+> in `docs/plans/2026-08-19_toolchain-bump-charter.md`).** v4.28.0 →
+> v4.33.0: pins bumped, the tree BUILDS, statics + unit tests green,
+> golden byte-identical (`check-golden-current` clean; the two rows the
+> bump flipped — bsort/ordered-perms `type-set-fc` leaves — were
+> diagnosed to 4.33 #13895 severing `dpLeafTactic`'s
+> `trueListp_cdr_of_consp` row and RESTORED, never repinned). OPEN:
+> (1) **`linter.defProp`, 94 warnings** — every prop-valued
+> `def X := <replay macro>` pin; fix needs a ruling (hand-spell ~90
+> machine types as `theorem`s, vs scoped linter set_option, which the
+> never-disable-a-linter rule forbids); (2) the SHOP-WINDOW one-liner
+> `attribute [instance_reducible, instance] TotalOrder.decLE`
+> (`Mirrors/Sorting.lean:170`, kills `warn.classDefReducibility`) is
+> proven in-tree but UNCOMMITTED pending bless; (3) phase 4 (full
+> claim-gate, panic grep, receipt re-verification — 3 receipt movements
+> `[propext]`→`[propext, Quot.sound]` already pinned with notes);
+> (4) `backward.*` ledger: ZERO backward options used — the one
+> restore-old-behavior move is `mirror_square_close`'s `+instances`
+> (supported simp syntax, commented in the kit; the lemma-row
+> alternative is refused by the `unfold` gate by design);
+> (5) `--tstack=524288` is now smaller than the 1 GB default (4.30
+> #12971) — measure-then-remove cleanup, untouched.
+
 > **COLLECTED COUNT (settled at this merge): the sorting shop window is
 > 15 Props / 15 PROVEN; mirror products 21.** The two lane blocks below
 > each claimed only their own line; this line is the merger's.
