@@ -1,165 +1,73 @@
-/-! # THE MIRRORS — sorting (the product; the buildout's north star)
+/-! # The sorting mirror spec — the ACL2 sorting book in idiomatic Lean
 
 A MIRROR is a Lean-idiomatic theorem — no ACL2 notions whatsoever —
-that mirrors a property proved in an ACL2 book. This file is the
-sorting book's mirror spec: the top-level definitions and target
-properties in PURE IDIOMATIC LEAN, with **no
-ACL2 taint whatsoever** — no `SExpr`, no `lexorder`, no `evalOpt`, no
-imports from the replay machinery — in fact NO IMPORTS AT ALL: this
-file elaborates from Lean's core prelude alone, and
-`just check-mirrors-pure` pins the layer's imports to Std/Batteries
-at most (Mathlib excluded — mirror content arrives via replay, never
-via library lemmas). A user of these theorems knows nothing about
-ACL2 and never needs to.
+mirroring a property proved in an ACL2 book. This file is the sorting
+book's mirror SPEC: the book's four sorting algorithms and their
+correctness properties, restated in pure idiomatic Lean. No `SExpr`,
+no `lexorder`, no `evalOpt`, no imports from the replay machinery —
+in fact no imports at all: the file elaborates from Lean's core
+prelude alone (`just check-mirrors-pure` gates the layer). A user of
+these theorems knows nothing about ACL2 and never needs to.
 
-The DEFINITIONS below are the user's objects of study: the sorting
-book's four algorithms in Lean-native dress — polymorphic over our own
-`TotalOrder`, recursing the way the ACL2 book's functions recurse
-(that structural agreement is what the machinery-side isomorphisms
-will consume; the definitions remain fully idiomatic on their own
-terms). The PROPERTIES are stated as named `Prop`s — the definition
-of done for the buildout: each becomes a `theorem` when its proof
-arrives VIA ACL2 REPLAY (the two-category workflow: user definitions
-→ isomorphism to the ACL2-like layer → replay → these theorems).
-No proof-of-property lives in this file and no `sorry` anywhere: an
-unproved target is a named `Prop`, never a fake theorem. (The only
-proofs here are the termination measures Lean's kernel demands for
-the definitions to exist — including `bsort`'s bad-pair decrease, the
-same obligation ACL2 discharges at `BSORT`'s admission — plus the
-decidable-equality derivation `decEqOfOrder` — see its docstring.)
+**The definitions are our own, on purpose.** Every construct that
+mirrors a book function (`isort` = `ISORT`, `relMode` = `REL`,
+`howMany` = `HOW-MANY`, …) is an own definition, recursing the way
+the book's function recurses, and every name is chosen to collide
+with no core/Std/Batteries/Mathlib name (`Tests/MirrorNameCheck.lean`
+lints this at build time). If the spec spoke library vocabulary —
+Mathlib's `Perm`, `List.count` — its properties could be closed by
+library lemmas instead of the ACL2 replay, which would defeat the
+product.
 
-**DISCLOSED IN FULL — THE TWO NATIVELY-PROVED BOOK THEOREMS (the P2
-exception).** Two of those termination facts are not merely
-*obligations ACL2 also has*: they are, statement for statement, THE
-BOOK'S OWN THEOREMS, and they are proved HERE IN LEAN rather than via
-replay.
+**The properties are named `Prop`s, proved elsewhere.** The fifteen
+`Prop`s at the bottom stand in a BIJECTION with the sorting corpus's
+RESULT-TIER theorems — what each book proves about its own top-level
+function (the four sorts, `PERM`, the permutation witness), as
+against internal lemmas about helpers. Every result-tier book theorem
+has exactly one `Prop`, and every `Prop` names exactly one book
+theorem in its docstring; each becomes a `theorem` in
+`ACL2Lean/MirrorProofs/Sorting.lean`, proved BY REPLAYING the ACL2
+proof. Nothing here proves a property and there is no `sorry`: an
+unproved target is a named `Prop`, never a fake theorem.
 
-| this file | `acl2/books/sorting/bsort.lisp` |
-|---|---|
-| `howManySmaller_bnext` | `HOW-MANY-SMALLER-BNEXT` (line 28) |
-| `howManyBadPairs_bnext_lt` | `HOW-MANY-BAD-PAIRS-BNEXT` (line 45, `:rule-classes :linear`) |
+Two classes of book theorems have no `Prop` of their own, by design:
 
-The reason is Lean-metatheoretic and not a matter of convenience:
-Lean's kernel demands the measure decrease BEFORE `bsort` may exist as
-a definition at all, so the decrease cannot be supplied by a theorem
-whose statement mentions `bsort`, and no ACL2 artifact can stand in.
-That is the RATIFIED P2 exception — "Lean-metatheoretic necessity",
-`docs/notes/2026-08-11_thin-lean-boundary.md` — which covers exactly
-what a definition's EXISTENCE requires and never a theorem about the
-defined function beyond its admission. (The other two facts here,
-`howManySmaller_cons` and `howManyBadPairs_bnext_le`, are our own
-lemmas with no book correspondent at all.)
+* **Type absorption.** The corpus's `TRUE-LISTP` theorems and
+  hypotheses are absorbed exactly by the type `List α`, and its
+  `BOOLEANP` facts by a relation's being a `Prop` — the faithful
+  rendering of an untyped logic in a typed one, not a gap.
+* **The equisort capstone** is an instantiation device — stated over
+  `encapsulate`d constrained sorter symbols and consumed only via
+  `:functional-instance` — and is mirrored by its instances, the
+  three `*_is_isort` `Prop`s below. Record:
+  `docs/notes/2026-08-18_sorting-spec-reshape.md`, Part 8.
 
-These two are therefore OUTSIDE the fifteen via-replay `Prop`s below
-and are not counted among them — a reader auditing "what did ACL2
-prove for us" must know that these two came from Lean. They are also
-the whole of that class in this file.
+**Disclosed in full: two book theorems are proved natively here.**
+Lean's kernel demands `bsort`'s measure decrease BEFORE `bsort` may
+exist as a definition, so the decrease cannot arrive by replay — and
+the decrease is, statement for statement, the book's own lemmas:
+`howManySmaller_bnext` is `HOW-MANY-SMALLER-BNEXT` and
+`howManyBadPairs_bnext_lt` is `HOW-MANY-BAD-PAIRS-BNEXT`
+(`acl2/books/sorting/bsort.lisp`), the same obligations ACL2
+discharges at `BSORT`'s admission. These two are OUTSIDE the fifteen
+via-replay `Prop`s and are the whole of that class in this file; the
+governing ruling is `docs/notes/2026-08-11_thin-lean-boundary.md`.
 
-VOCABULARY PRACTICE (Mike, 2026-08-13 — disambiguate hard, as
-design practice): body constructs that MIRROR A BOOK FUNCTION are
-OWN-DEFINITIONS (`relMode` = REL, `filterRel` = FILTER, `memb` = MEMB,
-`rm` = RM, `howManySmaller` = HOW-MANY-SMALLER, `howManyBadPairs` =
-BNEXT-SIZE — their iso squares arrive with their mirrors); pure-Lean
-idiom is FULLY QUALIFIED (`List.find?`, `List.length`) or an own
-device; operator notation (`++`) is permitted as unambiguous; names are
-collision-linted (Tests/MirrorNameCheck).
-
-THE BIJECTION INVARIANT — the rule that decides what belongs in the
-target-property section at the bottom of this file. The `Prop`s there
-stand in a BIJECTION with the ACL2 sorting corpus's RESULT-TIER
-theorems: every result-tier book theorem has EXACTLY ONE `Prop`, and
-every `Prop` names EXACTLY ONE book theorem in its docstring. The
-RESULT TIER is what each book proves about its OWN TOP-LEVEL function
-— the four sorts, `PERM`, the permutation witness, the equisort
-capstone — as against the internal lemmas about helper functions
-(`BNEXT`, `MERGE2`, `EVENS`, `RM`, `MEMB`, `FILTER`, `ALL-REL`,
-`TLFIX`), which are steps inside those proofs and not results. So the
-section states nothing the books do not prove, and leaves nothing they
-prove at that tier unstated; a `Prop` with no book theorem behind it is
-a statement the replay could never deliver, and a book result with no
-`Prop` is a hole in the definition of done.
-
-THE TYPE-ABSORBED CLASS — the one place a book theorem legitimately
-has no `Prop`, because Lean's TYPES already carry it. The corpus's
-`TRUE-LISTP-ISORT` / `-MSORT` / `-QSORT` / `-BSORT` / `-BNEXT` / `-RM`
-say the result is a proper list, which here is the type `List α` the
-definitions return; the `BOOLEANP` conjunct of `PERM-IS-AN-EQUIVALENCE`
-says the relation is two-valued, which here is `Permuted`'s being a
-`Prop`. Absorbing those into the type discipline is the faithful
-rendering of an untyped logic in a typed one, not a gap — and each
-absorption is noted in one clause on the `Prop` that carries the rest
-of its book.
-
-THE INSTANTIATION-DEVICE CLASS — the second place a result-tier book
-theorem legitimately has no `Prop` of its own, because its Lean-facing
-content arrives through its INSTANCES. The equisort book's
-`STRONG-SSORTFN1-IS-SSORTFN2` and `WEAK-SORTFN1-IS-SORTFN2` are stated
-over that book's `encapsulate`d CONSTRAINED SORTER SYMBOLS
-(`ssortfn1`/`ssortfn2`, `sortfn1`/`sortfn2`) — symbols with no
-definition, introduced solely so the capstone can be instantiated —
-and downstream the corpus consumes them EXCLUSIVELY through
-`:functional-instance`, which is how `sorts-equivalent` mints
-`MSORT-IS-ISORT`, `QSORT-IS-ISORT` and `BSORT-IS-ISORT`. Those three
-ARE the book's external face and each has its `Prop` below, so the
-capstone's content is fully represented here; a `Prop` for the
-capstone itself would quantify over an arbitrary Lean function, which
-no `:functional-instance` can be carried back to (there is no
-construction taking an arbitrary Lean function to an ACL2 world). The
-device is mirrored by its instances, which is what the device is for.
-
-CLOSEST IDIOMATIC LEAN (Mike, 2026-08-14): a mirror is what someone
-would write as a reasonably close Lean analog of the ACL2 theorem —
-step (1) of a two-step use, step (2) being ordinary Lean reasoning
-from it to the theorem the user actually wants. CLOSENESS TO THE BOOK
-BEATS maximal Lean-idiom polish. That ruling is why `FILTER` is
-rendered below the way the book writes it — a MODE (`REL`'s `FN`
-argument: `'LT`/`'LTE`/`'GT`/`'GTE`) and a PIVOT ELEMENT — and not as
-the Lean-idiomatic predicate closure it carried until 2026-08-14.
-
-SELF-CONTAINED VOCABULARY (deliberate): the predicates below —
-`Ordered`, `howMany`, `Permuted`, the witness — are OUR OWN idiomatic
-definitions, not Mathlib/Batteries notions. Mathlib proves plenty
-about ITS `Perm` and order theory; if the spec spoke that vocabulary,
-the properties could be closed by library lemmas instead of the ACL2
-replay, which would defeat the product (the import route working
-end-to-end). `TotalOrder` is our own minimal interface class for the
-order parameter; no external order theory is leaned on when proving
-these properties — the proofs arrive via replay.
-
-THE NAMING RULE (Mike, 2026-08-13 — the naming pass): a mirror spec
-name must have ZERO overlap with a core/Std/Batteries/Mathlib name,
-neither at the root nor DOT-NOTATION-REACHABLE on a type the spec
-uses (`List.merge`, `List.mergeSort`, `List.insertionSort`,
-`List.count`, `List.mergeSort_perm`, `Nat.count`, `Option.merge` were
-the seven real overlaps this file carried). The reason is the
-vocabulary rule one level up (`Imported/SimGen.lean`): a shared name
-is the channel by which a library lemma — or a reader — can be
-mistaken for mirror content that must come via replay. The names are
-therefore taken from the ACL2 BOOK, Lean-cased (`isort`, `msort`,
-`qsort`, `bsort`, `bnext`, `merge2`, `insertOrd`, `Ordered`,
-`howMany`, and — with the 2026-08-14 FILTER re-render — `relMode`,
-`RelMode`, `filterRel`, where the bare book names `REL`/`Rel` and
-`FILTER`/`filter` are both taken by the libraries the linter sees; and
-`memb`, `rm`, `howManySmaller`, `howManyBadPairs` — the last named for
-the book's own lemma `HOW-MANY-BAD-PAIRS-BNEXT` about the function
-`BNEXT-SIZE` it renders);
-the uppercase ACL2 rune names in the docstrings below are
-the cross-reference to the source book and are the point.
-`Tests/MirrorNameCheck.lean` enforces the rule over this namespace at
-build time. -/
+Design history — the spec reshape that fixed the bijection, and the
+rulings this file used to recite — lives in
+`docs/notes/2026-08-18_sorting-spec-reshape.md` and
+`docs/plans/2026-08-18_close-out-arc-charter.md`, not here. -/
 
 namespace ACL2Lean.Sorting
 
 universe u
 
 /-- The order interface for mirror specs — our own minimal class,
-    deliberately NOT Mathlib's `LinearOrder`: the mirror layer helps
-    itself to no external order theory (and this file imports nothing
-    at all — core prelude only). Instances for replay-reachable
-    fragments are backed by the interpreter's CORE-LOGIC theorems
-    (e.g. `LexorderOrder.lean` — our model provably satisfies ACL2's
-    ground-zero order axioms); a user type instantiates it with four
-    small proofs. -/
+    deliberately NOT Mathlib's `LinearOrder` (this file imports
+    nothing; see the header). A user type instantiates it with four
+    small proofs; the instances the replay reaches are backed by
+    kernel-checked theorems about ACL2's own order
+    (`LexorderOrder.lean`). -/
 class TotalOrder (α : Type u) extends LE α where
   le_refl : ∀ a : α, a ≤ a
   le_trans : ∀ {a b c : α}, a ≤ b → b ≤ c → a ≤ c
@@ -176,16 +84,11 @@ instance (priority := low) {α : Type u} [TotalOrder α] : LT α :=
 instance {α : Type u} [TotalOrder α] : DecidableRel (α := α) (· < ·) :=
   fun _ _ => instDecidableNot
 
-/-- Decidable EQUALITY, derived from the order: `a = b` exactly when
-    `a ≤ b` and `b ≤ a` (antisymmetry), and `≤` is decidable — the same
-    bundling Lean's own `LinearOrder`-style interfaces carry.
-
-    It is `local` (and low priority) ON PURPOSE. It exists so the book's
-    `REL` below can spell `(not (equal i j))` as a decision of `i = j`
-    without `qsort` acquiring a `[DecidableEq α]` binder: the target
-    `Prop`s at the bottom of this file take the order alone, exactly as
-    they did before the 2026-08-14 FILTER re-render, and `local` keeps
-    the derivation from competing with any `DecidableEq` instance a
+/-- Decidable equality, derived from the order: `a = b` exactly when
+    `a ≤ b` and `b ≤ a` (antisymmetry). It is `local` and low-priority
+    on purpose: it lets the book's `REL` below decide
+    `(not (equal i j))` without `qsort` acquiring a `[DecidableEq α]`
+    binder, and never competes with a `DecidableEq` instance a
     downstream file already has. -/
 local instance (priority := low) decEqOfOrder {α : Type u} [TotalOrder α] :
     DecidableEq α := fun a b =>
@@ -208,6 +111,7 @@ def evens : List α → List α
   | [a] => [a]
   | a :: _ :: t => a :: evens t
 
+/-- Termination support for `msort`: `evens` never lengthens a list. -/
 theorem length_evens_le : ∀ (xs : List α), (evens xs).length ≤ xs.length
   | [] => by simp [evens]
   | [a] => by simp [evens]
@@ -215,8 +119,8 @@ theorem length_evens_le : ∀ (xs : List α), (evens xs).length ≤ xs.length
     have h := length_evens_le t
     simp [evens]; omega
 
-/-- The odd-position elements: `evens` of the tail (own
-    pattern-match — the book's `(EVENS (CDR X))`). -/
+/-- The odd-position elements: `evens` of the tail (the book's
+    `(EVENS (CDR X))`). -/
 def odds : List α → List α
   | [] => []
   | _ :: t => evens t
@@ -225,9 +129,8 @@ end Structural
 
 variable {α : Type u} [TotalOrder α]
 
-/-- Ordered: each element ≤ its successor (the book's `ORDEREDP`,
-    idiomatically — an adjacent chain; our own definition, so no
-    library lemma speaks about it directly). -/
+/-- Ordered: each element ≤ its successor (the book's `ORDEREDP`, as
+    an adjacent chain). -/
 def Ordered : List α → Prop
   | [] => True
   | [_] => True
@@ -266,10 +169,9 @@ def msort : List α → List α
     simp [odds]; omega
 
 /-- The comparison MODE — `REL`'s `FN` argument, which the book passes
-    as one of the quoted symbols `'LT`, `'LTE`, `'GT`, `'GTE`. All four
-    are here because the book's `REL` has four cases; that `QSORT` uses
-    only two of them (`'LT` and `'GTE`) is the book's business, not the
-    mirror's. -/
+    as one of the quoted symbols `'LT`, `'LTE`, `'GT`, `'GTE`. All
+    four are here because the book's `REL` has four cases (`QSORT`
+    itself uses only `'LT` and `'GTE`). -/
 inductive RelMode where
   /-- the book's `'LT`. -/
   | lt
@@ -283,8 +185,7 @@ inductive RelMode where
 /-- One comparison verdict (the book's `REL`: `(rel fn i j)` is
     `(and (lexorder i j) (not (equal i j)))` for `'LT`, `(lexorder i j)`
     for `'LTE`, `(and (lexorder j i) (not (equal i j)))` for `'GT`, and
-    `(lexorder j i)` otherwise). A book function, so an own-definition
-    per the vocabulary practice. -/
+    `(lexorder j i)` otherwise). -/
 def relMode [DecidableEq α] (fn : RelMode) (i j : α) : Bool :=
   match fn with
   | .lt => decide (i ≤ j) && !decide (i = j)
@@ -293,15 +194,15 @@ def relMode [DecidableEq α] (fn : RelMode) (i j : α) : Bool :=
   | .gte => decide (j ≤ i)
 
 /-- Keep the elements the mode relates to the pivot (the book's
-    `FILTER`: `(filter fn x e)` — a MODE, the list, and the PIVOT
-    element `e`, keeping each `a` with `(rel fn a e)`). A book function,
-    so an own-definition per the vocabulary practice; its iso square
-    arrives with the sorting mirrors. -/
+    `FILTER`: `(filter fn x e)` — a mode, the list, and the pivot
+    element `e`, keeping each `a` with `(rel fn a e)`). -/
 def filterRel [DecidableEq α] (fn : RelMode) (e : α) : List α → List α
   | [] => []
   | a :: t =>
     if relMode fn a e then a :: filterRel fn e t else filterRel fn e t
 
+/-- Termination support for `qsort`: filtering never lengthens a
+    list. -/
 theorem length_filterRel_le [DecidableEq α] (fn : RelMode) (e : α) :
     ∀ (xs : List α), (filterRel fn e xs).length ≤ xs.length
   | [] => Nat.le_refl _
@@ -334,10 +235,9 @@ def bnext : List α → List α
     if a ≤ b then a :: bnext (b :: t) else b :: bnext (a :: t)
   termination_by xs => xs.length
 
-/-- How many elements of the list the order puts strictly BELOW `e` (the
-    book's `HOW-MANY-SMALLER`: skip the ones equal to `e`, count the ones
-    at-or-below it). A book function, so an own-definition per the
-    vocabulary practice; one half of the book's bubble measure. -/
+/-- How many elements of the list the order puts strictly below `e`
+    (the book's `HOW-MANY-SMALLER`: skip the ones equal to `e`, count
+    the ones at-or-below it). One half of the book's bubble measure. -/
 def howManySmaller [DecidableEq α] (e : α) : List α → Nat
   | [] => 0
   | a :: t =>
@@ -345,21 +245,22 @@ def howManySmaller [DecidableEq α] (e : α) : List α → Nat
     else if a ≤ e then 1 + howManySmaller e t
     else howManySmaller e t
 
-/-- The BAD-PAIR COUNT — the book's `BNEXT-SIZE`, the measure that
-    justifies `BSORT`'s recursion: summed over the list, how many of the
-    elements after it each element is out of order with. -/
+/-- The bad-pair count (the book's `BNEXT-SIZE`), the measure that
+    justifies `BSORT`'s recursion: summed over the list, how many of
+    the elements after it each element is out of order with. -/
 def howManyBadPairs [DecidableEq α] : List α → Nat
   | [] => 0
   | a :: t => howManySmaller a t + howManyBadPairs t
 
-/-! The three facts below are `bsort`'s TERMINATION ARGUMENT — the
-measure decrease Lean's kernel demands before the book's fixpoint
-recursion is a definition at all (the same obligation ACL2 discharges
-at `BSORT`'s admission, where it is the book's own lemma
-`HOW-MANY-BAD-PAIRS-BNEXT`). They are about OUR OWN definitions and
-prove no target property; every `Prop` at the bottom of this file still
-arrives via replay. -/
+/-! The facts below are `bsort`'s termination argument — the measure
+decrease Lean's kernel demands before the book's fixpoint recursion is
+a definition at all. Two of them are the book's own theorems, proved
+natively under the disclosure in the header; the other two
+(`howManySmaller_cons`, `howManyBadPairs_bnext_le`) are our own support
+lemmas with no book correspondent. -/
 
+/-- Unfolding form of `howManySmaller` at a cons (support lemma, no
+    book correspondent). -/
 theorem howManySmaller_cons [DecidableEq α] (e a : α) (t : List α) :
     howManySmaller e (a :: t) =
       (if e = a then 0 else if a ≤ e then 1 else 0) + howManySmaller e t := by
@@ -368,7 +269,8 @@ theorem howManySmaller_cons [DecidableEq α] (e a : α) (t : List α) :
   · by_cases h2 : a ≤ e <;> simp [howManySmaller, h, h2]
 
 /-- A bubble pass MOVES elements without changing how many of them the
-    order puts below `e`. -/
+    order puts below `e` (the book's `HOW-MANY-SMALLER-BNEXT`; proved
+    natively — see the header disclosure). -/
 theorem howManySmaller_bnext [DecidableEq α] (e : α) (xs : List α) :
     howManySmaller e (bnext xs) = howManySmaller e xs := by
   fun_induction bnext xs with
@@ -377,7 +279,8 @@ theorem howManySmaller_bnext [DecidableEq α] (e : α) (xs : List α) :
   | case3 a b t h ih => simp [howManySmaller_cons, ih]
   | case4 a b t h ih => simp [howManySmaller_cons, ih]; omega
 
-/-- A bubble pass never INCREASES the bad-pair count. -/
+/-- A bubble pass never INCREASES the bad-pair count (support lemma,
+    no book correspondent). -/
 theorem howManyBadPairs_bnext_le [DecidableEq α] (xs : List α) :
     howManyBadPairs (bnext xs) ≤ howManyBadPairs xs := by
   fun_induction bnext xs with
@@ -395,8 +298,9 @@ theorem howManyBadPairs_bnext_le [DecidableEq α] (xs : List α) :
     omega
 
 /-- THE DECREASE — a bubble pass that CHANGES the list strictly
-    decreases the bad-pair count (the book's `HOW-MANY-BAD-PAIRS-BNEXT`,
-    which is exactly what admits `BSORT` there). -/
+    decreases the bad-pair count (the book's
+    `HOW-MANY-BAD-PAIRS-BNEXT`, which is exactly what admits `BSORT`
+    there; proved natively — see the header disclosure). -/
 theorem howManyBadPairs_bnext_lt [DecidableEq α] (xs : List α) :
     bnext xs ≠ xs → howManyBadPairs (bnext xs) < howManyBadPairs xs := by
   fun_induction bnext xs with
@@ -428,78 +332,39 @@ def bsort (xs : List α) : List α :=
   termination_by howManyBadPairs xs
   decreasing_by exact howManyBadPairs_bnext_lt xs ‹_›
 
-/-- Multiplicity of an element (the book's `HOW-MANY`; our own
-    definition). -/
+/-- Multiplicity of an element (the book's `HOW-MANY`). -/
 def howMany [DecidableEq α] (a : α) : List α → Nat
   | [] => 0
   | b :: t => (if a = b then 1 else 0) + howMany a t
 
-/-- Membership test (the book's `MEMB`). A book function, so an
-    own-definition per the vocabulary practice. -/
+/-- Membership test (the book's `MEMB`). -/
 def memb [DecidableEq α] (a : α) : List α → Bool
   | [] => false
   | b :: t => if a = b then true else memb a t
 
-/-- Remove the FIRST occurrence (the book's `RM`). A book function, so
-    an own-definition per the vocabulary practice. -/
+/-- Remove the FIRST occurrence (the book's `RM`). -/
 def rm [DecidableEq α] (e : α) : List α → List α
   | [] => []
   | a :: t => if e = a then t else a :: rm e t
 
 /-- Permutation, the book's way (`PERM`): every head occurs in the
-    other list, and the tails-after-removal are permutations. Our own
-    definition — its equivalence with multiplicity agreement is a
-    THEOREM of the book (`CONVERT-PERM-TO-HOW-MANY`), not a library
-    import. -/
+    other list, and the tails-after-removal are permutations. Its
+    equivalence with multiplicity agreement is a THEOREM of the book
+    (`CONVERT-PERM-TO-HOW-MANY`), not a library import. -/
 def Permuted [DecidableEq α] : List α → List α → Prop
   | [], [] => True
   | [], _ :: _ => False
   | a :: xs, ys => memb a ys = true ∧ Permuted xs (rm a ys)
 
 /-- The permutation counterexample witness (the book's
-    `PERM-COUNTER-EXAMPLE`), as the book writes it: walk `xs`, removing
-    each element from `ys` as it is found; the FIRST element of `xs`
-    that is not found is the witness, and if every one is found the
-    head of what is left of `ys` is. The book's function returns a
-    VALUE, never an option, which is why this one does too.
-
-    The `(CAR Y)` arm DESTRUCTURES `ys`, exactly as ACL2's `(CAR Y)`
-    dispatches on `(CONSP Y)` — the same access-pattern rendering
-    `Permuted` above carries for `(IF (CONSP Y) 'NIL 'T)`.
-
-    **THE JUNK ARM.** When the walk bottoms out at `[], []` the value
-    is `Inhabited.default`: this type's stand-in for ACL2's
-    `(car nil)`, carrying no information about either list. It is the
-    one place where a TOTAL Lean rendering of an untyped ACL2 function
-    must invent a value. The function stays total and stays exactly as
-    the book writes it.
-
-    WHICH INPUTS REACH IT — EVERY PERMUTING PAIR, not only `[] []`.
-    The walk consumes `xs`, removing each element from `ys` as it is
-    found, so it reaches the `[], []` arm exactly when every element of
-    `xs` was found AND `ys` is exhausted — which is `Permuted`'s own
-    recursion, clause for clause. So the arm is reached on precisely
-    the pairs with `Permuted xs ys`: `permWitness [1,2] [2,1]` is the
-    junk value just as `permWitness [] []` is, against
-    `permWitness [1,2] [2,1,5] = 5` (leftover head) and
-    `permWitness [9] [2] = 9` (not found), which are real witnesses.
-    ACL2's `PERM-COUNTER-EXAMPLE` returns `(car nil)` on exactly the
-    same set, so this is the book's behaviour and not a rendering
-    artefact.
-
-    WHY THAT IS HARMLESS TO THE PROPERTY BELOW: on exactly that set
-    BOTH sides of the property's `Iff` are true whatever the witness
-    is — the left side is `Permuted xs ys`, which is what put the walk
-    there, and the right side compares counts in two lists that
-    permute each other, which agree at every element. The invented
-    value is therefore never what decides the `Iff`. (It IS what makes
-    the ENCODING square false at `Int` — the next paragraph.)
-
-    The junk arm is also what decides WHICH ELEMENT TYPE the property
-    below is proved at: a type whose `default` is the same junk value
-    ACL2 has. `Option α` is that type — its `default` is `none` — which
-    is why `permWitness_complete`'s theorem is instantiated at
-    `Option Int` rather than `Int` (Mike's ruling, 2026-08-18). -/
+    `PERM-COUNTER-EXAMPLE`): walk `xs`, removing each element from `ys`
+    as it is found; the first element of `xs` that is not found is the
+    witness, and if every one is found the head of what is left of `ys`
+    is. The fallback arm at `[], []` returns `default` — the price of a
+    TOTAL Lean rendering of an untyped ACL2 function, standing in for
+    ACL2's `(car nil)` and reached on exactly the pairs ACL2 returns
+    `(car nil)` on: the permuting ones. `permWitness_complete` below is
+    insensitive to the fallback value. -/
 def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
   | [], [] => default
   | [], y :: _ => y
@@ -507,13 +372,10 @@ def permWitness [DecidableEq α] [Inhabited α] : List α → List α → α
 
 /-! ## The target properties — the definition of done
 
-FIFTEEN `Prop`s, one per RESULT-TIER theorem of the ACL2 sorting
-corpus, in the corpus's own order (`isort`, `msort`, `qsort`, `bsort`,
-`ordered-perms`, `perm`, `convert-perm-to-how-many`,
-`sorts-equivalent`). Each names its book theorem; the bijection
-invariant, the type-absorbed class and the instantiation-device class
-are stated in the file header. The buildout is DONE for sorting when
-every one is a `theorem` proved via replay. -/
+Fifteen `Prop`s, one per RESULT-TIER theorem of the ACL2 sorting
+corpus, in the corpus's own order. Each names its book theorem; each
+is a `theorem`, proved via replay, in
+`ACL2Lean/MirrorProofs/Sorting.lean`. -/
 
 /-- ISORT orders (the book's `ORDEREDP-ISORT`). -/
 def isort_ordered (α : Type u) [TotalOrder α] : Prop :=
@@ -545,9 +407,7 @@ def qsort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
 def qsort_perm (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (xs : List α), Permuted (qsort xs) xs
 
-/-- BSORT orders (`ORDEREDP-BSORT`; the book's route goes through
-    `ORDEREDP-WHEN-BNEXT-CONSTANT` — a bubble-pass fixpoint is ordered —
-    and the bad-pair progress measure). -/
+/-- BSORT orders (`ORDEREDP-BSORT`). -/
 def bsort_ordered (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), Ordered (bsort xs)
 
@@ -558,15 +418,13 @@ def bsort_howMany (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
 /-- An ordered permutation is unique — the book's `ORDERED-PERMS`,
     which states it as the EQUIVALENCE `(EQUAL A B) = (PERM A B)` for
     ordered `A`, `B`, and that is the shape here: for ordered lists,
-    equality and permutation are the same relation. (The book's two
-    `TRUE-LISTP` hypotheses are type-absorbed.) -/
+    equality and permutation are the same relation. -/
 def ordered_perm_unique (α : Type u) [TotalOrder α] [DecidableEq α] : Prop :=
   ∀ (xs ys : List α), Ordered xs → Ordered ys → (xs = ys ↔ Permuted xs ys)
 
 /-- Permutation is an equivalence relation (the book's
     `PERM-IS-AN-EQUIVALENCE`, ACL2's `defequiv` content: reflexive,
-    symmetric, transitive — its `BOOLEANP` conjunct is type-absorbed by
-    `Permuted`'s being a `Prop`). -/
+    symmetric, transitive). -/
 def permuted_equivalence (α : Type u) [DecidableEq α] : Prop :=
   ∀ (xs ys zs : List α),
     Permuted xs xs ∧
@@ -577,17 +435,12 @@ def permuted_equivalence (α : Type u) [DecidableEq α] : Prop :=
     two lists are permutations EXACTLY WHEN their multiplicities agree
     at the ONE element the witness picks out — the whole point of the
     witness, since it turns a `∀`-quantified count check into a single
-    one. (The corpus's `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-
-    TRUE-LISTS` is this same statement under `TRUE-LISTP` hypotheses
-    the types absorb, and is the step the book proves it from, not a
-    second result.)
-
-    ORDER-FREE, like the book theorem: `CONVERT-PERM-TO-HOW-MANY` says
-    nothing about LEXORDER, and neither does anything this `Prop` is
-    stated in (`Permuted`, `howMany`, `permWitness` all take
-    `[DecidableEq α]`, and the witness additionally `[Inhabited α]` for
-    its junk arm). So the binders are those two and no order — the same
-    reading `permuted_equivalence` above carries. -/
+    one. Order-free, like the book theorem: the binders are
+    `[DecidableEq α]` and (for the witness's fallback arm)
+    `[Inhabited α]`, and no order. (The corpus's
+    `PERM-COUNTER-EXAMPLE-IS-COUNTEREXAMPLE-FOR-TRUE-LISTS` is this
+    same statement under hypotheses the types absorb — the step the
+    book proves it from, not a second result.) -/
 def permWitness_complete (α : Type u) [DecidableEq α]
     [Inhabited α] : Prop :=
   ∀ (xs ys : List α),
@@ -602,8 +455,7 @@ def msort_is_isort (α : Type u) [TotalOrder α] : Prop :=
 def qsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), qsort xs = isort xs
 
-/-- BSORT is ISORT (`BSORT-IS-ISORT`, whose `TRUE-LISTP` hypothesis is
-    type-absorbed). -/
+/-- BSORT is ISORT (`BSORT-IS-ISORT`). -/
 def bsort_is_isort (α : Type u) [TotalOrder α] : Prop :=
   ∀ (xs : List α), bsort xs = isort xs
 
