@@ -20,9 +20,11 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ACL2="${ACL2:-$SCRIPT_DIR/../acl2/saved_acl2}"
 OUTDIR="${OUTDIR:-}"
 
-if [ -n "$OUTDIR" ] && [ ! -d "$OUTDIR" ]; then
-  echo "Error: OUTDIR=$OUTDIR is not a directory" >&2
-  exit 1
+if [ -n "$OUTDIR" ]; then
+  # The sorting output directory contains only gitignored generated files, so
+  # it is absent in a fresh clone.  OUTDIR is an output contract: create it
+  # instead of requiring callers to bootstrap it by hand.
+  mkdir -p -- "$OUTDIR"
 fi
 
 if [ $# -eq 0 ]; then
