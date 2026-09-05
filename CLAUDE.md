@@ -193,9 +193,13 @@ layer is BREADTH beyond that corpus — read live counts off
 `ACL2Lean/MirrorProofs/` and the mirror seam gate's build-time report, never
 off this page (and no longer off `TODO.md`, which since its 2026-08-19
 restructure is a backlog and carries no counts).
-**The governing plan is `docs/plans/2026-08-12_master-plan.md`** (ruled
-2026-08-13): the two-category model (METRIC vs PRODUCT), Track FREE / Track
-REAL, and the phase sequencing to the sorting close-out.
+**The governing plan is `docs/plans/2026-09-05_master-plan.md`**: the
+post-sorting goal sequence, starting with the three BVCHOP mirrors and
+leading toward reusable word-library imports and x86 program proofs. It
+supersedes the sequencing of `docs/plans/2026-08-12_master-plan.md` while
+retaining that plan's two-category model (METRIC vs PRODUCT) and Track FREE /
+Track REAL frame. The first goal's scope and preflight decisions are in
+`docs/plans/2026-09-05_bvchop-foundation-charter.md`.
 `docs/plans/2026-06-10_generality-design.md` is the **architecture
 reference** — its L1–L3 invariants (below) bind; its status and sequencing
 are superseded — carrying the hybrid architecture (certifying walkers as the

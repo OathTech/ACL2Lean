@@ -136,6 +136,16 @@ Pinned-by: none (complex numbers not modeled; `unsupported` in the differential
 — Tests/differential/corpus/complex-and-packages.lisp)
 `alphorder` places complex/complex-rationals between rationals and characters.
 We do not model complex numbers at all.
+
+**New-book reproduction (2026-09-05):** a fresh capture of
+`acl2/books/kestrel/bv/bvchop.lisp` at fork `e8d78e513d6867d04002f0df644da1723cc96e89`
+succeeds, but `acl2lean-replay --dump` rejects it with
+`Parse error: unrecognized reader macro: #C`. The included arithmetic theorem
+`EQUAL-OF-+-OF-*-OF-I` and its stored rule contain `#C(0 1)`: even this
+integer-oriented book reaches the limitation through its dependencies.
+Commands and scope are recorded in the
+[post-sorting assessment](notes/2026-09-05_next-north-star-assessment.md).
+
 Dependency note (2026-07-20, STRINGP-lift audit): `Logic.rationalp` coincides
 with `Logic.acl2Numberp` ON THE MODEL (both true exactly on `.atom (.number _)`)
 precisely because of this bug — and the DP-lift registry now consumes

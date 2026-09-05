@@ -162,7 +162,8 @@ stages 5–6 produced it* — see [*Known limitations*](#known-limitations).
 **METRIC vs PRODUCT.** Replayed statements and waypoints are the METRIC: the
 scoreboard of how far the machinery reaches, valuable, never presented as
 results. Mirrors are the PRODUCT. The two-category model is the governing
-frame ([`plans/2026-08-12_master-plan.md`](plans/2026-08-12_master-plan.md)).
+frame, retained by the post-sorting
+[`master plan`](plans/2026-09-05_master-plan.md).
 
 As a trust-boundary view of the code:
 
@@ -330,7 +331,7 @@ Set either to any value to enable, e.g.
 | `acl2_samples/` | Authored corpus sources (`recon-tests/` is the reconstruction suite, `pattern-tests/` the pattern corpus) + captured logs; upstream books are referenced directly from the `acl2/` submodule (see `books.txt`) |
 | `scripts/` | The gate scripts (provenance, tags, dark files, file weight, …) |
 | `docs/README.md` | The index of `docs/`, with the live-vs-dated reading rule |
-| `docs/plans/` | Design plans and arc charters — `2026-08-12_master-plan.md` is the governing plan |
+| `docs/plans/` | Design plans and arc charters — `2026-09-05_master-plan.md` is the governing plan |
 | `docs/notes/` | Investigation notes, surveys, dated findings |
 | `docs/audits/` | Dated audit reports |
 | `docs/archive/` | Retired material kept verbatim (passages moved out of live docs, the pre-2026-08-19 `TODO.md` journal) |
