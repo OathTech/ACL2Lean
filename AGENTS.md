@@ -10,7 +10,7 @@ Also canonical:
 - [`docs/LEXICON.md`](docs/LEXICON.md) — the vocabulary (*replayed statement*
   / *waypoint* / *mirror* name three different things; where a dated doc
   conflicts, the lexicon wins).
-- [`docs/plans/2026-08-12_master-plan.md`](docs/plans/2026-08-12_master-plan.md)
+- [`docs/plans/2026-09-05_master-plan.md`](docs/plans/2026-09-05_master-plan.md)
   — the governing plan.
 - [`docs/OVERVIEW.md`](docs/OVERVIEW.md) — the pipeline, the trust model,
   build commands, known limitations. The technical entry point; the root

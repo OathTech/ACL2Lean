@@ -18,7 +18,7 @@ status lives* explains.
 and a pointer to its record document where one exists. Items are grouped, not
 ranked: **the grouping carries no priority order** — priorities are Mike's
 call, and the current ones are set in
-[`docs/plans/2026-08-12_master-plan.md`](docs/plans/2026-08-12_master-plan.md),
+[`docs/plans/2026-09-05_master-plan.md`](docs/plans/2026-09-05_master-plan.md),
 the governing plan. When an item is done, delete it here and let the arc's
 charter or the archive carry the record.
 
@@ -56,6 +56,20 @@ zone empty on purpose, so in-flight arcs land their entries in a clean file.
       left. Priorities are his call, not the file's.
 
 ### Capability and coverage — the named broadenings
+
+- [ ] **NS1 — three BVCHOP mirrors.** Execute the
+      [first-goal charter](docs/plans/2026-09-05_bvchop-foundation-charter.md):
+      bounds, idempotence, identity, and their complete replayed dependency
+      closure, preserving existing products. Full complex migration and two
+      pairs of checkpoint reviewers authorized 2026-09-05; implementation
+      not started.
+- [ ] **NS2–NS4 — word-library breadth, reusable imports, usable release.**
+      Follow the [master plan](docs/plans/2026-09-05_master-plan.md): six selected
+      mirrors, a held-out book without per-theorem proof glue, and a separate
+      Lean consumer/fresh-checkout reproduction.
+- [ ] **NS5–NS8 — GL and native state to x86 program proofs.** The
+      [master plan](docs/plans/2026-09-05_master-plan.md) scopes the checked GL
+      pilot, real x86 state laws, popcount correctness, and second-program reuse.
 
 - [ ] **G4 — Forcing-round emission + composition.** Emit per-assumption
       `(type-alist, term, assumnotes)` + the round-(k+1) clause list at

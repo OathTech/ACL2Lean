@@ -25,7 +25,7 @@ so at their heads:
 
 | doc | governs |
 | --- | --- |
-| [`plans/2026-08-12_master-plan.md`](plans/2026-08-12_master-plan.md) | The governing plan: the METRIC-vs-PRODUCT two-category model, Track FREE / Track REAL, phase sequencing. Current priorities are set here. |
+| [`plans/2026-09-05_master-plan.md`](plans/2026-09-05_master-plan.md) | The governing post-sorting goal sequence: word-library mirrors, reusable imports, and x86 program correctness. Retains METRIC/PRODUCT and Track FREE / Track REAL; supersedes the sorting plan's sequencing. |
 | [`notes/2026-07-22_pattern-map.md`](notes/2026-07-22_pattern-map.md) | The COVERAGE source of truth (ci-gated by `just check-pattern-map`): the frame over ACL2's situation space and the pinned frontiers per layer. Consult before building new support. |
 
 Also binding, but outside `docs/`: [`../CLAUDE.md`](../CLAUDE.md) (the working
@@ -42,3 +42,11 @@ rules — fidelity requirements, gating tiers, audit practices) and
 | [`archive/`](archive/README.md) | **Moved history**: passages retired from live documents, kept verbatim, with an index. Includes the pre-2026-08-19 `TODO.md` arc journal. |
 | [`comms/`](comms/) | Correspondence and hand-offs. |
 | [`reference/`](reference/) | Parked material that is **not built and not trusted** — currently one file, whose own header says so. Do not cite, import, or build on it. |
+
+Recent assessment: [After sorting: the next north-star target](notes/2026-09-05_next-north-star-assessment.md)
+compares machinery broadening with candidate books, records fresh probes, and
+recommends a bounded bitvector-library arc leading toward x86 program proofs.
+Its direction was accepted; the [new master plan](plans/2026-09-05_master-plan.md)
+sets the goal sequence. The [NS1 charter](plans/2026-09-05_bvchop-foundation-charter.md)
+specifies the first three BVCHOP mirrors, completion receipts, and the
+agreed scope and review allocation for the long run.

@@ -1,5 +1,11 @@
 # THE MASTER PLAN — demo close-out (drafted 2026-08-12, for Mike)
 
+> **SUCCESSOR (2026-09-05).** The user accepted the post-sorting direction.
+> [`2026-09-05_master-plan.md`](2026-09-05_master-plan.md) now governs
+> sequencing and goal selection. This document remains the record of the
+> sorting plan; its METRIC/PRODUCT and Track FREE / Track REAL frame is
+> retained by the successor. The historical status notes below are unchanged.
+
 > **DISPOSITION (added 2026-08-19, external-reviewer round).** This is a
 > DATED plan and is left as written. Two of its factual statements are
 > **SUPERSEDED** and must not be read as current status:
