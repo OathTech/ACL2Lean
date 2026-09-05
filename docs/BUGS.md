@@ -187,6 +187,50 @@ becomes unsound to keep, so `tsAcl2MaskOk` must be DELETED (reverting to
 `tsSubsumedM`) alongside any fix here — its docstring says so at the
 site.
 
+## BUG-028 — reader accepts a rational literal with denominator zero
+Status: open
+Pinned-by: none (independently reproduced during NS1 C0; differential pin
+and reader repair are pending in the numeric migration)
+
+`Parser.lean`'s rational-token branch passes any parsed natural denominator
+to `Logic.mkNumber`. That smart constructor's zero-denominator completion
+returns integer zero, so `(quote 1/0)` evaluates to `0` in ACL2Lean.
+The pinned ACL2 reader rejects the token with `READER-ERROR`, caused by
+`DIVISION-BY-ZERO`. Reader acceptance must not inherit arithmetic completion.
+
+Reproduced 2026-09-05 at ACL2Lean `b452b70` and fork
+`e8d78e513d6867d04002f0df644da1723cc96e89`: the built Lean CLI's
+`eval "(quote 1/0)"` prints `0`; the freshly built ACL2 image reading
+`(value-triple '1/0)` emits the reader error. Transcripts are in the NS1
+worktree's `.tmp/ns1/zero-denominator-{lean,acl2}.out`.
+The new complex reader would inherit this divergence if it accepted
+components through the current rational parser. Reject zero denominators
+at the reader boundary and cover ordinary and complex-component literals
+with isolated differential tests. See the
+[NS1 numeric design](notes/2026-09-05_ns1-numeric-design.md).
+
+## BUG-029 — rational term-order weight drops the recursive call limit
+Status: open
+Pinned-by: none (independently reproduced during NS1 C0; focused regression
+and numeric term-weight repair pending)
+
+`TermOrder.fnCountEvgAtom` expands a rational's numerator and denominator
+with direct `fnCountEvgInt` calls, omitting the recursive call-count checks
+of ACL2's `fn-count-evg-rec` (`linear-a.lisp:1492` onward). Near the limit,
+this computes a small weight where ACL2 saturates at 200000 and can change
+term-order tie-breaking.
+
+Reproduced 2026-09-05 on the unchanged model: `fnCountEvgRec` of `1/2`,
+accumulator 0 and calls 997, 998, 999 gives `[6, 6, 6]`; the same three
+calls to the freshly built ACL2 image give `(6 200000 200000)`.
+Complex constants recurse through the same component path: ACL2 gives
+`(9 200000 200000)` for `#C(1/2 1)` at calls 995, 996, 997.
+Inputs and outputs are in `.tmp/ns1/term-weight-{lean,acl2}.*` in the NS1
+worktree. Preserve both accumulator saturation and call-count saturation
+when adding complex weights, and repair the existing rational path with
+source-based boundary checks. See the
+[NS1 numeric design](notes/2026-09-05_ns1-numeric-design.md).
+
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open
 Pinned-by: differential

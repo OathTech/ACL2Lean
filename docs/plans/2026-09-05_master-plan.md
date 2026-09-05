@@ -11,7 +11,7 @@ invariants L1–L3 remain binding.
 
 **Current position:** **NS1 selected and its preflight choices settled.** The
 [execution charter](2026-09-05_bvchop-foundation-charter.md) contains the
-concrete first-goal contract. Implementation has not started. On 2026-09-05
+concrete first-goal contract. The long run started at C0 on 2026-09-05. On that date
 the user authorized the full complex-rational migration and the proposed
 two-reviewer design and final checkpoints. The charter records that standing
 authorization; it is not to be requested again during the run.
@@ -215,5 +215,8 @@ program satisfies the policy's full-scale 1.0 bar.
 
 - **2026-09-05:** assessment direction accepted; this successor sequence
   written; NS1 selected and chartered. The user then authorized ownership of
-  the complex migration and the proposed subagent reviews. No
-  implementation goal is claimed started or complete by this document.
+  the complex migration and the proposed subagent reviews. The approved docs
+  were committed on `main` as `b452b70`, then NS1 launched in the
+  `mdd/ns1-bvchop` worktree. C0 baseline, native specifications and both
+  numeric-design reviews are checked; C1 semantic migration is next.
+  No new mirror proof is complete. Receipts are in the NS1 charter.

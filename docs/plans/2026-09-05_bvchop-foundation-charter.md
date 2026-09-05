@@ -2,7 +2,7 @@
 
 Dated 2026-09-05. First goal of the
 [post-sorting master plan](2026-09-05_master-plan.md).
-**Status: ready for the next long run; implementation not started.**
+**Status: C0 checked 2026-09-05; C1 semantic migration next. NS1 incomplete.**
 The strategic direction and preflight choices are agreed. On 2026-09-05 the
 user explicitly authorized ownership of the complex migration and the
 subagents proposed below. Those authorizations persist throughout this goal;
@@ -37,9 +37,10 @@ The source theorem names and formulas are in
 defined in [`bvchop-def.lisp`](../../acl2/books/kestrel/bv/bvchop-def.lisp) by
 `(mod (ifix x) (expt 2 (nfix size)))` on the logical path.
 
-The proposed native specification uses **all natural widths and all integer
-inputs**, including width zero and negative inputs. The following is a
-reviewable specification sketch, not implemented declarations or proofs:
+The native specification uses **all natural widths and all integer
+inputs**, including width zero and negative inputs. The following declarations
+are implemented in [`Mirrors/WordOps.lean`](../../ACL2Lean/Mirrors/WordOps.lean);
+their proofs remain the goal of NS1:
 
 ```lean
 namespace ACL2Lean.WordOps
@@ -68,9 +69,8 @@ end ACL2Lean.WordOps
 | `wordClipIdempotent` | `bvchop-of-bvchop-same` |
 | `wordClipIdentity` | `bvchop-identity`, with the generic correspondence between `unsigned-byte-p` and the stated integer bounds |
 
-Names are provisional until the existing collision linter checks them;
-choosing collision-free own-definition names is a routine implementation
-choice. The mathematical formulas are the contract. The bound does not
+The names passed the existing collision linter at C0. The mathematical
+formulas are the contract. The bound does not
 silently add a separate nonnegativity theorem; additional useful results
 belong to their own replayed source facts.
 
@@ -240,20 +240,56 @@ gates themselves retain the simpler honest-mistake standard.
 
 The authorization is explicit because [CLAUDE.md](../../CLAUDE.md) says:
 “Seek sign-off on the audit plan BEFORE triggering any subagent.” No
-subagents have been launched for this planning work. This requirement is now
-satisfied for the allocation above; launch those reviews when their concrete
-checkpoint artifacts are ready, without requesting the same approval again.
+subagents were launched during planning. This requirement is satisfied for
+the allocation above. Both C0 reviews have now run; the two C4 tasks remain
+authorized for their concrete checkpoint artifacts, without requesting the
+same approval again.
+
+## C0 execution evidence
+
+- **Fresh baseline:** invalidated coverage and ran `TMPDIR="$PWD/.tmp" just
+  claim-gate` before changing proof code. Receipt
+  `.gate-runs/b452b70-20260905T221458Z.log`, `TRUE_EXIT=0`; 116/116 rows
+  unconditional and golden byte-identical. All existing product checks passed.
+- **Fresh ACL2 image and capture:** the image's system-books directory points
+  inside this worktree. The unchanged BVCHOP source produced 436,039 log lines
+  and 116/116 QED/local-theorem events. Parsing still rejects `#C`. Source and
+  log hashes, commands and probe transcripts are recorded in the
+  [numeric design](../notes/2026-09-05_ns1-numeric-design.md).
+- **Native specifications:** the four WordOps declarations build, and the
+  existing naming linter reports 59 names with no collisions. No new mirror
+  proof or product is claimed.
+- **Reviews:** [numeric semantics](../audits/2026-09-05_ns1-c0-numeric-review.md)
+  and [migration consequences](../audits/2026-09-05_ns1-c0-migration-review.md)
+  completed. The primary independently checked the substantive findings;
+  the design note records the adopted repairs. Newly reproduced BUG-028
+  (zero-denominator reader) and BUG-029 (numeric term-weight saturation)
+  are included in C1, alongside BUG-009.
+- **Design:** canonical core `Rat` components, nonzero imaginary part,
+  existing rational constructors preserved; exact ACL2-value count for
+  replay count measures, separate from structural `consCount`; coherent
+  type-set, ordering and completion changes. No additional scope ruling
+  or review task is needed before implementation.
+- **C0 gate after adding specs:** `TMPDIR="$PWD/.tmp" just claim-gate`,
+  `.gate-runs/b452b70-20260905T223811Z.log`, `TRUE_EXIT=0`. This run reused
+  the freshly checked baseline coverage artifacts; WordOps and its naming
+  consumer were newly built. All existing products remain unchanged.
 
 ## Resume record
 
-- **Current artifact:** this charter and the dated master plan; source code
-  remains at the assessed release baseline.
+- **Current artifact:** approved planning docs committed on `main` at `b452b70`;
+  execution worktree `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`,
+  branch `mdd/ns1-bvchop`. C0 baseline, specifications, numeric design and
+  both authorized reviews are checked. Proof/model code remains at the
+  assessed release baseline; WordOps contains unproved specifications only.
 - **Last observed blocker:** full `bvchop` log parsing rejects `#C` before
   reconstruction. Reproduction is in the assessment.
 - **Settled preflight choices:** the run owns the numeric-model migration;
   the two pairs of review-only subagents are authorized. No preflight
   questions remain pending.
-- **Next action after launch:** C0, beginning with a
-  fresh baseline and the exact numeric design. Do not restart candidate-book
-  selection or implement an unrelated backlog entry.
-- **Execution outcome:** not started; no NS1 completion claim.
+- **Next action:** implement C1 using the
+  [adopted numeric design](../notes/2026-09-05_ns1-numeric-design.md), then
+  inspect the real BVCHOP proof tree at its next ingestion/replay boundary.
+  Do not restart candidate-book selection or implement an unrelated backlog.
+- **Execution outcome:** C0 checked; C1–C4 and all three new mirror proofs
+  remain open. NS1 is in progress.

@@ -60,6 +60,7 @@ import Mathlib.Order.Basic
 -- the coverage check below FAILS if a Mirrors file is missing here)
 import ACL2Lean.Mirrors.Basics
 import ACL2Lean.Mirrors.Sorting
+import ACL2Lean.Mirrors.WordOps
 
 namespace ACL2.Tests.MirrorNameCheck
 

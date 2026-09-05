@@ -35,8 +35,12 @@ charter or the archive carry the record.
 
 ## In flight
 
-*Nothing recorded here right now.* The 2026-08-19 docs-polish round left this
-zone empty on purpose, so in-flight arcs land their entries in a clean file.
+- [ ] **NS1 — C1 complex-rational semantic migration.** Long run launched 2026-09-05
+      in `.claude/worktrees/ns1-bvchop`, branch `mdd/ns1-bvchop`, from the
+      approved docs commit `b452b70`. C0 baseline, native specifications and
+      both design reviews checked; implement the adopted numeric design,
+      repair BUG-009/028/029 and restore all existing proofs. Record:
+      [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog
 
@@ -61,8 +65,7 @@ zone empty on purpose, so in-flight arcs land their entries in a clean file.
       [first-goal charter](docs/plans/2026-09-05_bvchop-foundation-charter.md):
       bounds, idempotence, identity, and their complete replayed dependency
       closure, preserving existing products. Full complex migration and two
-      pairs of checkpoint reviewers authorized 2026-09-05; implementation
-      not started.
+      pairs of checkpoint reviewers authorized 2026-09-05; C0 in progress.
 - [ ] **NS2–NS4 — word-library breadth, reusable imports, usable release.**
       Follow the [master plan](docs/plans/2026-09-05_master-plan.md): six selected
       mirrors, a held-out book without per-theorem proof glue, and a separate
