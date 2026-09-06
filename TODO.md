@@ -48,7 +48,10 @@ charter or the archive carry the record.
       the POSITIVE/CASES dependency: validate the boundary replacements against
       the full baseline (BUG-048), then complete and integrate the recorded
       linear equation consumer (BUG-049), including the source NOT-<-SAME
-      dependency and msort's count/linear-rule polynomial classes. Validate the exact-name registry repair
+      dependency and msort's count/linear-rule polynomial classes. The isolated
+      cancellation proof is now unconditional; promote its producer/closure
+      after the baseline classes replay, and rerun the full gate after the
+      DP normalization and test-traversal repairs. Validate the exact-name registry repair
       below and close the quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

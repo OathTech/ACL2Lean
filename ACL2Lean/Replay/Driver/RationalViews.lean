@@ -57,20 +57,26 @@ partial def introDpRationalValues (g : MVarId) : MetaM (MVarId × Bool) := do
   return (g, true)
 
 /-- Primitive rational comparison normalization for recorded verdict leaves.
-The clause and its rational premises are unchanged; this is used only inside
-proveDpFact's existing bounded direct attempt. -/
+Sums and negations normalize through numberParts. Boolean comparisons
+are simplified propositionally before splitting to avoid enumerating
+combinations of arithmetic signs. The clause and its rational premises stay
+unchanged; this is used only inside proveDpFact's existing bounded direct attempt. -/
 def dpRationalViewTactic : MetaM (TSyntax `tactic) :=
   `(tactic|
-    (try simp_all only [rationalpFromRat, Logic.not, Logic.toBool, SExpr.t,
-      reduceCtorEq, Logic.equal_ne_nil_iff, logic_not_equal_nil_iff, Logic.equal_nil_iff, fromRatZero, fromRatNeZero]) <;>
-    (try simp_all only [Logic.lt_parts, Logic.times_parts,
+    (try simp_all only [rationalpFromRat, Logic.not_nil_iff, Logic.toBool_eq_true,
+      Logic.toBool_eq_false, SExpr.t, reduceCtorEq, Logic.equal_ne_nil_iff,
+      logic_not_equal_nil_iff, Logic.equal_nil_iff, fromRatZero, fromRatNeZero]) <;>
+    (try simp_all only [Logic.lt_parts, Logic.times_parts, Logic.plus_parts, Logic.neg_parts,
       Logic.numberParts_mkParts, Logic.numberParts_fromRat]) <;>
     (simp_all only [show Logic.numberParts (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from (by decide),
       Prod.fst, Prod.snd, Rat.mul_zero, Rat.zero_mul, Rat.add_zero, Rat.sub_eq_add_neg, Rat.neg_zero,
       Rat.lt_irrefl, and_false, or_false]) <;>
+    (simp_all only [ne_eq, Logic.not_nil_iff, Logic.toBool_eq_true,
+      ite_eq_left_iff, ite_eq_right_iff, SExpr.t, reduceCtorEq,
+      imp_false, not_false_eq_true, not_true_eq_false, not_not]) <;>
     (try split_ifs at *) <;>
-    simp_all only [Logic.toBool, Logic.not, SExpr.t, reduceCtorEq,
-      ite_true, ite_false, not_false_eq_true, fromRatNeZero] <;>
+    (try simp_all only [Logic.toBool, Logic.not, SExpr.t, reduceCtorEq,
+      ite_true, ite_false, not_false_eq_true, fromRatNeZero]) <;>
     first | nlinarith | grind -matchEqs -splitMatch [Rat.mul_neg_iff_of_pos_left,
       Rat.mul_neg_iff_of_pos_right, Rat.mul_nonneg, Rat.mul_pos])
 

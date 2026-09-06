@@ -53,6 +53,8 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let z := sym "Z"
   let distLhs := app "BINARY-*" [x, app "BINARY-+" [y, z]]
   let distRhs := app "BINARY-+" [app "BINARY-*" [x, y], app "BINARY-*" [x, z]]
+  let assocLhs := app "BINARY-*" [app "BINARY-*" [x, y], z]
+  let assocRhs := app "BINARY-*" [x, app "BINARY-*" [y, z]]
   let den := app "DENOMINATOR" [x]
   let denRhs := app "IF" [app "RATIONALP" [x], den,
     app "QUOTE" [.atom (.number (.int 1))]]
@@ -66,6 +68,7 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let schema? := match name with
     | "POSITIVE" => some positive
     | "DISTRIBUTIVITY" => some (app "EQUAL" [distLhs, distRhs])
+    | "ASSOCIATIVITY-OF-*" => some (app "EQUAL" [assocLhs, assocRhs])
     | "RATIONAL-IMPLIES2" => some (app "IMPLIES" [app "RATIONALP" [x],
         app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
     | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
@@ -83,6 +86,11 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         ← ctxValExpr cfg ctx (instantiate y), ← ctxValExpr cfg ctx (instantiate z)]
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate distLhs))
         (← ctxValExpr cfg ctx (instantiate distRhs)) law
+    | "ASSOCIATIVITY-OF-*" => do
+      let law ← mkAppM ``Logic.times_assoc #[vx,
+        ← ctxValExpr cfg ctx (instantiate y), ← ctxValExpr cfg ctx (instantiate z)]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate assocLhs))
+        (← ctxValExpr cfg ctx (instantiate assocRhs)) law
     | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
     | "COMPLETION-OF-DENOMINATOR" => do
       let law ← mkAppM ``Logic.denominator_completion #[vx]

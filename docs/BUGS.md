@@ -58,7 +58,14 @@ actual insertion subtrees check unconditionally with the accepted axiom trio;
 nine mutation controls reject altered or missing evidence
 (`c2-linear-insertion-closed-fragments.log`). The whole theorem now reaches
 the existing 3M-heartbeat limit in `isDefEq`
-(`c2-linear-product-with-less-than.log`); decomposition is still required.
+(`c2-linear-product-with-less-than.log`). Profiling localizes that cost to
+DP leaves. A rational-normalization candidate closes all 12 actual emitted
+leaves under the unchanged direct-attempt budget, with accepted axioms
+(`c2-rational-product-all-leaves-kernel.log`). The rebuilt driver now
+replays the whole cancellation theorem unconditionally from the isolated
+capture, using NOT-<-SAME's source tree and the existing multiplication
+associativity model proof at its actual :USE instances
+(`c2-associativity-use-cancellation.log`, accepted axiom trio).
 Msort's fresh diagnostic capture contains additional
 count/linear-rule polynomial classes, so this producer has not been
 integrated into the production fork. Full regression remains pending.

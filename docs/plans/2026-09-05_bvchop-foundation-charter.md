@@ -2040,6 +2040,88 @@ The rebuilt focused book returns **6/6 unconditional** in 56580 ms
 replay; `replay-book sorting/ordered-perms` is the correct dependency-aware
 command. These are fix-round receipts, not a full-baseline claim.
 
+### C2 cancellation arithmetic cost (2026-09-06, in progress)
+
+The full gate on `d12e966` is **RED**, with `TRUE_EXIT=1` in
+`.gate-runs/d12e966-20260906T211317Z.log`. It found a missing
+`ClauseItem.linearEquation` case in `Tests.TamperTests.mapItem`. Sorting's
+coverage and endgame axiom pins subsequently built. The final
+`Imported.Waypoints.SortsEquivalent` job was deliberately terminated after
+1295 seconds so the already-failed fix round could proceed; its exit 143 is
+an interruption, not a newly diagnosed proof failure. This is not a
+complete regression receipt. The source stayed unchanged until the run
+ended. The test helper now preserves the insertion item while mapping
+ProofNodes, since that item contains no ProofNode.
+
+The corrected phase profile located the cancellation timeout inside
+reconstruction. Clause timing measured about 776644 user heartbeats in
+Subgoal 2.4 and 1809081 in Subgoal 2.1; the recorded insertion subtrees
+cost about 4–7k each. The profile reached Subgoal 1.7 before the existing
+3M limit. The cause was the rational DP leaf normalization: sums and
+negations were left unnormalized, and early Boolean expansion made
+`split_ifs at *` enumerate comparison signs.
+
+The candidate normalizes addition/negation through `numberParts`, retains
+propositional truthiness until comparisons normalize, and simplifies their
+`Ne`/conditional forms before splitting. The arithmetic solver and all
+resource limits stay unchanged. The actual clause and its emitted rational
+premises are unchanged. Initial experiments exposed an unknown lemma name
+inside a guarded temporary tactic and a redundant final `simp_all`; both
+were corrected before the passing runs.
+
+All **12 actual emitted cancellation DP leaves** pass with the candidate
+and the production normalization prefix under the existing 15000-heartbeat
+direct-attempt limit (`c2-rational-product-all-leaves.log`), using about
+1595–2623 tactic heartbeats each. That initial receipt used `Meta.check`,
+which is the metaprogramming type checker, not the kernel. The explicit
+`Meta.checkWithKernel` rerun also passes all 12 leaves and their accepted
+axiom scans (`c2-rational-product-all-leaves-kernel.log`); it is the kernel
+receipt. The earlier user-facing description of the initial check as a
+kernel check was corrected during the run. The three measured hot-spot checks are also
+recorded in `c2-rational-product-leaves-bounded-rerun.log` and
+`c2-rational-product-leaves-driver-prefix-rerun.log`. These are actual leaf
+proofs, not a whole cancellation or native-product claim. The affected
+production build passes (`c2-rational-production-build.log`, 3157 jobs),
+as do the explicit kernel regression pins
+(`c2-rational-production-kernel-test-build.log`, 3129 jobs) and static
+checks (`c2-rational-production-static.log`).
+
+The first production whole-theorem run finishes with one visible condition,
+`rule:COMMUTATIVITY-2-OF-*` (`c2-rational-product-whole.log`). Replaying that
+actual dependency exposes its two `:USE` instances of
+`ASSOCIATIVITY-OF-*`. This is the primitive axiom at axioms.lisp:4299,
+already modeled by `Logic.times_assoc` for rewrite steps. PrimitiveUse now
+checks the exact source schema under the recorded translated substitution
+and uses that same model proof for the cited premise; the ordinary USE
+application clause is still fully replayed. No new primitive law or DP
+allowance was added.
+
+Both the commutativity dependency and **the complete cancellation theorem
+now replay unconditionally**, with the accepted axiom trio
+(`c2-associativity-use-dependency.log` and
+`c2-associativity-use-cancellation.log`). The latter uses the unchanged
+isolated times capture at aaaaaea5c4 and the actual basic-arithmetic and
+NOT-<-SAME dependency trees. This is a closed replayed statement from a
+diagnostic capture, not a promoted producer or a native BVCHOP mirror.
+The production commutativity source pin, its axiom receipt, the three
+production DP kernel checks and mutations of both actual associativity USE
+instances pass (`c2-associativity-use-permanent-test-rerun.log`, 3129 jobs).
+The first negative test accidentally left an empty identity substitution
+unchanged; the corrected mutation explicitly inserts X and both instances
+reject it. The existing POSITIVE mutation checks share the same helper and
+still pass. The rebuilt ordered-perms book returns **6/6 unconditional**
+in 54236 ms (`c2-rational-ordered-perms-replay.log`). Static checks pass
+(`c2-associativity-use-static.log`); no captures or production fork pointer
+changed in this fix round. These are fast-gate receipts. The complete
+regression rerun remains pending.
+
+The broader insertion consumer still needs msort's type-set-bound and
+rewritten-linear-rule classes. Its retained pre-literal rewrite nodes are
+currently handled by the legacy setup-memo path in CoreSpine. A new
+consumer must connect their actual proof chain to the inserted equation;
+they must not be treated as if they were already replayed. The isolated
+producer remains unpromoted.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries
