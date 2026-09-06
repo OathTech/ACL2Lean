@@ -1496,6 +1496,42 @@ INTEGERP-MOD now retains only `rule:EQUAL-/-0`, down from two rule conditions
 book run). This remains a conditional replayed statement, with no new native
 mirror yet. The full gate still requires a rerun; BUG-042/043/044 remain open.
 
+
+The full product-sign checkpoint at `e7829b5` passes:
+`.gate-runs/e7829b5-20260906T135512Z.log` records **TRUE_EXIT=0**. The main build
+passes 3234 jobs; the forced coverage assembly is 116/116 unconditional over
+29 books and matches the unchanged golden. All 21 existing mirror products
+consume replayed statements through the 59-seam check. BUG-042/043/044 close
+at this checkpoint. The earlier red gates remain red. The broad product-sign
+CLI run was stopped after twelve minutes without a final target result
+(`c2-product-sign-final-replay.log`, exit 143); the targeted whole-proof and
+source/axiom pins above are the positive product-sign receipts.
+
+While this checkpoint was frozen, the actual EQUIV-1-IMPLIES-EQUIV-* proof
+was composed through the existing clause spine, consuming its recorded
+substitution and equal-self ending. It checks the whole source statement
+and axiom trio; deleting the substitution makes equal-self reject the
+literal's clause membership (`c2-congruence-existing-spine-frozen-control.log`).
+Production dispatch considers only literal records after clausify and still
+needs to route this ending to the existing walker. No new proof method is
+needed. A multi-target reciprocal probe exceeded its command budget after
+two targets; its completed frontiers remain evidence, and subsequent probes
+will be separated rather than raising that budget.
+
+A separate sparse ACL2 checkout, `.tmp/ns1/acl2-if-basis`, branch
+`mdd/ns1-if-basis`, keeps diagnostic instrumentation isolated from the
+checkpoint. Its clean commit `268a219360` adds root-IF type-set bases to
+known-true hypothesis records. The fresh image build and origin/tag checks
+pass; a source-through-EQUAL-/ capture has 3516 lines, 6/6 QED/declaration
+pairs (source census 13), and clean provenance. The root mask is 256; the
+NOT(ACL2-NUMBERP X) leaf is 256 with X's nonnumeric mask -128; the other
+leaf is pruned with mask 0. The reader probe preserves those fields and
+rejects malformed mask/leaf mutations (`c2-known-if-basis-reader-probe-rerun.log`).
+The initial reader probe had a field-notation elaboration error and failed.
+This reopens BUG-039's root-IF case; the production parser/consumer and fork
+integration remain pending. Production `acl2/` is still clean at `2f0dd071ca`.
+The three NS1 native products remain unproved.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

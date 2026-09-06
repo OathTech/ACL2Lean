@@ -44,9 +44,9 @@ charter or the archive carry the record.
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
       Discharge INTEGERP-MOD's remaining arithmetic-rule condition, EQUAL-/-0.
-      Validate the USE substitution and
-      proof-log reporting and induction-context repairs (BUG-042/043/044) at the full checkpoint,
-      then close the FLOOR/quotient bounds. Guard trees reconstruct separately with
+      Consume the root-IF hypothesis basis (reopened BUG-039), wire the
+      existing clause walker to post-clausify substitution/reflexivity,
+      and close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 

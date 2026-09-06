@@ -411,7 +411,7 @@ Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-044 — induction retains clause facts from an outer environment
-Status: open
+Status: fixed
 Pinned-by: none (actual CD2-BOUND replay and its existing exact coverage pin)
 
 The NS1 full gate at `ca5e1dd` exposes a rejected proof in CD2-BOUND.
@@ -425,12 +425,16 @@ The repair clears the environment-bound facts and context aliases at the
 induction step and checks recognizer lookup candidates against the expected
 value-level proposition. Fourteen reset sites now share `clearEnvFacts`.
 The affected build, existing coverage pin, focused CD2/denominator replays,
-and static checks pass; the full checkpoint remains pending. The full gate
+and static checks passed before the full checkpoint below. The earlier full gate
 `.gate-runs/ca5e1dd-20260906T123257Z.log` remains `TRUE_EXIT=1`.
 
+Fixed 2026-09-06 at the full checkpoint `.gate-runs/e7829b5-20260906T135512Z.log`
+(`TRUE_EXIT=0`): 116/116 unconditional baseline rows, unchanged golden,
+and all 21 existing mirror products. Earlier failed receipts remain failed.
+
 ## BUG-043 — proof-log reporting skips declarations with rule-class metadata
-Status: open
-Pinned-by: none (parsed-record regression in Tests/Ns1Contexts.lean; full checkpoint pending)
+Status: fixed
+Pinned-by: none (parsed-record regression in Tests/Ns1Contexts.lean)
 
 Discovered 2026-09-06 on the real NS1 numerator/denominator capture.
 `ProofLog.summary` and `ProofLog.splitByTheorem` matched `defthm` with only
@@ -443,11 +447,15 @@ segmentation helper, while the CLI displays the summary.
 
 The branch repair explicitly matches the class field in both helpers.
 `Tests.Ns1Contexts` checks their names/count against all declaration records
-in the unchanged real capture, including the target theorem. Keep open until
-the full checkpoint validates the repair.
+in the unchanged real capture, including the target theorem. The full
+checkpoint below validates the repair.
+
+Fixed 2026-09-06 at the full checkpoint `.gate-runs/e7829b5-20260906T135512Z.log`
+(`TRUE_EXIT=0`): 116/116 unconditional baseline rows, unchanged golden,
+and all 21 existing mirror products. Earlier failed receipts remain failed.
 
 ## BUG-042 — USE instance substitutions are logged before term translation
-Status: open
+Status: fixed
 Pinned-by: none (proof-log payload; actual arithmetic-3 helper capture exposes the mismatch)
 
 `prove.lisp`'s USE-HINT/PAYLOAD records `:LMI-LST` from the source hint,
@@ -476,8 +484,12 @@ hypothesis. Source and translated LMIs are both retained; the replay's
 verbatim instance check remains. The actual helper advances to its next
 primitive-axiom/DP frontiers. `Tests.Ns1UseInstances` consumes an actual
 ACL2 book using the same source macros and rejects missing, altered, and
-misaligned records in memory. Clean corpus recapture is complete; full
-checkpoint validation is pending, so this entry remains open.
+misaligned records in memory. Clean corpus recapture is complete; the full
+checkpoint below validates the repair.
+
+Fixed 2026-09-06 at the full checkpoint `.gate-runs/e7829b5-20260906T135512Z.log`
+(`TRUE_EXIT=0`): 116/116 unconditional baseline rows, unchanged golden,
+and all 21 existing mirror products. Earlier failed receipts remain failed.
 
 ## BUG-041 — a top-level LOCAL defun is emitted as an encapsulation witness
 Status: fixed
@@ -538,7 +550,7 @@ rows and coverage golden are preserved, and the 21 existing mirrors pass.
 This is a capture/consumer repair; the NS1 native mirrors remain open.
 
 ## BUG-039 — silent hypothesis relief omits its type-set basis
-Status: fixed
+Status: open
 Pinned-by: none (proof-capture/replay provenance; no interpreter-value divergence)
 MOD-BOUND-LINEAR-ARG2 exposes two distinct missing records. The known-true
 marker for PREFER-POSITIVE-ADDENDS-<'s ACL2-NUMBERP arithmetic-result hypothesis
@@ -561,6 +573,15 @@ Fixed 2026-09-06. Full checkpoint gate
 permanent captures are stamped at d03226496d, the 116 unconditional baseline
 rows and coverage golden are preserved, and the 21 existing mirrors pass.
 This is a capture/consumer repair; the NS1 native mirrors remain open.
+
+Reopened 2026-09-06 for the root-IF query in EQUAL-/'s DEFAULT-UNARY-/
+hypothesis. The earlier recognizer and lookup repairs remain intact, but
+`(IF (NOT (ACL2-NUMBERP X)) (NOT (ACL2-NUMBERP X)) (EQUAL X '0))`
+has neither basis. The isolated producer at `268a219360` emits the actual
+root mask 256, its addressed reachable leaf, and the pruned leaf's mask 0
+(`.tmp/ns1/c2-known-if-clean-captures/basic-arithmetic-helper.proof-log`).
+This is diagnostic producer work; the production fork remains `2f0dd071ca`
+and the parser/consumer extension is pending. No hypothesis DP is authorized.
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set
 Status: fixed
