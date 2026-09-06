@@ -5,6 +5,9 @@
 #   capture-proof-log.sh file.lisp              # single file
 #   capture-proof-log.sh f1.lisp f2.lisp ...    # multiple files
 #   OUTDIR=dir capture-proof-log.sh f1.lisp ... # logs into dir/ instead
+#   CAPTURE_THROUGH=THEOREM OUTDIR=dir capture-proof-log.sh file.lisp
+#     captures the unchanged source through that named theorem, explicitly
+#     scoped in the sidecar; later source events are not executed.
 #
 # Output: file.proof-log alongside each input file, or in $OUTDIR if set.
 # OUTDIR exists so that books sourced from the acl2/ SUBMODULE (the canonical
@@ -19,6 +22,10 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 . "$SCRIPT_DIR/lib-log-provenance.sh"
 ACL2="${ACL2:-$SCRIPT_DIR/../acl2/saved_acl2}"
 OUTDIR="${OUTDIR:-}"
+CAPTURE_THROUGH="${CAPTURE_THROUGH:-}"
+if [ -n "$CAPTURE_THROUGH" ]; then
+  validate_capture_through "$CAPTURE_THROUGH"
+fi
 
 if [ -n "$OUTDIR" ] && [ ! -d "$OUTDIR" ]; then
   echo "Error: OUTDIR=$OUTDIR is not a directory" >&2
@@ -87,12 +94,17 @@ for INPUT in "$@"; do
   # emit-capture-manifest (fork-batch item 8): the post-ld manifest +
   # explicit :STATUS :COMPLETE end record — the LAST event of a healthy
   # capture; the completeness check below requires it.
+  ld_filter=""
+  if [ -n "$CAPTURE_THROUGH" ]; then
+    count_source_defthms_through "$INPUT_ABS" "$CAPTURE_THROUGH" > /dev/null
+    ld_filter=" :ld-pre-eval-filter (quote $CAPTURE_THROUGH)"
+  fi
   printf '(set-raw-proof-format :structured)
-(ld "%s")
+(ld "%s"%s)
 (emit-ground-zero-snapshots state)
 (emit-capture-manifest state)
 (good-bye)
-' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT.raw.tmp" 2>&1
+' "$INPUT_ABS" "$ld_filter" | "$ACL2" --no-sysinit > "$OUTPUT.raw.tmp" 2>&1
 
   # ACL2 explicitly uses ISO-8859-1 (acl2-set-character-encoding in
   # acl2.lisp); Lean's file reader requires UTF-8. Preserve every character,
@@ -108,7 +120,7 @@ for INPUT in "$@"; do
   # check-log-provenance.sh so ci re-verifies the same invariant
   # statically. The proper positive signal (an explicit emit/proof-failed
   # event + post-ld manifest) is fork-batch item 8.
-  if ! check_capture_complete "$INPUT_ABS" "$OUTPUT.tmp" >&2; then
+  if ! check_capture_complete "$INPUT_ABS" "$OUTPUT.tmp" "$CAPTURE_THROUGH" >&2; then
     echo "Error: $(basename "$INPUT") capture INCOMPLETE — no log/sidecar written; ACL2 output kept at $OUTPUT.tmp for diagnosis." >&2
     exit 1
   fi
@@ -151,6 +163,9 @@ for INPUT in "$@"; do
     echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "capture-encoding: iso-8859-1"
     echo "log-encoding: utf-8"
+    if [ -n "$CAPTURE_THROUGH" ]; then
+      echo "capture-through: $CAPTURE_THROUGH"
+    fi
     # SOURCE provenance (capstone-demo arc Phase 0, review-1 P0-1): bind
     # the log to the exact source text and its transitive include-book
     # closure. check-log-provenance.sh recomputes these against the
@@ -179,7 +194,9 @@ for INPUT in "$@"; do
   mv "$OUTPUT.meta.tmp" "$OUTPUT.meta"
   rm -f "$OUTPUT.raw.tmp"
 
-  echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $(count_log_qeds "$OUTPUT")/$(count_log_local_defthms "$OUTPUT") qed/defthm (source: $(count_source_defthms "$INPUT_ABS")) → $OUTPUT"
+  scope="full source"
+  if [ -n "$CAPTURE_THROUGH" ]; then scope="source through $CAPTURE_THROUGH"; fi
+  echo "$(basename "$INPUT") ($scope): $(wc -l < "$OUTPUT") lines, $(count_log_qeds "$OUTPUT")/$(count_log_local_defthms "$OUTPUT") qed/defthm (source: $(count_source_defthms "$INPUT_ABS")) → $OUTPUT"
 done
 
 # include_str does NOT register a Lake file dependency, and Lake hashes module

@@ -6,6 +6,7 @@
   the G3 Fragment A value-layer wiring.
 -/
 import ACL2Lean.Replay.Driver.NodeCore
+import ACL2Lean.NumericExponent
 
 namespace ACL2.Replay.Driver
 
@@ -225,6 +226,7 @@ partial def dpSpine : SExpr → List SExpr × SExpr
     what tau itself knows about every recognizer (truthiness IS `= t`). -/
 def dpLeafTactic : MetaM (TSyntax `tactic) :=
   `(tactic| first
+      | (simp_all [-Logic.lt, -Logic.expt, Logic.zero_lt_expt_pos_int] <;> omega)
       | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
@@ -249,6 +251,11 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
           -- hypothesis shape), and goal-only splitting leaves omega
           -- without the arithmetic fact
           (try split_ifs at *) <;> simp_all [-Logic.toBool] <;> try omega)
+      | (simp_all [Logic.times, Logic.numberParts, Logic.rationalValue,
+                   Logic.mkParts, Number.fromParts, Number.fromRat,
+                   Logic.mkNumber, Logic.toRat, Logic.equal, Logic.toBool] <;>
+          (try split_ifs at *) <;> intros <;>
+          simp_all [Nat.div_self, Nat.pos_iff_ne_zero] <;> omega)
       | omega)
 
 /-- Collect the argument pairs of saturated `lexorder` applications in `e`

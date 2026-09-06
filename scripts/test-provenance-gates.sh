@@ -85,6 +85,23 @@ else
   echo "  ok (control passes): untouched fixture"
 fi
 
+# Explicit source-prefix scope must survive provenance round trips. The
+# positive record comes from real ACL2's LD filter, never a truncated log.
+scope_log="$ROOT/acl2_samples/ns1/floor.proof-log"
+for name in scope-control scope-missing scope-wrong; do
+  mkdir -p "$FIX/$name"
+  cp "$scope_log" "$scope_log.meta" "$FIX/$name/"
+done
+if ! SCAN_ROOT="$FIX/scope-control" bash "$CHECK"; then
+  echo "NEGATIVE-TEST FAIL: genuine scoped capture must pass" >&2
+  fails=1
+fi
+sed -i '/^capture-through: /d' "$FIX/scope-missing/floor.proof-log.meta"
+expect_fail scope-missing "TRUNCATED"
+sed -i 's/^capture-through: .*/capture-through: FLOOR-BOUND-HACK-ERIC/' \
+  "$FIX/scope-wrong/floor.proof-log.meta"
+expect_fail scope-wrong "capture-through"
+
 # NS1 capture-data regression: a real emitted quoted diagnostic/NUL must
 # pass completeness, while an injected actual diagnostic line must fail.
 # Only the negative artifact is mutated; positive input is a real capture.

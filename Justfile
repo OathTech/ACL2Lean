@@ -169,13 +169,32 @@ capture-proof-log file:
 capture-all-logs:
     OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh $(grep -v '^\s*#' {{books}} | grep -v '^\s*$')
 
-# Recapture the WHOLE log surface (hardening G4): sorting corpus +
-# recon-tests + simple, in one shot — a PARTIAL recapture after a fork
-# change leaves stale logs that check-log-provenance then rejects
-# (incident I2: sorting recaptured, recon-tests stale, caught only by
-# luck). This is the one target agents should reach for after any
-# instrumentation change.
-recapture-all: capture-all-logs
+# Standard Community Books setup: dependency certificates carry package
+# definitions that an uncertified include cannot recover from source alone.
+certify-ns1:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ns1_root="$PWD"
+    mkdir -p .tmp/ns1
+    ( cd acl2/books/build && ACL2="$ns1_root/scripts/acl2-no-sysinit.sh" ./features.sh )
+    ACL2_CUSTOMIZATION=NONE acl2/books/build/cert.pl -j 2 \
+      -o .tmp/ns1/Makefile-certification \
+      -a "$ns1_root/scripts/acl2-no-sysinit.sh" -b "$ns1_root/acl2/books" \
+      acl2/books/kestrel/arithmetic-light/times.lisp \
+      acl2/books/kestrel/arithmetic-light/floor.lisp \
+      acl2/books/kestrel/arithmetic-light/mod.lisp
+
+# Selected NS1 dependency prefixes; ACL2 stops after the named source event.
+# The sidecar records that scope and still hashes the entire unchanged source.
+capture-ns1-logs: certify-ns1
+    mkdir -p acl2_samples/ns1
+    CAPTURE_THROUGH='*-OF-0' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
+    CAPTURE_THROUGH=FLOOR-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/floor.lisp
+    CAPTURE_THROUGH=MOD-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/mod.lisp
+
+# Recapture the WHOLE log surface after an instrumentation change; a partial
+# recapture leaves stale logs that check-log-provenance rejects.
+recapture-all: capture-all-logs capture-ns1-logs
     ./scripts/capture-proof-log.sh acl2_samples/simple.lisp acl2_samples/recon-tests/*.lisp acl2_samples/pattern-tests/*.lisp
 
 # STRUCTURAL golden review (hardening G3): classify golden→actual changes

@@ -39,9 +39,9 @@ charter or the archive carry the record.
       in `.claude/worktrees/ns1-bvchop`, branch `mdd/ns1-bvchop`, from the
       approved docs commit `b452b70`. C0 baseline, native specifications and
       both design reviews and C1 migration checked. Establish the selected
-      dependency closure from the now-reconstructed BVCHOP tree; finish the
-      quote-collector capture repair, lambda-body path replay, arithmetic DP
-      prerequisites and first native proof. Record:
+      dependency closure from the now-reconstructed BVCHOP tree; extend the
+      linear-premise and recorded :cases consumers, close the three upper-bound
+      linear leaves and their actual dependencies, then the first native proof. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog

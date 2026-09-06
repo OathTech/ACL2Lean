@@ -14,12 +14,18 @@ open ACL2 ACL2.Replay Lean Lean.Meta
 
 /-! ## Preprocess-chain replay (a clause discharged at PREPROCESS, formula → 't)
 
-ACL2's preprocess (`final-implies/eval`, `preprocess/eval`, abbreviation
-expansion, const-fold, equal-self) logs clause-level `:REWRITE-STEP`s with NO
-`:PATH` — preprocess has no rewriter gstack. Each step's position is therefore
-reconstructed DETERMINISTICALLY: the node's lhs must occur EXACTLY ONCE in the
-current term; zero or multiple occurrences hard-fail (nothing is guessed — the
-same inverse-discipline standard as clause-id lineage). -/
+Abbreviation-walker nodes carry formula-rooted paths emitted from the
+walker's argument stack. Replay navigates and checks those exact positions.
+Other legacy/pathless sites require exactly one occurrence of the lhs; zero
+or multiple occurrences hard-fail. No position is guessed. -/
+
+/-- Origins whose paths come from the formula-rooted abbreviation walker,
+not the rewriter's literal-rooted gstack. -/
+private def usesAbbreviationPath (origin : String) : Bool :=
+  ["abbreviation-expansion", "expand-abbreviations/lambda-body",
+   "expand-abbreviations/hide-subst", "expand-abbreviations/nonrec-body",
+   "preprocess/const-fold", "preprocess/eval", "preprocess/if-same",
+   "preprocess/if-constant-test", "preprocess/if-iff", "preprocess/equal-self"].contains origin
 
 /-- All occurrences of `lhs` in `cur`, as congruence path-step descents.
     Quoted subterms are opaque (no descent). -/
@@ -212,10 +218,7 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
       -- into a preprocess chain are LITERAL-rooted (boundary frames,
       -- different origins) and must use the position fallback.
       if prov.path.isEmpty
-          || !(prov.origin == "abbreviation-expansion"
-               || prov.origin == "expand-abbreviations/lambda-body"
-               || prov.origin == "expand-abbreviations/hide-subst"
-               || prov.origin == "expand-abbreviations/nonrec-body") then
+          || !usesAbbreviationPath prov.origin then
         match findOccurrences cur redex with
         | [p] => pure p
         | [] => throwError "replayPreprocessChain: node lhs {repr redex} does not occur \
@@ -243,10 +246,7 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         pure (p, false, rebuild parentStep lhs, rebuild parentStep rhs,
               path.dropLast)
       else if hasLambdaBodyFrame prov.path &&
-          (prov.origin == "abbreviation-expansion" ||
-           prov.origin == "expand-abbreviations/lambda-body" ||
-           prov.origin == "expand-abbreviations/hide-subst" ||
-           prov.origin == "expand-abbreviations/nonrec-body") then do
+          usesAbbreviationPath prov.origin then do
         let (p, next) ← replayPreprocessBodyPath replayPreprocessNode cfg ctx cur prov.path n
         pure (p, false, cur, next, [])
       else do

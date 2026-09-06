@@ -171,3 +171,27 @@ private def parseFails (input : String) : Bool :=
 
 -- Unterminated list
 #guard parseFails "(1 2"
+
+
+-- BUG-010: decoded identities, token boundaries and malformed escape controls.
+-- Qualified whitespace-bearing formals occur in the actual FLOOR snapshot.
+#guard parseOne "ACL2::|(CAR REMAINDER)|" =
+  some (.atom (.symbol { name := "(CAR REMAINDER)" }))
+#guard parseOne "a|b|c" = some (.atom (.symbol { name := "AbC" }))
+#guard parseOne "foo\\bar" = some (.atom (.symbol { name := "FOObAR" }))
+#guard parseOne "|A\\|B\\\\C|" = some (.atom (.symbol { name := "A|B\\C" }))
+#guard parseOne "ACL2::a|:|b" = some (.atom (.symbol { name := "A:B" }))
+#guard parseOne "a|CL|2::n|I|l" = some .nil
+#guard parseOne ":a|b|c" = some (.atom (.keyword "AbC"))
+#guard parseOne "KEYWORD::|abc|" = some (.atom (.keyword "abc"))
+#guard parseOne "|1/0|" = some (.atom (.symbol { name := "1/0" }))
+#guard parseOne "1||" = some (.atom (.symbol { name := "1" }))
+#guard parseOne "ACL2::||" = some (.atom (.symbol { name := "" }))
+#guard parseOne ":||" = some (.atom (.keyword ""))
+#guard parseAll "(a\\ b; comment\n |C;D|)" = some [SExpr.ofList
+  [.atom (.symbol { name := "A B" }), .atom (.symbol { name := "C;D" })]]
+#guard parseFails "|ACL2|::"
+#guard parseFails "ACL2:::X"
+#guard parseFails ":"
+#guard parseFails "a|unterminated"
+#guard parseFails "abc\\"

@@ -108,7 +108,8 @@ sidecar; recapture, or run scripts/backfill-log-provenance.sh)" >&2
   # QED-per-DEFTHM/source-count invariant the capture script now enforces
   # fatally, recomputed in ci so a truncated log cannot survive however
   # it arrived.
-  if ! msg="$(check_capture_complete "$ROOT/$spath" "$log")"; then
+  through="$(sed -n 's/^capture-through: //p' "$meta")"
+  if ! msg="$(check_capture_complete "$ROOT/$spath" "$log" "$through")"; then
     echo "TRUNCATED log: $log — $msg" >&2
     fail=1
   fi

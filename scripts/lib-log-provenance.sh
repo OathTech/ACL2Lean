@@ -73,6 +73,41 @@ count_source_defthms() {
   grep -cE '^[^;]*\(defthmd?\b' "$1" || true
 }
 
+# Explicit prefix captures use ACL2's native LD name filter, preserving the
+# original file and event order. Restrict the option to plain ACL2-package
+# names so it cannot inject reader syntax into the driver. This is a small
+# honest-mistake guard, not a general Lisp reader or a security boundary.
+validate_capture_through() {
+  [[ "$1" =~ ^[A-Z_$\&*+=\<\>/?!.%-][A-Z0-9_$\&*+=\<\>/?!.%-]*$ ]] || {
+    echo "Invalid capture-through name: use an uppercase unescaped ACL2 theorem name" >&2
+    return 1
+  }
+}
+
+# Count the original source's theorem forms through the uniquely named stop
+# event. Like count_source_defthms, this is a source-text census, not a Lisp
+# parser. Unsupported/ambiguous declarations fail; never lower a full-book
+# count merely because the captured log stopped early.
+count_source_defthms_through() {
+  local src="$1" through="$2"
+  validate_capture_through "$through" || return 1
+  awk -v through="$through" '
+    { line=toupper($0); sub(/;.*/, "", line)
+      if (line ~ /\(DEFTHMD?[[:space:]]/) {
+        count++
+        sub(/^.*\(DEFTHMD?[[:space:]]+/, "", line)
+        sub(/[[:space:]()].*$/, "", line)
+        if (line == through) { found++; stop=count }
+      }
+    }
+    END { if (found != 1) {
+        print "capture-through target must name exactly one source DEFTHM/DEFTHMD" > "/dev/stderr"
+        exit 1
+      }
+      print stop
+    }' "$src"
+}
+
 # :SOURCE :LOCAL theorem events in a log (include-book'd theorems arrive
 # with no proof and no :QED — counting them against :QED is a false
 # alarm). Events line-wrap arbitrarily, so normalize whitespace first.
@@ -100,7 +135,7 @@ count_log_qeds() {
 # legitimately EXCEED the source count (defequiv/defcong generate
 # theorems) — only a SHORTFALL fails.
 check_capture_complete() {
-  local src="$1" log="$2" want got qed
+  local src="$1" log="$2" through="${3:-}" want got qed
   # N1 (audit 2026-08-07): fail CLOSED on a missing source/log — an
   # empty count string previously produced a shell comparison error
   # and EXIT=0.
@@ -108,7 +143,20 @@ check_capture_complete() {
     echo "INCOMPLETE: missing source ($src) or log ($log)"
     return 1
   fi
-  want="$(count_source_defthms "$src")"
+  if [ -n "$through" ]; then
+    want="$(count_source_defthms_through "$src" "$through")" || return 1
+    local stop
+    stop="$(awk 'BEGIN{RS="\n\\(:"}
+      /^DEFTHM/ { if ($0 ~ /:SOURCE :LOCAL([^-A-Z]|$)/) { last=$2; qed=0 } }
+      /^QED/ { if (last != "") qed=1 }
+      END { print last " " qed }' "$log")"
+    if [ "$stop" != "$through 1" ]; then
+      echo "INCOMPLETE: capture-through $through must be the last local theorem with a QED (got $stop)"
+      return 1
+    fi
+  else
+    want="$(count_source_defthms "$src")"
+  fi
   got="$(count_log_local_defthms "$log")"
   qed="$(count_log_qeds "$log")"
   if [ -z "$want" ] || [ -z "$got" ] || [ -z "$qed" ]; then

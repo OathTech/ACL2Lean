@@ -259,7 +259,7 @@ byte-identical. Gate `.gate-runs/31d8e42-20260906T010720Z.log` records
 `TRUE_EXIT=0`.
 
 ## BUG-030 — inherited LOCAL mislabels imported definitions as witnesses
-Status: open
+Status: fixed
 Pinned-by: none (proof-log provenance; NS1 local-include capture/replay probe)
 
 The DEFUN emitter treats every non-nil `in-local-flg` as a local witness.
@@ -274,12 +274,15 @@ definition imported by LOCAL is emitted as LOCAL-WITNESS. NS1 C2's emitter
 repair recognizes precisely LOCAL-INCLUDE-BOOK with an active include path;
 actual LOCAL events still take the witness arm. A rebuilt image emits
 INCLUDE-BOOK for the helper, and its actual theorem replays 1/1 unconditionally
-(`.tmp/ns1/c2-local-include-replay.log`). Full provenance/witness regressions
-and the fork commit/recapture cycle remain pending. See the
+(`.tmp/ns1/c2-local-include-replay.log`). The clean fork commit/recapture and full provenance/witness regressions
+pass in the C2 checkpoint gate recorded below. See the
 [NS1 charter](plans/2026-09-05_bvchop-foundation-charter.md).
 
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
 ## BUG-031 — a clause contradiction leaves a spurious literal opening
-Status: open
+Status: fixed
 Pinned-by: none (proof-log structure; NS1 BVCHOP-BOUND capture)
 
 `rewrite-clause` emits BEGIN-LITERAL before constructing the type-alist.
@@ -295,11 +298,13 @@ NS1 C2 moves the opening marker to the non-contradiction path, preserving
 the existing clause-level verdict and the path-window reset. No rewrite
 or literal result is invented. The rebuilt image's fresh BVCHOP, MOD,
 MOD-AND-EXPT and UNSIGNED-BYTE-P captures all reconstruct
-(`.tmp/ns1/c2-balanced-*-tree.log`). The fork commit/recapture cycle and
-full regression gate remain pending.
+(`.tmp/ns1/c2-balanced-*-tree.log`). The clean fork commit/recapture cycle and full regression gate now pass.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-032 — clausification folds evaluator builtins beyond ACL2's primitive domain
-Status: open
+Status: fixed
 Pinned-by: none (actual BVCHOP-UPPER-BOUND branch-collapse frontier)
 
 `collapseEval` uses absence from the Lean World as its ground primitive test.
@@ -310,13 +315,17 @@ fails its exact leaf-value check (`.tmp/ns1/c2-bvchop-upper-registry-replay.log`
 The same test omits cons-term's guard requirement: `basis-b.lisp` constructs
 its cases from `*primitive-formals-and-guards*`, with explicit exclusions.
 
-NS1 C2 is emitting that actual primitive/guard domain as CONS-TERM-GUARDS and
+NS1 C2 emits that actual primitive/guard domain as CONS-TERM-GUARDS and
 using it to gate closed folds. The closed computation and surrounding proof
-remain kernel-checked. Build, fresh-capture replay and regression validation
-are in progress; no completed BVCHOP mirror is claimed.
+remain kernel-checked. The fresh BVCHOP-UPPER-BOUND tree passes this node and now retains only
+three linear DP obligations. Full regression validation passes; no completed
+BVCHOP mirror is claimed.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-033 — snapshot collector treats quoted symbol data as function references
-Status: open
+Status: fixed
 Pinned-by: none (real FLOOR capture and cov-quoted-snapshot)
 
 The raw `prin1$` collector records every printed symbol. Quoted package-import
@@ -326,24 +335,29 @@ unchanged FLOOR book completes its proofs but snapshot emission aborts.
 NS1 C2 suspends collection inside both flat and pretty quote printers; their
 printed bytes and logical behavior stay the same. Actual references outside
 quotes and the transitive definition/measure closure remain collected. The
-raw-code registration follows ACL2's logic-function registry. The image and
-real quoted-name capture build; clean commit/recapture and full gates remain.
+raw-code registration follows ACL2's logic-function registry. The clean image, real quoted-name capture, all quoted-name statement pins
+and full regression gate pass.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-034 — capture checks confuse literal diagnostic/NUL data with failure
-Status: open
+Status: fixed
 Pinned-by: none (real FLOOR capture and cov-quoted-snapshot)
 
 FLOOR's expanded ground-zero snapshot contains ERROR-FMS-CHANNEL's literal
 `HARD ACL2 ERROR` string. The unanchored failure grep rejects this source data
 as an actual error. NUL bytes in ordinary ACL2 strings also make the local
-event-count grep suppress matches and report zero source proofs. The WIP
-repair recognizes actual diagnostic lines and scans the event census as text.
+event-count grep suppress matches and report zero source proofs. The repair recognizes actual diagnostic lines and scans the event census as text.
 The real quoted diagnostic/NUL book is the positive control; a copy with an
 injected actual error line is the negative control. Completion, QED pairing,
-event-failure and source/provenance checks still apply. Full gates remain.
+event-failure and source/provenance checks still apply. The clean recapture, positive/negative controls and full gate pass.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-035 — capture passes Latin-1 bytes to a UTF-8 proof-log reader
-Status: open
+Status: fixed
 Pinned-by: none (FLOOR snapshot and real quoted-nul-data statement pin)
 
 ACL2's `acl2-set-character-encoding` selects ISO-8859-1, including at SBCL
@@ -353,24 +367,66 @@ now transcodes ISO-8859-1 to UTF-8 before completeness checks and promotion,
 recording both encodings in the sidecar. The transformation preserves each
 character. `Tests.Ns1Ingestion.nulReplayed` pins the real emitted string to
 characters H, 0 and 255 and checks the replayed statement's axiom set. Clean
-recapture and full gates remain pending.
+recapture and full gates pass.
 
-## BUG-010 — mixed/partial escaping within a symbol token not implemented
-Status: open
-Pinned-by: differential
-ACL2's reader applies readtable-case :upcase to the UNESCAPED runs of a token
-and keeps `|…|`/`\`-escaped runs VERBATIM, WITHIN a single token — so `a|B|c`
-reads as the symbol named `ABC`, `foo\Bar` as `FOOBAR`, `|ABC|xyz` as `ABCXYZ`.
-Our parser only recognizes `|bar|` when it spans the WHOLE token and never
-treats `\` as an escape. Found in the BUG-002 audit (2026-07-08). The fix (this
-commit) makes the parser FAIL CLOSED — a loud parse error (`<refused>`) — on any
-symbol/keyword token with an interior/leading escaped run or a backslash, rather
-than silently upcasing wholesale (which had returned a WRONG symbol name, e.g.
-`(equal 'a|B|c 'ABC)`=NIL vs ACL2 T) or fuel-looping on trailing chars. Latent
-on the current corpus (no such tokens in acl2_samples/ or the corpus). Proper
-per-run escaping in the tokenizer is the real fix (deferred); until then the
-refusal is faithful-at-the-frontier (never a wrong value). Pinned as
-`known-bug bug:BUG-010 lean <refused>` in symbol-identity.lisp.
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
+## BUG-037 — preprocess computation records omit their positions
+Status: fixed
+Pinned-by: none (actual FLOOR-OF-0-ARG1 capture pins the repeated-call failure)
+FLOOR-OF-0-ARG1 expands translated LETs into two occurrences of
+`(NONNEGATIVE-INTEGER-QUOTIENT '0 '1)`. The actual preprocess evaluator records
+both computations but omitted the argument paths, leaving replay unable to
+identify which occurrence each step changes. The six computation/IF/equality
+emission sites in `acl2/induct.lisp` now carry the same abbreviation-walker
+path already used by definition and beta steps. The consumer navigates and
+checks those positions; it does not choose between repeated occurrences.
+The clean image, real recapture and FLOOR-OF-0-ARG1 replay pass, with
+an independent source-formula pin and the accepted axiom trio in
+Tests.Ns1Arithmetic. Full regression validation passes.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
+## BUG-036 — forcing-round detail prose survives structured output
+Status: fixed
+Pinned-by: none (actual full FLOOR capture/parser frontier)
+The full unchanged FLOOR capture formerly printed explanatory prose after its
+structured FORCING-ROUND event, including an unquoted `2.1` clause number that
+the reader correctly refused as a float. `process-assumptions-msg` in
+`acl2/prove.lisp` suppressed the first announcement but still called
+`process-assumptions-msg1` and the final prose printer. Both remaining calls
+are now suppressed in structured mode.
+
+The clean fork's full FLOOR recapture completes all 125 source theorem events
+(`.tmp/ns1/c2-floor-clean-full-capture.log`). Parsing now reports the explicit
+unsupported FORCING ROUND 1 frontier, with no stray-prose failure
+(`.tmp/ns1/c2-floor-clean-full-forcing-frontier.log`). Forcing-round proof
+composition remains excluded from NS1 and is still open in TODO. ACL2's native
+LD name filter captures an unchanged prefix when only earlier dependencies
+are needed; it removes no event from an existing log.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
+## BUG-010 — mixed/partial escaping within a symbol token
+Status: fixed
+Pinned-by: none (parser guards and matching differential cases recorded below)
+The parser formerly refused mixed escapes, qualified escaped names and single
+backslash escapes. ACL2 upcases only unescaped character runs and recognizes
+only unescaped colons as package markers. NS1 encountered the actual qualified
+formal `ACL2::|(CAR REMAINDER)|` in FLOOR's snapshot. The general token reader
+now preserves that identity and empty escaped names, while rejecting malformed
+escapes/package markers. `Tests.ParserTest` pins decoded identities and token
+boundaries. The focused differential run checks all 25 symbol-escaping cases
+(20 matches, five refusals), plus reader/number controls: 88 matches, two
+unsupported, one unrelated known bug, five refusals, zero failures
+(`.tmp/ns1/c2-reader-corrected-differential.log`). The full differential run has 549 matches, 138 unsupported, seven known
+bugs, 30 refusals and zero failures; the full regression gate also passes. Import/export-table identity (BUG-013/015) remains a separate frontier.
+
+Fixed 2026-09-06; full checkpoint gate
+`.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-013 — package-IMPORT symbol identity not modeled (nil/t/car duplicates)
 Status: open

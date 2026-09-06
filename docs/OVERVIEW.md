@@ -235,7 +235,8 @@ the instrumented ACL2 once, then capture the logs:
 just build-acl2
 
 # 2. Regenerate the proof logs — the WHOLE surface (sorting corpus +
-#    simple + recon-tests + pattern-tests). This uses only the ACL2
+#    simple + recon-tests + pattern-tests + scoped NS1 dependencies).
+#    This first certifies the NS1 dependency books with cert.pl, using only the ACL2
 #    image, no Lean, so it avoids the build bootstrap cycle.
 just recapture-all
 
@@ -245,16 +246,27 @@ lake exe cache get
 lake build
 ```
 
-**Why the whole surface.** `lakefile.toml` makes the `acl2lean` exe and the
-`Tests` library the default targets, `Main.lean` imports the root `ACL2Lean`
-library, that imports the sorting mirror proofs and the seam gate, and the
-waypoint modules embed their books' logs at compile time (e.g.
-`ACL2Lean/Imported/Waypoints/Msort.lean` `include_str`s
-`acl2_samples/sorting/msort.proof-log`; the pattern waypoints likewise embed
-the `pattern-tests/` logs). A reduced capture cannot build the default
-targets. `just recapture-all` is `capture-all-logs` (the `books.txt` sorting
-corpus) plus `simple.lisp` + `recon-tests/` + `pattern-tests/` in one shot —
-which is also the surface the provenance gate expects.
+**Why the whole surface.** `lakefile.toml` makes the `ACL2Lean` library,
+`acl2lean` exe and `Tests` library the default targets. The library imports
+the mirror proofs and seam gate; waypoint and test modules embed their logs
+with `include_str`. The CLI itself has a smaller import cone, but a reduced
+capture cannot build all default targets. `just recapture-all` includes the
+`books.txt` sorting corpus, `simple.lisp`, `recon-tests/`, `pattern-tests/`
+and the explicitly scoped NS1 dependency captures.
+The NS1 recipe first runs the Community Books feature setup and `cert.pl`
+on TIMES, FLOOR and MOD. Their certificates supply the included package
+definitions; no manual package setup is needed. Run `just certify-ns1`
+to prepare those certificates separately. Certification does not count as
+Lean replay of those books.
+
+For a selected dependency, `CAPTURE_THROUGH=THEOREM OUTDIR=dir
+scripts/capture-proof-log.sh file.lisp` uses ACL2's native LD name filter.
+ACL2 reads the unchanged file in order and returns after that event. The
+sidecar names the stopping theorem and still hashes the full source and
+include closure. Completeness requires that theorem's final local event and
+QED; omitting the scope makes the full-source check fail. This is a prefix
+capture, not a claim that later book events were loaded or replayed. The
+`capture-ns1-logs` recipe records the current NS1 selections.
 
 The one genuinely smaller cone is the FOCUSED replay CLI: `lake build
 acl2lean-replay` (what `just replay` runs) imports only
@@ -267,7 +279,7 @@ the coverage claim from nothing:
 
 | you need | why |
 | --- | --- |
-| the `acl2/` submodule, checked out at its pinned commit (currently `e8d78e513d6867d04002f0df644da1723cc96e89`) | without it three of the static checks cannot run (`check-acl2-tags`, `check-log-provenance`, `test-provenance-gates` — all three fail CLOSED, correctly) and the `sorting/*` logs' source identity cannot be checked |
+| the `acl2/` submodule, checked out at the parent's pinned commit | without it three of the static checks cannot run (`check-acl2-tags`, `check-log-provenance`, `test-provenance-gates` — all three fail CLOSED, correctly) and the `sorting/*` logs' source identity cannot be checked |
 | every `.proof-log` and its `.proof-log.meta` sidecar — **GITIGNORED** (91 of them at the 2026-08-19 audit) | a fresh clone has the claim without the corpus. Regenerate with `just recapture-all` against a fork image built from the pinned submodule commit, or copy them from a working tree. `check-proof-logs` fails loudly first, which is the right behaviour |
 | `.lake/packages` (mathlib/batteries/aesop/…) | network, or a pre-populated cache (`lake exe cache get`) |
 | a long cold build — budget for it | the sweep's critical path is the two heaviest coverage modules, both single-threaded: `Tests.Coverage.BSsortsEquivalent` **~8 min** (476,930 ms) and `Tests.Coverage.BSqsort` **~7 min** (422,680 ms), measured from the 2026-08-19 claim-gate log. Total wall-clock has not been re-measured since the 2026-08-18 perf arc; see the [archive note](archive/2026-08-19_overview-historical-notes.md) for the pre-arc figures |

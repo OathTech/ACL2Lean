@@ -2,7 +2,7 @@
 
 Dated 2026-09-05. First goal of the
 [post-sorting master plan](2026-09-05_master-plan.md).
-**Status: C0 checked 2026-09-05; C1 semantic migration in progress. NS1 incomplete.**
+**Status: C0 and C1 checked; C2 first-mirror work in progress. NS1 incomplete.**
 The strategic direction and preflight choices are agreed. On 2026-09-05 the
 user explicitly authorized ownership of the complex migration and the
 subagents proposed below. Those authorizations persist throughout this goal;
@@ -554,6 +554,114 @@ clean-capture rerun checks 13/13 unconditionally and all nine DP leaves in
 363782 ms (`.tmp/ns1/c2-quote-clean-qsort-replay.log`). C2 remains open;
 there is no new BVCHOP mirror or full gate claim at this checkpoint.
 
+### C2 reader and selected dependency work (2026-09-06, in progress)
+
+Intermediate checkpoint `aec7fcd` records the previous fast-gate batch. The
+next batch repairs BUG-010 with a general token reader: mixed single/multiple
+escapes, qualified escaped names, escaped colons, and explicit empty names.
+`Tests.ParserTest` pins the decoded identities. The focused differential run
+checks 88 matches, two unsupported, one unrelated known bug and five refusals,
+zero failures (`.tmp/ns1/c2-reader-corrected-differential.log`). The full FLOOR
+log then exposed BUG-036, explanatory forcing-round prose after the structured
+boundary. Suppression is repaired in the current dirty fork; both the real
+FLOOR and forcing-pattern captures now fail precisely at the excluded forcing
+round (`.tmp/ns1/c2-{floor-forcing-frontier,force-pattern}-clean-prose.log`).
+
+For earlier dependencies, capture now exposes ACL2's native LD name filter
+(`basis-b.lisp:4375`, `ld.lisp:1542`). `CAPTURE_THROUGH=THEOREM` loads the original
+file in its original order through that named event and then emits the normal
+snapshots/end manifest. No source/hint changes or log edits occur. The sidecar
+records the prefix scope and hashes the entire source/include closure. The
+shared completeness check requires the unique source stop event and its last
+local QED. Real scoped FLOOR captures pass; removing or changing the scope
+fails (`.tmp/ns1/c2-scoped-provenance-controls.log`). `capture-ns1-logs` makes
+the selected TIMES/FLOOR/MOD prefixes reproducible under `recapture-all`.
+
+TIMES' actual *-OF-0 verdict leaf now checks via generic primitive-number
+simplification. The focused run checks that target unconditionally; the
+preceding two unrelated failures remain visible (2/4 unconditional overall,
+one checked target DP leaf; `.tmp/ns1/c2-times-zero-generic-dp-replay.log`).
+`Tests.Ns1Arithmetic.timesZeroReplayed` builds with an independent formula pin
+and accepted axioms (`.tmp/ns1/c2-times-zero-permanent-pin-build.log`). FLOOR's
+selected zero theorem reconstructs, but exposed BUG-037: duplicated quotient
+calls have computation records without positions. The six corresponding
+abbreviation-walker emission sites now carry their actual paths, and replay
+checks those paths. FLOOR-OF-0-ARG1 then replays unconditionally from the
+actual dirty capture (1/4 overall, no DP leaves, 18015 ms;
+`.tmp/ns1/c2-floor-zero-directed-path-replay.log`).
+
+The clean full BVCHOP rerun retains 1/9 conditional statements, no unconditional
+target (`.tmp/ns1/c2-bvchop-upper-clean-lambda-replay.log`, 219922 ms). Numeric
+admission work removes totality/type conditions from the upper theorem's final
+receipt; MOD-OF-0-ARG1, three assumed DP facts and one tau timeout remain. These
+are open obligations, not a product or C2 completion claim.
+
+The third fork batch is committed at `02f57ab31e79`. Its clean image rebuild
+and `recapture-all` succeed (`.tmp/ns1/c2-path-clean-{image-build,recapture-all}.log`).
+The shared static checks verify 100 clean logs at that fork, all 29 coverage
+books, all 67 pattern books, and the parser/size/tag/purity gates
+(`.tmp/ns1/c2-path-clean-static-checks.log`). The thirteen then-existing pins
+build with accepted axioms (`.tmp/ns1/c2-path-clean-thirteen-pins-build.log`).
+The transfer pre-pass reports that the complete TIMES world is not included
+in FLOOR; the dependency tree is replayed in the consumer world instead.
+This is visible in the receipt and the resulting proof remains unconditional.
+
+MOD-OF-0-ARG1 now replays unconditionally from its actual source prefix and
+the TIMES/FLOOR dependency trees (1/5 overall, no target DP leaves, 4929 ms;
+`.tmp/ns1/c2-mod-zero-clean-chain-replay.log`). The four preceding MOD
+statements retain their reported frontiers. All three zero-chain pins
+now build with independent statements and accepted axiom receipts
+(`.tmp/ns1/c2-clean-zero-chain-three-pins-build.log`), bringing these NS1
+regression pins to fourteen. Fresh scoped-provenance controls also pass
+(`.tmp/ns1/c2-path-clean-provenance-controls.log`).
+
+The actual upper-bound Subgoal 1 DP statement checks with the new generic
+primitive exponent-positivity lemma (arbitrary positive integer base and every
+ACL2 exponent value). The strict standalone probe uses the production DP
+tactic, kernel-checks its term and audits it for forbidden axioms
+(`.tmp/ns1/c2-upper-tau-directed-primitive-probe.log`). The complete upper-bound
+rerun now checks all three tau leaves and discharges the zero chain; three
+linear leaves remain ASSUMED. BVCHOP-OF-0-ARG2 is unconditional (1/9 overall;
+three checked, three assumed DP leaves, zero failed leaves, 48675 ms;
+`.tmp/ns1/c2-bvchop-upper-clean-zero-chain-replay.log`). This is not a mirror. The next known arithmetic limitation is the linear
+premise consumer's one-hypothesis/EQUAL-or-< restriction: the actual
+MOD-BOUND-LINEAR-ARG2-STRONG has three hypotheses and a negated-< conclusion.
+
+The full differential suite passes: 549 matches, 138 unsupported, seven known
+bugs, 30 refusals, zero failures (`.tmp/ns1/c2-reader-full-differential.log`).
+The first full gate found an abstract equisort statement-pin change: the DP
+registry extension adds exactly `hnoshadow_UNARY-/`, `hnoshadow_IFIX` and
+`hnoshadow_EXPT`. Each type is `w.defs.get? <that symbol> = none`; the full DP
+no-shadow bundle consumes every registered head (`Driver/Discharge.lean:870`).
+A separate checked copy of the statement pins verifies the source conclusion,
+all six stored-rule constraints, the strong abstract interface and both
+canonical kept-premise inventories unchanged
+(`.tmp/ns1/c2-parametric-registry-review.log`). The weak abstract interface is
+explicitly extended by those three semantic no-shadow requirements; its pin is
+updated accordingly. This does not add a mathematical premise to a native
+product. The first full gate ended with `TRUE_EXIT=1`, solely on that pin
+(`.gate-runs/aec7fcd-20260906T031929Z.log`). It is retained as a failed
+receipt. The reviewed rerun passes: `.gate-runs/aec7fcd-20260906T034924Z.log`,
+`TRUE_EXIT=0`, 116/116 unconditional baseline statements, golden byte-identical,
+all 21 existing mirror products and all 14 NS1 regression pins checked.
+This closes the reader/capture repair batch, not C2 or any new mirror.
+
+The NS1 capture recipe now runs standard Community Books feature setup and
+`cert.pl` on TIMES/FLOOR/MOD first. This makes the included package definitions
+available without the exploratory manual certificate setup. The hermetic
+wrapper supplies SBCL's same `--no-sysinit` startup used by capture.
+`just certify-ns1` succeeds
+(`.tmp/ns1/c2-standard-certification-recipe.log`); fresh diagnostic captures
+after certification are byte-identical to all three pinned prefix logs
+(`.tmp/ns1/c2-certified-prefix-capture.log`). This verifies the setup change
+without changing the running gate's embedded artifacts.
+
+The clean fork's full FLOOR capture also completes all 125 source theorem
+events (`.tmp/ns1/c2-floor-clean-full-capture.log`); parsing reaches the
+explicit FORCING ROUND 1 frontier instead of failing on stray prose
+(`.tmp/ns1/c2-floor-clean-full-forcing-frontier.log`). BUG-036 is the prose
+bug and is fixed; forcing-round composition remains excluded and unimplemented.
+
 ## Resume record
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives
@@ -562,8 +670,7 @@ there is no new BVCHOP mirror or full gate claim at this checkpoint.
   the full gate receipt above.
 - C0's two review tasks are complete. The two C4 tasks remain authorized;
   no preflight questions are pending.
-- Next: extend the reader at the actual qualified-escape frontier, then
-  close the selected
-  arithmetic dependency/DP obligations and first native proof.
+- Next: extend the linear premise consumer for the actual multi-hypothesis bound rule,
+  close that dependency proof, and build the first native proof.
 - C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
   there is no merge or push approval for the implementation.

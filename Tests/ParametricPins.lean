@@ -89,16 +89,22 @@ private def checkPin (declName : Name) (binderNames : List String)
           throwError "ParametricPins {declName}: witness vocabulary \
             {banned} appears in the statement (banned masquerade)"
 
+-- NS1 (2026-09-06): the DP no-shadow bundle covers its registered primitive
+-- heads. Adding reciprocal/IFIX/EXPT therefore adds exactly these three
+-- w.defs.get? = none premises to the weak parametric interface. Source
+-- conclusion, six constraints, and both canonical kept-premise pins below
+-- were checked unchanged (c2-parametric-registry-review.log); no arithmetic
+-- premise or theorem content is added.
 run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
         ["env", "w",
          "hnoshadow_CONS", "hnoshadow_CAR", "hnoshadow_CDR", "hnoshadow_CONSP",
          "hnoshadow_ATOM", "hnoshadow_ENDP", "hnoshadow_EQUAL", "hnoshadow_NOT",
-         "hnoshadow_BINARY-+", "hnoshadow_BINARY-*", "hnoshadow_UNARY--",
+         "hnoshadow_BINARY-+", "hnoshadow_BINARY-*", "hnoshadow_UNARY--", "hnoshadow_UNARY-/",
          "hnoshadow_<", "hnoshadow_INTEGERP", "hnoshadow_NATP", "hnoshadow_POSP",
          "hnoshadow_RATIONALP", "hnoshadow_ACL2-NUMBERP", "hnoshadow_ZP",
          "hnoshadow_SYMBOLP", "hnoshadow_BOOLEANP", "hnoshadow_STRINGP",
-         "hnoshadow_FIX", "hnoshadow_NFIX", "hnoshadow_IMPLIES", "hnoshadow_IFF",
-         "hnoshadow_TRUE-LISTP", "hnoshadow_LEN", "hnoshadow_LEXORDER",
+         "hnoshadow_FIX", "hnoshadow_NFIX", "hnoshadow_IFIX", "hnoshadow_IMPLIES", "hnoshadow_IFF",
+         "hnoshadow_TRUE-LISTP", "hnoshadow_LEN", "hnoshadow_LEXORDER", "hnoshadow_EXPT",
          "hnoshadow_NUMERATOR", "hnoshadow_DENOMINATOR", "hnoshadow_REALPART",
          "hnoshadow_IMAGPART", "hnoshadow_COMPLEX-RATIONALP", "hnoshadow_COERCE",
          "htotal_PERM", "htotal_ORDEREDP", "htotal_HOW-MANY",

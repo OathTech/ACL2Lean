@@ -1,23 +1,12 @@
 import ACL2Lean.Syntax
 import ACL2Lean.Logic
+import ACL2Lean.ReaderToken
 
 namespace ACL2
 
 namespace Parse
 
 abbrev Stream := List Char
-
--- ACL2 reads unescaped symbol tokens with readtable-case :upcase
--- (*acl2-readtable* = (copy-readtable nil), acl2.lisp:2026), so a bare token's
--- name is UPCASED; `|bar|`-escaped tokens are read verbatim (handled on the
--- `|` path, which does NOT call this). Symbol identity is exact (name,package)
--- string equality (symbol-equality, axioms.lisp:16884). See
--- docs/notes/2026-07-08_symbol-case-semantics.md.
-private def normalizeSymbolName (name : String) : String :=
-  name.map Char.toUpper
-
-private def normalizePackageName (name : String) : String :=
-  name.map Char.toUpper
 
 private def dropWhile (p : Char → Bool) : Stream → Stream
   | [] => []
@@ -323,35 +312,6 @@ mutual
         | .error e => .error e
         | .ok (str, rest) =>
             .ok (SExpr.atom (.string str), rest)
-    | '|' :: rest =>
-        let rec go : List Char → Stream → Except String (String × Stream)
-          | _, [] => .error "unterminated escaped symbol"
-          | acc, '|' :: rest => .ok (String.ofList acc.reverse, rest)
-          | acc, h :: rest => go (h :: acc) rest
-        match go [] rest with
-        | .error e => .error e
-        -- `|bar|` is read VERBATIM (no case change). But nil/t are ordinary
-        -- symbols named "NIL"/"T", so `|NIL|` IS nil and `|T|` IS t (confirmed:
-        -- (equal '|NIL| nil) = T in ACL2), while `|nil|` (name "nil") is a
-        -- distinct symbol. Map the verbatim name to the canonical constructors.
-        | .ok (str, rest) =>
-            -- FAIL-CLOSED if the closing `|` is followed by more token chars
-            -- (`|ABC|xyz`): that is the mixed-escaping case (per-run escaping
-            -- unimplemented, BUG-010) — reading only `ABC` and leaving `xyz`
-            -- would mis-parse. A proper delimiter/EOF is fine.
-            match rest with
-            | c :: _ =>
-              if isAtomChar c then
-                .error s!"escaped symbol |…| followed by more token chars \
-                          (mixed per-run escaping unsupported; frontier — \
-                          fail-closed, see BUG-010): |{str}|{c}…"
-              else if str = "NIL" then .ok (SExpr.nil, rest)
-              else if str = "T" then .ok (SExpr.t, rest)
-              else .ok (SExpr.atom (.symbol { name := str }), rest)
-            | [] =>
-              if str = "NIL" then .ok (SExpr.nil, rest)
-              else if str = "T" then .ok (SExpr.t, rest)
-              else .ok (SExpr.atom (.symbol { name := str }), rest)
     | '#' :: '\\' :: rest =>
         -- ACL2 character syntax (acl2-fns.lisp `acl2-read-character-string`,
         -- researched in docs/notes/2026-07-08_acl2-character-semantics.md):
@@ -457,141 +417,47 @@ mutual
               .error s!"unrecognized reader macro: #{radixStr}… (expected #Nr radix)"
         else .error s!"unrecognized reader macro: #{String.ofList [c]}"
     | '#' :: [] => .error "unexpected # at end of input"
-    | ':' :: '|' :: rest =>
-        -- `:|...|` — a keyword whose name is read VERBATIM from the escaped
-        -- token (same rule as the top-level `|bar|` symbol path: no case
-        -- change). ACL2 makes `:|ABC|` and `:abc` the SAME keyword (both name
-        -- "ABC"), and `:|abc|` a DISTINCT one (name "abc").
-        let rec goKw : List Char → Stream → Except String (String × Stream)
-          | _, [] => .error "unterminated escaped keyword"
-          | acc, '|' :: rest => .ok (String.ofList acc.reverse, rest)
-          | acc, h :: rest => goKw (h :: acc) rest
-        match goKw [] rest with
-        | .error e => .error e
-        | .ok (str, rest) =>
-            -- FAIL-CLOSED on trailing token chars (mixed escaping, BUG-010).
-            match rest with
-            | c :: _ =>
-              if isAtomChar c then
-                .error s!"escaped keyword :|…| followed by more token chars \
-                          (mixed per-run escaping unsupported; frontier — \
-                          fail-closed, see BUG-010): :|{str}|{c}…"
-              else .ok (SExpr.atom (.keyword str), rest)
-            | [] => .ok (SExpr.atom (.keyword str), rest)
-    | ':' :: _ =>
-        let (tok, rest) := readAtom cs
-        -- Bare keywords obey the same :upcase rule (name upcased); the KEYWORD
-        -- package is implicit.
-        let kw := ((tok.drop 1).toString).map Char.toUpper
-        .ok (SExpr.atom (.keyword kw), rest)
-    | _ =>
-        let (rawTok, rest) := readAtom cs
-        -- FAIL-CLOSED on mixed/partial escaping within a token (BUG-010).
-        -- `readAtom` treats `|` and `\` as ordinary atom chars, so a token
-        -- with an interior/leading escaped RUN (`a|B|c`, `foo\Bar`) is NOT
-        -- handled by the whole-token `|bar|` branch above — ACL2 upcases the
-        -- UNESCAPED runs and keeps escaped runs verbatim within one token,
-        -- which we do not implement. Rather than silently upcase wholesale
-        -- (a wrong symbol name), hard-fail: this is a frontier, not a value.
-        if rawTok.contains '|' || rawTok.contains '\\' then
-          .error s!"symbol token with interior '|' or '\\' escape unsupported \
-                    (per-run readtable escaping not implemented; frontier — \
-                    fail-closed, see BUG-010): {rawTok}"
-        else
-        let tok := normalizeSymbolName rawTok
-        -- nil/t recognition against the UPCASED token (ACL2 names "NIL"/"T").
-        if tok = "NIL" then .ok (SExpr.nil, rest)
-        else if tok = "T" then .ok (SExpr.t, rest)
-        else if rawTok.contains ':' then
-          -- PACKAGE-QUALIFIED token (BUG-013/014/015). In the CL reader an
-          -- unescaped colon is ALWAYS a package marker; leading-colon keywords
-          -- (`:foo`) and `|…|`-escaped tokens were handled by the branches
-          -- above, so a colon-bearing token HERE is a package reference and
-          -- NEVER a number or dotted symbol. Only the double-colon form
-          -- `pkg::name` (INTERNAL-symbol access) is supported. Single-colon
-          -- `pkg:name` is EXTERNAL-symbol access — `keyword:foo` IS `:foo`,
-          -- `common-lisp:car` IS `common-lisp::car`, `acl2:car` is a reader
-          -- ERROR — which needs per-package export tables (the BUG-013
-          -- import-table surface); until then we fail closed (BUG-015 interim:
-          -- over-strict where ACL2 accepts, never a silent wrong value). Any
-          -- other colon shape (`a:::b`, `a::b::c`, `foo::`, `a:b::c`) is
-          -- malformed. Splitting on "::" cleanly separates the two: a valid
-          -- form yields exactly two nonempty parts with no residual colon.
-          match rawTok.splitOn "::" with
-          | [pkg, name] =>
-              if pkg.isEmpty || name.isEmpty || pkg.contains ':' || name.contains ':' then
-                .error s!"malformed package-qualified symbol: {rawTok}"
-              else
-                let p := normalizePackageName pkg
-                let n := normalizeSymbolName name
-                -- BUG-013 (minimal fix): the ACL2 package IMPORTS NIL and T
-                -- from COMMON-LISP, so `common-lisp::nil` / `acl2::nil` ARE
-                -- nil (same for T) — verified vs running ACL2 2026-07-11.
-                -- Map the resolved identities to the canonical values; the
-                -- COMMON-LISP spellings are unrepresentable as Symbols
-                -- (canonSym). Other packages' NIL/T-named symbols are
-                -- genuinely distinct objects and pass through.
-                if (p == "COMMON-LISP" || p == "ACL2") && n == "NIL" then
-                  .ok (SExpr.nil, rest)
-                else if (p == "COMMON-LISP" || p == "ACL2") && n == "T" then
-                  .ok (SExpr.t, rest)
-                -- BUG-014: `keyword::foo` IS the keyword `:foo` (the KEYWORD
-                -- package is the keywords' home package; verified vs running
-                -- ACL2 2026-07-12: `(equal :foo 'keyword::foo)` = T). Map to
-                -- the canonical `.keyword` representation; KEYWORD-package
-                -- Symbols are unrepresentable (canonSym).
-                else if p == "KEYWORD" then
-                  .ok (SExpr.atom (.keyword n), rest)
-                else if hc : canonSym p n then
-                  .ok (SExpr.atom (.symbol { package := p, name := n, canon := hc }), rest)
-                else
-                  -- unreachable (only COMMON-LISP::NIL/T and KEYWORD::* fail
-                  -- canonSym and all are mapped above) — fail closed all the same
-                  .error s!"non-canonical symbol identity: {rawTok}"
-          | _ =>
-              -- zero `::` (single-colon `pkg:name`) or more than one (`a::b::c`)
-              .error s!"single-colon or malformed package marker unsupported \
-                        (external-symbol access `pkg:name` needs per-package \
-                        export tables; frontier — fail-closed, see BUG-015): \
-                        {rawTok}"
-        else
-          match tok.toInt? with
-          | some n => .ok (SExpr.atom (.number (.int n)), rest)
-          | none =>
-            if tok.contains '/' then
-              let parts := tok.splitOn "/"
-              match parts with
-              | [numStr, denStr] =>
-                  match numStr.toInt?, denStr.toNat? with
-                  -- Route through `Logic.mkNumber` so the literal is normalized
-                  -- exactly as ACL2's reader does: gcd-reduce, and collapse a
-                  -- denominator-1 rational to the integer (so `4/2` reads as the
-                  -- integer 2 and `2/4` as `1/2`). Building `.rational n d` raw
-                  -- here was the number-normalization divergence the
-                  -- differential suite pinned (5/1 ≠ 5, 2/4 ≠ 1/2).
-                  | some n, some d =>
-                    if d == 0 then .error s!"zero denominator in rational literal: {tok} (BUG-028)"
-                    else .ok (Logic.mkNumber n d, rest)
-                  | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
-              | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
-            else if numericTokenIsFloat tok then
-              -- BUG-004: ACL2 uses the standard CL reader at *read-base* = 10
-              -- (acl2.lisp:2026 / axioms.lisp:21116). A token matching CL FLOAT
-              -- syntax (a fractional digit after '.', or an exponent marker) is
-              -- a float, which ACL2 has no type for — its reader REFUSES it.
-              .error s!"float literal unsupported — ACL2 has no floating-point \
-                        type (its reader refuses '{tok}'); fail-closed (BUG-004)"
-            else if trailingDotInteger? tok |>.isSome then
-              -- [sign] digit+ '.' (trailing dot, no fractional digit) is a
-              -- DECIMAL INTEGER in CL (the dot forces base 10): 1.=1, -5.=-5.
-              .ok (SExpr.atom (.number (.int (trailingDotInteger? tok).get!)), rest)
-            else if tok.contains '.' then
-              -- a '.'-bearing token that is neither a float nor a trailing-dot
-              -- integer (e.g. FOO.BAR) is an ordinary symbol.
-              .ok (SExpr.atom (.symbol { name := tok }), rest)
-            else
-              -- colon-free, dot-free, non-numeric: a plain ACL2-package symbol.
-              .ok (SExpr.atom (.symbol { name := tok }), rest)
+    | _ => do
+        let (token, rest) ← readToken isAtomChar cs
+        if let some symbol ← token.symbol? then return (symbol, rest)
+        let tok := token.text
+        match tok.toInt? with
+        | some n => .ok (SExpr.atom (.number (.int n)), rest)
+        | none =>
+          if tok.contains '/' then
+            let parts := tok.splitOn "/"
+            match parts with
+            | [numStr, denStr] =>
+                match numStr.toInt?, denStr.toNat? with
+                -- Route through `Logic.mkNumber` so the literal is normalized
+                -- exactly as ACL2's reader does: gcd-reduce, and collapse a
+                -- denominator-1 rational to the integer (so `4/2` reads as the
+                -- integer 2 and `2/4` as `1/2`). Building `.rational n d` raw
+                -- here was the number-normalization divergence the
+                -- differential suite pinned (5/1 ≠ 5, 2/4 ≠ 1/2).
+                | some n, some d =>
+                  if d == 0 then .error s!"zero denominator in rational literal: {tok} (BUG-028)"
+                  else .ok (Logic.mkNumber n d, rest)
+                | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
+            | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
+          else if numericTokenIsFloat tok then
+            -- BUG-004: ACL2 uses the standard CL reader at *read-base* = 10
+            -- (acl2.lisp:2026 / axioms.lisp:21116). A token matching CL FLOAT
+            -- syntax (a fractional digit after '.', or an exponent marker) is
+            -- a float, which ACL2 has no type for — its reader REFUSES it.
+            .error s!"float literal unsupported — ACL2 has no floating-point \
+                      type (its reader refuses '{tok}'); fail-closed (BUG-004)"
+          else if trailingDotInteger? tok |>.isSome then
+            -- [sign] digit+ '.' (trailing dot, no fractional digit) is a
+            -- DECIMAL INTEGER in CL (the dot forces base 10): 1.=1, -5.=-5.
+            .ok (SExpr.atom (.number (.int (trailingDotInteger? tok).get!)), rest)
+          else if tok.contains '.' then
+            -- a '.'-bearing token that is neither a float nor a trailing-dot
+            -- integer (e.g. FOO.BAR) is an ordinary symbol.
+            .ok (SExpr.atom (.symbol { name := tok }), rest)
+          else
+            -- colon-free, dot-free, non-numeric: a plain ACL2-package symbol.
+            .ok (SExpr.atom (.symbol { name := tok }), rest)
 end
 
 /-- Parse all s-expressions from a string. -/
