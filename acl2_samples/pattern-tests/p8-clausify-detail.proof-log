@@ -8,8 +8,8 @@ distribution for more information.
 
  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
  + ACL2 Version 8.6+ (a development snapshot based on ACL2 Version 8.6) +
- +   built August 15, 2026  02:21:05.                                   +
- +   (Git commit hash: e8d78e513d6867d04002f0df644da1723cc96e89)        +
+ +   built September 6, 2026  02:37:06.                                 +
+ +   (Git commit hash: 8898d3e872276483f83af66e4576be67c0d9c80b)        +
  + Copyright (C) 2026, Regents of the University of Texas.              +
  + ACL2 comes with ABSOLUTELY NO WARRANTY.  This is free software and   +
  + you are welcome to redistribute it under certain conditions.  For    +
@@ -17,7 +17,9 @@ distribution for more information.
  ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 Project-dir-alist:
-((:SYSTEM . "/home/dev/projects/ACL2Lean/acl2/books/")).
+((:SYSTEM
+    .
+    "/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop/acl2/books/")).
 Type :help for help.
 Type (quit) to quit completely out of ACL2.
 
@@ -45,5 +47,7 @@ ACL2 !>
 (:TYPE-PRESCRIPTION IFF :COROLLARY (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) :BASICTS 384 :LEAVES (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('NIL 128 ((NOT P) Q) ((Q -129) (P 128)) NIL) ('T 256 ((NOT P) (NOT Q)) ((Q 128) (P 128)) NIL)) :ALL-TPS (((:TYPE-PRESCRIPTION IFF) NIL 384 (IF (EQUAL (IFF P Q) 'T) 'T (EQUAL (IFF P Q) 'NIL)) (IFF P Q) (('T 256 (P Q) ((Q -129) (P -129)) NIL) ('NIL 128 (P (NOT Q)) ((Q 128) (P -129)) NIL) ('NIL 128 ((NOT P) Q) ((Q -129) (P 128)) NIL) ('T 256 ((NOT P) (NOT Q)) ((Q 128) (P 128)) NIL)))))
 
 (:GROUND-ZERO-RULES (((:REWRITE CONS-EQUAL) NIL EQUAL (EQUAL (CONS X1 Y1) (CONS X2 Y2)) (IF (EQUAL X1 X2) (EQUAL Y1 Y2) 'NIL) NIL)))
+
+(:CONS-TERM-GUARDS ((ACL2-NUMBERP (X) 'T) (BINARY-* (X Y) (IF (ACL2-NUMBERP X) (ACL2-NUMBERP Y) 'NIL)) (BINARY-+ (X Y) (IF (ACL2-NUMBERP X) (ACL2-NUMBERP Y) 'NIL)) (UNARY-- (X) (ACL2-NUMBERP X)) (UNARY-/ (X) (IF (ACL2-NUMBERP X) (NOT (EQUAL X '0)) 'NIL)) (< (X Y) (IF (RATIONALP X) (RATIONALP Y) 'NIL)) (CAR (X) (IF (CONSP X) 'T (EQUAL X 'NIL))) (CDR (X) (IF (CONSP X) 'T (EQUAL X 'NIL))) (CHAR-CODE (X) (CHARACTERP X)) (CHARACTERP (X) 'T) (CODE-CHAR (X) (IF (INTEGERP X) (IF (< X '0) 'NIL (< X '256)) 'NIL)) (COMPLEX (X Y) (IF (RATIONALP X) (RATIONALP Y) 'NIL)) (COMPLEX-RATIONALP (X) 'T) (COERCE (X Y) (IF (EQUAL Y 'LIST) (STRINGP X) (IF (EQUAL Y 'STRING) (CHARACTER-LISTP X) 'NIL))) (CONS (X Y) 'T) (CONSP (X) 'T) (DENOMINATOR (X) (RATIONALP X)) (EQUAL (X Y) 'T) (IMAGPART (X) (ACL2-NUMBERP X)) (INTEGERP (X) 'T) (INTERN-IN-PACKAGE-OF-SYMBOL (STR SYM) (IF (STRINGP STR) (SYMBOLP SYM) 'NIL)) (NUMERATOR (X) (RATIONALP X)) (RATIONALP (X) 'T) (REALPART (X) (ACL2-NUMBERP X)) (STRINGP (X) 'T) (SYMBOL-NAME (X) (SYMBOLP X)) (SYMBOL-PACKAGE-NAME (X) (SYMBOLP X)) (SYMBOLP (X) 'T)))
 
 (:CAPTURE-END :BOOKS NIL :STATUS :COMPLETE)

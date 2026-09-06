@@ -245,6 +245,9 @@ def navigateFrames (term : SExpr) (descentFrames : List PathFrame)
       | .boundary k _ =>
         throw s!"pathStepsFromFrames: unexpected residual boundary frame {k.name} \
                 (nesting deeper than the chain's depth)"
+      | .bindingRhs i _ =>
+        throw s!"pathStepsFromFrames: unexpected residual binding-RHS boundary \
+                for hypothesis {i} (not an argument descent)"
       | .arg idx _ => pure idx
       | .argLam idx _ => pure idx
     -- the head we descend FROM: a function symbol, or a lambda application

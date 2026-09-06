@@ -38,9 +38,10 @@ charter or the archive carry the record.
 - [ ] **NS1 — C2 first BVCHOP mirror.** Long run launched 2026-09-05
       in `.claude/worktrees/ns1-bvchop`, branch `mdd/ns1-bvchop`, from the
       approved docs commit `b452b70`. C0 baseline, native specifications and
-      both design reviews and C1 migration checked. Extend the recorded
-      binding-hypothesis path schema, reconstruct BVCHOP, establish its
-      selected dependency closure and complete the first native proof. Record:
+      both design reviews and C1 migration checked. Establish the selected
+      dependency closure from the now-reconstructed BVCHOP tree; finish the
+      quote-collector capture repair, lambda-body path replay, arithmetic DP
+      prerequisites and first native proof. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog

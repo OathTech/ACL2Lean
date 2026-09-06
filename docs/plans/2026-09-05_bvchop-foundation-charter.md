@@ -410,15 +410,160 @@ not yet been established from reconstructed trees.
   of redundant source events is a separate ingestion issue if selected
   dependency demand reaches this book.
 
+### C2 execution evidence (in progress)
+
+The parser now preserves indexed binding-RHS boundaries as a distinct path
+frame. Hypothesis replay partitions those chains by their recorded hypothesis
+index, replays each actual RHS chain, and checks that its endpoint equals the
+variable's final recorded substitution. The small real capture replays 2/2
+unconditionally with zero DP leaves (`.tmp/ns1/c2-binding-hyp-replay.log`).
+The parser and hypothesis-relief code were extracted from the existing large
+modules; Node shrinks from 1650 to 1471 lines.
+
+Two fork emission defects then blocked the unchanged book (BUG-030/031).
+Ordinary definitions inside a local include were tagged as local witnesses;
+the emitter now distinguishes ACL2's LOCAL-INCLUDE-BOOK flag from actual LOCAL
+events. A type-alist contradiction also returned before END-LITERAL despite
+having emitted BEGIN-LITERAL; the opening now occurs only on the path that
+actually rewrites the literal. Both are instrumentation changes. No selected
+source statement, hint, ACL2 proof-search decision or generated trace was edited.
+
+Fresh actual captures from the rebuilt image are in
+`.tmp/ns1/c2-balanced-captures/`: BVCHOP 116/116 local QEDs, MOD 92/92,
+MOD-AND-EXPT 18/18 and UNSIGNED-BYTE-P 42/42. All four reconstruct successfully
+(`.tmp/ns1/c2-balanced-*-tree.log`). The three selected proofs are now visible.
+The dependency closure and replay remain to be established; a reconstructed
+tree is not a replay result. These captures honestly stamp the dirty fork:
+commit, rebuild after commit, recapture and provenance checks remain required.
+
+New real pattern books are `cov-binding-hyp`, `cov-local-include-helper` and
+`cov-local-include`. `Tests.Ns1Ingestion` builds the two binding theorems and
+the include theorem with independent source-formula pins and the accepted
+axiom set (`.tmp/ns1/c2-ingestion-pins-build.log`). Existing encapsulate
+controls retain LOCAL-WITNESS and scoped reconstruction
+(`.tmp/ns1/c2-provenance-cov-encapsulate-tree.log`). These focused checks are
+not a C2 exit or full-corpus gate.
+
+The first BVCHOP retry after registering existing IFIX/EXPT evaluator
+operations reaches 1/9 conditional statements, none unconditional
+(`.tmp/ns1/c2-bvchop-upper-registry-replay.log`). IFIX now has a named Logic
+operation with unchanged semantics and the existing ground-zero agreement
+lemma in the definition registry. The selected upper-bound proof stops at
+BUG-032: collapse folds EXPT before ACL2 does. Two emitted DP leaves check;
+three remain assumed and one hits the existing heartbeat limit. No budget
+was raised. A direct probe of the actual admission closure identifies the
+quotient's subtraction decrease, reciprocal registration and FLOOR/MOD
+totality as the numeric prerequisites (`.tmp/ns1/c2-bvchop-totality-probe.log`).
+
+The emitter control Qsort capture reconstructs, but its focused replay reports
+10 unconditional, one conditional and two failed statements
+(`.tmp/ns1/c2-emitter-qsort-deps-replay.log`). Moving BEGIN-LITERAL makes its
+TA-SUBST records clause-level; that existing data arm did not thread them to
+the existing directed substitution consumer. The thread is repaired and a
+rerun is pending. CONS-TERM-GUARDS emission/replay is being added to the same
+uncommitted fork batch. The in-memory binding-index rejection test passes
+(`.tmp/ns1/c2-ingestion-negative-retry-build.log`).
+
+The rebuilt image emits CONS-TERM-GUARDS from the entries ACL2 compiled into
+`*cons-term1-alist*`, preserving their original formals and guards. The
+parser retains that table, the book config carries it, and ground collapse
+checks it before folding. This is closed evaluation of cons-term's
+admissibility condition, not guard-obligation proof replay. Ground executable
+evaluation's two existing fuel-discovery loops now share one helper with
+the same ceiling. Fresh captures are in `.tmp/ns1/c2-primitive-captures/`;
+the CLI and replay executable build (`.tmp/ns1/c2-cons-term-final-build.log`).
+The real `cov-cons-term-fold` probe reconstructs both mechanisms: EXPT
+survives to the next processor, CAR of a quoted cons folds while CAR of 0
+survives to its later executable step. Both replay unconditionally, zero DP
+leaves (`.tmp/ns1/c2-cons-term-probe-{tree,replay}.log`). Permanent source and
+statement/axiom pins are added; the large BVCHOP/Qsort reruns are pending.
+
+### C2 follow-up evidence (2026-09-06, still in progress)
+
+The first emitter batch is committed in the fork at `599841344d9e`. Qsort
+returned to 13/13 unconditional with nine checked DP leaves
+(`.tmp/ns1/c2-qsort-primitive-replay.log`). Rebuild and `just recapture-all`
+from that clean commit completed; all 95 then-existing logs passed provenance,
+and all 65 then-existing pattern books passed their map checks
+(`.tmp/ns1/c2-clean-{recapture-all,capture-checks}.log`).
+
+BVCHOP-UPPER-BOUND now traverses the recorded structural chain but remains
+ASSUMED, including MOD totality/type, MOD-OF-0-ARG1 and three DP facts
+(`.tmp/ns1/c2-bvchop-upper-primitive-replay.log`). That is not a replayed
+target. One remaining tau leaf times out at the existing limit; no limit
+was raised. A later lowercase CLI target accidentally selected the whole
+book; it was stopped and is not a target receipt. The CLI target argument
+is case-sensitive: use `BVCHOP-UPPER-BOUND`.
+
+The arithmetic admission walk now checks the quotient's subtraction decrease
+under its emitted rulers, then handles FLOOR's translated LETs compositionally.
+The actual BVCHOP admission probe constructs quotient, FLOOR, MOD and BVCHOP
+totalities (`.tmp/ns1/c2-bvchop-totality-lambda-probe.log`). The new real
+`cov-numeric-admission` book exposed two further composition gaps: function-level
+totality hypotheses in fresh lambda environments, and recorded abbreviation
+paths inside unopened lambda bodies. Both are implemented with world-parametric
+congruence; the body equality is replayed for every environment, with outer
+clause/value pins removed. `Tests.Ns1NumericAdmission` builds both independent
+statement pins and accepted axiom receipts
+(`.tmp/ns1/c2-lambda-path-pins-checked-build.log`). Ground computation was
+extracted into GroundFold; Ctx is 1450 lines.
+
+Standard `cert.pl` certification of FLOOR and its dependencies resolved the
+missing IHS/U package setup (`.tmp/ns1/floor-certify-complete.log`). FLOOR then
+exposed BUG-033: quoted package-import lists polluted the snapshot collector
+with APPLY$/EV$. The flat and pretty quote printers now suspend collection
+while preserving their output. This second fork batch is committed locally at
+`8898d3e872`; its clean-image rebuild/recapture is in progress. No selected
+source or hint changed, and the unavailable APPLY$ admission was not skipped.
+
+The complete capture then exposed BUG-034/035: diagnostic strings inside
+definitions were mistaken for actual errors, NUL suppressed grep's event census,
+and Latin-1 bytes were rejected by Lean's UTF-8 reader. Capture now distinguishes
+diagnostic lines, counts literal data as text, and transcodes encoding before
+hashing/promotion. The real `cov-quoted-snapshot` book captures four statements;
+nine ingestion pins and the binding-index negative control build
+(`.tmp/ns1/c2-nine-ingestion-pins-final-build.log`). Its string pin independently
+specifies H, character 0 and character 255. Static gates and actual-error
+negative control pass (`.tmp/ns1/c2-quote-encoding-fast-static.log`).
+
+FLOOR captures 125 local theorem events and 133 QEDs to
+`.tmp/ns1/c2-primitive-captures/floor.proof-log`
+(`.tmp/ns1/c2-floor-utf8-capture.log`). It next hits existing BUG-010 on a
+qualified escaped symbol, `ACL2::|(CAR REMAINDER)|`
+(`.tmp/ns1/c2-floor-utf8-tree.log`). This is an ingestion frontier; no FLOOR
+dependency proof or new native mirror is claimed. TIMES' real *-OF-0 leaf is
+also still ASSUMED (`.tmp/ns1/c2-times-zero-clean-retry.log`, which ran all
+57 statements because its target argument was lowercase). These concrete
+numeric/reader prerequisites are the next work.
+
+The second fork batch's clean image rebuild and full corpus recapture now
+complete successfully (`.tmp/ns1/c2-quote-clean-{image-build,recapture-all}.log`).
+All 97 logs carry clean fork `8898d3e872` provenance; the 29 coverage books,
+67 pattern books and provenance controls pass
+(`.tmp/ns1/c2-quote-clean-capture-checks.log`). All six selected dependency
+books also capture from that image, including FLOOR and BVCHOP
+(`.tmp/ns1/c2-quote-clean-dependency-captures.log`).
+
+This intermediate C2 checkpoint uses the fast-gate tier, not a phase-exit
+claim. Static checks pass (`.tmp/ns1/c2-parent-fast-static.log`); all eleven
+permanent ingestion/admission pins build with their accepted axiom receipts
+(`.tmp/ns1/c2-clean-eleven-pins-build.log`). Focused numeric-admission and
+quoted-data replay check 2/2 and 4/4 unconditionally, zero DP leaves
+(`.tmp/ns1/c2-clean-{numeric-admission,quoted-data}-replay.log`). Qsort's final
+clean-capture rerun checks 13/13 unconditionally and all nine DP leaves in
+363782 ms (`.tmp/ns1/c2-quote-clean-qsort-replay.log`). C2 remains open;
+there is no new BVCHOP mirror or full gate claim at this checkpoint.
+
 ## Resume record
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
-  `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; the C1 migration commit
-  carries the full gate receipt above and this record.
+  `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries
+  the full gate receipt above.
 - C0's two review tasks are complete. The two C4 tasks remain authorized;
   no preflight questions are pending.
-- Next: extend ingestion
-  at the recorded binding-RHS boundary and inspect the actual BVCHOP trees.
+- Next: extend the reader at the actual qualified-escape frontier, then
+  close the selected
+  arithmetic dependency/DP obligations and first native proof.
 - C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
   there is no merge or push approval for the implementation.

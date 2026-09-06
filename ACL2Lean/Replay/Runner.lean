@@ -231,7 +231,8 @@ def mkBookConfig (dev : Development) (w : World) (wExpr envExpr : Expr)
     gzTpBasicTs := dev.typePrescriptionBasicTs
     tpLeaves := dev.typePrescriptionLeaves
     tpAllTps := dev.typePrescriptionAllTps
-    recogTuples := dev.groundZeroRecognizerTupleSpecs }
+    recogTuples := dev.groundZeroRecognizerTupleSpecs,
+    consTermGuards := dev.consTermGuardSpecs }
 
 /-- Clause-ids of BLACK-BOX leaves under a clause node: a leaf clause (no child
     clauses, no induction) that ACL2 marks PROVED but for which NO replayable proof

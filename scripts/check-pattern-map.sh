@@ -63,6 +63,11 @@ nosig() {
 }
 
 # Sorting-completion arc validation books (2026-07-29)
+# NS1: recorded binding relief and ordinary imports under an outer LOCAL.
+sig cov-binding-hyp   1 ":PATH (((RHS . 2) . CDR))"
+sig cov-cons-term-fold 1 ":CONS-TERM-GUARDS"
+sig cov-cons-term-fold 1 "(EQUAL (CAR '0) 'NIL)"
+sig cov-local-include 1 ":DEFUN NS1-INCLUDED-FN :FORMALS (X) :BODY (CONS X 'NIL) :SOURCE :INCLUDE-BOOK"
 sig p3-recorded-termination 1 "(O< (ACL2-COUNT (SKIP-ONE"
 sig p3-conj-mid-literal     1 ":ORIGIN STRIP-BRANCHES/AND-SHAPE"
 # P1 circle
@@ -118,6 +123,14 @@ nosig p2-beta-quoted-actuals ":SOURCE :LOCAL-WITNESS"
 nosig p2-beta-hide ":SOURCE :LOCAL-WITNESS"
 sig cov-verify-guards 1 "(:VERIFY-GUARDS :NAMES (GSUM)"
 sig cov-verify-guards 2 "(:QED)"
+# NS1 numeric admission: actual subtraction clause and translated FLOOR body.
+sig cov-numeric-admission 1 "(O< (ACL2-COUNT (BINARY-+ I (UNARY-- J))) (ACL2-COUNT I))"
+sig cov-numeric-admission 1 "(:DEFUN FLOOR :FORMALS (I J) :BODY ((LAMBDA (Q)"
+# Quoted names stay data; neither flat nor pretty quotes demand APPLY$/EV$.
+sig cov-quoted-snapshot 1 "(:DEFTHM QUOTED-APPLY-NAME"
+sig cov-quoted-snapshot 1 "(:DEFTHM QUOTED-EV-NAME"
+nosig cov-quoted-snapshot "(:DEFUN APPLY$ "
+nosig cov-quoted-snapshot "(:DEFUN EV$ "
 # Empty-encapsulate SUCCESS exits balanced (fresh-verify N1, 2026-08-03):
 # the helper exercises the PROVING path's :empty-encapsulate exit, the
 # include book the INCLUDE-BOOK path's (the fourth success exit — its END

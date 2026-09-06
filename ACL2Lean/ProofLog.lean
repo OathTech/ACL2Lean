@@ -1,4 +1,5 @@
 import ACL2Lean.ProofLogTypes
+import ACL2Lean.ProofPath
 
 namespace ACL2
 
@@ -64,34 +65,6 @@ def parseRunes (s : SExpr) : Except String (List Rune) :=
     | some rune => pure rune
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
-
-/-- Parse one `(bkptr . fn)` frame of a `:PATH`. Numeric `bkptr` → `.arg`; symbolic
-    `bkptr` (BODY/RHS/EXPANSION/…) → `.boundary`. Hard-fails on a non-symbol `fn`
-    (lambda/quote paths not yet supported) or a malformed pair (no silent drop). -/
-private def parsePathFrame (pair : SExpr) : Except String PathFrame := do
-  -- Each frame is the dotted pair `(bkptr . fn)` = `.cons bkptr fn`.
-  let (bk, fn) ← match pair with
-    | .cons bk fn => pure (bk, fn)
-    | _ => throw s!"REWRITE-STEP :PATH frame not a (bkptr . fn) pair: {repr pair}"
-  match fn with
-    | .atom (.symbol s) =>
-      match bk with
-      | .atom (.number (.int n)) => pure (.arg n.toNat s)
-      | .atom (.symbol k) => pure (.boundary k s)
-      | _ => throw s!"REWRITE-STEP :PATH frame bkptr not a number/symbol: {repr bk}"
-    | .cons (.atom (.symbol lam)) _ =>
-      -- a LAMBDA-application frame (S2 2026-07-24): the fn position is the
-      -- whole lambda term; only NUMERIC bkptrs are attested (arg descents —
-      -- body descents come as `.boundary LAMBDA-BODY <head>` instead)
-      if lam.isNamed "LAMBDA" then
-        match bk with
-        | .atom (.number (.int n)) => pure (.argLam n.toNat fn)
-        | _ => throw s!"REWRITE-STEP :PATH lambda frame bkptr not a number \
-                        (unattested shape): {repr bk}"
-      else
-        throw s!"REWRITE-STEP :PATH frame fn not a symbol/lambda: {repr fn}"
-    | _ => throw s!"REWRITE-STEP :PATH frame fn not a symbol/lambda \
-                    (quote unsupported): {repr fn}"
 
 /-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r …) s-expression. -/
 private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
@@ -1084,6 +1057,25 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         (← entries.mapM parseRecognizerTupleEntry)
     | _ => throw s!"GROUND-ZERO-RECOGNIZER-TUPLES: expected a single \
                    payload list, got {repr rest}"
+  | .cons (.atom (.keyword "CONS-TERM-GUARDS")) rest =>
+    let some [payload] := rest.toList?
+      | throw "CONS-TERM-GUARDS: expected one payload list"
+    let some entries := payload.toList?
+      | throw "CONS-TERM-GUARDS: payload is not a proper list"
+    let specs ← entries.mapM fun entry => do
+      let some [.atom (.symbol fn), formals, guardTerm] := entry.toList?
+        | throw s!"CONS-TERM-GUARDS: malformed entry {repr entry}"
+      let some formalTerms := formals.toList?
+        | throw s!"CONS-TERM-GUARDS: improper formals for {fn.name}"
+      let formals ← formalTerms.mapM fun
+        | .atom (.symbol s) => pure s
+        | t => throw s!"CONS-TERM-GUARDS: non-symbol formal {repr t}"
+      unless formals.eraseDups.length == formals.length do
+        throw s!"CONS-TERM-GUARDS: duplicate formal for {fn.name}"
+      pure ({ fn, formals, guardTerm } : ConsTermGuard)
+    unless (specs.map (·.fn)).eraseDups.length == specs.length do
+      throw "CONS-TERM-GUARDS: duplicate primitive entry"
+    return .consTermGuards specs
   | .cons (.atom (.keyword "INCLUDE-BOOK-EDGE")) rest =>
     let items := rest.toList?.getD []
     let some bookS := lookupKeyword "BOOK" items

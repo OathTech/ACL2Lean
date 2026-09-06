@@ -16,6 +16,27 @@ is NOT the arc's metric; situation-space coverage is.
 
 ## The coverage frame (top-down, from ACL2's own inventory)
 
+**NS1 additions (2026-09-06):** `cov-binding-hyp` isolates the indexed
+`((RHS . 2) . fn)` boundary seen in Kestrel BVCHOP and arithmetic books:
+ACL2 rewrites an EQUAL hypothesis's RHS to bind a free variable. Its real
+two-theorem capture now reconstructs and replays 2/2 unconditionally through
+that chain. `cov-local-include` imports the ordinary definition in
+`cov-local-include-helper` under LOCAL, exposing BUG-030's inherited-locality
+provenance error. With the emitter repair its theorem replays 1/1
+unconditionally. The original `cov-encapsulate` still emits LOCAL-WITNESS
+and excludes the witness body from its certified world. `cov-cons-term-fold`
+isolates BUG-032's two axes: EXPT is an ACL2 defun despite being an evaluator
+builtin, and CAR's ground fold requires its primitive guard. Both actual
+theorems replay unconditionally with zero DP leaves, using the emitted
+CONS-TERM-GUARDS table. `cov-numeric-admission` exercises FLOOR/MOD totality:
+translated LET bodies call the recursive quotient, whose ACL2-COUNT decrease
+subtracts a positive integer under the emitted rulers. `cov-quoted-snapshot`
+covers quoted function names in flat/pretty printing and literal diagnostic
+strings/NUL bytes in real capture data. The first emitter batch's clean fork
+commit/recapture cycle is checked; the quote-collector follow-up and full C2
+gates remain pending. Receipts are in the
+[NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
+
 Enumerated from ACL2's documented structure — NOT from what we have
 built (the P1–P11 entries below were seeded bottom-up from conquered
 mechanisms and are the survivor-biased half of the picture). Status
@@ -889,4 +910,3 @@ row (currently mirror-only); a green-row hyp-relief spine marker book
 RE-STORAGE dedup green row (currently mirror-only via FOLD-CONSTS-IN-+).
 Pins live in `Tests/PatternPins.lean` — one section per family; do not
 grow DriverTests.
-

@@ -369,8 +369,8 @@ decreasing_by exact Nat.div_lt_self (Nat.pos_of_ne_zero h) (by decide)
 /-- ACL2 `expt` (guard-off — BUG-021 fix, 2026-07-26, differential-
     pinned): mirrors ACL2's cond order —
     `(zip i)` (non-integer or 0 exponent) → 1; `(= 0 (fix r))` (zero or
-    non-numeric base) → 0; else the exact rational power, canonicalized
-    (negative exponents invert; the sign rides the numerator). The old
+    non-numeric base) → 0; else the exact complex-rational power, canonicalized
+    (negative exponents invert). The old
     definition funnelled the base through `toInt`, truncating rationals. -/
 @[inline, simp] def expt (a b : SExpr) : SExpr :=
   match b with
@@ -487,6 +487,12 @@ def coerce (x y : SExpr) : SExpr :=
   -- like-named symbol under `equal` — only `symbolp` unifies them.)
   | .atom (.symbol _) | .atom (.keyword _) | .nil => .t
   | _ => .nil
+
+/-- ACL2 `ifix` — an integer is itself; every other value becomes zero. -/
+@[inline, simp] def ifix (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int _)) => s
+  | _ => .atom (.number (.int 0))
 
 /-- ACL2 `nfix` — coerce to a natural: a non-negative integer is itself,
     anything else (negative int, non-int) becomes `0`. -/

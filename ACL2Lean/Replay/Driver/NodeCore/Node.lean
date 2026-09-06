@@ -4,7 +4,8 @@
   file's own def-before-use order, so the import chain IS the
   dependency order.
 -/
-import ACL2Lean.Replay.Driver.NodeCore.Recognizer
+import ACL2Lean.Replay.Driver.NodeCore.HypRelief
+import ACL2Lean.Replay.Driver.NodeCore.GroundFold
 
 namespace ACL2.Replay.Driver
 
@@ -851,10 +852,6 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- rewrite-equal's UNRECORDED nil-normalization (bridged at the
     -- composition point below). A residual mismatch is a hard-fail there.
     let rhsσ := ACL2.Replay.substTerm σvars σterms spec.rhs
-    -- partition the HYP block: silent-relief MARKERS (emit/relieve-hyp/*)
-    -- vs an actual relief rewrite chain
-    let (reliefMarkers, chainKids) := hypKids.partition
-      fun c => (runeOf c).ty == "hyp-relief"
     -- coverage: every rule variable must be bound by σ (free-var hyps extend
     -- σ at emission; a gap means the emission is incomplete)
     let ruleFrees := ACL2.Replay.freeVars spec.lhs ++
@@ -895,183 +892,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         s!"WellScoped rule term ({rname})"
       mkAppM ``evalOpt_substTerm_substN
         #[w, env, formalsE, argsE, valsE, reflectSExpr t, hWellScoped, hlenPf, hargs]
-    -- premises: EvTrue w env' hᵢ from the recorded relief. Sources, per hyp:
-    -- a silent-relief MARKER whose hyp matches hσ (recompute-and-check) —
-    -- clause-context lookup; else the recorded relief chain (v1: one hyp
-    -- with a chain; multi-hyp chains need per-hyp bracketing — hard-fail
-    -- until a real tree shows the shape).
-    -- SYNP hyps are relieved by neither a marker nor a chain (they discharge
-    -- definitionally below) — exclude them from the partition count
-    -- (audit 2026-07-19 R1)
-    let synpHyps := spec.hyps.countP fun h =>
-      match h with
-      | .cons (.atom (.symbol s)) _ => s.name == "SYNP"
-      | _ => false
-    if !chainKids.isEmpty &&
-        spec.hyps.length != reliefMarkers.length + synpHyps + 1 then
-      throwError "rule {rname}: {spec.hyps.length} hyps with one recorded \
-                  relief chain, {reliefMarkers.length} markers, and \
-                  {synpHyps} synp hyps — per-hyp partition (frontier)"
-    let tNeNil ← proveByDecide
-      (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
-    let mut prems : Array Expr := #[]
-    for h in spec.hyps do
-      let hσ := ACL2.Replay.substTerm σvars σterms h
-      let hasMarker := reliefMarkers.any fun c => (nodeLhsRhs c).1 == hσ
-      -- a SYNP hyp (syntaxp/bind-free): ACL2 relieves it by the meta-level
-      -- syntactic check and records `(:DEFINITION SYNP)` in the ttree — in
-      -- the LOGIC, `synp` ignores its (always-quoted) args and returns `t`,
-      -- so the recorded relief IS the definitional ground evaluation
-      let isSynp := match hσ with
-        | .cons (.atom (.symbol s)) _ => s.name == "SYNP"
-        | _ => false
-      -- EVERY hyp must have an emitted relief RECORD — a silent-relief marker
-      -- or a rewrite chain. No record at all is an emission gap (audit
-      -- 2026-07-06 finding A): the clause context may well justify the hyp,
-      -- but nothing in the tree says ACL2 relieved it that way — hard-fail
-      -- and emit more, never paper over.
-      if !hasMarker && chainKids.isEmpty && !isSynp then
-        throwError "rule {rname}: hyp {repr hσ} has NO emitted relief record \
-                    (no relieve-hyp marker, no relief chain) — emission gap \
-                    (frontier)"
-      let evTrueEnv ←
-        if isSynp then do
-          -- consistency check on the CUMULATIVE ttree rune set (it can only
-          -- REJECT — ACL2 pushes (:DEFINITION SYNP) on every successful synp
-          -- relief, but the set may also carry it from earlier steps; the
-          -- honest relief record is the definitional evaluation below)
-          unless prov.runes.any (fun r => r.ty == "definition" && r.name == "SYNP") do
-            throwError "rule {rname}: SYNP hyp {repr hσ} but no \
-                        (:DEFINITION SYNP) in the node's ttree runes \
-                        (frontier)"
-          -- re-run the same closed computation (`synp`'s world body is 'T):
-          -- the exec-counterpart carve-out, exactly how ACL2 regards it
-          let conv ← replayExecGround cfg hσ SExpr.t
-          mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
-        else if hasMarker then do
-          -- relieved SILENTLY from the clause context (the emitted marker
-          -- names the instantiated hyp): the spine's (not hσ)-falsity fact
-          -- (the type-alist source the type-alist recipe also consumes)
-          let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
-            (.cons hσ .nil)
-          let vH ← ctxValExpr cfg ctx hσ
-          -- TYPE-CHECKED lookup (G1 arc 2026-07-29): a term-keyed fact from
-          -- another env context (pool-root/elim crossings) must not be
-          -- consumed — mismatches fall through to the alternate sources.
-          let checkedHit ← ctx.litFactByTermChecked? notH
-            (← mkEq (mkApp (mkConst ``Logic.not) vH) (mkConst ``SExpr.nil))
-          match checkedHit with
-          | some hNotNil => do
-            let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
-            mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
-          | none =>
-            -- a NOT-wrapped hyp whose ATOM's falsity is in scope: the hyp's
-            -- truth is definitional (Logic.not nil = t) — the complement
-            -- orientation of the direct case above (multi-elim guard-child
-            -- walks surface this: DEFAULT-CAR's hyp (NOT (CONSP v2)) with
-            -- the literal (CONSP v2) assumed false). The lookup —
-            -- lit-facts, false-branch assumptions, and upstream
-            -- `assoc-equiv`'s two-orientation EQUAL match — is
-            -- `notAtomFalsity?` (Compose.lean).
-            if let some hAtmNil ← notAtomFalsity? cfg ctx hσ then do
-              let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
-              let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
-              mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
-            else if (ACL2.Replay.freeVars hσ).isEmpty then do
-              -- GROUND hyp KNOWN-TRUE (Phase-3 class, 2026-08-04:
-              -- convert-perm's TRUE-LISTP-RM / RM-TLFIX — marker
-              -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)). Audit
-              -- 2026-08-04 F1 corrected the mechanism attribution: ACL2's
-              -- verdict here comes from the BUILT-IN RECOGNIZER TUPLE in
-              -- type-set-rec (probed live: knownp=T with ZERO runes added
-              -- — type-set-rec has no ground-evaluation clause), NOT from
-              -- the executable counterpart. It is a VERDICT-ONLY type-set
-              -- step — the ratified DP carve-out shape — and the replay
-              -- SUBSTITUTES closed-form evaluation for it on the closed
-              -- hyp instance: same value, kernel-checked, leaf-granular.
-              -- F2 caution: the marker's :TA-RUNES are the cumulative
-              -- incoming set (the verdict adds none), so there is nothing
-              -- verdict-specific to anchor on; the arm keys on the closed
-              -- term alone. A ground hyp whose value is not exactly t
-              -- hard-fails inside replayExecGround (honest frontier).
-              -- R4 EXPIRY DISCHARGED (2026-08-07): the arm is GATED on
-              -- the EMITTED recognizer tuple for the ground hyp's head
-              -- fn — the verdict basis ACL2's type-set-rec consulted,
-              -- now read from the cited snapshot (fork-batch item 2)
-              -- per the user's option-2 ruling. The value recompute
-              -- stays (kernel-checked evaluation toward the recorded
-              -- verdict); a ground hyp whose head has NO cited tuple
-              -- hard-fails — no tuple, no verdict basis, no discharge.
-              let headFn ← match hσ with
-                | .cons (.atom (.symbol hs)) _ => pure hs.name
-                | _ => throwError "ground-hyp: {repr hσ} has no \
-                    application head (frontier)"
-              unless (cfg.recogTuples.find? (fun t => t.fn == headFn)).isSome do
-                throwError "ground-hyp: head fn {headFn} has no cited \
-                    recognizer tuple in the emitted snapshot — the \
-                    KNOWN-TRUE verdict's basis is absent (frontier)"
-              let conv ← replayExecGround cfg hσ SExpr.t
-              mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
-            else do
-            -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
-            -- marker's :TA-RUNES name the forward-chaining rule that put the
-            -- fact on the type-alist. Registered reliefs (rule-of-three:
-            -- a third entry triggers registry-ization): LEXORDER-TOTAL —
-            -- pinned against the EMITTED snapshot (audit-F2 style), the
-            -- instantiated FC hyp discharged from the in-scope falsity
-            -- fact, the conclusion via the kernel-proved
-            -- `ACL2.lexorder_total`.
-            fcReliefLexorderTotal cfg ctx rname hσ notH vH tNeNil
-              reliefMarkers
-        else if let some (notS, atm) := (match hσ with
-            | .cons (.atom (.symbol s)) (.cons a .nil) =>
-              if s.name == "NOT" then some (s, a) else none
-            | _ => none) then do
-          -- NEGATED hyp: ACL2's relieve-hyp strips the `not` and rewrites the
-          -- ATM (obj flipped, NO gstack frame) — the recorded chain is
-          -- atm-rooted and must land on 'nil. Lift the composed atm chain
-          -- through the `not` wrapper by unary congruence and fold
-          -- `(not 'nil) ⇒ 't` by re-running the same closed computation
-          -- (the exec-counterpart carve-out), as `replayLiteralChain` does
-          -- for :NOT-FLG literals.
-          let (chainOpt, finalAtom) ← rec.rewrites cfg ctx atm chainKids
-          let chainOpt ← chainReqEq chainOpt
-          unless finalAtom == quoteNil do
-            throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
-                        ends at {repr finalAtom}, not (quote nil)"
-          let some ch := chainOpt
-            | throwError "rule {rname}: negated-hyp relief chain for {repr hσ} \
-                          composed to no steps"
-          let ns ← proveNotSpecial notS
-          let lifted := mkAppN (mkConst ``evalOpt_congr_unary)
-            #[cfg.worldExpr, cfg.envExpr, reflectSymbol notS, reflectSExpr atm,
-              reflectSExpr quoteNil, ns, ch]
-          let notNil : SExpr := .cons (.atom (.symbol notS)) (.cons quoteNil .nil)
-          let pNot ← replayExecGround cfg notNil SExpr.t
-          let pQ ← mkAppM ``re_val_quote
-            #[cfg.worldExpr, cfg.envExpr, reflectSExpr SExpr.t]
-          let step ← mkAppM ``fuel_eq_of_conv
-            #[pNot, pQ, ← mkEqRefl (reflectSExpr SExpr.t)]
-          let chain ← mkAppM ``fuel_chain_eq #[lifted, step]
-          let hconv ← mkAppM ``fuel_conv_of_eq #[chain, ← quoteTFact cfg]
-          mkAppM ``evtrue_of_conv_ne_nil #[hconv, tNeNil]
-        else do
-          -- the recorded HYP chain rewrites hσ ⇒ … ⇒ 't (paths carry one
-          -- more boundary frame, as definition-body children do)
-          let (chainOpt, finalT) ← rec.rewrites cfg ctx hσ chainKids
-          let chainOpt ← chainReqEq chainOpt
-          unless finalT == quoteT do
-            throwError "rule {rname}: relief chain for {repr hσ} ends at \
-                        {repr finalT}, not (quote t)"
-          let some chain := chainOpt
-            | throwError "rule {rname}: relief chain for {repr hσ} \
-                          composed to no steps"
-          let hconv ← mkAppM ``fuel_conv_of_eq #[chain, ← quoteTFact cfg]
-          mkAppM ``evtrue_of_conv_ne_nil #[hconv, tNeNil]
-      -- transport to env': eval env' h ≡ eval env hσ (the bridge, reversed)
-      let pB ← bridge h
-      prems := prems.push
-        (← mkAppM ``evtrue_of_fuel_eq #[← mkAppM ``fuel_eq_symm #[pB], evTrueEnv])
+    let prems ← replayRuleHypotheses rec cfg ctx rname spec.hyps
+      σvars σterms hypKids prov.runes bridge
     -- the rule's replayed statement at env', premises applied, bridged back to the node:
     -- eval env lhs ≡ eval env' rule.lhs ≡ eval env' rule.rhs ≡ eval env rhsσ
     -- [≡ eval env rhs, by the recorded RHS-block chain when one exists]
@@ -1486,25 +1308,19 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
     let step ← mkAppM ``fuel_eq_of_conv #[pl, pr, hNil]
     let acc' ← chainAfter acc step
     return (some acc', quoteNil)
-  -- call-stack folds (the enumerated rule set; extend ONLY with rules
-  -- if-interp itself applies — rewrite.lisp:3671-3778)
+  -- call-stack folds (rewrite.lisp:call-stack; cons-term's primitive
+  -- domain and guards are emitted from basis-b.lisp's own table).
   let fold? ← do
-    -- cons-term's GROUND-PRIMITIVE fold: an argument-ground application of
-    -- an UNDEFINED (builtin) head folds to its value — e.g. (CAR 'NIL) ⇒
-    -- 'NIL (CAR-RM). Re-run the same closed computation (the
-    -- exec-counterpart carve-out); user-fn heads stay in place (cons-term
-    -- folds primitives only).
+    -- Only the emitted primitive/guard table licenses cons-term folding.
+    -- An interpreter builtin can still be an ACL2 defun: EXPT must remain
+    -- intact here, even after its arguments collapse to constants.
     if curArgs.all (fun a => match a with
         | .cons (.atom (.symbol q)) (.cons _ .nil) => q.name == "QUOTE"
         | _ => false) &&
        cfg.worldVal.defs.get? fs == none && fs.name != "NOT" then
-      let mut F := 8
-      let mut v? : Option SExpr := none
-      while v?.isNone && F ≤ 65536 do
-        v? := ACL2.evalOpt F cfg.worldVal {} cur
-        if v?.isNone then F := F * 2
+      let v? ← consTermGroundValue? cfg fs curArgs.toList
       match v? with
-      | none => pure none  -- leave in place; downstream checks fail-closed
+      | none => pure none  -- ACL2 does not fold this head/guard instance
       | some v =>
         let foldedT : SExpr :=
           .cons (.atom (.symbol { name := "QUOTE" })) (.cons v .nil)

@@ -9,6 +9,8 @@ import Tests.LexorderTest
 import Tests.TermOrderTest
 import Tests.ComplexNumbers
 import Tests.ComplexReplay
+import Tests.Ns1Ingestion
+import Tests.Ns1NumericAdmission
 import Tests.DriverTests
 import Tests.PatternPins
 import Tests.SortingPins

@@ -140,6 +140,8 @@ def main (args : List String) : IO Unit := do
                 IO.println "  ENCAPSULATE-END"
             | .groundZeroRecognizerTuples specs =>
                 IO.println s!"  GROUND-ZERO-RECOGNIZER-TUPLES:                   {specs.length} tuple(s)"
+            | .consTermGuards specs =>
+                IO.println s!"  CONS-TERM-GUARDS: {specs.length} primitive(s)"
             | .includeBookEdge book parent =>
                 IO.println s!"  INCLUDE-BOOK-EDGE {book} ←                   {parent.getD "<top>"}"
             | .captureEnd _ =>

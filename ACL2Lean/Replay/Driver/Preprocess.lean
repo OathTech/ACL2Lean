@@ -5,6 +5,7 @@
   Preprocess-chain replay and the clausify bridge (#53C).
 -/
 import ACL2Lean.Replay.Driver.Totality
+import ACL2Lean.Replay.Driver.PreprocessLambda
 import ACL2Lean.Replay.ClausifyBridgeCons
 
 namespace ACL2.Replay.Driver
@@ -241,6 +242,13 @@ def replayPreprocessChainCore (cfg : ReplayConfig) (ctx : ReplayCtx)
         let p ← replayCongCollapse cfg ctx n parentStep citedCongs citedEquivs
         pure (p, false, rebuild parentStep lhs, rebuild parentStep rhs,
               path.dropLast)
+      else if hasLambdaBodyFrame prov.path &&
+          (prov.origin == "abbreviation-expansion" ||
+           prov.origin == "expand-abbreviations/lambda-body" ||
+           prov.origin == "expand-abbreviations/hide-subst" ||
+           prov.origin == "expand-abbreviations/nonrec-body") then do
+        let (p, next) ← replayPreprocessBodyPath replayPreprocessNode cfg ctx cur prov.path n
+        pure (p, false, cur, next, [])
       else do
         let p ←
           if isDischarge then do

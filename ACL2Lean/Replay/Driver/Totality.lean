@@ -453,6 +453,28 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
       goApp fs [c, th, e]
   | .cons (.atom (.symbol fs)) argsSpine =>
     goApp fs ((argsSpine.toList?).getD [])
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons body .nil))) argsE =>
+    unless lam.name == "LAMBDA" && WellScoped body do
+      throwFrontier m!"proveTotality: malformed or unscoped lambda {repr t}"
+    match ACL2.lamFormals? formalsE, argsE.toList? with
+    | some [lf], some [a] =>
+      let (hlam, hform, hscoped) ← dpValProof.lamCerts lam formalsE body [lf]
+      let ha ← totWalk cfg envE vals facts totalEnv selfC a
+      let hsub ← totWalk cfg envE vals facts totalEnv selfC (substTerm [lf] [a] body)
+      mkAppM ``re_conv_lam1
+        #[cfg.worldExpr, envE, reflectSymbol lam, reflectSExpr formalsE,
+          reflectSExpr body, reflectSExpr a, reflectSymbol lf,
+          hlam, hform, hscoped, ha, hsub]
+    | some [f1, f2], some [a, b] =>
+      let (hlam, hform, hscoped) ← dpValProof.lamCerts lam formalsE body [f1, f2]
+      let ha ← totWalk cfg envE vals facts totalEnv selfC a
+      let hb ← totWalk cfg envE vals facts totalEnv selfC b
+      let hsub ← totWalk cfg envE vals facts totalEnv selfC (substTerm [f1, f2] [a, b] body)
+      mkAppM ``re_conv_lam2
+        #[cfg.worldExpr, envE, reflectSymbol lam, reflectSExpr formalsE,
+          reflectSExpr body, reflectSExpr a, reflectSExpr b,
+          reflectSymbol f1, reflectSymbol f2, hlam, hform, hscoped, ha, hb, hsub]
+    | _, _ => throwFrontier m!"proveTotality: unsupported lambda arity {repr t}"
   | _ => throwFrontier m!"proveTotality: term shape {repr t} unsupported (frontier)"
 where
   /-- `w.defs.get? fn = some (formals, body)` by `decide` on the reflected world. -/

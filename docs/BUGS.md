@@ -258,6 +258,103 @@ focused guards include a public 499-cons input; full C1 coverage is golden
 byte-identical. Gate `.gate-runs/31d8e42-20260906T010720Z.log` records
 `TRUE_EXIT=0`.
 
+## BUG-030 — inherited LOCAL mislabels imported definitions as witnesses
+Status: open
+Pinned-by: none (proof-log provenance; NS1 local-include capture/replay probe)
+
+The DEFUN emitter treats every non-nil `in-local-flg` as a local witness.
+ACL2 uses `LOCAL-INCLUDE-BOOK` when an enclosing include is local but the
+definition is ordinary within the included book
+(`other-events.lisp:3874`, `include-book-process-embedded-events`). The
+unchanged BVCHOP capture therefore labels ALL-VARS-NEGATED as LOCAL-WITNESS;
+reconstruction correctly rejects it outside an encapsulate scope.
+
+Reproduced with `.tmp/ns1/local-include-probe.lisp`: an ordinary helper
+definition imported by LOCAL is emitted as LOCAL-WITNESS. NS1 C2's emitter
+repair recognizes precisely LOCAL-INCLUDE-BOOK with an active include path;
+actual LOCAL events still take the witness arm. A rebuilt image emits
+INCLUDE-BOOK for the helper, and its actual theorem replays 1/1 unconditionally
+(`.tmp/ns1/c2-local-include-replay.log`). Full provenance/witness regressions
+and the fork commit/recapture cycle remain pending. See the
+[NS1 charter](plans/2026-09-05_bvchop-foundation-charter.md).
+
+## BUG-031 — a clause contradiction leaves a spurious literal opening
+Status: open
+Pinned-by: none (proof-log structure; NS1 BVCHOP-BOUND capture)
+
+`rewrite-clause` emits BEGIN-LITERAL before constructing the type-alist.
+When that construction finds a contradiction, ACL2 closes the whole clause
+without rewriting the literal, emits its verdict and returns without an
+END-LITERAL. Inside a branch this makes reconstruction encounter END-BRANCH
+inside an apparently open literal. Reproduced in unchanged BVCHOP-BOUND,
+`Goal''/simplify-clause`, and two arithmetic dependencies
+(`.tmp/ns1/c2-context-{bvchop,mod,mod-and-expt}-tree.log`). The actual fragment
+is at lines 29972–29989 of `.tmp/ns1/c2-captures/bvchop.proof-log`.
+
+NS1 C2 moves the opening marker to the non-contradiction path, preserving
+the existing clause-level verdict and the path-window reset. No rewrite
+or literal result is invented. The rebuilt image's fresh BVCHOP, MOD,
+MOD-AND-EXPT and UNSIGNED-BYTE-P captures all reconstruct
+(`.tmp/ns1/c2-balanced-*-tree.log`). The fork commit/recapture cycle and
+full regression gate remain pending.
+
+## BUG-032 — clausification folds evaluator builtins beyond ACL2's primitive domain
+Status: open
+Pinned-by: none (actual BVCHOP-UPPER-BOUND branch-collapse frontier)
+
+`collapseEval` uses absence from the Lean World as its ground primitive test.
+That conflates interpreter builtins with ACL2 primitives: EXPT is an ordinary
+ACL2 defun, so `call-stack`/`cons-term` leaves `(EXPT '2 '0)` intact when
+clausifying BVCHOP-UPPER-BOUND's Goal'. The replay folds it to `'1` and then
+fails its exact leaf-value check (`.tmp/ns1/c2-bvchop-upper-registry-replay.log`).
+The same test omits cons-term's guard requirement: `basis-b.lisp` constructs
+its cases from `*primitive-formals-and-guards*`, with explicit exclusions.
+
+NS1 C2 is emitting that actual primitive/guard domain as CONS-TERM-GUARDS and
+using it to gate closed folds. The closed computation and surrounding proof
+remain kernel-checked. Build, fresh-capture replay and regression validation
+are in progress; no completed BVCHOP mirror is claimed.
+
+## BUG-033 — snapshot collector treats quoted symbol data as function references
+Status: open
+Pinned-by: none (real FLOOR capture and cov-quoted-snapshot)
+
+The raw `prin1$` collector records every printed symbol. Quoted package-import
+lists in emitted rules therefore demand unrelated ground-zero definitions,
+including the APPLY$ clique whose `:?` measure cannot be reconstructed. The
+unchanged FLOOR book completes its proofs but snapshot emission aborts.
+NS1 C2 suspends collection inside both flat and pretty quote printers; their
+printed bytes and logical behavior stay the same. Actual references outside
+quotes and the transitive definition/measure closure remain collected. The
+raw-code registration follows ACL2's logic-function registry. The image and
+real quoted-name capture build; clean commit/recapture and full gates remain.
+
+## BUG-034 — capture checks confuse literal diagnostic/NUL data with failure
+Status: open
+Pinned-by: none (real FLOOR capture and cov-quoted-snapshot)
+
+FLOOR's expanded ground-zero snapshot contains ERROR-FMS-CHANNEL's literal
+`HARD ACL2 ERROR` string. The unanchored failure grep rejects this source data
+as an actual error. NUL bytes in ordinary ACL2 strings also make the local
+event-count grep suppress matches and report zero source proofs. The WIP
+repair recognizes actual diagnostic lines and scans the event census as text.
+The real quoted diagnostic/NUL book is the positive control; a copy with an
+injected actual error line is the negative control. Completion, QED pairing,
+event-failure and source/provenance checks still apply. Full gates remain.
+
+## BUG-035 — capture passes Latin-1 bytes to a UTF-8 proof-log reader
+Status: open
+Pinned-by: none (FLOOR snapshot and real quoted-nul-data statement pin)
+
+ACL2's `acl2-set-character-encoding` selects ISO-8859-1, including at SBCL
+restart. Ordinary literal bytes above 127 in FLOOR's ground-zero snapshot
+therefore make Lean's UTF-8 file reader reject a complete capture. Capture
+now transcodes ISO-8859-1 to UTF-8 before completeness checks and promotion,
+recording both encodings in the sidecar. The transformation preserves each
+character. `Tests.Ns1Ingestion.nulReplayed` pins the real emitted string to
+characters H, 0 and 255 and checks the replayed statement's axiom set. Clean
+recapture and full gates remain pending.
+
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open
 Pinned-by: differential

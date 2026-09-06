@@ -92,7 +92,13 @@ for INPUT in "$@"; do
 (emit-ground-zero-snapshots state)
 (emit-capture-manifest state)
 (good-bye)
-' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT.tmp" 2>&1
+' "$INPUT_ABS" | "$ACL2" --no-sysinit > "$OUTPUT.raw.tmp" 2>&1
+
+  # ACL2 explicitly uses ISO-8859-1 (acl2-set-character-encoding in
+  # acl2.lisp); Lean's file reader requires UTF-8. Preserve every character,
+  # including NUL and bytes 128..255, by transcoding at the capture boundary.
+  # This is an invertible encoding change, not a change to emitted events.
+  iconv -f ISO-8859-1 -t UTF-8 "$OUTPUT.raw.tmp" > "$OUTPUT.tmp"
 
   # Failure detection — FATAL (capstone-demo arc Phase 0, review-1 P0-2;
   # the pre-2026-08-06 version WARNED and exited 0, so a failed/truncated
@@ -143,6 +149,8 @@ for INPUT in "$@"; do
     # cleanly with no stdout, so this order is safe both ways.
     echo "image-mtime: $(stat -c %Y "$ACL2" 2>/dev/null || stat -f %m "$ACL2" 2>/dev/null || echo unknown)"
     echo "captured-at: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "capture-encoding: iso-8859-1"
+    echo "log-encoding: utf-8"
     # SOURCE provenance (capstone-demo arc Phase 0, review-1 P0-1): bind
     # the log to the exact source text and its transitive include-book
     # closure. check-log-provenance.sh recomputes these against the
@@ -169,6 +177,7 @@ for INPUT in "$@"; do
   # leaves a log whose OLD sidecar hashes fail the checker — fail-closed).
   mv "$OUTPUT.tmp" "$OUTPUT"
   mv "$OUTPUT.meta.tmp" "$OUTPUT.meta"
+  rm -f "$OUTPUT.raw.tmp"
 
   echo "$(basename "$INPUT"): $(wc -l < "$OUTPUT") lines, $(count_log_qeds "$OUTPUT")/$(count_log_local_defthms "$OUTPUT") qed/defthm (source: $(count_source_defthms "$INPUT_ABS")) → $OUTPUT"
 done

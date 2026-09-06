@@ -83,7 +83,8 @@ count_source_defthms() {
 # review-1 P0-2's exact failure mode, discovered the day the check
 # became fatal.
 count_log_local_defthms() {
-  tr -s ' \n' '  ' < "$1" | { grep -oE ':SOURCE :LOCAL[^-A-Z]' || true; } \
+  # ACL2 strings can contain NUL; the stream remains structured text.
+  tr -s ' \n' '  ' < "$1" | { grep -aoE ':SOURCE :LOCAL[^-A-Z]' || true; } \
     | wc -l | tr -d ' '
 }
 
@@ -114,7 +115,10 @@ check_capture_complete() {
     echo "INCOMPLETE: $(basename "$log") — counting failed (empty count)"
     return 1
   fi
-  if grep -q ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed\|HARD ACL2 ERROR" "$log"; then
+  # A ground-zero definition may contain the literal diagnostic string
+  # (ERROR-FMS-CHANNEL in FLOOR's capture). Only a diagnostic line is an
+  # actual HARD ACL2 ERROR; an embedded string in :DEFUN is source data.
+  if grep -aq ":STOP-LD\|\*\*\*\*\*\*\*\* FAILED\|proof attempt has failed\|^[[:space:]]*HARD ACL2 ERROR" "$log"; then
     echo "INCOMPLETE: $(basename "$log") — ACL2 reported a FAILED/aborted/HARD-ERROR event"
     return 1
   fi

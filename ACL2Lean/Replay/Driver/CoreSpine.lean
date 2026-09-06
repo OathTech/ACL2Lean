@@ -66,10 +66,10 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     replayClauseSpineWith rec cfg
       { ctx with dedupDrops := ctx.dedupDrops ++ [lit] }
       idStr clauseLits rest accClause children
-  | .taSubst .. :: rest =>
-    -- clause-level derived-entry provenance (audit S5): recorded DATA,
-    -- consumed by nothing yet; never a step
-    replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
+  | .taSubst n f ts sn so :: rest =>
+    -- Feed pre-literal provenance to the same consumer as literal-local data.
+    replayClauseSpineWith rec cfg { ctx with taSubsts := (n, f, ts, sn, so) :: ctx.taSubsts }
+      idStr clauseLits rest accClause children
   | [] =>
     -- SILENT TAUTOLOGY close (G2 rung 2): a branch-substitution can create a
     -- complementary literal pair (qsort's PERM-IMPLIES-EQUAL-ALL-REL-2

@@ -891,6 +891,7 @@ def bridgeIfNegTestSwap (cfg : ReplayConfig) (rel : List PathFrame)
   for fr in rel do
     match fr with
     | .boundary .. => return none      -- residual boundary: not this bridge's case
+    | .bindingRhs .. => return none    -- rule-hypothesis boundary, not an argument
     | .argLam .. => return none        -- lambda descent: not this bridge's case
     | .arg idx _ =>
       if let .cons (.atom (.symbol ifS))

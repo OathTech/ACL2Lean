@@ -133,6 +133,8 @@ inductive WorldEvent where
       — the recognizer/ground-hyp verdict basis. INERT until the R2/R4
       retirement consumers wire them (this phase). -/
   | groundZeroRecognizerTuples (specs : List RecognizerTupleSpec)
+  /-- ACL2's primitive/guard table used by cons-term's ground folds. -/
+  | consTermGuards (specs : List ConsTermGuard)
   /-- An include GRAPH edge (fork-batch item 6): the provenance DAG the
       cross-book offer gate consumes. -/
   | includeBookEdge (book : String) (parent : Option String)
@@ -399,6 +401,12 @@ def Development.groundZeroRecognizerTupleSpecs :
       specs ++ rest.groundZeroRecognizerTupleSpecs
     | _ => rest.groundZeroRecognizerTupleSpecs
 
+/-- The emitted cons-term primitive/guard table. -/
+def Development.consTermGuardSpecs : Development → List ConsTermGuard
+  | .done => []
+  | .bind (.consTermGuards specs) rest => specs ++ rest.consTermGuardSpecs
+  | .bind _ rest => rest.consTermGuardSpecs
+
 /-- The include GRAPH edges in the development (item 6):
     (book, parent) per include-book encounter. -/
 def Development.includeEdges : Development → List (String × Option String)
@@ -546,6 +554,7 @@ private partial def linkNode (cands : List (EquivSource × SExpr)) (n : ProofNod
           if prov.path.any (fun f => match f with
               | .arg i s => (i == 2 || i == 3) && s.name == "IF"
               | .boundary _ _ => false
+              | .bindingRhs _ _ => false
               | .argLam _ _ => false) then
             return .node rune lhs rhs children
               { prov with equivSource := some .branchTest }
@@ -656,7 +665,8 @@ private def collectFlat (events : List ProofEvent)
       let wstep : WaterfallStep := {
         processor := s.processor, result := s.result, runes := s.runes,
         newClauses := s.newClauses, extraFields := s.extraFields,
-        items := ← linkEquivSources (← buildClauseItems s.traceEvents) }
+        items := ← linkEquivSources (← (buildClauseItems s.traceEvents).mapError
+          (fun err => s!"{s.clauseId}/{s.processor}: {err}")) }
       match findIdx flats s.clauseId with
       | some i =>
         flats := flats.modify i (fun fn => { fn with steps := fn.steps.push wstep })
@@ -840,7 +850,8 @@ private partial def assemble (flats : Array FlatNode)
 /-- Build the clause tree for one theorem's events. -/
 private def buildOne (name : String) (formula : SExpr) (events : List ProofEvent)
     : Except String ClauseProof := do
-  let (logged, pd) ← collectFlat events
+  let (logged, pd) ← (collectFlat events).mapError
+    (fun err => s!"theorem {name}: {err}")
   if logged.isEmpty then
     return { name, formula, root := none }
   -- J5 REVERT (design I6, ratified reading 2026-07-16): ACL2 "abandons our
@@ -1011,6 +1022,8 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       events := events.push (.groundZeroLinearRules specs)
     | .groundZeroRecognizerTuples specs =>
       events := events.push (.groundZeroRecognizerTuples specs)
+    | .consTermGuards specs =>
+      events := events.push (.consTermGuards specs)
     | .includeBookEdge book parent =>
       events := events.push (.includeBookEdge book parent)
     | .captureEnd books =>
@@ -1332,6 +1345,8 @@ partial def printDevelopment : ACL2.Development → IO Unit
       IO.println "── encapsulate end ──"
     | .groundZeroRecognizerTuples specs =>
       IO.println s!"── ground-zero recognizer tuples: {specs.length} ──"
+    | .consTermGuards specs =>
+      IO.println s!"── cons-term primitive guards: {specs.length} ──"
     | .includeBookEdge book parent =>
       IO.println s!"── include-book edge: {book} ←         {parent.getD "<top>"} ──"
     | .captureEnd _ =>

@@ -85,6 +85,29 @@ else
   echo "  ok (control passes): untouched fixture"
 fi
 
+# NS1 capture-data regression: a real emitted quoted diagnostic/NUL must
+# pass completeness, while an injected actual diagnostic line must fail.
+# Only the negative artifact is mutated; positive input is a real capture.
+# shellcheck source=lib-log-provenance.sh
+. "$SCRIPT_DIR/lib-log-provenance.sh"
+data_log="$ROOT/acl2_samples/pattern-tests/cov-quoted-snapshot.proof-log"
+data_src="$ROOT/acl2_samples/pattern-tests/cov-quoted-snapshot.lisp"
+if ! check_capture_complete "$data_src" "$data_log"; then
+  echo "NEGATIVE-TEST FAIL: actual quoted diagnostic/NUL capture must pass" >&2
+  fails=1
+fi
+cp "$data_log" "$FIX/actual-error.proof-log"
+printf '\nHARD ACL2 ERROR in TEST: actual diagnostic\n' >> "$FIX/actual-error.proof-log"
+if check_capture_complete "$data_src" "$FIX/actual-error.proof-log" > "$FIX/actual-error.out"; then
+  echo "NEGATIVE-TEST FAIL: an actual diagnostic line must fail" >&2
+  fails=1
+elif ! grep -q 'FAILED/aborted/HARD-ERROR' "$FIX/actual-error.out"; then
+  echo "NEGATIVE-TEST FAIL: actual diagnostic rejected for the wrong reason" >&2
+  fails=1
+else
+  echo "  ok (fails closed): actual diagnostic; real quoted data passes"
+fi
+
 if [ "$fails" -ne 0 ]; then
   echo "test-provenance-gates: FAILED — fixtures kept at $FIX for diagnosis" >&2
   exit 1

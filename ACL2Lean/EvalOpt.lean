@@ -83,8 +83,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "CODE-CHAR", [a] => some (Logic.codeChar a)
   | "FIX", [a] => some (Logic.fix a)
   | "NFIX", [a] => some (Logic.nfix a)
-  | "IFIX", [a] =>
-      some (match a with | .atom (.number (.int _)) => a | _ => .atom (.number (.int 0)))
+  | "IFIX", [a] => some (Logic.ifix a)
   | "IMPLIES", [a, b] => some (Logic.implies a b)
   | "IFF", [a, b] => some (Logic.iff a b)
   | "TRUE-LISTP", [a] => some (Logic.trueListp a)

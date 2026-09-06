@@ -16,6 +16,7 @@ import ACL2Lean.Replay.Driver.Discharge
 import ACL2Lean.Replay.CountSim
 import ACL2Lean.Replay.OrdinalSim
 import ACL2Lean.Replay.Lemmas.DescentExt
+import ACL2Lean.Replay.Lemmas.ArithmeticDescent
 
 
 namespace ACL2.Replay.Driver
@@ -33,8 +34,25 @@ at recursive call sites. Scope (decision log D5): measure
 `(acl2-count <single-formal>)` under `o<`; everything else is a named
 frontier and the `total:` hypothesis stays in the replayed statement's type (D6). -/
 
-/-- Is every head of `t` walk-liftable (vars/quote/dp-primitives only)? -/
-def totLiftable (t : SExpr) : Bool := (collectOpaques t).isEmpty
+/-- The value walker's fragment, including the actuals and beta-reduct of
+    translated LETs. `collectOpaques` deliberately does not descend lambdas,
+    so its empty result is not a liftability judgment for admission walks. -/
+partial def totLiftable : SExpr → Bool
+  | .atom (.symbol _) => true
+  | .cons (.atom (.symbol fs)) (.cons a .nil) =>
+    fs.name == "QUOTE" || ((dpUnary.lookup fs.name).isSome && totLiftable a)
+  | .cons (.atom (.symbol fs)) (.cons a (.cons b .nil)) =>
+    (dpBinary.lookup fs.name).isSome && totLiftable a && totLiftable b
+  | .cons (.atom (.symbol fs)) (.cons c (.cons th (.cons e .nil))) =>
+    fs.name == "IF" && totLiftable c && totLiftable th && totLiftable e
+  | .cons (.cons (.atom (.symbol lam)) (.cons formalsE (.cons body .nil))) argsE =>
+    lam.name == "LAMBDA" && WellScoped body &&
+      match ACL2.lamFormals? formalsE, argsE.toList? with
+      | some fs, some args =>
+        (fs.length == 1 || fs.length == 2) && fs.length == args.length &&
+        args.all totLiftable && totLiftable (substTerm fs args body)
+      | _, _ => false
+  | _ => false
 
 /-- ONE branch fact of the admission walk: the ruling test, its polarity,
     the `Logic.toBool <the test's value> = <polarity>` proof, and — for an
@@ -281,6 +299,17 @@ partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
     application to `base` is the ONE strict step (from `base`'s consp fact);
     every outer layer composes by `≤`. -/
 partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
+  if let .cons (.atom (.symbol add)) (.cons a (.cons
+      (.cons (.atom (.symbol neg)) (.cons b .nil)) .nil)) := t then
+    if add.name == "BINARY-+" && neg.name == "UNARY--" && a == base then
+      let app (fn : String) (args : List SExpr) : SExpr :=
+        .cons (.atom (.symbol { name := fn })) (SExpr.ofList args)
+      let zero := app "QUOTE" [.atom (.number (.int 0))]
+      let some hb ← kit.factOf? (app "EQUAL" [app "NFIX" [b], zero]) false
+        | throwFrontier m!"subtraction decrease requires the recorded nonzero NFIX ruler for {repr b}"
+      let some ha ← kit.factOf? (app "<" [app "IFIX" [base], b]) false
+        | throwFrontier m!"subtraction decrease requires the recorded IFIX lower-bound ruler for {repr base}"
+      return ← mkAppM ``valueCount_sub_lt_of_rulers #[hb, ha]
   match t with
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
     if d.name == "CDR" || d.name == "CAR" then

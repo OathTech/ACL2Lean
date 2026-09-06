@@ -76,6 +76,8 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "DENOMINATOR" [a] = some (Logic.denominator a) := by rfl
 @[simp] theorem callBuiltin_unary_minus (a : SExpr) :
     callBuiltin "UNARY--" [a] = some (Logic.neg a) := by rfl
+@[simp] theorem callBuiltin_reciprocal (a : SExpr) :
+    callBuiltin "UNARY-/" [a] = some (Logic.reciprocal a) := by rfl
 @[simp] theorem callBuiltin_coerce (a b : SExpr) :
     callBuiltin "COERCE" [a, b] = some (Logic.coerce a b) := by rfl
 @[simp] theorem callBuiltin_realpart (a : SExpr) :
@@ -106,6 +108,10 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
   | cons _ _ => rfl
 @[simp] theorem callBuiltin_nfix (a : SExpr) :
     callBuiltin "NFIX" [a] = some (Logic.nfix a) := by rfl
+@[simp] theorem callBuiltin_ifix (a : SExpr) :
+    callBuiltin "IFIX" [a] = some (Logic.ifix a) := by rfl
+@[simp] theorem callBuiltin_expt (a b : SExpr) :
+    callBuiltin "EXPT" [a, b] = some (Logic.expt a b) := by rfl
 @[simp] theorem callBuiltin_len (a : SExpr) :
     callBuiltin "LEN" [a] = some (Logic.len a) := by rfl
 @[simp] theorem callBuiltin_fix (a : SExpr) :
@@ -258,13 +264,10 @@ theorem gz_def_force (a : SExpr) :
 theorem gz_def_hide (a : SExpr) :
     callBuiltin "HIDE" [a] = some a := rfl
 
-/-- `(DEFUN IFIX (X) (IF (INTEGERP X) X '0))` — the `IFIX` builtin arm
-    is an inline match, so the agreement is stated at the `callBuiltin`
-    level. -/
+/-- `(DEFUN IFIX (X) (IF (INTEGERP X) X '0))`. -/
 theorem gz_def_ifix (a : SExpr) :
-    callBuiltin "IFIX" [a]
-      = some (cond (Logic.toBool (Logic.integerp a)) a
-          (.atom (.number (.int 0)))) := by
+    Logic.ifix a = cond (Logic.toBool (Logic.integerp a)) a
+      (.atom (.number (.int 0))) := by
   cases a with
   | atom x =>
     cases x with

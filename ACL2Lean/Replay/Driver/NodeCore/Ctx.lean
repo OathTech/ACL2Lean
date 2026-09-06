@@ -123,6 +123,9 @@ structure ReplayConfig where
       the fn's TP :BASICTS numerically disjoint from CONSP's true-ts,
       both numbers EMITTED. -/
   recogTuples : List RecognizerTupleSpec := []
+  /-- ACL2's emitted cons-term folding domain. An evaluator builtin may
+      still be an ordinary defun in ACL2 (EXPT, IFIX, LEN, ...). -/
+  consTermGuards : List ConsTermGuard := []
 
 /-- A CONGRUENCE rule consumed by the R-collapse (G2 rung 2), shape-parsed
     from a defcong-style defthm formula
@@ -796,6 +799,7 @@ def dpUnary : List (String × Name × Name) :=
    ("RATIONALP", ``Logic.rationalp, ``callBuiltin_rationalp),
    ("BOOLEANP", ``Logic.booleanp, ``callBuiltin_booleanp),
    ("NFIX",     ``Logic.nfix,     ``callBuiltin_nfix),
+   ("IFIX",     ``Logic.ifix,     ``callBuiltin_ifix),
    -- ordinal-on-naturals family, layer 1 (consumer-queue 2026-08-04: the
    -- non-ACL2-COUNT measure obligations' conjuncts — POSP/NATP are
    -- already callBuiltin builtins; pure registration)
@@ -808,6 +812,7 @@ def dpUnary : List (String × Name × Name) :=
    ("NUMERATOR", ``Logic.numerator, ``callBuiltin_numerator),
    ("DENOMINATOR", ``Logic.denominator, ``callBuiltin_denominator),
    ("UNARY--",  ``Logic.neg,      ``callBuiltin_unary_minus),
+   ("UNARY-/",  ``Logic.reciprocal, ``callBuiltin_reciprocal),
    ("REALPART", ``Logic.realpart, ``callBuiltin_realpart),
    ("IMAGPART", ``Logic.imagpart, ``callBuiltin_imagpart),
    ("COMPLEX-RATIONALP", ``Logic.complexRationalp,
@@ -820,6 +825,7 @@ def dpBinary : List (String × Name × Name) :=
    ("LEXORDER", ``ACL2.lexorder, ``callBuiltin_lexorder),
    ("BINARY-+", ``Logic.plus,    ``callBuiltin_plus),
    ("BINARY-*", ``Logic.times,   ``callBuiltin_times),
+   ("EXPT",     ``Logic.expt,    ``callBuiltin_expt),
    ("COERCE",   ``Logic.coerce,  ``callBuiltin_coerce),
    ("CONS",     ``SExpr.cons,    ``callBuiltin_cons),
    ("IMPLIES",  ``Logic.implies, ``callBuiltin_implies),
@@ -848,6 +854,9 @@ def d4DefFacts : List (String × Name) :=
    ("NOT",        ``gz_def_not),
    ("LEN",        ``gz_def_len),
    ("NFIX",       ``gz_def_nfix),
+   ("IFIX",       ``gz_def_ifix),
+   ("NATP",       ``gz_def_natp),
+   ("POSP",       ``gz_def_posp),
    ("FIX",        ``gz_def_fix),
    ("BOOLEANP",   ``gz_def_booleanp),
    ("ENDP",       ``gz_def_endp),
@@ -874,6 +883,20 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
   -- a pinned ctx fact covers any term (uniform with the value layer)
   if let some (_, p) := ctx.val? t then
     return ← mkAppM ``conv_vfix_of_val #[p]
+  -- A lambda-body convergence check changes the environment, so its
+  -- applications need the function-level totality hypothesis, rather than
+  -- a value pin for an occurrence in the outer environment. Instantiate the
+  -- same hypothesis used by pinTermOpaques, after converging each actual.
+  if let .cons (.atom (.symbol fn)) argsE := t then
+    if let some (formals, _) := cfg.worldVal.defs.get? fn then
+      if let some hyp := ctx.totalHyps.lookup fn.name then
+        let some args := argsE.toList?
+          | throwError "proveConv: improper application spine {repr t}"
+        unless args.length == formals.length do
+          throwError "proveConv: totality application arity mismatch {repr t}"
+        let argConvs ← args.mapM (proveConv cfg envExpr ctx)
+        return ← mkAppM' hyp
+          (#[envExpr] ++ (args.map reflectSExpr).toArray ++ argConvs.toArray)
   match t with
   | .atom (.symbol s) =>
     let hNotT ← proveIsNamedFalse s "t"
@@ -1406,56 +1429,6 @@ def mkConvStmt (cfg : ReplayConfig) (t v : SExpr) : MetaM Expr := do
       let eq ← mkEq app (← mkAppM ``Option.some #[reflectSExpr v])
       mkForallFVars #[fV] (← mkArrow ge eq)
     mkAppM ``Exists #[← mkLambdaFVars #[nV] body]
-
-/-- Ground `executable-counterpart` computation: ACL2 ran the executable
-    counterpart of a CLOSED term `lhs`, recording the result `v`. The kernel
-    re-checks the SAME computation by reducing `evalOpt` at a concrete fuel
-    (found by running the evaluator) and lifts by fuel monotonicity. Returns
-    `∃N∀f≥N, eval lhs = some v`. Hard-fails if `lhs` is open or the evaluator
-    diverges from ACL2's recorded result — this is the carve-out's faithful
-    mirror (ACL2 records only a verdict; we re-run the same closed computation),
-    NOT a license to compute through open terms. -/
-def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
-  unless (ACL2.Replay.freeVars lhs).isEmpty do
-    throwError "executable-counterpart: lhs {repr lhs} has free variables"
-  -- find a sufficient fuel by running the SAME evaluator the theorem is about
-  -- (ground term: the env is never consulted, so any env works)
-  let mut F := 8
-  let mut v? : Option SExpr := none
-  while v?.isNone && F ≤ 65536 do
-    v? := ACL2.evalOpt F cfg.worldVal {} lhs
-    if v?.isNone then F := F * 2
-  let some vComputed := v?
-    | throwError "executable-counterpart: {repr lhs} does not converge by fuel 65536"
-  unless vComputed == v do
-    throwError "executable-counterpart: evalOpt computes {repr vComputed}, \
-                the recorded result is {repr v} — evaluator/ACL2 divergence on {repr lhs}"
-  -- PARAMETRIC route (Phase 2 item c): over an abstract `worldExpr` the
-  -- reduction check below cannot run — derive the convergence
-  -- COMPOSITIONALLY instead (`dpValProof`: quote/IF/registered-builtin
-  -- steps, whose only world dependence is the no-shadow hypotheses), then
-  -- pin it to the recorded value's statement (defeq for a ground term —
-  -- the dp value form and the recorded constant are both closed).
-  unless cfg.noShadowHyps.isEmpty do
-    let p ← dpValProof cfg cfg.envExpr [] [] (fun _ => none) lhs
-    let target ← mkConvStmt cfg lhs v
-    unless ← withTransparency .all <| isDefEq (← inferType p) target do
-      throwError "executable-counterpart (parametric): the compositional \
-        convergence proof for {repr lhs} does not state the recorded value \
-        {repr v} (dp value form/recorded constant mismatch)"
-    return ← mkExpectedTypeHint p target
-  let lhsApp := mkApp4 (mkConst ``evalOpt) (mkNatLit F) cfg.worldExpr cfg.envExpr
-    (reflectSExpr lhs)
-  let someV ← mkAppM ``Option.some #[reflectSExpr v]
-  -- Closed executable arithmetic includes core Rat operations, which are
-  -- irreducible to ordinary elaboration. The kernel can unfold them; this
-  -- local check must use the same definitional equality.
-  unless ← withTransparency .all <| isDefEq lhsApp someV do
-    throwError "executable-counterpart: evalOpt {F} … {repr lhs} does not REDUCE \
-                to {repr v} (env-dependence or reflected-world mismatch?)"
-  let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)
-  mkAppM ``conv_of_eval_at
-    #[mkNatLit F, cfg.worldExpr, cfg.envExpr, reflectSExpr lhs, reflectSExpr v, hAt]
 
 -- `mkAppListExpr` / `mkConvPropEx` / `mkValConvPropEx` / `mkEvalEqPropEx`
 -- MOVED to Driver/Reflect (T1+2 sprint P5b): they are pure Expr builders

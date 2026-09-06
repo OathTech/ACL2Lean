@@ -25,6 +25,11 @@ inductive ProofResult where
 inductive PathFrame where
   | arg (idx : Nat) (fn : Symbol)
   | boundary (kind : Symbol) (fn : Symbol)
+  /-- The RHS of binding hypothesis `hypIdx` (one-based), emitted as
+      `((RHS . hypIdx) . fn)` by relieve-hyp's binding-hyp-p arm.
+      This is a rule-hypothesis boundary, not an argument descent. Keep
+      the index: it identifies which stored hypothesis owns the chain. -/
+  | bindingRhs (hypIdx : Nat) (fn : Symbol)
   /-- A descent into argument `idx` of a LAMBDA APPLICATION: the frame's fn
       position carries the whole `(LAMBDA (formals) body)` term (the
       `let`/`mv-let` translation — S2 2026-07-24; body descents arrive
@@ -636,8 +641,17 @@ def RuleSpec.runeKey (r : RuleSpec) : String :=
   | none => r.name
   | some k => s!"{r.name} . {k}"
 
+/-- ACL2's own cons-term primitive entry: only these guarded calls may be
+    folded while rebuilding a term during clausification. -/
+structure ConsTermGuard where
+  fn : Symbol
+  formals : List Symbol
+  guardTerm : SExpr
+  deriving Repr
+
 /-- A single event in the proof log. -/
 inductive ProofEvent where
+  | consTermGuards (specs : List ConsTermGuard)
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification := none)
   /-- A `local` WITNESS defun (`:SOURCE :LOCAL-WITNESS`, R6/Phase 4):
