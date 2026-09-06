@@ -308,6 +308,31 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, ← ctxValExpr cfg ctx c]
       replayPrimitiveEquation rec cfg ctx lhs (app a (app b c)) rhs law children
     | _ => throwError "associativity-of-+: expected a binary application"
+  | "rewrite", "DISTRIBUTIVITY" =>
+    match lhs.toList? with
+    | some [.atom (.symbol mul), a, bc] =>
+      let some [.atom (.symbol add), b, c] := bc.toList?
+        | throwError "distributivity: inner application malformed"
+      unless mul.name == "BINARY-*" && add.name == "BINARY-+" do
+        throwError "distributivity: unexpected operations"
+      let times := fun x y => SExpr.ofList [.atom (.symbol mul), x, y]
+      let intermediate := SExpr.ofList [.atom (.symbol add), times a b, times a c]
+      let law ← mkAppM ``Logic.times_add
+        #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, ← ctxValExpr cfg ctx c]
+      replayPrimitiveEquation rec cfg ctx lhs intermediate rhs law children
+    | _ => throwError "distributivity: expected a binary application"
+  | "rewrite", "DISTRIBUTIVITY-OF-MINUS-OVER-+" =>
+    match lhs.toList? with
+    | some [.atom (.symbol neg), ab] =>
+      let some [.atom (.symbol add), a, b] := ab.toList?
+        | throwError "negation of sum: inner application malformed"
+      unless neg.name == "UNARY--" && add.name == "BINARY-+" do
+        throwError "negation of sum: unexpected operations"
+      let negate := fun x => SExpr.ofList [.atom (.symbol neg), x]
+      let intermediate := SExpr.ofList [.atom (.symbol add), negate a, negate b]
+      let law ← mkAppM ``Logic.neg_plus #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
+      replayPrimitiveEquation rec cfg ctx lhs intermediate rhs law children
+    | _ => throwError "negation of sum: expected a unary application"
   | "rewrite", "COMMUTATIVITY-2-OF-+" =>
     -- `(+ a (+ b c)) ⇒ (+ b (+ a c))`, then the children chain on the rule's rhs
     -- by the sub-walk to the recorded rhs.

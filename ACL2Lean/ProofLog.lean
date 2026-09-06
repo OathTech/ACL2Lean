@@ -1,5 +1,6 @@
 import ACL2Lean.ProofLogTypes
 import ACL2Lean.ProofPath
+import ACL2Lean.UseHint
 
 namespace ACL2
 
@@ -484,7 +485,13 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
             | some ls => pure ls
             | none => throw s!"USE-HINT: :LMI-LST not a list: {repr l}"
           | none => pure []
-        pure (.useHint hyps ccl appC lmis)
+        let translated ← match lookupKeyword "TRANSLATED-LMI-LST" rest with
+          | none => pure none
+          | some t => match t.toList? with
+            | some ts => pure (some ts)
+            | none => throw "USE-HINT: :TRANSLATED-LMI-LST not a list"
+        let _ ← resolveUseLmis lmis translated hyps.length
+        pure (.useHint hyps ccl appC lmis translated)
     | .atom (.keyword "CLAUSIFY-INPUT") :: rest =>
         let term ← lookupKeyword "TERM" rest
           |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure

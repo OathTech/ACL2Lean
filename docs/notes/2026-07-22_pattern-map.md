@@ -24,7 +24,8 @@ that chain. `cov-local-include` imports the ordinary definition in
 `cov-local-include-helper` under LOCAL, exposing BUG-030's inherited-locality
 provenance error. With the emitter repair its theorem replays 1/1
 unconditionally. The original `cov-encapsulate` still emits LOCAL-WITNESS
-and excludes the witness body from its certified world. `cov-cons-term-fold`
+and retains its body in the canonical model; the parametric statement and
+witness-dereference guard preserve the constrained-function boundary. `cov-cons-term-fold`
 isolates BUG-032's two axes: EXPT is an ACL2 defun despite being an evaluator
 builtin, and CAR's ground fold requires its primitive guard. Both actual
 theorems replay unconditionally with zero DP leaves, using the emitted
@@ -32,9 +33,13 @@ CONS-TERM-GUARDS table. `cov-numeric-admission` exercises FLOOR/MOD totality:
 translated LET bodies call the recursive quotient, whose ACL2-COUNT decrease
 subtracts a positive integer under the emitted rulers. `cov-quoted-snapshot`
 covers quoted function names in flat/pretty printing and literal diagnostic
-strings/NUL bytes in real capture data. The first emitter batch's clean fork
-commit/recapture cycle is checked; the quote-collector follow-up and full C2
-gates remain pending. Receipts are in the
+strings/NUL bytes in real capture data. The first emitter batch and quote-collector repair have full checkpoint
+receipts. NS1's `use-instances` book now exercises the plain :INSTANCE
+translation branch seen in arithmetic-3's multiplication helper, including
+source `*` and unary `-` macros. The consumer retains raw and translated
+LMIs and checks the instantiated theorem against the emitted hypothesis;
+negative controls reject missing, changed, or misaligned records. The
+BUG-042 batch's full gate and all three new native products remain pending. Receipts are in the
 [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
 
 Enumerated from ACL2's documented structure — NOT from what we have

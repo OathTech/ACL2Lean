@@ -160,7 +160,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
       if dischargeOrigins.contains prov.origin then
         [(prov.origin, lhs)] else []
   | .clausify _ => []
-  | .useHint _ _ _ _ => []
+  | .useHint _ _ _ _ _ => []
   | .fcDerivations _ => []
   | .complementClose _ => []
   | .dedupDrop _ => []
@@ -187,7 +187,7 @@ partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String �
     hard-fails (R7b frontier), so nothing is silently skipped. -/
 partial def theoremUseCitedNames (cp : ClauseProof) : List String :=
   let itemNames : ClauseItem → List String := fun
-    | .useHint _ _ _ lmis => lmis.filterMap fun l => (lmiInstance? l).map (·.1)
+    | .useHint _ _ _ lmis _ => lmis.filterMap fun l => (lmiInstance? l).map (·.1)
     | _ => []
   let rec go (n : ClauseNode) : List String :=
     (n.steps.flatMap (·.items.flatMap itemNames)) ++ n.children.flatMap go
@@ -200,7 +200,7 @@ partial def theoremUseCitedNames (cp : ClauseProof) : List String :=
 partial def theoremFnInstanceCites (cp : ClauseProof) :
     List (String × List (Symbol × List Symbol × SExpr) × SExpr) :=
   let itemCites : ClauseItem → List (String × List (Symbol × List Symbol × SExpr) × SExpr) := fun
-    | .useHint hyps _ _ lmis =>
+    | .useHint hyps _ _ lmis _ =>
       (lmis.zip hyps).filterMap fun (l, h) =>
         (lmiFnInstance? l).map fun (n, σ) => (n, σ, h)
     | _ => []

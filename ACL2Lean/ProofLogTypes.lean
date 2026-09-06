@@ -409,6 +409,9 @@ inductive TraceEvent where
       -- name, (:instance name (var . term)…), or (:functional-instance …).
       -- [] on pre-cluster logs — the R7a composition hard-fails on absence.
       (lmiLst : List SExpr := [])
+      -- ACL2's actual translated variable substitutions (BUG-042); raw
+      -- source instances remain above. None is the legacy log format.
+      (translatedLmis : Option (List SExpr) := none)
   /-- Clausify checkpoints (preprocess formula → clause set; emit/clausify/*):
       the input term, the neg-clause pass, per-negated-literal splits, the
       conjoined output set, and the expand-and-or marker (a replay frontier). -/

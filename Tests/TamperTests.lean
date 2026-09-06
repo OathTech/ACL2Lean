@@ -47,11 +47,9 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   | .step n => .step (mapNode f n)
   | .branch seg its => .branch seg (its.map (mapItem f))
   | .clausify i => .clausify i
-  -- 4-arg pattern (audit 2026-08-03 F1): a 3-arg .useHint PATTERN is not
-  -- a wildcard — Lean fills the optional lmis default IN PATTERNS, which
-  -- silently narrowed and then broke exhaustiveness when fcDerivations
-  -- landed
-  | .useHint h c a l => .useHint h c a l
+  -- Keep every payload argument explicit: optional constructor defaults
+  -- in patterns narrow matching instead of acting as wildcards (F1).
+  | .useHint h c a l tr => .useHint h c a l tr
   | .fcDerivations d => .fcDerivations d
   | .complementClose lit => .complementClose lit
   | .dedupDrop lit => .dedupDrop lit

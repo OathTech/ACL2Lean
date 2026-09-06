@@ -10,6 +10,7 @@
 import ACL2Lean.Replay.Driver.CoreSpine
 
 import ACL2Lean.Replay.Driver.HintCases
+import ACL2Lean.Replay.Driver.PrimitiveUse
 
 namespace ACL2.Replay.Driver
 
@@ -266,11 +267,13 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let citedEquivs := (cn.steps.flatMap (·.runes)).filterMap
       (fun r => if r.ty == "equivalence" then some r.name else none)
     let useHs := (cn.steps.flatMap (·.items)).filterMap fun
-      | .useHint h c a l => some (h, c, a, l) | _ => none
+      | .useHint h c a l tr => some (h, c, a, l, tr) | _ => none
     if useHs.length > 1 then
       throwError "replayClause: {useHs.length} :USE-HINT payloads at \
           {cn.idStr} (frontier — one payload per apply-top-hints node)"
-    if let [(hyps, constraintCl, appClauses, lmis)] := useHs then
+    if let [(hyps, constraintCl, appClauses, rawLmis, translated)] := useHs then
+      let .ok lmis := resolveUseLmis rawLmis translated hyps.length
+        | throwError "use-hint: invalid translated instance records at {cn.idStr}"
       return ← replayUseHintClausify cfg ctx cn info preSteps postSteps
         citedCongs citedEquivs lits hyps constraintCl appClauses lmis
     -- the formula is the clause's DISJUNCTION; for a multi-literal clause the
@@ -389,7 +392,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- frontier: adding the instantiated lemma as a hypothesis is
   -- functional-instantiation/:use soundness (R7 — the following arc).
   let useHints := (cn.steps.flatMap (·.items)).filterMap fun
-    | .useHint h c a l => some (h, c, a, l) | _ => none
+    | .useHint h c a l tr => some (h, c, a, l, tr) | _ => none
   -- never-silently-skip (R7a audit F3, the F12 class): a node with
   -- SEVERAL payloads must not fall through to the ordinary arms below
   -- (they would chain against the goal with an unrelated failure), and
@@ -398,7 +401,9 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     throwError "replayClause: {useHints.length} :USE-HINT payloads at \
                 {cn.idStr} (frontier — one payload per apply-top-hints \
                 node)"
-  if let [(hyps, constraintCl, appClauses, lmis)] := useHints then
+  if let [(hyps, constraintCl, appClauses, rawLmis, translated)] := useHints then
+    let .ok lmis := resolveUseLmis rawLmis translated hyps.length
+      | throwError "use-hint: invalid translated instance records at {cn.idStr}"
     unless lits.isEmpty do
       throwError "use-hint: literal items alongside the :USE-HINT payload \
                   at {cn.idStr} (frontier — no consumer in this arm)"
@@ -474,6 +479,10 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         | throwError "use-hint: LMI {repr lmi} at {cn.idStr} is not a bare \
             theorem name, (:INSTANCE thm (var term)…), or \
             (:FUNCTIONAL-INSTANCE thm (fn (LAMBDA …))…) — frontier"
+      if let some (hL, ctxU') ← primitiveUseInstance? cfg ctxU thmName σpairs hypI then
+        ctxU := ctxU'
+        hLs := hLs ++ [(hypI, hL)]
+        continue
       let [(spec, hypV)] := ctxU.useHyps.filter (fun (u, _) => u.name == thmName)
         | throwError "use-hint: no use:{thmName} hypothesis in scope at \
             {cn.idStr} (the cited theorem is outside the dependency \

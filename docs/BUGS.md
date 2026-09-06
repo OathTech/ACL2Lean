@@ -433,6 +433,16 @@ instance check must remain. Other plain-instance consumers in the same
 capture exhibit the same refusal. Nested and functional instances retain
 their existing explicit scope boundaries.
 
+The repair is implemented at fork `2f0dd071ca`: the successful, adjusted
+alist is recorded at `translate-lmi/instance` and joined to the emitted
+hypothesis by the pre-instance formula, raw substitution, and resulting
+hypothesis. Source and translated LMIs are both retained; the replay's
+verbatim instance check remains. The actual helper advances to its next
+primitive-axiom/DP frontiers. `Tests.Ns1UseInstances` consumes an actual
+ACL2 book using the same source macros and rejects missing, altered, and
+misaligned records in memory. Clean corpus recapture is complete; full
+checkpoint validation is pending, so this entry remains open.
+
 ## BUG-041 — a top-level LOCAL defun is emitted as an encapsulation witness
 Status: fixed
 Pinned-by: none (proof-log provenance; Tests.Ns1LocalDefinitions pins the actual dependency capture)

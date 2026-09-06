@@ -1261,6 +1261,47 @@ substitutions disagree with the translated hypothesis. Other helper
 rows expose existing clause-composition, recognizer, and DP frontiers.
 No helper proof is claimed beyond the one measured unconditional row.
 
+The next arithmetic/USE batch reduces INTEGERP-MOD to **five** conditions:
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT, EQUAL-/-0,
+EQUAL-DENOMINATOR-1, `(* -1 x)`, and `(< (* x y) 0)`.
+The primitive DISTRIBUTIVITY and ground-zero negation-of-sum equations
+are applied only at their recorded nodes, then every recorded child is
+replayed. The clean current-fork receipt is
+`c2-2f0dd-integerp-mod-replay.log` (48765 ms); the earlier d032 artifact
+rerun is `c2-integerp-mod-distributivity-replay.log` (49232 ms).
+Both retain the same five conditions and no assumed DP condition.
+
+Fork `2f0dd071ca0b` records ACL2's successful translated USE substitution
+and preserves the raw source LMI (BUG-042). The helper's 105 parsed events
+are unchanged after removing only the added translated-LMI metadata
+(`c2-use-helper-emission-comparison.log`). The raw image build and clean
+rebuild pass (`c2-use-substitution-image-build.log`,
+`c2-translated-use-clean-image-build.log`). All 104 permanent captures
+and all fifteen current diagnostic dependency captures have been refreshed
+at clean 2f0dd (`c2-2f0dd-corpus-recapture.log`,
+`c2-2f0dd-dependency-recapture.log`); the latter live under
+`.tmp/ns1/c2-2f0dd-dependencies/`, preserving the old relative filenames.
+The prior d032/d973 captures and failed experiments remain available.
+
+The macro-instance regression's two rows replay unconditionally
+(`c2-2f0dd-use-macro-replay.log`, 1065 ms). Its statement/axiom pins and
+negative controls pass: dropping the translation, altering its term, or
+misaligning the list is rejected at the consuming instance check.
+The affected CLI, six arithmetic pins, USE pins, and existing tamper tests
+build (`c2-2f0dd-affected-build.log`, 6213 jobs). Static checks pass
+(`c2-2f0dd-fast-static.log`), including all 104 clean capture stamps.
+Initial consumer and test builds failed on a misplaced documentation
+comment and a reserved Lean identifier; their failed logs are retained.
+
+The selected multiplication-helper proof now crosses its actual translated
+instances and its primitive DISTRIBUTIVITY USE premise. It remains ASSUMED
+on its earlier UNIQUENESS-OF-+-INVERSES-LEMMA and its own tau leaf
+(`c2-2f0dd-helper-replay.log`, 106252 ms; 1/11 unconditional prefix rows).
+The corresponding current recursive tree is `c2-2f0dd-helper-tree.log`.
+Those two recorded tau leaves are the next proof target. This is a
+**fast-gate** increment; the full checkpoint and BUG-042 close-out remain
+pending. No new native mirror is claimed.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

@@ -32,4 +32,9 @@ theorem plus_neg_right (v : SExpr) :
   simp only [Rat.add_neg_cancel]
   rfl
 
+/-- The ground-zero primitive negation/addition equation (axioms.lisp),
+used at its recorded rewrite in INTEGERP-MOD. -/
+theorem neg_plus (a b : SExpr) : neg (plus a b) = plus (neg a) (neg b) := by
+  simp only [neg_parts, plus_parts, numberParts_mkParts, Rat.neg_add]
+
 end ACL2.Logic

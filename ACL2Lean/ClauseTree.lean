@@ -595,7 +595,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
         ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
   | .clausify _ :: rest => collectHypEquivs rest
-  | .useHint _ _ _ _ :: rest => collectHypEquivs rest
+  | .useHint _ _ _ _ _ :: rest => collectHypEquivs rest
   | .fcDerivations _ :: rest => collectHypEquivs rest
   | .complementClose _ :: rest => collectHypEquivs rest
   | .dedupDrop _ :: rest => collectHypEquivs rest
@@ -628,7 +628,7 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
-  | .useHint h c a l :: rest => do return .useHint h c a l :: (← linkItems cands rest)
+  | .useHint h c a l tr :: rest => do return .useHint h c a l tr :: (← linkItems cands rest)
   | .complementClose lit :: rest => do
       return .complementClose lit :: (← linkItems cands rest)
   | .dedupDrop lit :: rest => do
@@ -1170,7 +1170,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
   | .step n :: rest => proofNodesOf n ++ itemNodes rest
   | .clausify _ :: rest => itemNodes rest
-  | .useHint _ _ _ _ :: rest => itemNodes rest
+  | .useHint _ _ _ _ _ :: rest => itemNodes rest
   | .fcDerivations _ :: rest => itemNodes rest
   | .complementClose _ :: rest => itemNodes rest
   | .dedupDrop _ :: rest => itemNodes rest
@@ -1306,10 +1306,13 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │    dedup-drop: {lit}"
     | .taSubst n f _ _ _ =>
       IO.println s!"{pad}  │    ta-subst: {f} ⇒ {n}"
-    | .useHint hyps ccl appC _lmis =>
+    | .useHint hyps ccl appC lmis translated =>
       IO.println s!"{pad}  │    :use hint — {hyps.length} instantiated hyp(s):"
       for h in hyps do
         IO.println s!"{pad}  │      hyp: {h}"
+      if let some ts := translated then
+        for (raw, cooked) in lmis.zip ts do
+          if raw != cooked then IO.println s!"{pad}  │      instance: {raw} ⇒ {cooked}"
       IO.println s!"{pad}  │      constraint-cl: {ccl}"
       IO.println s!"{pad}  │      application clauses: {appC}"
     | .branch segment subitems =>
