@@ -203,8 +203,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let rec go (recs : List (Symbol × Symbol × Symbol × List Symbol)) (curClause : List SExpr)
       (cfgK : ReplayConfig) (isTop : Bool) : MetaM Expr := do
     let ctxK0 : ReplayCtx := if isTop then ctx
-      else { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                      segFacts := [], branchFacts := [] }
+      else ctx.clearEnvFacts
     -- pin the level's clause opaques AGAINST THIS LEVEL'S ENV (a deeper
     -- level's fresh env has none of the outer pins)
     let ctxK ← pinTermOpaques cfg cfgK.envExpr ctxK0 (disjoinTerm curClause)
@@ -216,8 +215,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
       let some child := cn.children.find? (·.inputClause == target)
         | throwError "replayElim: no child matches the fully-eliminated \
                       clause {repr target} at {cn.idStr}"
-      let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                                  segFacts := [], branchFacts := [] }
+      let ctxFresh := ctxK.clearEnvFacts
       let mut p ← rec.clause cfgK ctxFresh child
       -- STRIP each restriction literal: its value DUPLICATES a member
       -- literal's value in the remaining clause (the σ-image literal —
@@ -323,8 +321,7 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
               | throwError "replayElim: the clause has no \
                             (not (consp {v.name})) literal and no guard \
                             child matches {repr gClause} at {cn.idStr}"
-            let ctxFresh := { ctxK with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                                        segFacts := [], branchFacts := [] }
+            let ctxFresh := ctxK.clearEnvFacts
             let pG ← rec.clause cfgK ctxFresh gChild
             let pNil ← mkAppM ``re_val_cast
               #[w, env, reflectSExpr conspLit, conspVE, nilC,

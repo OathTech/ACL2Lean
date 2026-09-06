@@ -547,6 +547,15 @@ structure ReplayCtx where
 
 def ReplayCtx.empty : ReplayCtx := {}
 
+/-- Drop value pins and clause/branch facts before replay under another
+environment. The theorem and totality hypotheses are universally quantified
+and survive. A recorded context alias belongs to its originating branch and
+must be rebuilt there as well. Shared by induction, environment transports,
+and dependency replay so their field lists cannot drift. -/
+def ReplayCtx.clearEnvFacts (ctx : ReplayCtx) : ReplayCtx :=
+  { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
+             branchFacts := [], segFacts := [], contextSubsts := [] }
+
 /-- Read one field of an emitted FC-derivation plist (`:RUNE`,
     `:CONCL`, `:TRIGGER`, …). `none` if the key is absent or the
     plist shape is broken (callers hard-fail on their required

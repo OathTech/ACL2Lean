@@ -1406,9 +1406,56 @@ claimed. The selected minus-one CLI row passes, but distinct escaped
 arithmetic theorem names can collide in Runner's sanitized constant names;
 that completeness limitation is recorded in TODO.
 
-This increment is **fast-gate** pending the new full checkpoint. The
-previous full red gate remains red; BUG-042/043 and all three native
-products remain open.
+The full gate `.gate-runs/ca5e1dd-20260906T123257Z.log` is **TRUE_EXIT=1**.
+The main build passes 3233 jobs, including the 21 existing mirror products
+and their 59-seam check. The subsequent forced coverage rebuild rejects
+CD2-BOUND: the induction step retained an outer environment's clause fact,
+which the recognizer selected by term alone (BUG-044). No golden is changed;
+the failed run is not a full preservation receipt. A focused executable
+reproduction confirms the same failure in 9314 ms
+(`c2-denominator-cd2-regression-rerun.log`; the first command omitted Lake's
+module environment and failed before replay). The induction-context repair
+is in progress. BUG-042/043/044 and all three native products remain open.
+
+While that checkpoint was frozen, probes of the seven actual product-sign
+verdict leaves passed with the driver's context preparation, with a maximum
+of 5988 heartbeat units against the existing 15000-unit direct budget
+(`c2-product-sign-rational-scaffold-probe.log` and
+`c2-bind-product-sign-rational-scaffold-probe.log`). These are isolated leaf
+checks, not whole-product replay. The whole target fails at a residual
+literal folded to NIL that has not been removed
+(`c2-product-sign-focused-frozen-probe.log`). ACL2's
+`add-literal-and-pt` removes that literal; the existing spine already has
+the checked transport needed here. The ordinary macro probe first exceeded
+its command budget while preparing unrelated dependency rows; the focused
+probe uses the same untouched theorem and dependency trees through
+`Runner.tryReplay`, with its existing budget.
+
+Fresh diagnostic captures at clean fork `2f0dd071ca` also establish
+TIMES-ZERO's whole unconditional replay and the FLOOR bound's actual
+`<-OF-*-AND-*-CANCEL` dependency. The latter reaches its recorded primitive
+POSITIVE USE frontier (`c2-product-cancel-focused-frozen-probe.log`).
+The quotient helper's quoted-minus matching gap is ACL2's
+`one-way-unify1-quotep-subproblems` behavior (`translate.lisp`, around 6613);
+its evidence still needs emission. No matcher check has been weakened.
+The induction fix restores CD2-BOUND unconditionally, with its three
+recorded discharge leaves (`c2-induction-env-fixed-cd2-replay.log`, 15281 ms),
+while EQUAL-DENOMINATOR-1 remains unconditional (10359 ms). The first build
+had a structure-literal indentation error; the corrected build passes
+6205 jobs. The follow-up extraction consolidates fourteen environment
+resets in `ReplayCtx.clearEnvFacts`, including the new context aliases.
+Its build passes 6220 jobs, the unchanged CD2 coverage pin, NS1 source/axiom
+pins, and all context-tampering controls
+(`c2-env-reset-extraction-build.log`). Final focused replays retain the same
+results: CD2 in 15651 ms and denominator in 10552 ms
+(`c2-env-reset-final-{cd2,denominator}-replay.log`). The final static suite
+passes (`c2-env-reset-final-static.log`, 44 indexed bugs and 107 clean
+capture stamps). This is a **fast-gate** repair; the full red checkpoint
+remains red until the next full run.
+
+Superseded diagnostic dependency captures are losslessly archived in
+`.tmp/ns1/c2-superseded-dependency-captures.tar.gz`, with a verified SHA-256
+manifest beside it; this reclaimed 178 MiB without discarding evidence.
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch

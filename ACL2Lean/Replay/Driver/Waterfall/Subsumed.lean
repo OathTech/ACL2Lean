@@ -50,8 +50,7 @@ partial def replaySubsumed (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayC
   let valsE ← mkListLit (mkConst ``SExpr) vals
   let env' ← mkAppM ``bindArgsOver #[env, formalsE, valsE]
   let cfg' := { cfg with envExpr := env' }
-  let ctx' := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                         branchFacts := [], segFacts := [] }
+  let ctx' := ctx.clearEnvFacts
   let pChild ← rec.clause cfg' ctx' child
   let childTerm := disjoinTerm G
   let hWellScoped ← proveByDecide

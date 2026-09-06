@@ -42,7 +42,10 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- spine falsity facts: the literal IS this recognizer (verdict nil), or wraps it
   -- in (not …) (the literal's falsity makes the recognizer non-nil → t, by its
   -- two-valued range).
-  if let some hNil := ctx.litFactByTerm? term then
+  let directNil? ← if (ctx.litFactByTerm? term).isNone then pure none else
+    ctx.litFactByTermChecked? term
+      (← mkEq (← ctxValExpr cfg ctx term) (mkConst ``SExpr.nil))
+  if let some hNil := directNil? then
     unless verdict == SExpr.nil do
       throwError "replayRecognizer: spine says {repr term} is nil but verdict is {repr verdict}"
     let p ← ctxValProof cfg ctx term
@@ -55,8 +58,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- depth discharges the original recognizer.
   let notOf (t : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-  let hit? := (trueListpConsPeels term).findSome? fun c =>
-    (ctx.litFactByTerm? (notOf c)).map (c, ·)
+  let hit? ← (trueListpConsPeels term).findSomeM? fun c => do
+    if (ctx.litFactByTerm? (notOf c)).isNone then return none
+    let expected ← mkEq (mkApp (mkConst ``Logic.not) (← ctxValExpr cfg ctx c))
+      (mkConst ``SExpr.nil)
+    return (← ctx.litFactByTermChecked? (notOf c) expected).map (c, ·)
   if let some (cterm, hNil) := hit? then
     match cterm with
     | .cons (.atom (.symbol rs)) _ =>

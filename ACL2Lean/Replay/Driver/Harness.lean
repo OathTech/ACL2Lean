@@ -237,8 +237,7 @@ def dischargeRuleHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : RuleSpec)
   let w := cfg.worldExpr
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     -- premises: EvTrue w env' hᵢ for each stored-rule hyp
     let premDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
@@ -376,8 +375,7 @@ def dischargeCongHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : CongSpec)
         {spec.name} with the offered congruence formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
@@ -397,8 +395,7 @@ def dischargeEquivFullHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         {spec.name} with the offered formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
@@ -416,8 +413,7 @@ def dischargeTpThmHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         {spec.name} with the offered formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
@@ -440,8 +436,7 @@ def dischargeUseHyp (cfg : ReplayConfig) (ctx : ReplayCtx) (spec : UseSpec)
         {spec.name} with the offered use formula (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let pf ← mkLambdaFVars #[envV] pDep
@@ -484,8 +479,7 @@ def dischargeEquivReflHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         reflexivity conjunct {repr rxx} second (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let pDep ← depReplayedProofAt cfg ctx spec.name depRoot envV ctxD replayed
     let conv1 ← ctxValProof cfgD ctxD c1
@@ -539,8 +533,7 @@ def dischargeLinearHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
         guess (frontier)"
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD formula
     let premDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
       (spec.hyps.zipIdx.map fun (h, i) =>
@@ -672,8 +665,7 @@ def dischargeGzLinearHyp (cfg : ReplayConfig) (ctx : ReplayCtx)
   let hnoEq ← proveNoShadow cfg { name := "EQUAL" }
   withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
     let cfgD := { cfg with envExpr := envV }
-    let mut ctxD := { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [],
-                               branchFacts := [], segFacts := [] }
+    let mut ctxD := ctx.clearEnvFacts
     ctxD ← pinTermOpaques cfgD envV ctxD spec.concl
     ctxD ← pinTermOpaques cfgD envV ctxD hypT
     let ctxDFixed := ctxD

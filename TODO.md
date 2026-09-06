@@ -45,7 +45,7 @@ charter or the archive carry the record.
       the strong MOD leaf now composes with those two visible conditions.
       Discharge INTEGERP-MOD's two remaining arithmetic-rule conditions:
       EQUAL-/-0 and `(< (* x y) 0)`. Validate the USE substitution and
-      proof-log reporting repairs (BUG-042/043) at the full checkpoint,
+      proof-log reporting and induction-context repairs (BUG-042/043/044) at the full checkpoint,
       then close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

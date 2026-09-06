@@ -372,8 +372,11 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
       mkForallFVars #[e2V] (← mkArrow lt (mkApp P e2V).headBeta)
     let inner ← withLocalDeclD `sih sihTy fun sihV => do
           let cfg' := { cfg with envExpr := eV }
+          -- The induction step quantifies a fresh environment. Outer
+          -- clause/branch facts and their recorded aliases concern env,
+          -- not e; the step rebuilds its own facts from the captured tree.
           let ctx0 : ReplayCtx :=
-            { ctx with varVals := [], vals := [], litFacts := [], dedupDrops := [] }
+            ctx.clearEnvFacts
           -- ONE IH's truth: instantiate the strong IH at the UPDATED env —
           -- every alist pair is a plain env update (swaps and arbitrary
           -- ride-along terms included, design I3) — and bridge to this env

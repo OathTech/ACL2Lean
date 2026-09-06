@@ -410,6 +410,24 @@ are needed; it removes no event from an existing log.
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
+## BUG-044 — induction retains clause facts from an outer environment
+Status: open
+Pinned-by: none (actual CD2-BOUND replay and its existing exact coverage pin)
+
+The NS1 full gate at `ca5e1dd` exposes a rejected proof in CD2-BOUND.
+The induction step replaces the environment with a fresh variable but clears
+only value pins and literal facts, retaining outer branch/segment facts.
+Recognizer lookup can select one of those facts by the syntactic ACL2 term
+alone. The resulting proof mixes `env` and `e`; kernel checking rejects it.
+This is a replay regression, not an accepted theorem with an extra axiom.
+
+The repair clears the environment-bound facts and context aliases at the
+induction step and checks recognizer lookup candidates against the expected
+value-level proposition. Fourteen reset sites now share `clearEnvFacts`.
+The affected build, existing coverage pin, focused CD2/denominator replays,
+and static checks pass; the full checkpoint remains pending. The full gate
+`.gate-runs/ca5e1dd-20260906T123257Z.log` remains `TRUE_EXIT=1`.
+
 ## BUG-043 — proof-log reporting skips declarations with rule-class metadata
 Status: open
 Pinned-by: none (parsed-record regression in Tests/Ns1Contexts.lean; full checkpoint pending)
