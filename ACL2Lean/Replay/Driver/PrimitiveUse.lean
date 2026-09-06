@@ -1,7 +1,18 @@
 import ACL2Lean.Replay.Driver.NodeCore
+import ACL2Lean.NumericRational
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
+
+private theorem rationalReconstructionTrue (v : SExpr) :
+    Logic.implies (Logic.rationalp v)
+      (Logic.equal (Logic.times (Logic.reciprocal (Logic.denominator v)) (Logic.numerator v)) v) ≠
+        SExpr.nil :=
+  (Logic.implies_ne_nil_iff _ _).mpr fun h =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.rational_reconstruct v h)
+
+private def primitiveEqualityTrue (lhs rhs law : Expr) : MetaM Expr := do
+  mkAppM ``Iff.mpr #[← mkAppM ``Logic.equal_ne_nil_iff #[lhs, rhs], law]
 
 /-- A named primitive axiom used through :USE rather than a rewrite rune.
 Its source schema is instantiated with the recorded translated substitution
@@ -9,26 +20,42 @@ and checked verbatim against :HYPS. The ordinary USE consumer still replays
 the application clause; this supplies only the cited axiom premise. -/
 def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     (subst : List (Symbol × SExpr)) (hyp : SExpr) : MetaM (Option (Expr × ReplayCtx)) := do
-  if name != "DISTRIBUTIVITY" then return none
-  -- axioms.lisp: (equal (* x (+ y z)) (+ (* x y) (* x z))).
+  -- The exact translated schemas from axioms.lisp. Only these named
+  -- primitive axioms are supplied here; book theorems remain dependencies.
   let sym := fun n => SExpr.atom (.symbol { name := n })
   let app := fun n xs => SExpr.cons (sym n) (SExpr.ofList xs)
   let x := sym "X"
   let y := sym "Y"
   let z := sym "Z"
-  let lhs := app "BINARY-*" [x, app "BINARY-+" [y, z]]
-  let rhs := app "BINARY-+" [app "BINARY-*" [x, y], app "BINARY-*" [x, z]]
+  let distLhs := app "BINARY-*" [x, app "BINARY-+" [y, z]]
+  let distRhs := app "BINARY-+" [app "BINARY-*" [x, y], app "BINARY-*" [x, z]]
+  let den := app "DENOMINATOR" [x]
+  let denRhs := app "IF" [app "RATIONALP" [x], den,
+    app "QUOTE" [.atom (.number (.int 1))]]
+  let schema? := match name with
+    | "DISTRIBUTIVITY" => some (app "EQUAL" [distLhs, distRhs])
+    | "RATIONAL-IMPLIES2" => some (app "IMPLIES" [app "RATIONALP" [x],
+        app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
+    | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
+    | _ => none
+  let some schema := schema? | return none
   let instantiate := substTerm (subst.map (·.1)) (subst.map (·.2))
-  unless instantiate (app "EQUAL" [lhs, rhs]) == hyp do
+  unless instantiate schema == hyp do
     throwError "primitive use:{name}: recorded substitution disagrees with :HYPS"
   let ctx ← pinTermOpaques cfg cfg.envExpr ctx hyp
-  let law ← mkAppM ``Logic.times_add #[← ctxValExpr cfg ctx (instantiate x),
-    ← ctxValExpr cfg ctx (instantiate y), ← ctxValExpr cfg ctx (instantiate z)]
-  let equalIff ← mkAppM ``Logic.equal_t_iff
-    #[← ctxValExpr cfg ctx (instantiate lhs), ← ctxValExpr cfg ctx (instantiate rhs)]
-  let ht ← mkAppM ``Iff.mpr #[equalIff, law]
-  let tNeNil ← mkDecideProof (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil])
-  let hne ← mkAppM ``ne_of_eq_of_ne #[ht, tNeNil]
+  let vx ← ctxValExpr cfg ctx (instantiate x)
+  let hne ← match name with
+    | "DISTRIBUTIVITY" => do
+      let law ← mkAppM ``Logic.times_add #[vx,
+        ← ctxValExpr cfg ctx (instantiate y), ← ctxValExpr cfg ctx (instantiate z)]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate distLhs))
+        (← ctxValExpr cfg ctx (instantiate distRhs)) law
+    | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
+    | "COMPLETION-OF-DENOMINATOR" => do
+      let law ← mkAppM ``Logic.denominator_completion #[vx]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate den))
+        (← ctxValExpr cfg ctx (instantiate denRhs)) law
+    | _ => throwError "primitive USE schema has no proof handler: {name}"
   let pf ← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hyp, hne]
   return some (pf, ctx)
 

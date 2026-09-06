@@ -896,6 +896,42 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
         catch e => hypFallback e)
     hypFallback
 
+/-- `rewrite-clause-type-alist` checks `new-clause ++ cdr(tail) ++ fc-lits`
+(simplify.lisp), excluding the current literal. This arm consumes the exact
+no-FC-suffix shape: the already-recorded branch accumulator plus the remaining
+tail. Accumulator literals have checked falsity proofs from the branch walk.
+Peel those facts from the actual DP proof, then restore the excluded current
+literal by disjunction introduction. A different clause shape stays a frontier. -/
+def contextDischargeExtend? (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (idStr : String) (accClause allL : List SExpr) (nodeLhs : SExpr) :
+    MetaM (Option Expr) := do
+  let current :: tail := allL | return none
+  let expected := accClause ++ tail
+  unless !expected.isEmpty && disjoinTerm expected == nodeLhs do return none
+  let mut ctx := ctx
+  for t in current :: expected do
+    ctx ← pinTermOpaques cfg cfg.envExpr ctx t
+  let p ← replayDischargeNode cfg ctx nodeLhs
+  let falseFact := fun t => do
+    let ty ← mkEq (← ctxValExpr cfg ctx t) (mkConst ``SExpr.nil)
+    let some h ← ctx.litFactByTermChecked? t ty
+      | throwError "context discharge: no checked branch falsity for {repr t} at {idStr}"
+    pure h
+  if tail.isEmpty then
+    return some (← vacuousResidualClose cfg ctx expected p current falseFact)
+  let mut pTail := p
+  for t in accClause do
+    pTail ← mkAppM ``evtrue_extract_else
+      #[← castConvToNil cfg ctx t (← falseFact t), pTail]
+  let v ← ctxValExpr cfg ctx current
+  let pos ← withLocalDeclD `h (← mkAppM ``Ne #[v, mkConst ``SExpr.nil]) fun h => do
+    mkLambdaFVars #[h] (← mkAppM ``evtrue_of_eq_t #[← quoteTFact cfg])
+  let neg ← withLocalDeclD `h (← mkEq v (mkConst ``SExpr.nil)) fun h =>
+    mkLambdaFVars #[h] pTail
+  return some (← mkAppM ``evtrue_dp_if_split
+    #[cfg.worldExpr, cfg.envExpr, reflectSExpr current, reflectSExpr quoteT,
+      reflectSExpr (disjoinTerm tail), v, ← ctxValProof cfg ctx current, pos, neg])
+
 /-- The whole-clause discharge with a PREFIX-shaped verdict node
     (equal-descent restructure arc — ORDEREDP-WHEN-BNEXT-CONSTANT
     *1/4.1.3''): ACL2's add-literal dropped a trivially-nil tail before
@@ -928,5 +964,21 @@ def prefixDischargeExtend (cfg : ReplayConfig) (ctx : ReplayCtx)
           class at {idStr} (frontier — reconstruction divergence?)"
   let pPre ← replayDischargeNode cfg ctx (disjoinTerm (allL.take k))
   evtrueExtendTail cfg ctx (allL.take k) (allL.drop k) pPre
+
+/-- Whole-clause DP dispatch, kept with its two clause-boundary adapters.
+Every accepted shape consumes the actual leaf and its emitted tau basis. -/
+def replaySpineDischarge (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
+    (accClause allL : List SExpr) (node : ProofNode) (atEnd : Bool) : MetaM Expr := do
+  let (lhs, rhs) := nodeLhsRhs node
+  unless rhs == quoteT do
+    throwError "replayClauseSpine: whole-clause discharge node rhs \
+                {repr rhs} ≠ (quote t) at {idStr}"
+  unless atEnd do
+    throwError "replayClauseSpine: items remain after a whole-clause discharge at {idStr}"
+  let ctx := { ctx with tauBasis := nodeTauBasis node }
+  if lhs == disjoinTerm allL then return ← replayDischargeNode cfg ctx lhs
+  if nodeOrigin node == "rewrite-clause/type-alist-contradiction" then
+    if let some p ← contextDischargeExtend? cfg ctx idStr accClause allL lhs then return p
+  prefixDischargeExtend cfg ctx idStr allL lhs
 
 end ACL2.Replay.Driver

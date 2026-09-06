@@ -17,25 +17,6 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- Replace every occurrence of a TERM by another (quote-opaque) — ACL2's
-    `subst-expr` for remove-trivial-equivalences' NON-VARIABLE lhs (the
-    `(CDR IT) := 'JUNK` class, G1 inc-2c). On a variable lhs this agrees
-    with `substTerm`. -/
-partial def replaceTermOcc (src dst : SExpr) (t : SExpr) : SExpr :=
-  if t == src then dst
-  else match t with
-    | .cons h args =>
-      match h with
-      | .atom (.symbol q) =>
-        if q.name == "QUOTE" then t
-        else .cons h (replaceArgs args)
-      | _ => .cons (replaceTermOcc src dst h) (replaceArgs args)
-    | _ => t
-where
-  replaceArgs : SExpr → SExpr
-    | .cons a rest => .cons (replaceTermOcc src dst a) (replaceArgs rest)
-    | e => e
-
 /-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
     clauseLits)`. Items are walked STRUCTURALLY: each non-closing literal is
     followed by its case BRANCHES (`.branch seg items` — the clause scan
@@ -148,29 +129,17 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     throwError "replayClauseSpine: :use-hint payload in the spine at {idStr} \
                 (frontier — the use-hint arm consumes it at the clause level)"
   | .step n :: rest =>
-    -- a :CONTEXT-SUBST decoration (clausify-branch segment hypothesis): its
-    -- equation is consumed by solidify `.segment` nodes from the in-scope
-    -- segFacts — no separate proof obligation here
+    -- Retain the recorded alias. Consumers check its equality against the
+    -- branch facts; solidify still consumes those facts directly.
     if (runeOf n).ty == "context-subst" then
+      let ctx := { ctx with contextSubsts := ctx.contextSubsts ++ [nodeLhsRhs n] }
       return ← replayClauseSpineWith rec cfg ctx idStr clauseLits rest accClause children
     -- a WHOLE-CLAUSE verdict discharge at SIMPLIFY time (S1.3 2026-07-23;
     -- verdict-only, the ratified DP carve-out): lhs is the clause's own
     -- disjunction — or a PREFIX of it (`prefixDischargeExtend`).
     if dischargeOrigins.contains (nodeOrigin n) then
-      let allL := clauseLits.map (·.2)
-      let dTerm := disjoinTerm allL
-      unless (nodeLhsRhs n).2 == quoteT do
-        throwError "replayClauseSpine: whole-clause discharge node rhs \
-                    {repr (nodeLhsRhs n).2} ≠ (quote t) at {idStr}"
-      unless rest.isEmpty do
-        throwError "replayClauseSpine: items remain after a whole-clause \
-                    discharge at {idStr}"
-      if (nodeLhsRhs n).1 == dTerm then
-        return ← replayDischargeNode cfg
-          { ctx with tauBasis := nodeTauBasis n } dTerm
-      -- PREFIX-shaped verdict node (see `prefixDischargeExtend` —
-      -- add-literal dropped a trivially-nil tail; monotone weakening)
-      return ← prefixDischargeExtend cfg ctx idStr allL (nodeLhsRhs n).1
+      return ← replaySpineDischarge cfg ctx idStr accClause
+        (clauseLits.map (·.2)) n rest.isEmpty
     -- a :BRANCH-SUBSTITUTION (remove-trivial-equivalences): ACL2 substitutes
     -- `var := val` THROUGHOUT the clause, justified by the clause's own
     -- `(not (equal var val))` literal, and scans the SUBSTITUTED literals.

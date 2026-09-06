@@ -1336,6 +1336,80 @@ The final static suite passes (`c2-helper-dp-final-static.log`, 105 clean
 capture stamps). This remains a **fast-gate** increment. BUG-042's full checkpoint and all
 three native mirror proofs remain open.
 
+### C2 denominator dependency (2026-09-06, in progress)
+
+INTEGERP-MOD now retains **two** conditions, EQUAL-/-0 and
+`(< (* x y) 0)` (`c2-denominator-closed-integer-mod-replay.log`, 94597 ms).
+Its full statement still replays conditionally; no new native mirror exists.
+The earlier minus-one-only increment reduced four conditions to three
+(`c2-context-subst-integer-mod-replay.log`, 99028 ms).
+
+Two additional dependency statements replay without conditions:
+`(* -1 x)` from the unchanged bind-free/basic book
+(`c2-minus-one-wired-replay.log`, 41631 ms; selected row's one tau leaf),
+and EQUAL-DENOMINATOR-1 from unchanged pass1/numerator-and-denominator
+(`c2-numberp-typeset-numden-replay.log`, 10116 ms; 2/7 prefix rows replay,
+one unconditional and one conditional, and 2/2 reported DP leaves).
+The permanent prefixes are clean captures at fork `2f0dd071ca0b`.
+`Tests.Ns1Arithmetic` pins both unrestricted translated source statements
+and their axiom trios. The minus-one leaf uses primitive component
+congruence; the denominator proof consumes both actual primitive USEs,
+RATIONAL-IMPLIES2 and COMPLETION-OF-DENOMINATOR.
+
+The denominator proof exposed three composition gaps, each now crossed in
+that actual proof:
+
+- The type-alist contradiction is over `accClause ++ remaining.tail`, the
+  exact clause assembled by ACL2's `rewrite-clause-type-alist`. The composer
+  checks that shape, proves the emitted obligation, and peels the already
+  false accumulator. Other shapes retain the existing strict checks.
+- A recorded CONTEXT-SUBST transports type-set evidence along an in-scope,
+  checked equality. The directed alias is retained through inline branches;
+  its consumed record is removed during recursive type-set traversal.
+  Primitive NUMERATOR/DENOMINATOR cells and the ACL2-NUMBERP type-set path
+  consume the recorded TYPESET/TRUETS, including the earlier primitive
+  UNICITY-OF-1 rewrite and its FIX/recognizer children.
+- The residual branch substitutes DENOMINATOR X with 1, evaluates its
+  reciprocal, and then pushes the transformed clause. The new small
+  `ResidualPostpass` composer replays those records and requires a unique
+  exact child match. ACL2's `crunch-clause-segments` calls
+  `remove-trivial-equivalences` with `remove-flg = nil`
+  (`acl2/simplify.lisp`, around 7232); the justifying equality stays in the
+  clause. The shared term-replacement helper moves out of CoreSpine,
+  reducing that grandfathered module from 1539 to 1508 lines.
+
+The affected CLI and proof pins build
+(`c2-numberp-typeset-build.log`, 6220 jobs). FSQ-UNFOLDS also loses its last
+UNICITY-OF-1 condition through that actual primitive record
+(`c2-unicity-one-fsq-replay.log`, 782 ms); DriverTests now pins its
+unconditional statement. Three in-memory negative controls remove the
+context alias, change the postpass equation, or alter the DP clause;
+all reject at their consuming checks
+(`c2-context-negative-controls-build.log`, 3116 jobs). Initial control
+attempts used an incomplete optional-field pattern and changed no records;
+those failed executions are not positive evidence. That mistake revealed
+the same issue in two reporting helpers (BUG-043), now repaired and awaiting
+the full checkpoint. The final build adds a real-capture check of both
+reporting helpers and passes (`c2-denominator-final-build.log`, 6221 jobs).
+The final static suite also passes (`c2-denominator-final-static.log`).
+The final executable replays the denominator target unconditionally in
+9977 ms (`c2-denominator-final-replay.log`); the FSQ focused replay is
+`c2-denominator-final-fsq-replay.log`.
+
+Static checks pass (`c2-denominator-static.log`, 107 clean fork stamps).
+A first product-sign replay was terminated after approximately eleven
+minutes with no completed result (`c2-product-sign-first-replay.log`,
+process exit 143). The actual `<-*-0` tree and its verdict leaves are
+retained under `.tmp/ns1/`; a rational-value decomposition is being tested
+on those leaves, with no resource-limit increase and no product-sign proof
+claimed. The selected minus-one CLI row passes, but distinct escaped
+arithmetic theorem names can collide in Runner's sanitized constant names;
+that completeness limitation is recorded in TODO.
+
+This increment is **fast-gate** pending the new full checkpoint. The
+previous full red gate remains red; BUG-042/043 and all three native
+products remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

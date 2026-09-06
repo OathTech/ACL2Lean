@@ -274,6 +274,10 @@ def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := fals
           simp_all only [show Logic.numberParts
               (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from rfl,
             Prod.ext_iff, Prod.fst, Prod.snd, Logic.rat_neg_eq_iff, and_true, true_and])
+      -- Primitive product/negation congruence in the recorded tau leaf.
+      | (simp only [Logic.equal_ne_nil_iff, Logic.times_parts, Logic.neg_parts] <;>
+          congr 1 <;> simp [Logic.numberParts, Logic.rationalValue,
+            Rat.neg_mul, Rat.mul_neg, Rat.sub_eq_add_neg])
       | (simp_all [-Logic.toBool, Logic.neg_parts, Logic.numberParts_mkParts,
           Logic.mkParts_numberParts, Logic.equal, Logic.toBool_eq_true, Logic.toBool_eq_false] <;> omega)
       | $ordinary:tactic) else pure ordinary

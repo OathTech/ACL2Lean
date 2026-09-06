@@ -4,7 +4,7 @@
 
   The W3 branch-split composer (composeSplit).
 -/
-import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.ResidualPostpass
 
 namespace ACL2.Replay.Driver
 
@@ -284,15 +284,9 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- literal consensus), fall back to derivable-falsity uniqueness (the
       -- merged branch is falsified by either source leaf's facts).
       let selectResidual (exact : Bool) :
-          MetaM (Option (List SExpr × List Expr)) := do
-        let mut selected : Option (List SExpr × List Expr) := none
+          MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
+        let mut selected : Option (List SExpr × List ClauseItem × List Expr) := none
         for (seg, cont) in branches do
-          -- :CONTEXT-SUBST decorations are inert here (their equations live in
-          -- the segment); a residual branch may still carry them
-          let contCore := cont.dropWhile fun
-            | .step n => (runeOf n).ty == "context-subst"
-            | _ => false
-          unless contCore.isEmpty do continue
           let some segL := seg.toList?
             | throwError "composeSplit: branch segment {repr seg} is not a \
                           list at {idStr}"
@@ -309,24 +303,21 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             unless selected.isNone do
               throwError "composeSplit: ambiguous residual selection for the \
                           open leaf {repr value} at {idStr}"
-            selected := some (segL, proofs)
+            selected := some (segL, cont, proofs)
         return selected
       let mut selected ← selectResidual (exact := emittedSeg.isSome)
       if selected.isNone && emittedSeg.isSome then
         selected ← selectResidual (exact := false)
-      let some (segL, segProofs) := selected
+      let some (segL, cont, segProofs) := selected
         | throwError "composeSplit: no residual branch matches the open leaf \
                       {repr value} at {idStr} (frontier)"
       let expected := accClause ++ segL.filter (!accClause.contains ·)
-      let some child := children.find? (·.inputClause == expected)
-        | throwError "composeSplit: no child clause matches the residual \
-                      {repr expected} at {idStr}"
       unless expected.getLast? == some value do
         throwError "composeSplit: residual survivor is not last at {idStr}"
-      -- litFacts are INDEX-keyed and clause-scoped — the residual child is
-      -- a PUSHED clause with its own numbering; stale entries collide
-      let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
       let segFactsHere := segL.dropLast.zip segProofs
+      let pChild ← replayResidualPostpass rec cfg
+        { ctx with segFacts := ctx.segFacts ++ segFactsHere }
+        idStr expected cont children
       let p ← peelToLast cfg ctx expected pChild fun L => do
         match ctx.litFactByTerm? L,
               (segFactsHere.find? (·.1 == L)).map (·.2) with
@@ -397,11 +388,11 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         let some (segL, cont, segProofs) := selected?
           | throwError "composeSplit: no branch matches the {outcome} leaf \
                         {repr value} at {idStr} (frontier)"
-        let cont := cont.dropWhile fun
+        let effectiveCont := cont.dropWhile fun
           | .step n => (runeOf n).ty == "context-subst"
           | _ => false
         let p ←
-          if cont.isEmpty then do
+          if effectiveCont.isEmpty then do
             -- RESIDUAL: the branch's clause was pushed as a sibling subgoal
             let expected := accClause ++ segL.filter (!accClause.contains ·)
             let some child := children.find? (·.inputClause == expected)
@@ -427,12 +418,8 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr restTerm]
             mkAppOptM ``absurd #[none, some goalTy, some h, some hNe]
           else do
-            -- inline continuation: inject the segment facts and recurse;
-            -- leading context-subst steps are the :CONTEXT-SUBST decorations
-            -- (their equations are consumed by solidify .segment nodes)
-            let cont' := cont.dropWhile fun
-              | .step n => (runeOf n).ty == "context-subst"
-              | _ => false
+            -- Inline continuation: retain CONTEXT-SUBST records for the
+            -- spine's directed type-set transport, under these segment facts.
             -- the literal's own falsity — at its RECORDED rewritten form
             -- (what the tree linker matched `.literal`-sourced solidify
             -- nodes against), bridged along the literal chain — joins
@@ -450,7 +437,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
               litFacts := ctx.litFacts ++ [(lp.index, lp.result, hResultNil)],
               segFacts := ctx.segFacts ++ segL.zip segProofs }
             let accClause' := accClause ++ segL.filter (!accClause.contains ·)
-            rec.clauseSpine cfg ctx' idStr restLits cont' accClause' children
+            rec.clauseSpine cfg ctx' idStr restLits cont accClause' children
         mkLambdaFVars #[h] p
       (try
         mkAppM ``evtrue_dp_if_split

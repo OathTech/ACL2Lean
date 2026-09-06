@@ -260,20 +260,23 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       | none => return ruleEq
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "car-cons: lhs not (car (cons a b)): {repr lhs}"
-  | "rewrite", "UNICITY-OF-0" =>
+  | "rewrite", "UNICITY-OF-0" | "rewrite", "UNICITY-OF-1" =>
     -- Replay the primitive equation to FIX on arbitrary values, followed
     -- by exactly the recorded child chain (which can be empty).
+    let (head, unit, law) := if rname == "UNICITY-OF-0" then
+      ("BINARY-+", (0 : Int), ``Logic.plus_zero_fix)
+      else ("BINARY-*", (1 : Int), ``Logic.times_one_fix)
     match lhs with
-    | .cons (.atom (.symbol plusS)) (.cons q0 (.cons z .nil)) =>
-      unless plusS.name == "BINARY-+" do
-        throwError "unicity-of-0: unexpected head {repr lhs}"
-      unless ← isDefEq (← ctxValExpr cfg ctx q0)
-          (reflectSExpr (.atom (.number (.int 0)))) do
-        throwError "unicity-of-0: first argument has no checked zero value"
+    | .cons (.atom (.symbol op)) (.cons qUnit (.cons z .nil)) =>
+      unless op.name == head do
+        throwError "{rname}: unexpected head {repr lhs}"
+      unless ← isDefEq (← ctxValExpr cfg ctx qUnit)
+          (reflectSExpr (.atom (.number (.int unit)))) do
+        throwError "{rname}: first argument has no checked unit value {unit}"
       let fixTerm := SExpr.ofList [.atom (.symbol { name := "FIX" }), z]
-      let hzero ← mkAppM ``Logic.plus_zero_fix #[← ctxValExpr cfg ctx z]
-      replayPrimitiveEquation rec cfg ctx lhs fixTerm rhs hzero children
-    | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
+      let hunit ← mkAppM law #[← ctxValExpr cfg ctx z]
+      replayPrimitiveEquation rec cfg ctx lhs fixTerm rhs hunit children
+    | _ => throwError "{rname}: expected a binary application: {repr lhs}"
   | "rewrite", "INVERSE-OF-+" =>
     match lhs.toList? with
     | some [.atom (.symbol op), a, negA] =>

@@ -31,6 +31,20 @@ private def helperLog : String := include_str "../acl2_samples/ns1/basic-arithme
 def helperDev : Development := load_development% helperLog
 derive_world helperWorld from helperDev
 
+private def bindBasicLog : String := include_str "../acl2_samples/ns1/basic.proof-log"
+def bindBasicDev : Development := load_development% bindBasicLog
+derive_world bindBasicWorld from bindBasicDev
+
+private def numdenLog : String := include_str "../acl2_samples/ns1/numerator-and-denominator.proof-log"
+def numdenDev : Development := load_development% numdenLog
+derive_world numdenWorld from numdenDev
+
+replayed_theorem denominatorOneReplayed :=
+  driver_replayed% numdenDev numdenWorld "EQUAL-DENOMINATOR-1"
+
+replayed_theorem productMinusOneReplayed :=
+  driver_replayed% bindBasicDev bindBasicWorld "(* -1 x)"
+
 replayed_theorem additiveInverseReplayed :=
   driver_replayed% helperDev helperWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
 replayed_theorem productNegationReplayed :=
@@ -57,6 +71,17 @@ private def app (s : String) (xs : List SExpr) : SExpr := .cons (sym s) (SExpr.o
 private def zero : SExpr := app "QUOTE" [.atom (.number (.int 0))]
 private def nilTerm : SExpr := app "QUOTE" [.nil]
 private def trueTerm : SExpr := app "QUOTE" [.t]
+
+-- The unchanged source has no rationality or integrality premise.
+example (env : Env) : EvTrue numdenWorld env
+    (app "EQUAL" [app "EQUAL" [app "DENOMINATOR" [sym "X"],
+      app "QUOTE" [.atom (.number (.int 1))]],
+      app "IF" [app "INTEGERP" [sym "X"], app "INTEGERP" [sym "X"],
+        app "NOT" [app "RATIONALP" [sym "X"]]]]) := denominatorOneReplayed env
+
+example (env : Env) : EvTrue bindBasicWorld env
+    (app "EQUAL" [app "BINARY-*" [app "QUOTE" [.atom (.number (.int (-1)))], sym "X"],
+      app "UNARY--" [sym "X"]]) := productMinusOneReplayed env
 
 example (env : Env) : EvTrue helperWorld env
     (app "IMPLIES" [app "IF" [app "ACL2-NUMBERP" [sym "X"],
@@ -107,6 +132,10 @@ example (env : Env) : EvTrue inequalitiesWorld env
 #guard_msgs in
 #print axioms additiveInverseReplayed
 
+/-- info: 'ACL2.Tests.Ns1Arithmetic.productMinusOneReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms productMinusOneReplayed
+
 /-- info: 'ACL2.Tests.Ns1Arithmetic.productNegationReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms productNegationReplayed
@@ -130,5 +159,9 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.timesZeroReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms timesZeroReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.denominatorOneReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms denominatorOneReplayed
 
 end ACL2.Tests.Ns1Arithmetic

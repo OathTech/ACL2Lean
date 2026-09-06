@@ -43,9 +43,9 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Discharge INTEGERP-MOD's four remaining arithmetic-rule conditions,
-      starting with the recorded primitive USEs in EQUAL-DENOMINATOR-1;
-      validate the USE substitution repair (BUG-042) at the full checkpoint,
+      Discharge INTEGERP-MOD's two remaining arithmetic-rule conditions:
+      EQUAL-/-0 and `(< (* x y) 0)`. Validate the USE substitution and
+      proof-log reporting repairs (BUG-042/043) at the full checkpoint,
       then close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
@@ -68,6 +68,12 @@ charter or the archive carry the record.
       left. Priorities are his call, not the file's.
 
 ### Capability and coverage — the named broadenings
+
+- [ ] **Replay CLI declaration-name collisions.** Distinct escaped theorem
+      names such as `(+ 0 x)` and `(* 0 x)` sanitize to the same Lean constant
+      in `Runner.runBook`. Observed on NS1's unchanged bind-free/basic capture;
+      the later row fails on the duplicate name. Use an injective naming
+      scheme and check both actual rows. This is a completeness limitation.
 
 - [ ] **NS1 — three BVCHOP mirrors.** Execute the
       [first-goal charter](docs/plans/2026-09-05_bvchop-foundation-charter.md):

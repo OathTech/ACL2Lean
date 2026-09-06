@@ -710,6 +710,31 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
           if let some (outMask, nm) := tsPlusConstOf k m then
             out := out ++ [(outMask, ← mkExpectedTypeHint
               (← mkAppM nm #[hb]) (← inTsTy outMask))]
+  -- The type-alist's recorded context substitution supplies a directed
+  -- alias, e.g. X := (/ (DENOMINATOR X)) * (NUMERATOR X). Follow that
+  -- record once, prove its value equality from the same branch context,
+  -- and transport the existing primitive cells. Removing the consumed
+  -- alias makes self-containing and cyclic records finite; no alias is
+  -- guessed from the goal or from a desired type mask.
+  for pair@(src, dst) in ctx.contextSubsts do
+    unless src == t && src != dst do continue
+    let mut ctxD := { ctx with contextSubsts := ctx.contextSubsts.erase pair }
+    ctxD ← pinTermOpaques cfg cfg.envExpr ctxD dst
+    let eqs := inScopeEquations ctxD
+    let some chain := eqChain? eqs src dst
+      | throwError "type-set context-subst: no branch equality for {repr src} → {repr dst}"
+    for (a, b, _, _, _) in chain do
+      ctxD ← pinTermOpaques cfg cfg.envExpr ctxD a
+      ctxD ← pinTermOpaques cfg cfg.envExpr ctxD b
+    let some hEq ← composeEqChain cfg ctxD chain
+      | throwError "type-set context-subst: empty equality chain for distinct terms"
+    unless ← isDefEq (← inferType hEq) (← mkEq tv (← ctxValExpr cfg ctxD dst)) do
+      throwError "type-set context-subst: value equality disagrees with the recorded alias"
+    for (m, hDst) in ← inTsCandidates cfg ctxD localFacts citedCr dst
+        (← ctxValExpr cfg ctxD dst) citedTp do
+      let hTypes ← mkAppM ``congrArg #[mkApp (mkConst ``InTs) (Lean.toExpr m), hEq]
+      let h ← mkAppM ``Eq.mpr #[hTypes, hDst]
+      out := out ++ [(m, ← mkExpectedTypeHint h (← inTsTy m))]
   return out
 
 /-- Prove `InTs target tv` for `t` — ACL2's emitted mask, or the complement

@@ -118,12 +118,14 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         let p ← ctxValProof cfg ctx term
         return ← mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
-  -- THE `:ARG-LEAVES` ARM (T1+2 sprint P3b): emission-gated — it fires
-  -- ONLY on a record whose argument ACL2 walked as an `IF` and published
-  -- the per-branch verdicts for. Without `:ARG-LEAVES` nothing changes
-  -- (the old message stands); with it, the replay case-splits the `IF`
-  -- and closes the verdict by the same type-set comparison ACL2 made.
-  if !argLeaves.isEmpty then
+  -- Consume recorded type-set evidence for IF-valued arguments and for
+  -- ACL2-NUMBERP before its legacy pinned-integer route. Numeric primitive
+  -- outputs (e.g. NUMERATOR) need no opaque integer pin: the shared checker
+  -- checks their registered cells against the emitted TYPESET/TRUETS.
+  let numberpTerm := match term with
+    | .cons (.atom (.symbol s)) _ => s.name == "ACL2-NUMBERP"
+    | _ => false
+  if !argLeaves.isEmpty || numberpTerm then
     if let .cons (.atom (.symbol rs)) (.cons z .nil) := term then
       if let some hV ← recogVerdictFromTs cfg ctx rs.name z verdict
           stepTs stepTrueTs argLeaves citedCr citedTpThms then
@@ -675,7 +677,10 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hV]
       else
-        throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}"
+        throwError "replayRecognizer: value of {repr term} does not reduce to {repr verdict}; \
+          lit {repr (ctx.litFacts.map (·.2.1))}; seg {repr (ctx.segFacts.map (·.1))}; \
+          branch {repr (ctx.branchFacts.map (fun (t,_,sg,_) => (t, sg)))}; \
+          context-subst {repr ctx.contextSubsts}; typeset {repr stepTs}, truets {repr stepTrueTs}"
   | _ => throwError "replayRecognizer: not a recognizer application: {repr term}"
 
 /-- A node's R-PAYLOAD (the R-parameterized rewrite lane, option M

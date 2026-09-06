@@ -1179,7 +1179,7 @@ def summary (log : ProofLog) : String :=
   let steps := log.events.filter fun e => match e with | .step _ => true | _ => false
   let inductions := log.events.filter fun e => match e with | .induction _ => true | _ => false
   let qeds := log.events.filter fun e => match e with | .qed => true | _ => false
-  let defthms := log.events.filterMap fun e => match e with | .defthm n _ _ => some n | _ => none
+  let defthms := log.events.filterMap fun e => match e with | .defthm n _ _ _ => some n | _ => none
   let processors := steps.filterMap fun e => match e with
     | .step s => some s.processor | _ => none
   let procPairs := processors.foldl (init := ([] : List (String × Nat)))
@@ -1210,7 +1210,7 @@ def splitByTheorem (log : ProofLog) : List (String × List ProofEvent) :=
       match curName with
       | some n => ((n, current.reverse) :: acc).reverse
       | none => acc.reverse
-    | .defthm name _ _ :: rest =>
+    | .defthm name _ _ _ :: rest =>
       -- Start a new theorem segment; flush any previous
       let acc := match curName with
         | some n => (n, current.reverse) :: acc

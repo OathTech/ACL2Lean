@@ -456,6 +456,10 @@ structure ReplayCtx where
       Consumed by `litFactByTerm?` (recognizer/type-alist nodes) and by
       solidify `.segment` nodes (ACL2's `:CONTEXT-SUBST` hypotheses). -/
   segFacts : List (SExpr × Expr) := []
+  /-- The entered branch's recorded CONTEXT-SUBST pairs. Type-set transport
+      follows only these directed aliases and checks an in-scope equality
+      proof when one is consumed; the metadata alone proves nothing. -/
+  contextSubsts : List (SExpr × SExpr) := []
   /-- RECORDED equal/type-alist verdict BASES in scope (R1 retirement,
       2026-08-07): the (EQUAL a b) term ↦ (canon1, canon2, taEntry) read
       off the emitted :CANON1/:CANON2/:TA-ENTRY fields — populated from

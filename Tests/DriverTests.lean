@@ -1045,7 +1045,7 @@ elab "acl2_replay_fsq_real% " : term => do
     -- PIN the kept-hypothesis set (the statement itself is machine-generated
     -- from the log): a regression that weakens the replayed statement by keeping MORE
     -- hypotheses must fail here, not pass silently
-    let expected := ["rule:UNICITY-OF-1"]
+    let expected : List String := []
     unless conds == expected do
       throwError "fsq-unfolds: kept hypotheses {conds} ≠ pinned {expected}"
     logInfo m!"fsq-unfolds replayed; conditions: {conds}"
@@ -1067,26 +1067,16 @@ private def fsqQ1 : SExpr :=
   .cons (fsqSym "QUOTE") (.cons (.atom (.number (.int 1))) .nil)
 /-- `(+ a 1)`. -/
 private def fsqPlusA1 : SExpr := fsqAp2 "BINARY-+" (fsqSym "A") fsqQ1
-/-- A ground-zero rule's hypothesis shape (mkRuleHypType, hyp-free). -/
-private def fsqRuleEq (lhs rhs : SExpr) : Prop :=
-  ∀ env' : Env, ∃ N, ∀ f ≥ N,
-    evalOpt f letLambdaWorld env' lhs = evalOpt f letLambdaWorld env' rhs
-
 /-- PIN the machine-generated REPLAYED STATEMENT of `fsq-unfolds`:
     `(equal (fsq a) (* (+ a 1) (+ a 1)))` — the SOURCE defthm's formula
     verbatim, `(fsq a)` un-unfolded (the root Goal clause; the
     translated-`let` LAMBDA application appears in the child subgoal,
     INSIDE the replay — which is where the lambda machinery this pin
-    guards actually runs). Conditional on the remaining UNICITY-OF-1
-    equation to FIX (hyp-free, EQUAL). COMMUTATIVITY-OF-* and
+    guards actually runs). UNICITY-OF-1, COMMUTATIVITY-OF-* and
     DISTRIBUTIVITY replay their primitive equations followed by every
-    recorded child. -/
+    recorded child; the statement is now unconditional. -/
 example :
     ∀ (env : Env),
-      fsqRuleEq (fsqAp2 "BINARY-*"
-                  (.cons (fsqSym "QUOTE") (.cons (.atom (.number (.int 1))) .nil))
-                  (fsqSym "X"))
-                (fsqAp1 "FIX" (fsqSym "X")) →
       ACL2.Replay.EvTrue letLambdaWorld env
         (fsqAp2 "EQUAL" (fsqAp1 "FSQ" (fsqSym "A"))
           (fsqAp2 "BINARY-*" fsqPlusA1 fsqPlusA1)) :=

@@ -1,4 +1,5 @@
 import ACL2Lean.NumericLemmas
+import ACL2Lean.NumericCompletion
 
 namespace ACL2.Logic
 
@@ -52,5 +53,13 @@ theorem times_zero_right (a : SExpr) :
     ((numberParts a).1 * 0 + (numberParts a).2 * 0) = _
   simp only [Rat.mul_zero, Rat.sub_eq_add_neg, Rat.neg_zero, Rat.add_zero]
   rfl
+
+/-- The UNICITY-OF-1 primitive equation, including nonnumber completion. -/
+theorem times_one_fix (v : SExpr) : times (.atom (.number (.int 1))) v = fix v := by
+  rw [times_parts]
+  change mkParts (1 * (numberParts v).1 - 0 * (numberParts v).2)
+    (1 * (numberParts v).2 + 0 * (numberParts v).1) = _
+  simp only [Rat.one_mul, Rat.zero_mul, Rat.sub_eq_add_neg, Rat.neg_zero, Rat.add_zero,
+    mkParts_numberParts]
 
 end ACL2.Logic

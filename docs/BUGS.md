@@ -410,6 +410,24 @@ are needed; it removes no event from an existing log.
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
+## BUG-043 — proof-log reporting skips declarations with rule-class metadata
+Status: open
+Pinned-by: none (parsed-record regression in Tests/Ns1Contexts.lean; full checkpoint pending)
+
+Discovered 2026-09-06 on the real NS1 numerator/denominator capture.
+`ProofLog.summary` and `ProofLog.splitByTheorem` matched `defthm` with only
+three of its four fields. Lean supplies the optional fourth pattern as
+`none`, so modern records carrying `:CLASSES` disappeared from the summary
+and theorem segmentation. The canonical `ClauseTree.buildDevelopment`
+consumer already matches all four fields; this did not remove its replay
+rows or change their statements. No production consumer currently calls the
+segmentation helper, while the CLI displays the summary.
+
+The branch repair explicitly matches the class field in both helpers.
+`Tests.Ns1Contexts` checks their names/count against all declaration records
+in the unchanged real capture, including the target theorem. Keep open until
+the full checkpoint validates the repair.
+
 ## BUG-042 — USE instance substitutions are logged before term translation
 Status: open
 Pinned-by: none (proof-log payload; actual arithmetic-3 helper capture exposes the mismatch)

@@ -182,6 +182,7 @@ def tsUnaryOf (op : String) : Option (Option Int × Int × Lean.Name) :=
   if op == "UNARY-/" then some (some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat)
   else if op == "UNARY--" then some (some 23, 23, ``ACL2.Replay.inTs_neg_int)
   else if op == "NUMERATOR" then some (none, 23, ``ACL2.Replay.inTs_numerator)
+  else if op == "DENOMINATOR" then some (none, 6, ``ACL2.Replay.inTs_denominator)
   else none
 
 /-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER

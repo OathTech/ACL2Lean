@@ -193,6 +193,8 @@ capture-ns1-logs: certify-ns1
     CAPTURE_THROUGH=MOD-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/mod.lisp
     CAPTURE_THROUGH=FUNCTIONAL-SELF-INVERSION-OF-MINUS OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp
     CAPTURE_THROUGH='FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/basic-arithmetic-helper.lisp
+    CAPTURE_THROUGH=EQUAL-DENOMINATOR-1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/numerator-and-denominator.lisp
+    OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/bind-free/basic.lisp
     ./scripts/capture-proof-log.sh acl2_samples/ns1/use-instances.lisp
     CAPTURE_THROUGH='/-PRESERVES-NEGATIVE' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/inequalities.lisp
     CAPTURE_THROUGH=NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/nonnegative-integer-quotient.lisp
