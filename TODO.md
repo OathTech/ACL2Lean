@@ -45,7 +45,7 @@ charter or the archive carry the record.
       the strong MOD leaf now composes with those two visible conditions.
       Discharge INTEGERP-MOD's remaining arithmetic-rule condition, EQUAL-/-0.
       Complete EQUAL-/'s recorded literal type-set verdict and reciprocal
-      type cell, validate the root-IF/branch repairs (BUG-039/045),
+      type cell, complete the root-IF repair's whole-proof validation (BUG-039),
       and close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

@@ -1602,6 +1602,26 @@ increment; the full regression checkpoint is next. No NS1 native product
 is claimed. The disk-space interruption left the worktree and receipts
 intact; no additional cleanup was performed on resumption.
 
+The full branch-context checkpoint at `3fb7763` passes:
+`.gate-runs/3fb7763-20260906T161407Z.log` records **TRUE_EXIT=0**. The
+main build passes 3240 jobs, tests 3204, and forced coverage 3148. Coverage
+is 116/116 unconditional over 29 books, with the golden unchanged. The 21
+existing native products retain their axiom and seam checks. BUG-045 closes;
+BUG-032/039 remain open until the reciprocal paths finish. This checkpoint
+does not complete C2 or any new native product.
+
+While sources were frozen, the next EQUAL-/ literal type-set verdict was
+checked under its actual nonnumber branch, transported to EvTrue, and
+tested against a changed-verdict mutation
+(`c2-literal-typeset-consumer-probe.log`, accepted axiom trio). Its production
+consumer remains to be integrated. Inverse uniqueness still fails at
+ACL2-NUMBERP(UNARY-/ X), TYPESET 126/TRUETS 127
+(`c2-3fb7763-inverse-uniqueness-frontier.log`, 109 ms). Both actual POSITIVE
+USE instances in the floor-bound dependency check against the complete
+primitive axiom (`c2-positive-actual-instances-probe-rerun.log`); its whole
+proof still reaches use:POSITIVE. These are temporary node/premise checks,
+not completed dependency statements. Failed initial probes remain recorded.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

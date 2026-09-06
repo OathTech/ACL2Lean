@@ -418,7 +418,7 @@ Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-045 — branch boundaries exclude the branch's initial simplification
-Status: open
+Status: fixed
 Pinned-by: none (proof-log structure; the value differential cannot observe branch ownership)
 `rewrite-clause-lst` invokes `crunch-clause-segments` before emitting its
 BEGIN-BRANCH marker. That invocation may emit branch substitutions and
@@ -432,7 +432,10 @@ matching substitution terms to later segments. Producer `f486834ebf` now
 opens the window before crunching. A fresh production image and all 107
 recaptures carry that fork identity; the actual cancellation proof crosses
 the residual branch through the recorded substitutions. Full regression
-validation remains pending.
+validation passes at `3fb7763`:
+`.gate-runs/3fb7763-20260906T161407Z.log`, **TRUE_EXIT=0**, with the
+116 unconditional baseline rows, unchanged golden and 21 existing products.
+Fixed 2026-09-06. BUG-032/039's reciprocal proof paths remain separate work.
 
 ## BUG-044 — induction retains clause facts from an outer environment
 Status: fixed
