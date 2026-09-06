@@ -637,12 +637,12 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   let inTsTy (m : Int) : MetaM Expr :=
     mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
   let mut out : List (Int × Expr) := []
-  -- The EQUAL primitive's range is the same cell that type-set uses
+  -- The binary Boolean primitives' range is the same cell that type-set uses
   -- when rewrite-equal removes equality with T. The caller still checks
   -- the emitted operand mask (and each addressed IF leaf).
   if let some (f, [a, b]) := asApp t then
-    if f.name == "EQUAL" then
-      let h ← mkAppM ``logic_equal_range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
+    if let some range := tsBooleanBinaryRangeOf f.name then
+      let h ← mkAppM range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
       out := out ++ [(384, ← mkExpectedTypeHint
         (← mkAppM ``inTs_of_boolean_range #[h]) (← inTsTy 384))]
   -- (1) the caller's LOCAL branch hypotheses

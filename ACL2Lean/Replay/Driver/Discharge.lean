@@ -168,6 +168,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .complementClose _ => []
   | .dedupDrop _ => []
   | .taSubst .. => []
+  | .linearEquation _ => [] -- insertion is not a verdict-only closing leaf
   | .branch _ items => items.flatMap itemDischargeOrigins
 
 /-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin,

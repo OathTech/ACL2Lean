@@ -1,4 +1,4 @@
-import ACL2Lean.ProofLogTypes
+import ACL2Lean.ProofLogFields
 import ACL2Lean.ProofPath
 import ACL2Lean.UseHint
 
@@ -6,66 +6,6 @@ namespace ACL2
 
 
 namespace ProofLog
-
-/-- Look up a keyword in a plist-style s-expression list.
-    Given `[:key1, val1, :key2, val2, ...]`, returns `val` for the matching key. -/
-private def lookupKeyword (kw : String) : List SExpr → Option SExpr
-  | .atom (.keyword k) :: v :: rest =>
-    if k == kw then some v else lookupKeyword kw rest
-  | _ :: rest => lookupKeyword kw rest
-  | [] => none
-
-/-- All (keyword, value) pairs of a plist whose key is NOT in `known` — used to
-    capture unmodeled fields verbatim rather than silently dropping them. -/
-private def plistExtras (known : List String) : List SExpr → List (String × SExpr)
-  | .atom (.keyword k) :: v :: rest =>
-    -- keyword names are stored upcased (readtable :upcase); the extra-field
-    -- KEYS are internal dispatch tags looked up with lowercase literals
-    -- (`.lookup "poolname"` etc.), so canonicalize to lowercase here.
-    let k := k.map Char.toLower
-    if known.contains k then plistExtras known rest
-    else (k, v) :: plistExtras known rest
-  | _ :: rest => plistExtras known rest
-  | [] => []
-
-/-- Extract a string from a symbol or string atom. -/
-private def atomString? : SExpr → Option String
-  | .atom (.symbol s) => some s.name
-  | .atom (.string s) => some s
-  | .atom (.keyword k) => some k
-  | _ => none
-
-/-- Parse a single rune like `(:REWRITE CAR-CONS)` — or the multi-rule shape
-    `(:REWRITE FLOOR-ZERO . 3)` (J7) — into a `Rune`.
-    The rune TYPE (`:REWRITE`/`:DEFINITION`/…) is a fixed keyword-vocabulary
-    dispatch tag — we canonicalize it to LOWERCASE at the boundary (analogous
-    to `normalizeKey` for theorem-option keys). The rune NAME is an ACL2
-    SYMBOL IDENTITY (a theorem/function name — `car-cons`, `perm-symmetric`,
-    `my-app`) that must match the same symbol as it is stored elsewhere
-    (World keys, theorem names, dependency-proof keys), so it stays UPCASED
-    (readtable :upcase) exactly as the parser produced it. A dotted tail that
-    is not a nonnegative integer is malformed (fail-closed at the callers). -/
-private def parseRune? : SExpr → Option Rune
-  | .cons (.atom (.keyword runeType)) (.cons nameExpr tail) =>
-    let ty := runeType.map Char.toLower
-    let name := match atomString? nameExpr with
-      | some name => name
-      | none => toString (repr nameExpr)
-    match tail with
-    | .nil => some { ty, name }
-    | .atom (.number (.int k)) =>
-      if k ≥ 0 then some { ty, name, idx := some k.toNat } else none
-    | _ => none
-  | _ => none
-
-/-- Parse a rune list like `((:REWRITE FOO) (:DEFINITION BAR))`. Hard-fails on a
-    malformed rune or a non-list (no silent drop). -/
-def parseRunes (s : SExpr) : Except String (List Rune) :=
-  match s.toList? with
-  | some items => items.mapM fun r => match parseRune? r with
-    | some rune => pure rune
-    | none => throw s!"bad rune in rune list: {repr r}"
-  | none => throw s!"rune list is not a list: {repr s}"
 
 /-- Parse a single (:REWRITE-STEP :RUNE r :LHS l :RHS r …) s-expression. -/
 private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
@@ -276,6 +216,7 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some s => throw s!"CASE-SPLIT: bad :NUM-BRANCHES: {repr s}"
           | none => throw "CASE-SPLIT: missing :NUM-BRANCHES"
         pure (.caseSplit litIdx numBranches)
+    | .atom (.keyword "LINEAR-EQUATION") :: rest => parseLinearEquation rest
     | .atom (.keyword "BRANCH-SUBSTITUTION") :: rest =>
         let equivalence ← lookupKeyword "EQUIVALENCE" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :EQUIVALENCE") pure

@@ -1948,6 +1948,98 @@ intentionally generated/ignored. The new linear-insertion reader is prepared
 but not yet applied. Its next-step source notes are in
 `.tmp/ns1/linear-insertion-next.md`; no new proof scope has been assumed.
 
+The next isolated source increment, `aaaaaea5c4`, records `:PARENT-CLAUSE`
+at the initial PROCESS-EQUATIONAL-POLYS call. Its PT indices address that
+original clause even after recursive insertions change the current clause.
+The ordinary SBCL startup attempt failed at the nono boundary on
+`/etc/sbclrc`; the repository's existing `--no-sysinit` build succeeds and
+refreshes the image (`c2-linear-parent-clean-image-build.log`). Capture
+needs `ACL2_SYSTEM_BOOKS` pointing to the unchanged production books because
+the isolated checkout is sparse. Its successful receipt is
+`c2-linear-parent-clean-capture-system.log`, 22450 lines / 22 QED events.
+Earlier attempts used the absent sparse book path or omitted that environment
+setting and did not produce a promoted capture.
+
+The reader retains all six actual LINEAR-EQUATION items in the reconstructed
+tree (`c2-linear-parent-reconstructed-tree.log`). The first reader builds
+exposed missing exhaustive cases in the literal/discharge/term collectors;
+the repaired reader/Runner build passes in 3139 jobs
+(`c2-linear-parent-reader-build-rerun.log`). Insertions are not classified as
+verdict-only discharge leaves or globally available rewrite hypotheses.
+The new record requires its fields and rejects malformed/duplicate fields.
+The parser's first static gate found growth past ProofLog's grandfathered
+limit; its shared field readers are extracted to ProofLogFields rather than
+raising the limit. The final extraction rebuild is pending below.
+
+The first consumer checks the actual direct unit polynomial pair against
+its PT comparisons and rationality premises. A generic component-order
+judgment proves the complementary-row consequence; deterministic additive
+normalization checks the emitted row against its source comparison. This
+does not widen the old branch-level DP fallback. The continued clause
+consumes the recorded substitution and duplicate removal, then its exact
+pushed child. The first extracted actual subtree checks with the visible
+condition `rule:NOT-<-SAME` (`c2-linear-insertion-fragment-telescopes.log`).
+Earlier diagnostics exposed metadata layout, Boolean-to-truth conversion,
+and quoted-integer cast normalization errors; these were explicit replay
+failures. Whole cancellation now reaches the Boolean type-set query for
+`(< (* X1 Y) (* X2 Y))`, whose recorded mask is 384 and whose rune list is
+empty (`c2-linear-insertion-controls.log`). It is still not replayed in full.
+The first attempted all-six control run stopped at that whole-theorem
+frontier; the first direct subtree harness lacked the stored-rule telescope.
+Neither is a passing mutation-control receipt.
+
+The unchanged less-than source through NOT-<-SAME has now been captured
+(`c2-linear-less-than-capture.log`) for that concrete dependency. The
+comparison's Boolean range is being added to the existing primitive
+type-set registry. A fresh msort diagnostic also exposes four insertion
+records using ACL2-COUNT type prescriptions and ACL2-COUNT-CAR-CDR-LINEAR
+(`c2-linear-parent-msort-tree.log`). Those need checked consumers before
+the isolated producer can replace production. This is not an all-linear
+certificate support claim.
+
+The existing arithmetic, INTEGERP-MOD and six atom-boundary tests build in
+6232 jobs (`c2-linear-existing-focused-build.log`; INTEGERP-MOD module 250s).
+That build predates the field-reader extraction and comparison-range change.
+The subsequent ordered-perms command's rebuild hit a stale registry consumer
+while the next edit was being applied; it did not run the book. A fresh
+sequential rebuild and focused replay are required. The initial static gate
+is red solely at the parser file-weight check
+(`c2-linear-reader-static.log`); no repaired full-gate claim is made.
+
+The field-reader extraction and primitive comparison Boolean range build
+successfully (`c2-linear-parser-range-build.log`, 3143 jobs). Static checks
+now pass (`c2-linear-reader-static-rerun.log`), including the unchanged
+file-weight caps, import reachability and all 110 production provenance
+stamps. The less-than capture has 12204 lines / four QED events, through
+NOT-<-SAME. Supplying its actual tree closes that dependency in every
+insertion subtree: Subgoals 2.9, 2.8, 2.6, 2.5, 2.3 and 2.2 all check
+unconditionally with `{propext, Classical.choice, Quot.sound}`
+(`c2-linear-insertion-closed-fragments.log`). That same run rejects nine
+mutations: changed parent scope/output, missing polynomial pair, reversed
+coefficients, missing numeric PTs, forcing flags/assumptions, missing child,
+and missing duplicate-removal record. The tested roots are the unchanged
+subtrees extracted from the actual capture, not fabricated positive nodes.
+The whole-theorem rerun is still pending, and these fragments are not new
+native products. The isolated capture is diagnostic; its producer is not
+yet the production submodule.
+
+The whole cancellation run reaches the existing 3M-heartbeat limit at
+`isDefEq` (`c2-linear-product-with-less-than.log`). It remains open; no
+budget was raised. A separate profile is locating the cost before choosing
+the decomposition. The first profile harness had a MetaM/TermElabM logging
+type error and did not run; the corrected harness is pending.
+
+The focused ordered-perms regression first returned 5/6: the new adjacent
+duplicate consumer chose clause order, but ACL2 emits `(NOT (ORDEREDP A))`
+before `(NOT (TRUE-LISTP A))` after B := A. The consumer now selects the
+adjacent pair named by the next recorded removal and consumes that record.
+The rebuilt focused book returns **6/6 unconditional** in 56580 ms
+(`c2-linear-ordered-perms-record-order.log`); the build receipt is
+`c2-linear-recorded-dedup-order-build.log`. An earlier command used the
+`replay` recipe with a corpus key instead of a file and failed before
+replay; `replay-book sorting/ordered-perms` is the correct dependency-aware
+command. These are fix-round receipts, not a full-baseline claim.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

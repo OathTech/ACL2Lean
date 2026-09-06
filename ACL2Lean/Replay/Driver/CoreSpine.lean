@@ -8,6 +8,7 @@
 import ACL2Lean.Replay.Driver.Waterfall.Compose
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReflexivity
 import ACL2Lean.Replay.Driver.Waterfall.LiteralVerdict
+import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
@@ -35,6 +36,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     (accClause : List SExpr) (children : List ClauseNode) :
     MetaM Expr := do
   match items with
+  | .linearEquation info :: rest =>
+    unless accClause.isEmpty do throwError "linear equation: insertion after partial literal scan at {idStr}"
+    replayLinearEquation cfg ctx (clauseLits.map (·.2)) info fun output =>
+      replayClauseSpineWith rec cfg ctx idStr (output.zipIdx.map fun (t, i) => (i, t))
+        rest [] children
   | .fcDerivations _ :: rest =>
     -- FC provenance blocks are clause DATA, not spine steps (cluster item
     -- 4; the Phase-6 consumer reads them from the clause items)
@@ -745,14 +751,19 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- consumer.
         let mut dedupLits := shortened
         let mut chainAll := chainAll
+        let mut remainingItems := rest
         repeat
-          let idx? := (List.range (dedupLits.length - 1)).find? fun i =>
+          let adjacent := (List.range (dedupLits.length - 1)).filter fun i =>
             i + 2 < dedupLits.length &&
             (dedupLits[i]!).2 == (dedupLits[i+1]!).2
-          match idx? with
-          | none => break
-          | some i =>
+          if adjacent.isEmpty then break
+          let .dedupDrop recorded :: nextItems := remainingItems
+            | throwError "replayClauseSpine: adjacent duplicate has no recorded removal at {idStr}"
+          let some i := adjacent.find? (fun i => (dedupLits[i]!).2 == recorded)
+            | throwError "replayClauseSpine: adjacent duplicate differs from recorded removal at {idStr}"
+          do
             let l := (dedupLits[i]!).2
+            remainingItems := nextItems
             let tailT := disjoinTerm ((dedupLits.drop (i+2)).map (·.2))
             let ctxD ← pinTermOpaques cfg cfg.envExpr ctx
               (disjoinTerm (dedupLits.map (·.2)))
@@ -784,7 +795,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                   reconstructed {repr dupL} / {repr dupR} at {idStr}"
             chainAll ← mkAppM ``fuel_chain_eq #[chainAll, innerD]
             dedupLits := nextLits
-        let pRest ← replayClauseSpineWith rec cfg ctx idStr dedupLits rest accClause children
+        let pRest ←
+          match children with
+          | [child] =>
+            if remainingItems.isEmpty && accClause.isEmpty &&
+                child.inputClause == dedupLits.map (·.2) then
+              rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
+            else replayClauseSpineWith rec cfg ctx idStr dedupLits remainingItems accClause children
+          | _ => replayClauseSpineWith rec cfg ctx idStr dedupLits remainingItems accClause children
         let p ← mkAppM ``evtrue_of_fuel_eq #[chainAll, pRest]
         mkLambdaFVars #[hNil] p
       let posL ← withLocalDeclD `hne (← mkAppM ``Ne #[vK, nilC]) fun hNe => do

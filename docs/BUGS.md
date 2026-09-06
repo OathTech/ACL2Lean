@@ -47,6 +47,22 @@ Capture the actual insertion and its justification, including numeric
 completion/forcing distinctions; do not infer an equation from the desired
 child clause or loosen the old quoted-substitution guard.
 
+The isolated producer now records the insertion and the original clause
+whose literal indices label the polynomial parents (aaaaaea5c4, following
+1589f73292). The fresh times capture reconstructs six insertion items in
+their actual positions (`c2-linear-parent-reconstructed-tree.log`). A
+consumer checks the direct, complementary unit-row class, including PT
+numeric premises, and replays its substitution/duplicate/child continuation.
+With the unchanged less-than source through NOT-<-SAME supplied, all six
+actual insertion subtrees check unconditionally with the accepted axiom trio;
+nine mutation controls reject altered or missing evidence
+(`c2-linear-insertion-closed-fragments.log`). The whole theorem now reaches
+the existing 3M-heartbeat limit in `isDefEq`
+(`c2-linear-product-with-less-than.log`); decomposition is still required.
+Msort's fresh diagnostic capture contains additional
+count/linear-rule polynomial classes, so this producer has not been
+integrated into the production fork. Full regression remains pending.
+
 ## BUG-048 — atom boundary type-set replacement retains the attempted rewrite
 Status: open
 Pinned-by: none (ACL2 instrumentation and proof-tree composition, not interpreter values)

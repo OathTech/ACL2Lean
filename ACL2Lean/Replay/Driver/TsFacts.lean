@@ -163,6 +163,12 @@ def tsRecogNil : List (String × Int × Lean.Name) :=
   [("CONSP", 3072, ``ACL2.Replay.logic_consp_nil_of_ts_disjoint),
    ("ZP", -7, ``ACL2.Replay.logic_zp_nil_of_ts_disjoint)]
 
+/-- Primitive binary Boolean ranges at an emitted type-set query. -/
+def tsBooleanBinaryRangeOf (op : String) : Option Lean.Name :=
+  if op == "EQUAL" then some ``ACL2.Replay.logic_equal_range
+  else if op == "<" then some ``ACL2.Replay.logic_lt_range
+  else none
+
 /-- ARITHMETIC-PRIMITIVE ts registry: a 2-ary primitive ↦ (the in-mask
     the proved fact demands of BOTH arguments, the out-mask it
     establishes, the fact). ACL2's `type-set-binary-+` mirrored one cell

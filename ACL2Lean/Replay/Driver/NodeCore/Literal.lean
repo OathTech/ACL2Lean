@@ -186,6 +186,7 @@ partial def flattenLiterals : List ClauseItem → List (Nat × LiteralProof)
   | .complementClose _ :: rest => flattenLiterals rest
   | .dedupDrop _ :: rest => flattenLiterals rest
   | .taSubst .. :: rest => flattenLiterals rest
+  | .linearEquation _ :: rest => flattenLiterals rest
   | .branch _ items :: rest => flattenLiterals items ++ flattenLiterals rest
 
 /-- A clause-context falsity demand: either an exact clause-literal TERM, or

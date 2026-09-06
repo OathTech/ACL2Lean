@@ -1,9 +1,16 @@
 import ACL2Lean.Replay.Lemmas.TsAlgebra
 import ACL2Lean.NumericReciprocal
 import ACL2Lean.NumericMultiplication
+import ACL2Lean.NumericOrder
 
 namespace ACL2.Replay
 open ACL2
+
+/-- The complete primitive comparison range, including complex and
+nonnumeric inputs. Used by a recorded Boolean type-set query. -/
+theorem logic_lt_range (a b : SExpr) : Logic.lt a b = .t ∨ Logic.lt a b = .nil := by
+  rw [Logic.lt_parts]
+  split <;> simp
 
 /-- Numeric values occupy exactly the seven numeric type-set cells. -/
 theorem inTs_acl2Numberp {v : SExpr} (h : Logic.acl2Numberp v = .t) : InTs 127 v := by

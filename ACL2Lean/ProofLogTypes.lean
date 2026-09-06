@@ -348,9 +348,24 @@ def parseArgLeavesField (v : Option SExpr) : Except String (List TpLeaf) :=
   | none | some .nil => .ok []
   | some r => TpLeaf.parseList "recognizer :ARG-LEAVES" r
 
+/-- The actual clause insertion returned by PROCESS-EQUATIONAL-POLYS.
+The selected polynomial pairs and assumption flags are proof provenance;
+recording them does not discharge the equation. -/
+structure LinearEquationInsertion where
+  parentClause : List SExpr
+  inputClause : List SExpr
+  newLiteral : SExpr
+  outputClause : List SExpr
+  numericFlags : List String
+  polyPairs : List SExpr
+  assumptions : List SExpr
+  runes : List Rune
+  deriving Repr, Inhabited
+
 /-- A trace event from ACL2's detailed rewriter output.
     These appear inside the :REWRITES field of a waterfall step. -/
 inductive TraceEvent where
+  | linearEquation (info : LinearEquationInsertion)
   | rewriteStep (step : RewriteStep)
   | ifTestTrue (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)
   | ifTestFalse (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)

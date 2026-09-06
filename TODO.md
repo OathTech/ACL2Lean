@@ -46,8 +46,9 @@ charter or the archive carry the record.
       Validate the reciprocal/window repairs against the full baseline
       (BUG-032/039/046/047), including sorting's cited Boolean TP. Close
       the POSITIVE/CASES dependency: validate the boundary replacements against
-      the full baseline (BUG-048), then read and consume its captured intermediate
-      linear equation insertion (BUG-049). Validate the exact-name registry repair
+      the full baseline (BUG-048), then complete and integrate the recorded
+      linear equation consumer (BUG-049), including the source NOT-<-SAME
+      dependency and msort's count/linear-rule polynomial classes. Validate the exact-name registry repair
       below and close the quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

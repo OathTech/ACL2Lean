@@ -298,6 +298,8 @@ structure ClausifyInfo where
     under that case. This is the structure a Lean replay folds over: recurse the
     branches (case analysis), apply substitutions, replay each literal's chain. -/
 inductive ClauseItem where
+  /-- A recorded linear equation insertion before trivial substitution. -/
+  | linearEquation (info : LinearEquationInsertion)
   | literal (lp : LiteralProof)
   | step (node : ProofNode)
   | branch (segment : SExpr) (items : List ClauseItem)
@@ -480,7 +482,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ _ :: _
   | .fcDerivations _ :: _ | .complementClose _ :: _ | .dedupDrop _ :: _
-  | .taSubst .. :: _
+  | .taSubst .. :: _ | .linearEquation _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -674,6 +676,8 @@ partial def parseClauseItems (events : List TraceEvent)
         throw s!"parseClauseItems: (:FC-DERIVATIONS) inside literal \
           {index}'s window — unhandled emission shape (frontier; audit \
           2026-08-03 F7)"
+      if litEvents.any (fun | .linearEquation _ => true | _ => false) then
+        throw s!"parseClauseItems: LINEAR-EQUATION inside literal {index}'s window"
       let compCloses := litEvents.filterMap fun
         | .complementClose l => some l
         | _ => none
@@ -719,6 +723,9 @@ partial def parseClauseItems (events : List TraceEvent)
   | .dedupDrop lit :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.dedupDrop lit :: more, rest')
+  | .linearEquation info :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.linearEquation info :: more, rest')
   | .taSubst n f ts sn so :: rest =>
       -- clause-level ta-subst provenance outside any literal window
       -- (audit S5): RECORDED as an item, not dropped.

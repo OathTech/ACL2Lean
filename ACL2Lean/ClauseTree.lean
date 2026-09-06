@@ -600,6 +600,9 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
   | .complementClose _ :: rest => collectHypEquivs rest
   | .dedupDrop _ :: rest => collectHypEquivs rest
   | .taSubst .. :: rest => collectHypEquivs rest
+  -- The insertion consumer establishes this equation at its own position;
+  -- it is not an already-available literal/IH for the global linker.
+  | .linearEquation _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
@@ -626,6 +629,8 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
   | .literal lp :: rest => do
       let nodes ← lp.nodes.mapM (linkNode (cands.filter (·.1 != .literal lp.index)))
       return .literal { lp with nodes } :: (← linkItems cands rest)
+  | .linearEquation info :: rest => do
+      return .linearEquation info :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
   | .useHint h c a l tr :: rest => do return .useHint h c a l tr :: (← linkItems cands rest)
@@ -1175,6 +1180,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .complementClose _ :: rest => itemNodes rest
   | .dedupDrop _ :: rest => itemNodes rest
   | .taSubst .. :: rest => itemNodes rest
+  | .linearEquation _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=
@@ -1304,6 +1310,13 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │    complement-close: {lit}"
     | .dedupDrop lit =>
       IO.println s!"{pad}  │    dedup-drop: {lit}"
+    | .linearEquation info =>
+      IO.println s!"{pad}  │    linear equation insertion: {info.newLiteral}"
+      IO.println s!"{pad}  │      parent clause: {info.parentClause}"
+      IO.println s!"{pad}  │      input: {info.inputClause}"
+      IO.println s!"{pad}  │      output: {info.outputClause}"
+      IO.println s!"{pad}  │      numeric flags: {info.numericFlags}; assumptions: {info.assumptions}"
+      IO.println s!"{pad}  │      polynomial pairs: {info.polyPairs}; runes: {repr info.runes}"
     | .taSubst n f _ _ _ =>
       IO.println s!"{pad}  │    ta-subst: {f} ⇒ {n}"
     | .useHint hyps ccl appC lmis translated =>
