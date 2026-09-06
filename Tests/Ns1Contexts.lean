@@ -341,4 +341,36 @@ elab "ns1_reciprocal_record_controls%" : command => Elab.Command.liftTermElabM d
 
 ns1_reciprocal_record_controls%
 
+private def orderedCapture : String := include_str "../acl2_samples/sorting/ordered-perms.proof-log"
+
+elab "ns1_equal_nil_window_control%" : command => Elab.Command.liftTermElabM do
+  let .ok log := ProofLog.parse orderedCapture | throwError "nil-test window: parse failed"
+  let active ← IO.mkRef false
+  let changed ← IO.mkRef false
+  let events ← log.events.mapM fun ev => do
+    match ev with
+    | .defthm name _ _ _ => active.set (name == "ORDEREDP-MEMB"); pure ev
+    | .step step =>
+      unless ← active.get do return ev
+      let traceEvents ← step.traceEvents.mapM fun ev => do
+        if ← changed.get then return ev
+        if let .beginIfRewrite t u := ev then
+          if t == app "CAR" [sym "A"] then
+            changed.set true
+            return .beginIfRewrite (app "CDR" [sym "A"]) u
+        return ev
+      pure (.step { step with traceEvents })
+    | _ => pure ev
+  unless ← changed.get do throwError "nil-test window: actual record absent"
+  let .ok dev := ClauseTree.buildDevelopment { log with events }
+    | throwError "nil-test window: mutation failed before consumer"
+  let some cp := findThm dev "ORDEREDP-MEMB" | throwError "nil-test window: theorem absent"
+  let (status, _) ← Runner.tryReplay dev dev.toWorld (← reflectWorld dev.toWorld)
+    cp (rulesBefore dev cp.name)
+  unless (status.splitOn "anchor matches its recorded IF test").length > 1 do
+    throwError "nil-test window: changed test was not rejected at the anchor: {status}"
+  logInfo "actual EQUAL-NIL window's changed test rejected at its consuming check"
+
+ns1_equal_nil_window_control%
+
 end ACL2.Tests.Ns1Contexts

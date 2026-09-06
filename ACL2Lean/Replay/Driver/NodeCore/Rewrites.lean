@@ -446,9 +446,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S
           | none
         guard (ifS.name == "IF")
-        let .cons (.atom (.symbol ifS2)) (.cons _ (.cons qn (.cons qt .nil))) := c
-          | none
-        guard (ifS2.name == "IF" && qn == quoteNil && qt == quoteT)
+        guard (ifSwapTest? c).isSome
         -- after the swap the if is (IF c els thn): if-left names els
         -- (post-swap arg 2), if-right names thn (post-swap arg 3)
         if kind == "if-left" && els == wterm then some 2
@@ -513,14 +511,12 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             | some (_, .cons (.atom (.symbol f))
                 (.cons c (.cons _ (.cons _ .nil)))) =>
               f.name == "IF" && (if pre.isSome then
-                match c with
-                | .cons (.atom (.symbol g)) (.cons t (.cons a (.cons b .nil))) =>
-                  g.name == "IF" && a == quoteNil && b == quoteT && t == recordedTest
-                | _ => false
+                (ifSwapTest? c).any (fun (_, t) => t == recordedTest)
                 else c == recordedTest)
             | _ => false
         if hadCandidates && cands.isEmpty then
-          throwError "replayRewrites: no inline window anchor matches its recorded IF test"
+          throwError "replayRewrites: no inline window anchor matches its recorded IF test: \
+            test={recordedTest.toString}, window={wterm.toString}, start={start.toString}, path={repr wpath}"
       let mut start := start
       let mut frames := relW
       let mut preChain : Option Expr := none
@@ -638,15 +634,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         branchAnchor := br?
         if let some base := preSwap? then
           let (stepsToIf, S) ← ofExcept (navigateFrames start base)
-          let .cons (.atom (.symbol ifS))
-              (.cons (.cons (.atom (.symbol _))
-                  (.cons cIn (.cons _ (.cons _ .nil))))
-                (.cons a (.cons b .nil))) := S
-            | throwError "replayRewrites: internal — pre-swap candidate \
-                lost its negation shape at {repr S}"
-          let swapped : SExpr :=
-            .cons (.atom (.symbol ifS)) (.cons cIn (.cons b (.cons a .nil)))
-          let (pc, root') ← liftNegTestSwap cfg stepsToIf start S cIn a b swapped
+          let (pc, root') ← liftIfTestSwap cfg stepsToIf start S
           preChain := some pc
           start := root'
       let w := cfg.worldExpr

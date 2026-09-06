@@ -1683,6 +1683,60 @@ pinned pass1 book; its fresh capture and recursive tree are recorded in
 `c2-bind-free-numerator-tree.log`. These are dependency frontiers, not new
 native products. All three NS1 mirrors remain unproved.
 
+The full gate for reciprocal checkpoint `7445845` fails:
+`.gate-runs/7445845-20260906T175722Z.log` records **TRUE_EXIT=1**. The main
+build finds a regression in ORDEREDP-MEMB: the new IF-window test filter
+rejects an anchor. Its dependent ORDERED-PERMS statement retains that rule
+condition, and the corresponding waypoint and coverage pin fail. The
+unchanged golden is authoritative; this checkpoint does not preserve the
+baseline yet. The previous `3fb7763` full receipt remains the last passing
+checkpoint. BUG-046 remains open and its repair takes priority.
+
+While the checkpoint was frozen, fresh pass1/mini-theories and
+bind-free/numerator-and-denominator captures close
+REWRITE-LINEAR-EQUALITIES-TO-IFF and NUMERATOR-NEGATIVE. Their exact source
+formulas and accepted axiom trios check in
+`c2-numerator-negative-frozen-pins.log`; the focused numerator prefix is
+2/2 unconditional in 13995 ms (`c2-numerator-negative-mini-replay.log`). An
+earlier broad run with the wrong dependency book was stopped (exit 143,
+`c2-bind-free-numerator-replay.log`); it has no completed target receipt.
+
+A temporary copy of the registry retaining exact cross-book name components
+checks both inverse-uniqueness statements and the previously refused
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT transfer. Its staged diagnostic
+also reaches an unconditional INTEGERP-MOD with the accepted axiom trio
+(`c2-integerp-mod-registry-staged-rerun2.log`), but the helper stage reports
+command-budget errors: this is NOT a passing probe file or a permanent
+source pin. Earlier syntax/initializer failures remain recorded. The next
+naming patch is prepared in scratch files; production naming is unchanged.
+No NS1 native product is proved.
+
+The ORDEREDP-MEMB regression is repaired at the actual window: its running
+IF test is `(EQUAL 'NIL (CAR A))`, while BEGIN-IF records the stripped test
+`(CAR A)` and SWAPPED-P. The new anchor filter recognized only the IF-shaped
+negation. The inline and combined consumers now use the already checked
+EQUAL-NIL swap judgment too; the three existing swap-shape checks share one
+helper. `Rewrites.lean` shrinks to 1481 lines. The diagnostic before the
+repair is `c2-ordered-window-diagnostic-replay.log`.
+
+The focused ordered-perms prefix is 6/6 unconditional in 52899 ms
+(`c2-ordered-window-equal-nil-replay.log`). Reciprocal source/axiom pins
+and context controls build in 6225 jobs
+(`c2-ordered-window-equal-nil-build.log`). The two previously failing
+waypoint/coverage modules and the new actual EQUAL-NIL window mutation
+control build in 3130 jobs (`c2-ordered-window-regression-pins-build.log`);
+coverage matches the unchanged 6/6 section. Static checks pass
+(`c2-ordered-window-static.log`). This is an intermediate **fast-gate**
+repair. The 7445845 full gate remains red and still needs a complete rerun.
+
+The smaller per-dependency INTEGERP-MOD diagnostic now passes as a whole
+Lean file (`c2-integerp-mod-dependency-stages.log`, exit 0). It replays six
+actual helper statements, the mini-theories statement and NUMERATOR-NEGATIVE
+at the consumer's world before INTEGERP-MOD; every stage is unconditional,
+and INTEGERP-MOD has only the accepted axiom trio. A separate independent
+source-formula pin is running. Production registry naming and permanent
+capture/pin integration remain pending; this is still no native product.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

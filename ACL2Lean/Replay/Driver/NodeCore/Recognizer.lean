@@ -863,21 +863,6 @@ def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
     throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
   return (inner, curR)
 
-/-- A combined IF node records its normalized test. Apply the recorded
-negation swap before partitioning that node's branch windows. Matching the
-recorded test also makes this a single normalization, including nested NOTs. -/
-def normalizeCombinedIfSwap (cfg : ReplayConfig) (root : SExpr)
-    (frames : List PathFrame) (recorded : SExpr) : MetaM (Option (Expr × SExpr)) := do
-  let some (rf, [rt, _, _]) := asApp recorded | return none
-  unless rf.name == "IF" do return none
-  let (steps, sub) ← ofExcept (navigateFrames root frames)
-  let some (f, [test, a, b]) := asApp sub | return none
-  unless f.name == "IF" && test != rt do return none
-  let some (nf, [c, qn, qt]) := asApp test | return none
-  unless nf.name == "IF" && qn == quoteNil && qt == quoteT && c == rt do return none
-  let swapped := SExpr.ofList [.atom (.symbol f), c, b, a]
-  return some (← liftNegTestSwap cfg steps root sub c a b swapped)
-
 /-- The EQUAL-NIL variant of `liftNegTestSwap` (sorting-completion-2
     Class A): `(IF (EQUAL 'NIL c) a b) ⇒ (IF c b a)` via
     `re_if_equal_nil_test_swap` (EQUAL unshadowed — kernel-decided). -/
@@ -896,6 +881,40 @@ def liftEqualNilTestSwap (cfg : ReplayConfig) (steps : List PathStep)
   unless curL == root do
     throwError "liftEqualNilTestSwap: reconstructed {repr curL} ≠ {repr root}"
   return (inner, curR)
+
+/-- The two negation forms already supported by the IF swap judgments.
+The Boolean selects the existing EQUAL-NIL lemma, not an equivalence relation. -/
+def ifSwapTest? (test : SExpr) : Option (Bool × SExpr) := do
+  match asApp test with
+  | some (f, [c, qn, qt]) =>
+    if f.name == "IF" && qn == quoteNil && qt == quoteT then some (false, c) else none
+  | some (f, [qn, c]) =>
+    if f.name == "EQUAL" && qn == quoteNil then some (true, c) else none
+  | _ => none
+
+/-- Apply one of the existing swap judgments at the recorded IF anchor. -/
+def liftIfTestSwap (cfg : ReplayConfig) (steps : List PathStep)
+    (root sub : SExpr) : MetaM (Expr × SExpr) := do
+  let some (f, [test, a, b]) := asApp sub
+    | throwError "IF swap: anchor is not a three-argument application"
+  let some (equalNil, c) := ifSwapTest? test
+    | throwError "IF swap: anchor lost its negation shape"
+  unless f.name == "IF" do throwError "IF swap: anchor is not IF"
+  let swapped := SExpr.ofList [.atom (.symbol f), c, b, a]
+  if equalNil then liftEqualNilTestSwap cfg steps root sub c a b swapped
+  else liftNegTestSwap cfg steps root sub c a b swapped
+
+/-- A combined IF node records its normalized test. Apply its recorded
+swap once, including the EQUAL-NIL form used in sorting. -/
+def normalizeCombinedIfSwap (cfg : ReplayConfig) (root : SExpr)
+    (frames : List PathFrame) (recorded : SExpr) : MetaM (Option (Expr × SExpr)) := do
+  let some (rf, [rt, _, _]) := asApp recorded | return none
+  unless rf.name == "IF" do return none
+  let (steps, sub) ← ofExcept (navigateFrames root frames)
+  let some (f, [test, _, _]) := asApp sub | return none
+  let some (_, c) := ifSwapTest? test | return none
+  unless f.name == "IF" && test != rt && c == rt do return none
+  return some (← liftIfTestSwap cfg steps root sub)
 
 /-- The rewrite-if SWAPPED-P bridge (rewrite.lisp:17726-37): walk `rel` from
     `start`; when the rewritten test of an if has the negation shape
@@ -963,26 +982,12 @@ partial def findSwapPos (cur target : SExpr) (steps : List PathStep) :
     -- the Bool tags the variant: false = the NOT-shape `(IF (IF c 'NIL 'T)
     -- a b)`; true = the EQUAL-NIL shape `(IF (EQUAL 'NIL c) a b)`
     -- (sorting-completion-2 Class A) — both swap to `(IF c b a)`
-    let fire? : Option (Bool × SExpr × SExpr × SExpr) :=
-      match cur, target with
-      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol ifS2))
-            (.cons c (.cons qn (.cons qt2 .nil)))) (.cons a (.cons b .nil))),
-        .cons (.atom (.symbol ifT')) (.cons c' _) =>
-        if ifS.name == "IF" && ifS2.name == "IF" && qn == quoteNil &&
-           qt2 == quoteT && ifT'.name == "IF" && c' == c then
-          some (false, c, a, b)
-        else none
-      | _, _ => none
-    let fire? := fire?.orElse fun _ =>
-      match cur, target with
-      | .cons (.atom (.symbol ifS)) (.cons (.cons (.atom (.symbol eqS))
-            (.cons qn (.cons c .nil))) (.cons a (.cons b .nil))),
-        .cons (.atom (.symbol ifT')) (.cons c' _) =>
-        if ifS.name == "IF" && eqS.name == "EQUAL" && qn == quoteNil &&
-           ifT'.name == "IF" && c' == c then
-          some (true, c, a, b)
-        else none
-      | _, _ => none
+    let fire? : Option (Bool × SExpr × SExpr × SExpr) := do
+      let some (f, [test, a, b]) := asApp cur | none
+      let some (g, c' :: _) := asApp target | none
+      let (variant, c) ← ifSwapTest? test
+      guard (f.name == "IF" && g.name == "IF" && c' == c)
+      return (variant, c, a, b)
     match fire? with
     | some (v, c, a, b) => some (steps, cur, v, c, a, b)
     | none =>

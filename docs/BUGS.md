@@ -43,7 +43,12 @@ address ambiguity. The parser now retains empty swapped boundaries and nested
 window scope; the consumer also composes the combined IF record's negated-test
 swap. EQUAL-/ and EQUAL-/-0 pass whole-proof and source/axiom pins
 (`c2-reciprocal-zero-type-cell-build.log`). Changed window tests are rejected
-by the permanent context controls. Full regression validation remains pending.
+by the permanent context controls. The full gate at 7445845 is red: the
+new test filter rejects ORDEREDP-MEMB's actual window anchor, retaining a
+condition in ORDERED-PERMS and failing the waypoint/coverage pins. The
+repaired consumer shares the existing EQUAL-NIL swap shape with the other
+IF normalizers. Both failed modules and a changed-test control now pass
+(`c2-ordered-window-regression-pins-build.log`). A full rerun remains pending.
 
 ## BUG-047 — rewrite-equal omits Boolean equality normalization
 Status: open
