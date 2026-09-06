@@ -40,10 +40,10 @@ charter or the archive carry the record.
       all three native proofs remain open. Close the actual FLOOR/quotient
       dependency trees, then carry the selected BVCHOP statements through the
       shared native correspondence/decode kit. Capture and consume the quotient's
-      remaining comparison type-set basis (BUG-039); replay its ordinary plus /
+      selected FC suffix at the context contradiction (BUG-051); replay its ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.
-      Validate the recorded hypothesis-instantiation fold repair (BUG-050) with
-      the next full gate.
+      Validate the comparison-basis and hypothesis-instantiation fold repairs
+      (BUG-039/050) with the next full gate.
       Integrate the linear equation producer/consumer (BUG-049) after msort's
       count/rewritten-linear-rule classes replay; cancellation is unconditional
       from its isolated capture. Validate the exact-name registry repair below.

@@ -138,6 +138,8 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
             (← mkAppM ``Ne #[reflectSExpr value, mkConst ``SExpr.nil]) "quoted hypothesis is nonnil"
           let conv ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr value]
           mkAppM ``evtrue_of_conv_ne_nil #[conv, ne]
+        else if let some p ← replayKnownTrueComparison? cfg ctx hσ reliefMarkers then
+          pure p
         else do
           -- relieved SILENTLY from the clause context (the emitted marker
           -- names the instantiated hyp): the spine's (not hσ)-falsity fact

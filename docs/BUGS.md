@@ -30,6 +30,30 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-051 — context contradiction does not retain its selected FC suffix
+Status: open
+Pinned-by: none (clause-boundary proof evidence, not interpreter values)
+
+NONNEGATIVE-INTEGER-QUOTIENT-UPPER-BOUND-LINEAR, Subgoal *1/3', reaches
+`rewrite-clause/type-alist-contradiction` after six literals. Its actual
+obligation is the branch accumulator followed by three negated
+forward-chaining conclusions; the current literal is excluded. This is
+`rewrite-clause-type-alist`'s documented construction in `simplify.lisp`:
+`new-clause ++ cdr(tail) ++ selected-fc-literals`. The existing consumer
+supports only the empty FC suffix and correctly refuses this occurrence.
+
+The isolated capture at fork `3d78183cc7` retains the leaf at NIQ log:22440
+and clause-level derivations for `<=-OF-*-AND-*-SAME-FORWARD-1` and `-2`
+at :21573, including substitutions, parents, and nested supports. The leaf
+does not identify which FC pairs the actual parent filter selected, nor
+carry their derivations/runes into its own basis. The final residual is
+`(NOT (< (* I (/ J)) (NONNEGATIVE-INTEGER-QUOTIENT I J)))`, which is not
+the emitted DP obligation. Preserve and replay the selected FC evidence
+before peeling the extra disjuncts; do not widen the DP obligation or
+assume the FC conclusions. Receipt:
+`.tmp/ns1/c2-quotient-known-comparison-tp-whole.log`. No completed quotient
+statement or native BVCHOP product is claimed.
+
 ## BUG-050 — hypothesis instantiation folds are absent from relief records
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)
@@ -795,6 +819,25 @@ nonnegative and nonzero facts for J. The current replay refuses that marker
 Capture the actual type-set lookup/comparison route before adding its
 consumer. Do not replace this hypothesis relief with a DP or infer the
 missing type-set evidence. The earlier repaired basis classes remain intact.
+
+Isolated progress, 2026-09-06: fork `3d78183cc7` observes the actual selected
+route. Both upper-bound comparison nodes use the numeric table with masks
+1 and 6 and result 256. Their reconstructed records now drive the existing
+type-set membership and zero/positive-rational comparison proofs; both
+actual nodes pass explicit kernel and axiom checks, with removed context,
+removed route/basis, and changed-result controls rejected. All 462 original
+events are unchanged modulo this new field. The whole quotient replay also
+passes its following cited-TP recognizer after forwarding that marker's
+existing citations; it now refuses the distinct FC suffix in BUG-051.
+Receipts: `c2-known-comparison-actual-controls-rerun.log`,
+`c2-known-comparison-event-comparison.log`, and
+`c2-quotient-known-comparison-tp-whole.log`, under `.tmp/ns1/`.
+Production fork `fd27e59021` now includes the observer; all 110 permanent
+captures carry that stamp. Focused regression builds pass, including
+`Tests.Ns1Comparison`, `Tests.Ns1Mod`, and the existing substitution,
+positive/context and tamper controls (`c2-known-comparison-production-regression-build-rerun.log`).
+Full regression for this increment remains pending. Constant-bound routes
+in unselected `basic` events are retained but not implemented by this consumer.
 
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set

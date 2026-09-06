@@ -15,6 +15,7 @@ import Tests.Ns1Arithmetic
 import Tests.Ns1Mod
 import Tests.Ns1Positive
 import Tests.Ns1Substitution
+import Tests.Ns1Comparison
 import Tests.Ns1Contexts
 import Tests.Ns1GuardTrees
 import Tests.Ns1LocalDefinitions

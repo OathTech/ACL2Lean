@@ -2245,6 +2245,81 @@ query route and consume its evidence, while preserving the no-hypothesis-DP
 boundary. These are fast-gate receipts. A fresh full regression run remains
 required for this increment; C2 and all three native products remain open.
 
+### C2 increment — actual comparison tables (2026-09-06)
+
+The fresh quotient tree identifies the missing known-true comparison route:
+`type-set-<` selects its numeric table with left mask 1, right mask 6, and
+result 256 for `(< '0 J)`. Both occurrences are under
+`<-OF-*-OF-/-ARG1-ARG2` in NONNEGATIVE-INTEGER-QUOTIENT-UPPER-BOUND-LINEAR
+(`c2-known-comparison-tree.log`:1870,1962). The root query observer records
+the selected lookup, constant-bound, or table route without repeating its
+computation. Unsupported routes remain explicit consumer frontiers.
+
+The parser/tree retain `:COMPARISON-BASIS`. The table consumer checks the
+reported result and numeric projection, proves membership in the recorded
+right mask using the existing context/type-set walker, and applies the
+existing zero/positive-rational primitive law. No arithmetic lemma, solver,
+or budget was added. The following RATIONALP sum hypothesis already cited
+the quotient's TP; forwarding its existing citations to the shared consumer
+lets that step replay too. Repeated citation extraction was consolidated.
+
+The isolated observer is **3d78183cc7**; production is
+**fd27e59021cf7d0103a526dbda41553ad709eae3**. The initial isolated build
+required the new raw observer functions to be declared in ACL2's bootstrap
+program-function registry; the corrected image and tag check passed. The
+production image also passed its success/freshness checks, and all **110**
+permanent captures were regenerated with that fork stamp. The tracked P8
+fixture/sidecar changed through the capture recipe.
+
+Capture comparisons distinguish three checks:
+
+- The selected isolated NIQ capture preserves all **462** original events
+  modulo the comparison field (`c2-known-comparison-event-comparison.log`).
+- All **110** isolated corpus recaptures succeed. **108** parseable logs
+  preserve all **14,696** original events modulo that field; `cov-force-round`
+  and `cov-or-hint` retain their exact forcing/package parser refusals and
+  their events are not compared (`c2-known-comparison-corpus-comparison.log`).
+  New basis records occur only in five NS1 captures, including unselected
+  constant-bound routes in `basic`; sorting/reconstruction captures have none.
+- All production capture text matches that isolated corpus except the two
+  expected ACL2 banner lines containing the image build time and embedded
+  Git hash (`c2-known-comparison-production-artifact-comparison.log`). An
+  initial byte-equality assertion stopped at those banner differences;
+  the final comparison excludes exactly those two lines in each log.
+  Comparison projections never enter replay.
+
+`Tests.Ns1Comparison` consumes the two actual upper-bound nodes under facts
+drawn from their recorded clauses and branch paths. Both proofs pass
+`Meta.checkWithKernel` and the accepted-axiom check. Changed verdicts and
+numeric projections, removed routes/context/basis, and malformed parser
+fields are rejected. The new test's first build had a record-layout syntax
+error; it was corrected. The focused build command also initially named a
+nonexistent `Tests.Ns1Mod16`; the real module is `Tests.Ns1Mod`.
+
+Static recipes pass (`c2-known-comparison-production-static.log`). The
+corrected focused build passes **6242 jobs**, including `Tests.Ns1Comparison`,
+`Tests.Ns1Substitution`, `Tests.Ns1Positive`, `Tests.Ns1Contexts`,
+`Tests.Ns1Mod`, `Tests.TamperTests`, and the replay executable
+(`c2-known-comparison-production-regression-build-rerun.log`). The
+INTEGERP-MOD module, including its staged dependency proofs and axiom
+receipts, builds in 238 seconds. These are fast-gate receipts. The
+focused `ordered-perms` replay passes **6/6 unconditional theorem rows** in
+51,583 ms (`c2-known-comparison-ordered-perms-replay.log`); its informational
+DP brackets retain their existing separate assumed rows. The last full
+claim-gate remains `.gate-runs/2953c78-20260906T215722Z.log`, `TRUE_EXIT=0`.
+No new full-gate or native-product completion is claimed here.
+
+The production whole quotient probe crosses the two comparison nodes and
+the cited-TP recognizer, then stops at **BUG-051**, Subgoal *1/3': the actual
+context-contradiction leaf contains three negated FC conclusions after the
+branch accumulator. Its adapter currently accepts only an empty FC suffix.
+`simplify.lisp` constructs this obligation from the actual selected FC pairs;
+the record must retain their selection and proofs before the extra literals
+can be peeled. Receipt: `c2-quotient-comparison-production-whole.log`; its
+trailing unknown-constant error is the unavailable whole-proof axiom query.
+Ordinary FC-rule dependency proofs, remaining quotient/FLOOR dependencies,
+the shared operation/decode kit, and all three native products remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

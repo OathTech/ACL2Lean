@@ -71,6 +71,7 @@ structure StepProvenance where
   lookupBasis : Option HypLookupBasis := none
   /-- Root IF type-set query and its addressed branch verdicts. -/
   ifBasis : Option HypIfBasis := none
+  comparisonBasis : Option HypComparisonBasis := none
   /-- Actual ground folds between the plain instance and the relieved hypothesis. -/
   substBasis : Option HypSubstitutionBasis := none
   /-- For a `rewriting-equivalence` (solidify) node: the source of the
@@ -465,7 +466,8 @@ partial def parseProofNodesAux (events : List TraceEvent)
         (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes) windowTest
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes) windowTest
-  | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis ifBasis substBasis :: rest =>
+  | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis ifBasis substBasis
+      comparisonBasis :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
       -- relief chain. It never adopts children.
@@ -474,7 +476,8 @@ partial def parseProofNodesAux (events : List TraceEvent)
                  nodes: {repr hyp}"
       parseProofNodesAux rest []
         (.node ⟨"hyp-relief", "", none⟩ hyp hyp []
-          { origin, taRunes, parents, recogBasis, lookupBasis, ifBasis, substBasis } :: nodes) windowTest
+          { origin, taRunes, parents, recogBasis, lookupBasis, ifBasis, substBasis,
+            comparisonBasis } :: nodes) windowTest
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
       parseProofNodesAux rest pendingChildren nodes windowTest

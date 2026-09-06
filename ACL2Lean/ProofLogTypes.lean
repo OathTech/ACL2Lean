@@ -323,6 +323,13 @@ structure HypIfBasis where
   leaves : List TpLeaf
   deriving Repr, BEq, Inhabited
 
+/-- The root comparison result and the route actually selected by type-set.
+The route is retained verbatim; unsupported routes fail at consumption. -/
+structure HypComparisonBasis where
+  resultTs : Int
+  route : SExpr
+  deriving Repr, BEq, Inhabited
+
 def parseHypIfBasis (v : Option SExpr) : Except String (Option HypIfBasis) := do
   let some v := v | return none
   if v == .nil then return none
@@ -408,6 +415,7 @@ inductive TraceEvent where
       (lookupBasis : Option HypLookupBasis := none)
       (ifBasis : Option HypIfBasis := none)
       (substBasis : Option HypSubstitutionBasis := none)
+      (comparisonBasis : Option HypComparisonBasis := none)
   /-- The clause's approved forward-chaining derivations, emitted where
       ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
       per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS

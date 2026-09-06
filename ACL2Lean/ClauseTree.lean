@@ -1257,6 +1257,8 @@ partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Un
       IO.println s!"{pad}  {lhs} => {rhs}"
       if let some wt := prov.innerTerm then
         IO.println s!"{pad}  window: {wt} @ {repr prov.innerPath}"
+      if let some basis := prov.comparisonBasis then
+        IO.println s!"{pad}  comparison result {basis.resultTs}: {basis.route}"
       if !prov.runes.isEmpty then
         let runeStrs := prov.runes.map (·.tag)
         IO.println s!"{pad}  runes: {String.intercalate ", " runeStrs}"

@@ -94,6 +94,16 @@ def parseHypSubstitutionBasis (input folds : Option SExpr) :
     return some { input, folds }
   | _, _ => throw "HYP-RELIEF: :UNFOLDED-HYP and :SUBST-FOLDS must occur together"
 
+/-- Preserve the selected root comparison route and its returned mask. -/
+def parseHypComparisonBasis (value : Option SExpr) :
+    Except String (Option HypComparisonBasis) := do
+  let some value := value | return none
+  if value == .nil then return none
+  let some [.atom (.keyword "RESULT"), .atom (.number (.int resultTs)),
+      .atom (.keyword "ROUTE"), route] := value.toList?
+    | throw "HYP-RELIEF: malformed :COMPARISON-BASIS"
+  return some { resultTs, route }
+
 /-- Decode the actual PROCESS-EQUATIONAL-POLYS insertion. Its payload is
 provenance, never a proof of the inserted equation. -/
 def parseLinearEquation (rest : List SExpr) : Except String TraceEvent := do

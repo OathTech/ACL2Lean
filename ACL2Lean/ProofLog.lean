@@ -277,7 +277,9 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
         let ifBasis ← parseHypIfBasis (lookupKeyword "IF-BASIS" rest)
         let substBasis ← parseHypSubstitutionBasis
           (lookupKeyword "UNFOLDED-HYP" rest) (lookupKeyword "SUBST-FOLDS" rest)
-        pure (.hypRelief hyp origin taRunes parents taDerivs recogBasis lookupBasis ifBasis substBasis)
+        let comparisonBasis ← parseHypComparisonBasis (lookupKeyword "COMPARISON-BASIS" rest)
+        pure (.hypRelief hyp origin taRunes parents taDerivs recogBasis lookupBasis ifBasis
+          substBasis comparisonBasis)
     | .atom (.keyword "FC-DERIVATIONS") :: rest =>
         -- cluster item 4: the clause's approved fc derivations, raw plists
         let derivs ← match lookupKeyword "DERIVATIONS" rest with
