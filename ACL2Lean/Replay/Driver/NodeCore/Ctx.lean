@@ -1275,6 +1275,8 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
     return some (← mkAppM ``logic_lt_t_or_nil #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``Logic.integerp 1 then
     return some (← mkAppM ``logic_integerp_t_or_nil #[v.appArg!])
+  if v.isAppOfArity ``Logic.not 1 then
+    return some (← mkAppM ``logic_not_t_or_nil #[v.appArg!])
   match t with
   | .cons (.atom (.symbol hs)) (.cons c (.cons a (.cons b .nil))) =>
     if hs.name == "IF" then do

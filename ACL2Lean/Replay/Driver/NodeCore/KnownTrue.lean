@@ -15,16 +15,21 @@ def replayKnownTruePrimitive? (cfg : ReplayConfig) (ctx : ReplayCtx)
   unless prov.origin == "relieve-hyp/known-true" do return none
   let some basis := prov.recogBasis | return none
   let .cons (.atom (.symbol recog)) (.cons arg .nil) := hyp | return none
-  let .cons (.atom (.symbol fn)) (.cons a (.cons b .nil)) := arg | return none
-  unless recog.name == "ACL2-NUMBERP" do return none
-  let some lemmaName :=
-      [("BINARY-+", ``acl2NumberpCor_closed_plus),
-       ("BINARY-*", ``acl2NumberpCor_closed_times)].lookup fn.name | return none
   checkRecogVerdict basis.argTs basis.trueTs basis.falseTs recog.name true
-  let va ← ctxValExpr cfg ctx a
-  let vb ← ctxValExpr cfg ctx b
-  let fact ← mkAppM lemmaName
-    #[va, vb, mkConst ``True.intro, mkConst ``True.intro]
+  -- The same recorded mask consumer used by explicit recognizer nodes.
+  -- INTEGERP-MOD supplies argTs 59 / trueTs 63 for RATIONALP(UNARY-/ N).
+  let fact? ← recogVerdictFromTs cfg ctx recog.name arg .t
+    (some basis.argTs) (some basis.trueTs) [] []
+  let fact ← match fact? with
+    | some fact => pure fact
+    | none =>
+      let .cons (.atom (.symbol fn)) (.cons a (.cons b .nil)) := arg | return none
+      unless recog.name == "ACL2-NUMBERP" do return none
+      let some lemmaName :=
+          [("BINARY-+", ``acl2NumberpCor_closed_plus),
+           ("BINARY-*", ``acl2NumberpCor_closed_times)].lookup fn.name | return none
+      mkAppM lemmaName #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b,
+        mkConst ``True.intro, mkConst ``True.intro]
   let p ← ctxValProof cfg ctx hyp
   let conv ← mkAppM ``re_val_cast
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr hyp, ← ctxValExpr cfg ctx hyp,

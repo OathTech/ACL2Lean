@@ -411,8 +411,8 @@ Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-041 — a top-level LOCAL defun is emitted as an encapsulation witness
-Status: open
-Pinned-by: none (actual nonnegative-integer-quotient dependency capture)
+Status: fixed
+Pinned-by: none (proof-log provenance; Tests.Ns1LocalDefinitions pins the actual dependency capture)
 
 The unchanged kestrel/arithmetic-light/nonnegative-integer-quotient book
 declares NONNEGATIVE-INTEGER-QUOTIENT-DOUBLE-INDUCT inside LOCAL, outside an
@@ -427,7 +427,23 @@ parametric statement boundary for encapsulated functions. `toWorld` already
 includes witness bodies in the canonical model (ratified R6); the protection
 is statement abstraction and the witness-dereference guard, not exclusion
 from that model. Some older source comments still describe the superseded
-exclusion mechanism.
+exclusion mechanism; those comments are corrected with this repair.
+
+Fork `d97312a6ba18` distinguishes LOCAL-HELPER using ACL2's actual encapsulate
+stack, preserving the previous include-book and witness classifications.
+The reader retains helper bodies and admission evidence, rejects helpers
+inside encapsulate, and refuses conflicting definitions involving a helper
+in the current flat model. The actual NIQ control changes only the two helper
+SOURCE fields; cov-encapsulate's proof events are unchanged
+(`.tmp/ns1/c2-local-helper-emission-comparison.log`). The permanent pin checks
+the real captures and rejects misplaced provenance and conflicting bodies
+with in-memory negative controls.
+
+Fixed 2026-09-06. Full checkpoint gate
+`.gate-runs/9a73b92-20260906T085449Z.log` records `TRUE_EXIT=0`: 102 permanent
+captures at clean d973, the unchanged 116 unconditional baseline rows, and
+all 21 existing mirror products. This closes ingestion of these private
+helpers; the NIQ dependency proofs and the three NS1 mirrors remain open.
 
 ## BUG-040 — capture's source theorem census miscounts reader comments and redundant declarations
 Status: fixed

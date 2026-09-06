@@ -43,10 +43,9 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Close the Boolean IFF/equality join in INTEGERP-MOD and the FLOOR/quotient
-      bounds. Guard trees
-      reconstruct separately with replay still excluded. Resolve BUG-041's
-      local induction-helper provenance in the quotient dependency. Record:
+      Close INTEGERP-MOD's recorded nested IF-test collapse and the
+      FLOOR/quotient bounds. Guard trees reconstruct separately with
+      replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog

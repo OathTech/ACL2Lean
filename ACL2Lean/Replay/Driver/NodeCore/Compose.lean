@@ -72,6 +72,24 @@ def chainReqEq (c? : Option (Expr × Bool)) : MetaM (Option Expr) :=
   | some (_, true) => throwError "chain: IFF composite where an \
       eval-equality is required (G1 rung-1 frontier)"
 
+/-- An equality rule can have a recorded IFF-only RHS continuation when
+both endpoints are Boolean. Preserve that continuation and refine its proved
+relation using the same core/emitted Boolean facts as `if1/boolean`.
+INTEGERP-MOD's EQUAL-DENOMINATOR-1 continuation is the first consumer. -/
+def chainReqEqOfBoolean (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (a b : SExpr) (c? : Option (Expr × Bool)) : MetaM (Option Expr) := do
+  if let some (ch, true) := c? then
+    let some ha ← boolDisj? cfg ctx a
+      | throwError "IFF/equality join: start {repr a} has no Boolean-result proof"
+    let some hb ← boolDisj? cfg ctx b
+      | throwError "IFF/equality join: end {repr b} has no Boolean-result proof"
+    let pa ← ctxValProof cfg ctx a
+    let pb ← ctxValProof cfg ctx b
+    let rel ← mkAppM ``val_rel_of_evrel #[ch, pa, pb]
+    let eq ← mkAppM ``eq_of_nil_iff_t_or_nil #[rel, ha, hb]
+    return some (← mkAppM ``fuel_eq_of_conv #[pa, pb, eq])
+  chainReqEq c?
+
 /-- Chain an EQ head with an optional R-TAGGED rest: eq·eq stays eq;
     eq·iff injects the head into the SIff lane via the MID term's
     convergence (the preprocess chain core's mixed compose). -/

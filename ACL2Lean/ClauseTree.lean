@@ -26,6 +26,7 @@
   is a hard error, surfaced — not papered over.
 -/
 import ACL2Lean.ClauseId
+import ACL2Lean.LocalDefinitions
 import ACL2Lean.ProofTree
 import ACL2Lean.EvalOpt
 
@@ -84,12 +85,13 @@ inductive WorldEvent where
       the admission was non-trivial. -/
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification) (termination : Option ClauseProof)
-  /-- A scoped `local` WITNESS defun (R6/Phase 4): recorded with its
-      admission tree, EXCLUDED from `toWorld` by construction (BUG-019 —
-      the certified world never contains witness bodies; the witness model
-      is the scope's conservativity artifact, consumed by the ScopeHolds
-      machinery when it lands). `buildDevelopment` hard-fails a witness
-      outside any bracket. -/
+  /-- A private, ordinary LOCAL admission outside encapsulate, with the
+      same definition and termination semantics as an admitted defun. -/
+  | localDefun (name : String) (formals : List Symbol) (body : SExpr)
+      (just : Option Justification) (termination : Option ClauseProof)
+  /-- An encapsulate-local witness retained in the canonical model (R6).
+      Public statements use scope abstraction; witness dereferences there
+      fail closed. Reconstruction requires an open encapsulate bracket. -/
   | witnessDefun (name : String) (formals : List Symbol) (body : SExpr)
       (just : Option Justification := none)
       (termination : Option ClauseProof := none)
@@ -273,7 +275,8 @@ def Development.toWorld : Development → World
   | .bind ev rest =>
     let w := rest.toWorld
     match ev with
-    | .defun name formals body _ _ => { w with defs := w.defs.insert { name := name } (formals, body) }
+    | .defun name formals body _ _ | .localDefun name formals body _ _ =>
+      { w with defs := w.defs.insert { name := name } (formals, body) }
     | .groundZeroDefun name formals body _ =>
       if builtinNames.contains name then w
       else { w with defs := w.defs.insert { name := name } (formals, body) }
@@ -438,7 +441,8 @@ def Development.justifications : Development → List (String × Justification)
   | .done => []
   | .bind ev rest =>
     match ev with
-    | .defun n _ _ (some j) _ => (n, j) :: rest.justifications
+    | .defun n _ _ (some j) _ | .localDefun n _ _ (some j) _ =>
+      (n, j) :: rest.justifications
     | .groundZeroDefun n _ _ (some j) => (n, j) :: rest.justifications
     -- CANONICAL MODEL (Phase 2): the witness's admission data is part
     -- of the model — its justification feeds induction/totality exactly
@@ -957,6 +961,7 @@ private def closeBlock (name : Option String) (formula : SExpr)
     name) is an admission/termination proof, held and attached to the next
     `:DEFUN` it admits. -/
 def buildDevelopment (log : ProofLog) : Except String Development := do
+  checkLocalDefinitionNames log.events
   let mut events : Array WorldEvent := #[]
   let mut curName : Option String := none
   let mut curFormula : SExpr := .nil
@@ -1030,6 +1035,12 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
     | .defun n formals body just =>
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
       events := events.push (.defun n formals body just termination)
+      pendingTermination := none
+    | .localDefun n formals body just =>
+      if encDepth != 0 then
+        throw s!"buildDevelopment: local helper '{n}' inside an encapsulate (malformed provenance)"
+      let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
+      events := events.push (.localDefun n formals body just termination)
       pendingTermination := none
     | .witnessDefun n formals body just =>
       -- BUG-019 by tag+scope (R6/Phase 4): a witness OUTSIDE any bracket
@@ -1387,9 +1398,10 @@ partial def printDevelopment : ACL2.Development → IO Unit
       IO.println s!"── constraints for \
         {String.intercalate " " (fns.map (·.name))}: \
         {formulas.length} formula(s) ──"
-    | .defun name formals body just termination =>
+    | .defun name formals body just termination | .localDefun name formals body just termination =>
       let fs := String.intercalate " " (formals.map (·.name))
-      IO.println s!"\n── def {name} ({fs}) ──"
+      let kind := match event with | .localDefun .. => "local helper" | _ => "def"
+      IO.println s!"\n── {kind} {name} ({fs}) ──"
       IO.println s!"  body: {body}"
       if let some j := just then
         let ms := String.intercalate " " (j.measuredSubset.map (·.name))
@@ -1452,7 +1464,7 @@ partial def printDevelopment : ACL2.Development → IO Unit
         IO.println s!"  :CLASSES {c}"
     | .witnessDefun name formals body _ termination =>
       let fstr := String.intercalate " " (formals.map (·.name))
-      IO.println s!"\n── witness defun {name} ({fstr}) — scoped, EXCLUDED from the world ──"
+      IO.println s!"\n── witness defun {name} ({fstr}) — scoped canonical-model definition ──"
       IO.println s!"  {body}"
       if let some t := termination then
         IO.println s!"  (admission proof recorded: {t.name})"

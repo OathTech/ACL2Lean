@@ -924,6 +924,16 @@ theorem logic_integerp_t_or_nil (v : SExpr) :
   · exact Or.inr h
   · exact Or.inl (logic_integerp_ne_nil_t v h)
 
+theorem logic_not_t_or_nil (v : SExpr) :
+    Logic.not v = SExpr.t ∨ Logic.not v = SExpr.nil := by
+  cases v <;> simp [Logic.not]
+
+/-- Truthiness equivalence of two Boolean values is equality. Both value
+facts are required; a truthy non-T endpoint does not license this conversion. -/
+theorem eq_of_nil_iff_t_or_nil {a b : SExpr} (hab : (a = SExpr.nil) ↔ (b = SExpr.nil))
+    (ha : a = SExpr.t ∨ a = SExpr.nil) (hb : b = SExpr.t ∨ b = SExpr.nil) : a = b := by
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl <;> simp_all [SExpr.t]
+
 /-- The boolean-TP corollary fact as a disjunction. -/
 theorem tp_boolean_t_or_nil (v : SExpr) {X : SExpr}
     (h : cond (Logic.toBool (Logic.equal v SExpr.t)) X (Logic.equal v SExpr.nil)

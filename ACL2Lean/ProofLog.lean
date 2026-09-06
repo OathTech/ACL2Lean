@@ -903,24 +903,11 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | other => throw s!"DEFUN {name}: non-symbol formal: {repr other}"
         let body ← (lookupKeyword "BODY" fields).elim
           (throw s!"DEFUN {name}: missing :BODY") pure
-        -- PROVENANCE (audit 2026-07-26 F1): every world-entering :DEFUN
-        -- must carry an explicit recognized :SOURCE — the fork emits one on
-        -- every path since da1f5336a4's successor. :LOCAL-WITNESS marks an
-        -- event admitted under `local` (an encapsulate/certification
-        -- witness): its world effects are DISCARDED from the scope's final
-        -- world, so a World built over it substitutes the witness for the
-        -- constrained function in every REPLAYED STATEMENT (BUG-019 — the
-        -- statement-substitution class; cov-encapsulate reported 2/2
-        -- replayed about the witness). HARD-FAIL, named. A missing or
-        -- unrecognized :SOURCE also hard-fails (a pre-provenance log
-        -- prompts recapture; an unknown value is an emission drift).
-        -- src: 0 = ground-zero snapshot, 1 = world-entering (admitted /
-        -- include-book), 2 = LOCAL-WITNESS. A witness (R6/Phase 4) is
-        -- accepted SCOPED: `buildDevelopment` requires an open encapsulate
-        -- bracket and `Development.toWorld` excludes it by construction —
-        -- the BUG-019 statement-substitution class resolved by tag+scope
-        -- structure (the ratified R6 shape), replacing the earlier
-        -- fail-closed refusal.
+        -- Explicit provenance is required on every definition. Witnesses
+        -- belong to encapsulate scopes and their canonical models (R6);
+        -- LOCAL-HELPER is an ordinary private admission outside such a scope.
+        -- Unknown or absent provenance is always a capture frontier.
+        -- src: 0 snapshot, 1 admitted/imported, 2 witness, 3 local helper.
         let src ← match lookupKeyword "SOURCE" fields with
           | none => throw s!"DEFUN {name}: missing :SOURCE — every \
                             world-entering defun carries provenance \
@@ -929,6 +916,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
           | some (.atom (.keyword "ADMITTED")) => pure 1
           | some (.atom (.keyword "INCLUDE-BOOK")) => pure 1
           | some (.atom (.keyword "LOCAL-WITNESS")) => pure 2
+          | some (.atom (.keyword "LOCAL-HELPER")) => pure 3
           | some other => throw s!"DEFUN {name}: unsupported :SOURCE \
                                   {repr other}"
         let groundZero := src == 0
@@ -1012,6 +1000,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
                                (:MEASURE/:WFREL/:MEASURED must travel together)"
         return if groundZero then .groundZeroDefun name formals body just
                else if src == 2 then .witnessDefun name formals body just
+               else if src == 3 then .localDefun name formals body just
                else .defun name formals body just
       | _ => throw s!"DEFUN: bad name: {repr nameExpr}"
     | _ => throw s!"DEFUN: expected plist, got {repr rest}"

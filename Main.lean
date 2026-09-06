@@ -165,14 +165,15 @@ def main (args : List String) : IO Unit := do
                       | none => ""
                       | some k => s!" . {k}"
                     IO.println s!"      {rw.rune.ty}:{rw.rune.name}{idxSuffix}"
-            | .defun name formals body just =>
+            | .defun name formals body just | .localDefun name formals body just =>
+                let kind := match event with | .localDefun .. => "LOCAL-HELPER" | _ => "DEFUN"
                 let formalStr := String.intercalate " " (formals.map (·.name))
-                IO.println s!"\n  DEFUN {name} ({formalStr}) = {body}"
+                IO.println s!"\n  {kind} {name} ({formalStr}) = {body}"
                 if let some j := just then
                   IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
             | .witnessDefun name formals body just =>
                 let formalStr := String.intercalate " " (formals.map (·.name))
-                IO.println s!"\n  WITNESS-DEFUN {name} ({formalStr}) = {body}  [scoped; excluded from the world]"
+                IO.println s!"\n  WITNESS-DEFUN {name} ({formalStr}) = {body}  [scoped canonical-model definition]"
                 if let some j := just then
                   IO.println s!"    admission: measure {j.measure} under {j.wfRel.name}"
             | .defthm name formula source _ =>

@@ -703,12 +703,14 @@ inductive ProofEvent where
   | consTermGuards (specs : List ConsTermGuard)
   | defun (name : String) (formals : List Symbol) (body : SExpr)
           (just : Option Justification := none)
-  /-- A `local` WITNESS defun (`:SOURCE :LOCAL-WITNESS`, R6/Phase 4):
-      admitted inside an encapsulate whose world effects ACL2 discards at
-      scope close. Recorded SCOPED — `buildDevelopment` requires an open
-      bracket, and `Development.toWorld` excludes it by construction
-      (BUG-019's resolution by tag+scope: the certified world never
-      contains witness bodies). -/
+  /-- A LOCAL admission outside any encapsulate. It remains an ordinary
+      definition of the certification world, with private provenance and its
+      admission evidence retained; it does not introduce a constrained symbol. -/
+  | localDefun (name : String) (formals : List Symbol) (body : SExpr)
+      (just : Option Justification := none)
+  /-- An encapsulate-local witness. The canonical model contains its body;
+      post-scope statements abstract over worlds and cannot dereference it.
+      Reconstruction requires the enclosing encapsulate bracket (R6). -/
   | witnessDefun (name : String) (formals : List Symbol) (body : SExpr)
       (just : Option Justification := none)
   /-- Encapsulate bracket OPEN (`:ENCAPSULATE-BEGIN`, cluster item 2 /

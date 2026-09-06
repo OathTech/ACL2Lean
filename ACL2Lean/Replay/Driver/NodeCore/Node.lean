@@ -877,7 +877,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- exactly on the node's recorded rhs (fail-closed)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
     let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids
-    let chainOpt ← chainReqEq chainOpt
+    let chainOpt ← chainReqEqOfBoolean cfg ctx rhsσ finalT chainOpt
     unless finalT == rhs do
       throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
                   {repr rhs}"

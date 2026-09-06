@@ -1117,7 +1117,61 @@ book dependencies still to replay. The standalone informational discharge
 probe, which lacks these premises, still reports an assumed leaf. This is
 an intermediate fast-gate checkpoint, not C2 completion or a full-gate claim.
 
+Intermediate checkpoint `9a73b92` contains the cited-TP/integer-view batch.
+The next applied Boolean IFF/equality join crosses INTEGERP-MOD's recorded
+EQUAL-DENOMINATOR-1 continuation; a shared relation-at-pinned-values lemma
+replaces two existing duplicate proof bodies. The actual reciprocal
+known-true marker supplies mask 59 inside RATIONALP's 63
+(`c2-integerp-mod-reciprocal-basis.log`), now consumed by the existing type-set
+walk. Its rerun reaches the subsequent nested IF-test collapse in the
+`(< (* x y) 0)` RHS (`c2-integerp-mod-known-rational-replay.log`).
+
+Fork `d97312a6ba` repairs the local-helper classification using ACL2's actual
+encapsulate stack. The dirty-image NIQ control differs from d032 only at the
+two private helpers' SOURCE fields; cov-encapsulate's proof events are
+unchanged (`c2-local-helper-emission-comparison.log`). Both helpers now
+reconstruct with their model definitions and admission evidence; they never
+enter the constrained witness vocabulary. Controls reject witnesses outside
+encapsulate, helpers inside encapsulate, and conflicting helper bodies
+(`c2-local-helper-reader-controls.log`). The complete NIQ tree is retained at
+`c2-local-helper-niq-tree.log`; the initial replay produced no receipt because
+the filesystem filled. No NIQ theorem count is claimed from that run.
+
+The first clean image build failed writing its core file because the shared
+filesystem was full (`c2-local-helper-clean-image-build.log`). The corrupt
+partial core was removed, and six superseded diagnostic capture directories
+were archived and every file byte-verified before removing the loose copies:
+`c2-pre-hypothesis-captures.tar.gz` contains `c2-primitive-captures`,
+`c2-clean-captures`, `c2-path-clean-full`, `c2-balanced-captures`,
+`c2-path-dirty-full`, and `c2-captures`. Earlier references to those directories
+can be recovered from this archive. Current dependency captures and all
+receipt logs remain loose. The clean image rebuild then passed
+(`c2-local-helper-clean-image-build-space-rerun.log`). Corpus recapture and
+the new permanent local-helper pin are pending.
+
+The refreshed permanent corpus has 102 captures stamped at clean fork
+`d97312a6ba18` (`c2-d973-corpus-recapture.log`,
+`c2-d973-capture-static.log`). The CLI, new local-definition pin, and all four
+existing NS1 arithmetic pins build (`c2-d973-reader-arithmetic-pins-build.log`).
+The next full claim-gate is running for this combined capture/consumer batch;
+C2 remains open. The current INTEGERP-MOD join is an existing recorded
+`:IF-TEST-TRUE` for `(< '0 M)` in the false branches of `(EQUAL M '0)` and
+`(< M '0)`, with `:FAKE-RUNE-FOR-TYPE-SET` justification. Its consumer needs
+those enclosing branch facts while composing the nested IF result; this is
+not an absent ACL2 proof step.
+
 ## Resume record
+
+The capture/consumer batch passes the full checkpoint gate:
+**`.gate-runs/9a73b92-20260906T085449Z.log`, `TRUE_EXIT=0`**. All 116 baseline
+rows remain unconditional, the assembled golden is unchanged, the combined
+Tests import builds, and all 21 existing mirror products pass the seam gate
+(59 seams). All 102 permanent captures carry clean fork d973 provenance.
+BUG-041 is closed for the local-helper classification and its explicit
+reconstruction checks. The arithmetic rows above retain their stated
+conditions; no NIQ proof or new native mirror is claimed from this gate.
+Next is the recorded nested IF collapse in INTEGERP-MOD, followed by the
+selected FLOOR/NIQ dependency closure.
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
@@ -1125,7 +1179,7 @@ an intermediate fast-gate checkpoint, not C2 completion or a full-gate claim.
   the full gate receipt above.
 - C0's two review tasks are complete. The two C4 tasks remain authorized;
   no preflight questions are pending.
-- Next: validate the capture/consumer batch, close the actual arithmetic
+- Next: close the actual arithmetic
   dependencies, and build the first native proof.
 - C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
   there is no merge or push approval for the implementation.

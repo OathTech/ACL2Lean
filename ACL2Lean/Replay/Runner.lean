@@ -79,7 +79,7 @@ partial def recordedTerminationDefuns
   | .done => []
   | .bind ev rest =>
     (match ev with
-     | .defun name _ _ _ (some tcp) =>
+     | .defun name _ _ _ (some tcp) | .localDefun name _ _ _ (some tcp) =>
        match justs.lookup name with
        | some just => if needsRecorded just then [(name, tcp)] else []
        | none => []
