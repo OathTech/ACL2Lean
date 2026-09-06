@@ -52,7 +52,7 @@ instance instTotalOrderSExpr : ACL2Lean.Sorting.TotalOrder SExpr where
 theorem lexorderB_intEmbed (m n : Int) :
     lexorderB (intEmbed.enc m) (intEmbed.enc n) = decide (m ≤ n) := by
   simp only [lexorderB, intEmbed, ACL2.lexorder, ACL2.lexView?,
-    ACL2.alphLe, ACL2.viewKind, ACL2.Logic.toRat]
+    ACL2.alphLe, ACL2.viewKind, ACL2.numberLe, ACL2.Logic.toRat]
   by_cases h : m ≤ n <;> simp [h]
 
 /-! ## The ORDER-RESPECTING embedding (R4 wave 1)

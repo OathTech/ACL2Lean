@@ -1,4 +1,9 @@
-import ACL2Lean
+-- The parser/interpreter CLI has no dependency on replayed products.
+-- Keep its import cone small so differential testing can precede a full
+-- proof rebuild. The default build explicitly checks the ACL2Lean library.
+import ACL2Lean.Workbench
+import ACL2Lean.WorldGen
+import ACL2Lean.ClauseTree
 
 private def theoremMatches (needle : String) (name : ACL2.Symbol) : Bool :=
   name.normalizedName = needle.map Char.toLower

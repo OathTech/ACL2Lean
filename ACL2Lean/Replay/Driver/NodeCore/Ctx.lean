@@ -1439,7 +1439,7 @@ def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
   unless cfg.noShadowHyps.isEmpty do
     let p ← dpValProof cfg cfg.envExpr [] [] (fun _ => none) lhs
     let target ← mkConvStmt cfg lhs v
-    unless ← isDefEq (← inferType p) target do
+    unless ← withTransparency .all <| isDefEq (← inferType p) target do
       throwError "executable-counterpart (parametric): the compositional \
         convergence proof for {repr lhs} does not state the recorded value \
         {repr v} (dp value form/recorded constant mismatch)"
@@ -1447,7 +1447,10 @@ def replayExecGround (cfg : ReplayConfig) (lhs v : SExpr) : MetaM Expr := do
   let lhsApp := mkApp4 (mkConst ``evalOpt) (mkNatLit F) cfg.worldExpr cfg.envExpr
     (reflectSExpr lhs)
   let someV ← mkAppM ``Option.some #[reflectSExpr v]
-  unless ← isDefEq lhsApp someV do
+  -- Closed executable arithmetic includes core Rat operations, which are
+  -- irreducible to ordinary elaboration. The kernel can unfold them; this
+  -- local check must use the same definitional equality.
+  unless ← withTransparency .all <| isDefEq lhsApp someV do
     throwError "executable-counterpart: evalOpt {F} … {repr lhs} does not REDUCE \
                 to {repr v} (env-dependence or reflected-world mismatch?)"
   let hAt ← mkExpectedTypeHint (← mkEqRefl someV) (← mkEq lhsApp someV)

@@ -129,7 +129,7 @@ private def renderWorld (bookName : String) (flat : List Event) : String := Id.r
   lines := lines.push ""
   lines := lines.push s!"namespace ACL2.Worlds.{bookName}"
   lines := lines.push ""
-  lines := lines.push "private def sym (name : String) : Symbol := ⟨\"ACL2\", name⟩"
+  lines := lines.push "private def sym (name : String) : Symbol := { name := name }"
   lines := lines.push ""
 
   -- Function bodies as SExpr data

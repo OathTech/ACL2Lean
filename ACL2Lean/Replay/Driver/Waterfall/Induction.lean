@@ -724,14 +724,10 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 mkLambdaFVars #[hNil] body
               let posL ←
                 if ← isDefEq vE nilC then do
-                  -- VACUOUS truthy branch: the test's value is DEFINITIONALLY
-                  -- nil — e.g. `(COMPLEX-RATIONALP _)`, constantly nil on the
-                  -- complex-free value space (ACL2-COUNT's complex scheme
-                  -- case) — so the branch hypothesis refutes itself and the
-                  -- case closes by absurdity. ACL2's split is preserved; the
-                  -- mirror proves this side EMPTY (the differential-pinned
-                  -- complex-free limitation), never walking an unreachable
-                  -- case whose IH decrease the walk could not state.
+                  -- ACL2's split is preserved; a definitionally nil test
+                  -- has an impossible truthy branch. COMPLEX-RATIONALP on
+                  -- an arbitrary value now takes the real positive branch
+                  -- below, with its recorded cases and component decreases.
                   let goalTy := (← instantiateMVars (← inferType negL)).bindingBody!
                   if goalTy.hasLooseBVars then
                     throwError "replayInduction: internal — dependent branch goal"

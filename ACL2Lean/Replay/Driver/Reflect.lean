@@ -38,6 +38,12 @@ def reflectNumber : Number → Expr
     -- (of type `true = true`) checks against `canonRat num den = true`.
     mkApp3 (mkConst ``Number.rational) (reflectInt num) (mkNatLit den)
       (mkApp2 (mkConst ``rfl [Level.one]) (mkConst ``Bool) (mkConst ``Bool.true))
+  | .complex r i _ =>
+    -- Explicit smart constructors keep reflection kernel-reducible without
+    -- depending on Rat's default ToExpr division/irreducible inverse route.
+    let ratExpr := fun (q : Rat) =>
+      mkApp2 (mkConst ``mkRat) (reflectInt q.num) (mkNatLit q.den)
+    mkApp2 (mkConst ``Number.fromParts) (ratExpr r) (ratExpr i)
 
 def reflectAtom : Atom → Expr
   | .symbol s => mkApp (mkConst ``Atom.symbol) (reflectSymbol s)

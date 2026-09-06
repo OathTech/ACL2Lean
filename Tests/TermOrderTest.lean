@@ -17,6 +17,17 @@ private abbrev Sym (n : String) : SExpr := .atom (.symbol { name := n })
 -- Negative integer: 2 + |value|
 #guard fnCountEvg (I (-3)) = 5
 
+-- BUG-029: ACL2 checks the recursion limit again at numeric component visits.
+-- Values measured with the pinned ACL2 image, including the public deep-list
+-- route that reaches these counters without calling the internal helper.
+#guard [997, 998, 999].map (fnCountEvgRec (Logic.mkNumber 1 2) 0) =
+  [6, 200000, 200000]
+#guard [995, 996, 997].map
+  (fnCountEvgRec (Logic.mkParts (mkRat 1 2) (mkRat 1 1)) 0) =
+  [9, 200000, 200000]
+#guard fnCountEvg ((List.replicate 499 SExpr.nil).foldr SExpr.cons
+  (Logic.mkNumber 1 2)) = 200000
+
 -- Cons adds 1 per cell
 #guard fnCountEvg (SExpr.cons (I 0) .nil) > fnCountEvg (I 0)
 

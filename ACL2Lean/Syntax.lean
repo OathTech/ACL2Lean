@@ -1,5 +1,6 @@
 import Std.Data.HashMap
 import Lean
+import Init.Data.Rat.Basic
 
 open Lean
 
@@ -93,13 +94,17 @@ def canonRat (n : Int) (d : Nat) : Bool := 2 ≤ d && n.natAbs.gcd d == 1
     docs/notes/2026-07-11_canonical-number-design.md): one representation per
     value, mirroring ACL2's value-space restriction at the type level. A
     `rational` carries the (proof-irrelevant, decidable) canonicity invariant;
-    construct via `Logic.mkNumber`, never raw. There is NO decimal constructor
+    construct via `Logic.mkNumber`, never raw. Genuine complex rationals have
+    canonical rational components and a nonzero imaginary part (BUG-009);
+    construct via `Number.fromParts`, which collapses zero imaginary parts.
+    There is NO decimal constructor
     — ACL2 has no such value type (the former `decimal` was unreachable from
     the parser/evaluator). -/
 inductive Number
   | int (value : Int)
   | rational (numerator : Int) (denominator : Nat)
              (canon : canonRat numerator denominator = true)
+  | complex (real imag : Rat) (imagNonzero : imag.num ≠ 0)
 
 /-- Equality on `Number` is equality of the DATA; the canonicity proofs are
     propositionally irrelevant. -/
@@ -115,11 +120,43 @@ instance : DecidableEq Number := fun a b =>
       .isFalse (fun hc => by cases hc; exact h ⟨rfl, rfl⟩)
   | .int _, .rational _ _ _ => .isFalse (by intro h; cases h)
   | .rational _ _ _, .int _ => .isFalse (by intro h; cases h)
+  | .complex r₁ i₁ _, .complex r₂ i₂ _ =>
+    if h : r₁ = r₂ ∧ i₁ = i₂ then
+      .isTrue (by obtain ⟨hr, hi⟩ := h; subst hr; subst hi; rfl)
+    else .isFalse (fun hc => by cases hc; exact h ⟨rfl, rfl⟩)
+  | .complex .., .int _ | .complex .., .rational .. =>
+    .isFalse (by intro h; cases h)
+  | .int _, .complex .. | .rational .., .complex .. =>
+    .isFalse (by intro h; cases h)
+
+namespace Number
+
+/-- Embed a canonical rational in ACL2's integer/proper-ratio value space. -/
+def fromRat (q : Rat) : Number :=
+  if hd : q.den = 1 then .int q.num
+  else .rational q.num q.den (by
+    have hp := q.den_pos
+    have hc := q.reduced
+    simp only [canonRat, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq]
+    exact ⟨by omega, hc⟩)
+
+/-- Canonical numeric construction: an imaginary zero is a rational value. -/
+def fromParts (real imag : Rat) : Number :=
+  if hi : imag.num = 0 then fromRat real
+  else .complex real imag hi
+
+/-- ACL2 rational spelling, including integer spelling for denominator one.
+    Core Rat's Lean-expression printer is not an ACL2 reader format. -/
+def ratString (q : Rat) : String :=
+  if q.den == 1 then toString q.num else s!"{q.num}/{q.den}"
+
+end Number
 
 instance : Repr Number where
   reprPrec n _ := match n with
     | .int v => repr v
     | .rational n d _ => s!"{n}/{d}"
+    | .complex r i _ => s!"#C({Number.ratString r} {Number.ratString i})"
 
 inductive Atom
   | symbol (value : Symbol)

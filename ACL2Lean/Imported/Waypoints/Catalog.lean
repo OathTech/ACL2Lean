@@ -71,8 +71,8 @@ ACL2, with minimal Lean-side trust obligations. Two BANNED antipatterns:
    audit 2026-07-31 §8 wording fix). Mechanized by the CRITERION-1 GATE
    below. SExpr-level notions are admissible exactly when the imported
    theorem is genuinely ABOUT the ACL2 value universe (the lexorder
-   ruling; note the value universe excludes complex rationals —
-   BUG-009 — so "every input" quantifiers range over the model);
+   ruling; "every input" quantifiers range over the model, including
+   canonical complex rationals after the NS1 domain extension);
    where a standard-Lean-type reading exists, prefer it.
 2. **Ornamental import.** The PROOF's Lean-side bridge may only
    EVALUATE (per-function simulation lemmas — a program computes its

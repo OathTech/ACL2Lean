@@ -7,11 +7,9 @@
 ; semantics: rationals are stored canonically (lowest terms, positive
 ; denominator, sign on the numerator) — ACL2's own convention — so
 ; numerator/denominator read the stored component; non-rationals complete
-; to 0 / 1. The value space has NO complex numbers (#c is a pinned
-; unsupported reader class), so on representable values realpart is the
-; number itself (0 for non-numbers), imagpart is 0, complex-rationalp is
-; NIL. All entries verified against acl2/saved_acl2 by the harness; the
-; 6/4 entries also pin reader canonicalization.
+; to 0 / 1. This file covers rationals and nonnumbers; complex-arith.lisp
+; adds the genuine-complex cases and cancellation back to rationals (NS1).
+; The 6/4 entries also pin reader canonicalization.
 
 ;@ match
 (numerator '5)

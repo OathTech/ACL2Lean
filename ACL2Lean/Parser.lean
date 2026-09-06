@@ -402,7 +402,19 @@ mutual
           match r with
           | .error e => .error e
           | .ok (n, rest') => .ok (SExpr.atom (.number (.int n)), rest')
-        if c = 'x' ∨ c = 'X' then mkInt (readRadixInt 16 rest)
+        if c = 'c' ∨ c = 'C' then
+          -- Read a proper two-element list before checking rationality.
+          -- This also admits proper dotted notation and inner #C forms
+          -- that normalize to a rational. Reader errors never use COMPLEX's
+          -- guard-off completion on invalid components (BUG-009).
+          match parseSExpr rest with
+          | .error e => .error e
+          | .ok (.cons r (.cons i .nil), tail) =>
+            if Logic.rationalp r == .t && Logic.rationalp i == .t then
+              .ok (Logic.complex r i, tail)
+            else .error "complex literal #C requires two rational components"
+          | .ok _ => .error "complex literal #C requires a proper list of two rationals"
+        else if c = 'x' ∨ c = 'X' then mkInt (readRadixInt 16 rest)
         else if c = 'b' ∨ c = 'B' then mkInt (readRadixInt 2 rest)
         else if c = 'o' ∨ c = 'O' then mkInt (readRadixInt 8 rest)
         else if c = 'f' ∨ c = 'F' then
@@ -557,7 +569,9 @@ mutual
                   -- integer 2 and `2/4` as `1/2`). Building `.rational n d` raw
                   -- here was the number-normalization divergence the
                   -- differential suite pinned (5/1 ≠ 5, 2/4 ≠ 1/2).
-                  | some n, some d => .ok (Logic.mkNumber n d, rest)
+                  | some n, some d =>
+                    if d == 0 then .error s!"zero denominator in rational literal: {tok} (BUG-028)"
+                    else .ok (Logic.mkNumber n d, rest)
                   | _, _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
               | _ => .ok (SExpr.atom (.symbol { name := tok }), rest)
             else if numericTokenIsFloat tok then

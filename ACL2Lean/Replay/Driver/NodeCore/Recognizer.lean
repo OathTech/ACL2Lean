@@ -1047,7 +1047,7 @@ partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- the in-scope facts (`typeSetWalk`), or, for a test ACL2 resolved by
   -- TYPE-SET, by the D-A algebra: the test's own TRUE type-set is
   -- DISJOINT from the type-set the clause context gives its argument
-  -- (`tsTestNilOf` + `inTsCandidates`). The marker is the ANCHOR; the
+  -- (`tsTestNilOf` + `inTsFromCtx`). The marker is the ANCHOR; the
   -- falsity is never assumed from it — and the typing probes the algebra
   -- may use are gated on the MARKER'S OWN cited compound-recognizer
   -- runes (`ifMarkerCitedCr`, the BUG-023 direction), so the reason ACL2
@@ -1066,15 +1066,18 @@ partial def bridgeIfCollapseNorm (cfg : ReplayConfig) (ctx : ReplayCtx)
       let some (a, mT, lem) := tsTestNilOf t | return none
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctxT a
       let va ← ctxValExpr cfg ctxA a
-      let cands ← inTsCandidates cfg ctxA [] citedCr a va
-      for (m, hv) in cands do
-        if ACL2.Replay.tsDisjointM m mT then
-          let hd ← mkDecideProof (← mkEq
-            (← mkAppM ``ACL2.Replay.tsDisjointM
-              #[Lean.toExpr m, Lean.toExpr mT])
-            (mkConst ``Bool.true))
-          return some (← mkAppM lem #[hd, hv])
-      return none
+      -- Refute the test's TRUE mask using the existing one/two-fact
+      -- algebra. Individual facts may overlap it even when their
+      -- intersection does not: with complex values present, INTEGERP
+      -- and (< 0 N) are both needed for CLASSIFY-POS's recorded collapse.
+      -- The target is the exact mask complement, not a guessed type fact.
+      let m := -mT - 1
+      let some hv ← inTsFromCtx cfg ctxA [] citedCr a va m | return none
+      let hd ← mkDecideProof (← mkEq
+        (← mkAppM ``ACL2.Replay.tsDisjointM
+          #[Lean.toExpr m, Lean.toExpr mT])
+        (mkConst ``Bool.true))
+      return some (← mkAppM lem #[hd, hv])
   -- v(t) ∈ {'t, 'nil}: the two-valued RANGE by structure
   let rec bRange (t : SExpr) : MetaM (Option Expr) := do
     if t == quoteT' then

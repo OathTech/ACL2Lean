@@ -38,9 +38,8 @@ open ACL2
 
     TOTAL and DISJOINT by construction: every value gets exactly one
     index, so the mask algebra below is the algebra of SETS of basic
-    types, exactly as in ACL2. Index 6 (complex-rational) is
-    UNINHABITED here — the model has no complex values (BUG-009), a
-    domain restriction of the model, never a claim about ACL2. -/
+    types, exactly as in ACL2. Index 6 is inhabited by genuine complex
+    rationals; no emitted type-set bit is discounted (BUG-009). -/
 def tsIndex (v : SExpr) : Nat :=
   match v with
   | .nil => 7
@@ -48,6 +47,7 @@ def tsIndex (v : SExpr) : Nat :=
   | .atom (.number (.int n)) =>
       if n = 0 then 0 else if n = 1 then 1 else if 1 < n then 2 else 4
   | .atom (.number (.rational n _ _)) => if 0 < n then 3 else 5
+  | .atom (.number (.complex _ _ _)) => 6
   | .atom (.string _) => 12
   | .atom (.char _) => 13
   | .atom (.keyword _) => 9
@@ -69,6 +69,9 @@ def tsIndex (v : SExpr) : Nat :=
     tsIndex (.atom (.number (.rational n d hc))) = if 0 < n then 3 else 5 :=
   rfl
 
+@[simp] theorem tsIndex_complex (r i : Rat) (hi : i.num ≠ 0) :
+    tsIndex (.atom (.number (.complex r i hi))) = 6 := rfl
+
 @[simp] theorem tsIndex_string (s : String) :
     tsIndex (.atom (.string s)) = 12 := rfl
 
@@ -85,6 +88,7 @@ def tsIndex (v : SExpr) : Nat :=
 /-- Every basic-type index is one of the fourteen. -/
 theorem tsIndex_lt (v : SExpr) : tsIndex v < 14 := by
   match v with
+  | .atom (.number (.complex _ _ _)) => simp only [tsIndex_complex]; decide
   | .nil => decide
   | .cons a d => simp only [tsIndex_cons]; split_ifs <;> decide
   | .atom (.symbol s) => simp only [tsIndex_symbol]; split_ifs <;> decide
@@ -152,7 +156,7 @@ what our value model's recognizers imply about the partition. The mask
 each one lands in is the one ACL2's own type-set machinery uses for that
 recognizer (`INTEGERP`'s emitted `:GROUND-ZERO-RECOGNIZER-TUPLES` true-ts
 is 23; ACL2's `assume-true-false` splits a zero-compared `<` at
-48 = negative-integer ∪ negative-ratio), and the driver additionally
+112 = negative-integer ∪ negative-ratio ∪ complex-rational), and the driver additionally
 CROSS-CHECKS every composed mask against ACL2's own emitted type-alist
 entry for the term — a composition that does not land inside ACL2's own
 verdict is refused. -/
@@ -175,12 +179,13 @@ theorem inTs_integerp_true {v : SExpr}
       simp only [tsIndex_int]
       split_ifs <;> decide
 
-/-- `(< v '0)` TRUE ⇒ the NEGATIVE numerics (48 = negative-integer ∪
-    negative-ratio). -/
+/-- `(< v '0)` TRUE ⇒ negative rationals or genuine complexes
+    (112 = negative-integer ∪ negative-ratio ∪ complex-rational). -/
 theorem inTs_lt_zero_true {v : SExpr}
     (h : Logic.toBool (Logic.lt v (.atom (.number (.int 0)))) = true) :
-    InTs 48 v := by
+    InTs 112 v := by
   match v with
+  | .atom (.number (.complex _ _ _)) => show tsMember 112 6 = true; decide
   | .nil => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
   | .cons _ _ => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
   | .atom (.symbol _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
@@ -192,10 +197,11 @@ theorem inTs_lt_zero_true {v : SExpr}
         by_contra hc
         rw [show Logic.lt (.atom (.number (.int n)))
               (.atom (.number (.int 0))) = SExpr.nil from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_neg (by omega)] at h
         exact Bool.noConfusion h
-      show tsMember 48 (tsIndex (.atom (.number (.int n)))) = true
+      show tsMember 112 (tsIndex (.atom (.number (.int n)))) = true
       simp only [tsIndex_int, if_neg (show ¬(n = 0) by omega),
         if_neg (show ¬(n = 1) by omega), if_neg (show ¬(1 < n) by omega)]
       decide
@@ -204,16 +210,17 @@ theorem inTs_lt_zero_true {v : SExpr}
         by_contra hcc
         rw [show Logic.lt (.atom (.number (.rational p q hc)))
               (.atom (.number (.int 0))) = SExpr.nil from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_neg (by
               have : (0 : Int) * (q : Int) = 0 := by ring
               omega)] at h
         exact Bool.noConfusion h
-      show tsMember 48 (tsIndex (.atom (.number (.rational p q hc)))) = true
+      show tsMember 112 (tsIndex (.atom (.number (.rational p q hc)))) = true
       simp only [tsIndex_rat, if_neg (show ¬(0 < p) by omega)]
       decide
 
-/-- `(< v '0)` FALSE ⇒ everything but the negative numerics
+/-- `(< v '0)` FALSE ⇒ everything but the negative rationals
     (`-49 = ~48`). A canonical rational is never zero (`canonRat` forces
     `2 ≤ d` and `gcd = 1`), so a non-negative one is strictly
     positive. -/
@@ -221,6 +228,7 @@ theorem inTs_lt_zero_false {v : SExpr}
     (h : Logic.toBool (Logic.lt v (.atom (.number (.int 0)))) = false) :
     InTs (-49) v := by
   match v with
+  | .atom (.number (.complex _ _ _)) => rfl
   | .nil => rfl
   | .cons a d =>
       show tsMember (-49) (tsIndex (.cons a d)) = true
@@ -236,7 +244,8 @@ theorem inTs_lt_zero_false {v : SExpr}
         intro hc
         rw [show Logic.lt (.atom (.number (.int n)))
               (.atom (.number (.int 0))) = SExpr.t from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_pos (by omega)] at h
         exact Bool.noConfusion h
       show tsMember (-49) (tsIndex (.atom (.number (.int n)))) = true
@@ -254,7 +263,8 @@ theorem inTs_lt_zero_false {v : SExpr}
         intro hcc
         rw [show Logic.lt (.atom (.number (.rational p q hc)))
               (.atom (.number (.int 0))) = SExpr.t from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_pos (by
               have : (0 : Int) * (q : Int) = 0 := by ring
               omega)] at h
@@ -283,6 +293,8 @@ actually demands, and nothing more. -/
 theorem negInt_of_inTs16 {u : SExpr} (h : InTs 16 u) :
     ∃ n : Int, n < 0 ∧ u = .atom (.number (.int n)) := by
   match u with
+  | .atom (.number (.complex _ _ _)) =>
+      exact absurd h (by simp only [InTs, tsIndex_complex]; decide)
   | .nil => simp only [InTs, tsIndex_nil] at h; exact absurd h (by decide)
   | .cons a d =>
       refine absurd h ?_
@@ -341,6 +353,7 @@ theorem inTs_neg_of_negInt {u : SExpr} (h : InTs 16 u) :
 theorem inTs_denominator (u : SExpr) : InTs 6 (Logic.denominator u) := by
   simp only [InTs]
   match u with
+  | .atom (.number (.complex _ _ _)) => show tsMember 6 1 = true; decide
   | .nil => simp only [Logic.denominator]; rfl
   | .cons _ _ => simp only [Logic.denominator]; rfl
   | .atom (.symbol _) => simp only [Logic.denominator]; rfl
@@ -408,6 +421,8 @@ theorem nonNegIntCor_of_inTs (m : Int) (v : SExpr)
   have h7 : InTs 7 v := inTs_weaken hm hv
   have hnat : ∃ n : Nat, v = .atom (.number (.int (n : Int))) := by
     match v with
+    | .atom (.number (.complex _ _ _)) =>
+        exact absurd h7 (by simp only [InTs, tsIndex_complex]; decide)
     | .nil =>
         simp only [InTs, tsIndex_nil] at h7; exact absurd h7 (by decide)
     | .cons a d =>
@@ -518,6 +533,8 @@ theorem logic_integerp_t_of_inTs {m : Int} {v : SExpr}
     Logic.integerp v = SExpr.t := by
   have h23 : InTs 23 v := inTs_weaken h hv
   match v with
+  | .atom (.number (.complex _ _ _)) =>
+      exact absurd h23 (by simp only [InTs, tsIndex_complex]; decide)
   | .atom (.number (.int _)) => rfl
   | .nil => exact absurd h23 (by simp only [InTs, tsIndex_nil]; decide)
   | .cons a d =>
@@ -542,14 +559,15 @@ theorem logic_integerp_t_of_inTs {m : Int} {v : SExpr}
 
 /-! ## Further typing tests the corpus's branch facts spell -/
 
-/-- `(< '0 v)` TRUE ⇒ the POSITIVE numerics (14 = one ∪ integer>1 ∪
-    positive-ratio) — ACL2's `assume-true-false` split for a
+/-- `(< '0 v)` TRUE ⇒ positive rationals or genuine complexes
+    (78 = one ∪ integer>1 ∪ positive-ratio ∪ complex-rational) — ACL2's `assume-true-false` split for a
     zero-compared `<` with the constant on the LEFT (`CLASSIFY-POS`'s
     `(< '0 N)` hypothesis). -/
 theorem inTs_zero_lt_true {v : SExpr}
     (h : Logic.toBool (Logic.lt (.atom (.number (.int 0))) v) = true) :
-    InTs 14 v := by
+    InTs 78 v := by
   match v with
+  | .atom (.number (.complex _ _ _)) => show tsMember 78 6 = true; decide
   | .nil => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
   | .cons _ _ => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
   | .atom (.symbol _) => simp [Logic.lt, Logic.toRat, Logic.toBool] at h
@@ -561,10 +579,11 @@ theorem inTs_zero_lt_true {v : SExpr}
         by_contra hc
         rw [show Logic.lt (.atom (.number (.int 0)))
               (.atom (.number (.int n))) = SExpr.nil from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_neg (by omega)] at h
         exact Bool.noConfusion h
-      show tsMember 14 (tsIndex (.atom (.number (.int n)))) = true
+      show tsMember 78 (tsIndex (.atom (.number (.int n)))) = true
       simp only [tsIndex_int, if_neg (show ¬(n = 0) by omega)]
       split_ifs with h1 h2
       · decide
@@ -575,12 +594,13 @@ theorem inTs_zero_lt_true {v : SExpr}
         by_contra hcc
         rw [show Logic.lt (.atom (.number (.int 0)))
               (.atom (.number (.rational p q hc))) = SExpr.nil from by
-            simp only [Logic.lt, Logic.toRat]
+            simp only [Logic.lt, Logic.toRat, Logic.isComplex, Bool.false_or,
+              Bool.false_eq_true, if_false]
             exact if_neg (by
               have : (0 : Int) * (q : Int) = 0 := by ring
               omega)] at h
         exact Bool.noConfusion h
-      show tsMember 14 (tsIndex (.atom (.number (.rational p q hc)))) = true
+      show tsMember 78 (tsIndex (.atom (.number (.rational p q hc)))) = true
       simp only [tsIndex_rat, if_pos hp]
       decide
 
@@ -626,13 +646,13 @@ theorem inTs_cond {m : Int} {b : Bool} {x y : SExpr}
   · exact hy rfl
   · exact hx rfl
 
-/-- A value in a type-set DISJOINT from `(< v '0)`'s TRUE type-set (48)
+/-- A value in a type-set DISJOINT from `(< v '0)`'s TRUE type-set (112)
     makes that test NIL — the `.isNil` direction of the same algebra
     (`CLASSIFY-POS`'s outer `(< N '0)` if-test, which ACL2 resolves by
     type-set and records only as an `:IF-TEST-FALSE` marker with a
     `fake-rune-for-type-set` justification). -/
 theorem logic_lt_zero_nil_of_ts_disjoint {m : Int} {v : SExpr}
-    (h : tsDisjointM m 48 = true) (hv : InTs m v) :
+    (h : tsDisjointM m 112 = true) (hv : InTs m v) :
     Logic.lt v (.atom (.number (.int 0))) = SExpr.nil := by
   by_contra hc
   have ht : Logic.toBool (Logic.lt v (.atom (.number (.int 0)))) = true := by
@@ -647,6 +667,8 @@ theorem logic_natp_t_of_inTs {m : Int} {v : SExpr}
     Logic.natp v = SExpr.t := by
   have h7 : InTs 7 v := inTs_weaken h hv
   match v with
+  | .atom (.number (.complex _ _ _)) =>
+        exact absurd h7 (by simp only [InTs, tsIndex_complex]; decide)
   | .nil => exact absurd h7 (by simp only [InTs, tsIndex_nil]; decide)
   | .cons a d =>
       refine absurd h7 ?_
@@ -683,6 +705,7 @@ theorem logic_natp_t_of_inTs {m : Int} {v : SExpr}
 theorem inTs_zp_true {v : SExpr}
     (h : Logic.toBool (Logic.zp v) = true) : InTs (-7) v := by
   match v with
+  | .atom (.number (.complex _ _ _)) => rfl
   | .nil => show tsMember (-7) (tsIndex SExpr.nil) = true; decide
   | .cons a d =>
       show tsMember (-7) (tsIndex (.cons a d)) = true
@@ -727,6 +750,7 @@ theorem logic_zp_t_of_inTs {m : Int} {v : SExpr}
     Logic.zp v = SExpr.t := by
   have h7 : InTs (-7) v := inTs_weaken h hv
   match v with
+  | .atom (.number (.complex _ _ _)) => rfl
   | .nil => rfl
   | .cons _ _ => rfl
   | .atom (.symbol _) => rfl
@@ -764,6 +788,8 @@ theorem logic_zp_nil_of_ts_disjoint {m : Int} {v : SExpr}
 theorem int_of_inTs23 {v : SExpr} (h : InTs 23 v) :
     ∃ n : Int, v = .atom (.number (.int n)) := by
   match v with
+  | .atom (.number (.complex _ _ _)) =>
+      exact absurd h (by simp only [InTs, tsIndex_complex]; decide)
   | .atom (.number (.int n)) => exact ⟨n, rfl⟩
   | .nil => exact absurd h (by simp only [InTs, tsIndex_nil]; decide)
   | .cons a d =>
@@ -808,6 +834,8 @@ theorem inTs_plus_int {a b : SExpr} (ha : InTs 23 a) (hb : InTs 23 b) :
 theorem int_ge_one_of_inTs6 {v : SExpr} (h : InTs 6 v) :
     ∃ n : Int, v = .atom (.number (.int n)) ∧ 1 ≤ n := by
   match v with
+  | .atom (.number (.complex _ _ _)) =>
+      exact absurd h (by simp only [InTs, tsIndex_complex]; decide)
   | .atom (.number (.int n)) =>
       refine ⟨n, rfl, ?_⟩
       by_contra hlt

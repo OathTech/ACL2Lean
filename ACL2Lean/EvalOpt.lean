@@ -61,15 +61,9 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "BINARY-+", [a, b] => some (Logic.plus a b)
   | "BINARY-*", [a, b] => some (Logic.times a b)
   | "UNARY--", [a] => some (Logic.neg a)
-  | "UNARY-/", [a] =>
-      let (n, d) := Logic.toRat a
-      some (if n == 0 then .atom (.number (.int 0))
-        else if n > 0 then Logic.mkNumber (Int.ofNat d) n.natAbs
-        else Logic.mkNumber (-(Int.ofNat d)) n.natAbs)
+  | "UNARY-/", [a] => some (Logic.reciprocal a)
   | "+", [a, b] => some (Logic.plus a b)
-  | "-", [a] =>
-      let (n, d) := Logic.toRat a
-      some (Logic.mkNumber (-n) d)
+  | "-", [a] => some (Logic.neg a)
   | "-", [a, b] => some (Logic.minus a b)
   | "*", [a, b] => some (Logic.times a b)
   | "1+", [a] => some (Logic.plus (.atom (.number (.int 1))) a)
@@ -78,10 +72,8 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "INTEGERP", [a] => some (Logic.integerp a)
   | "NATP", [a] => some (Logic.natp a)
   | "POSP", [a] => some (Logic.posp a)
-  | "RATIONALP", [a] =>
-      some (match a with | .atom (.number _) => .t | _ => .nil)
-  | "ACL2-NUMBERP", [a] =>
-      some (match a with | .atom (.number _) => .t | _ => .nil)
+  | "RATIONALP", [a] => some (Logic.rationalp a)
+  | "ACL2-NUMBERP", [a] => some (Logic.acl2Numberp a)
   | "ZP", [a] => some (Logic.zp a)
   | "SYMBOLP", [a] => some (Logic.symbolp a)
   | "BOOLEANP", [a] => some (Logic.booleanp a)
@@ -107,6 +99,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "REALPART", [a] => some (Logic.realpart a)
   | "IMAGPART", [a] => some (Logic.imagpart a)
   | "COMPLEX-RATIONALP", [a] => some (Logic.complexRationalp a)
+  | "COMPLEX", [a, b] => some (Logic.complex a b)
   | "COERCE", [a, b] => some (Logic.coerce a b)
   | "LIST", xs => some (SExpr.ofList xs)
   | "FORCE", [a] => some a
@@ -130,7 +123,7 @@ def builtinNames : List String :=
    "SYMBOLP", "BOOLEANP", "STRINGP", "CHARACTERP", "CHAR-CODE", "CODE-CHAR",
    "FIX", "NFIX", "IFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
    "EVENP", "ODDP", "EXPT", "STRING-APPEND", "NUMERATOR", "DENOMINATOR",
-   "REALPART", "IMAGPART", "COMPLEX-RATIONALP", "COERCE",
+   "REALPART", "IMAGPART", "COMPLEX-RATIONALP", "COMPLEX", "COERCE",
    "LIST", "FORCE", "DOUBLE-REWRITE", "HIDE"]
 
 /-- One step of the option-returning evaluator, parameterized by the
@@ -814,10 +807,9 @@ private def list2 : SExpr := .cons (.atom (.number (.int 1))) (.cons (.atom (.nu
 #guard evalOpt 2 simpleWorld {} (mkCall "no-such-primitive" [.atom (.number (.int 1))]) == none
 #guard evalOpt 2 simpleWorld {} (mkCall "floor" [.atom (.number (.int 3)), .atom (.number (.int 2))]) == none
 
--- COMPLEX-RATIONALP is now a modeled builtin (sorting arc 2026-07-28,
--- differential-pinned): NIL on every representable value (the value space
--- has no complex numbers; #c is a pinned unsupported reader class).
+-- COMPLEX-RATIONALP distinguishes rationals from genuine complexes.
 #guard evalOpt 2 simpleWorld {} (mkCall "complex-rationalp" [.atom (.number (.int 3))]) == some .nil
+#guard evalOpt 2 simpleWorld {} (mkCall "complex-rationalp" [Logic.mkParts 0 1]) == some SExpr.t
 
 end Tests
 

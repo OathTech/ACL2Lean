@@ -459,14 +459,10 @@ def dpFactStmt (tests : List SExpr) (last : SExpr) (vars : List Symbol)
     2026-08-14, the T1+2 sprint's D-A consumer — the totality walk and the
     TP walk want byte-identical copies differing only in the branch goal).
 
-    A test whose lifted value is DEFINITIONALLY `nil` —
-    `(COMPLEX-RATIONALP _)`, constantly nil on the complex-free value
-    space (BUG-009's pinned dependency note) — makes the truthy branch
-    hypothesis refute itself, so the branch closes by absurdity instead of
-    being walked. This is a DOMAIN RESTRICTION of the value model, never a
-    statement weakening, and it fails CLOSED under a future complex-number
-    fix: the caller's `isDefEq _ nil` guard stops matching and the branch
-    goes back to the ordinary walk.
+    A test whose lifted value is DEFINITIONALLY `nil` makes the truthy
+    branch hypothesis refute itself. The caller checks that equality before
+    constructing this proof. In the full numeric domain an arbitrary
+    `(COMPLEX-RATIONALP x)` does not qualify; its branch is walked normally.
 
     `toBoolVc` is `Logic.toBool <lifted test value>`; `goalTy` the branch's
     own goal. Returns `fun (hb : toBoolVc = true) => absurd …`. -/
@@ -580,6 +576,19 @@ def dpDirectBudget : Nat := 15000
     FUTURE books' coverage on today's timings. -/
 def dpOnlyProverGuard : Nat := 1000000
 
+/-- Run a decision-procedure attempt without elaborator error recovery.
+    `Lean.Elab.runTactic` enables recovery: a failed omega branch can log an
+    error and return an admitted goal before our fallback rejects its proof.
+    Optional attempts must throw instead, so their caller can choose the
+    existing fallback; a final failure still reports the exact leaf. -/
+private def runDpTactic (g : MVarId) (tac : TSyntax `tactic) : MetaM (List MVarId) := do
+  instantiateMVarDeclMVars g
+  Lean.Elab.Term.TermElabM.run' <| Lean.Elab.Term.withoutErrToSorry <|
+    Lean.Elab.Term.withSynthesize do
+      Lean.Elab.Tactic.run g <| Lean.Elab.Tactic.withoutRecover do
+        Lean.Elab.Tactic.evalTactic tac
+        Lean.Elab.Tactic.pruneSolvedGoals
+
 /-- Run `tac` on a CLONE of `l`, assigning on success — a failed attempt
     must not half-assign the mvar. On failure, the DEPTH-2 constructor-split
     fallback (sorting-completion-2 inc-4): a leaf stuck on a SECOND-level
@@ -598,8 +607,8 @@ partial def dpSplitAndClose (tac : Lean.TSyntax `tactic) (l : Lean.MVarId)
     -- rather than fail fast. Bounded per attempt; a tripped bound is a
     -- failed attempt (loud downstream), never a silent success.
     let ok ← withRealMaxHeartbeats dpOnlyProverGuard <| try
-        let r ← Lean.Elab.runTactic m2.mvarId! tac
-        pure r.1.isEmpty
+        let r ← runDpTactic m2.mvarId! tac
+        pure r.isEmpty
       catch _ => pure false
     if ok then l.assign (← instantiateMVars m2)
     pure ok
@@ -693,7 +702,22 @@ def proveDpFact (stmt : Expr) (total : Nat) (coneIdxs : List Nat := []) : MetaM 
   checkDpProofClean pf
   return pf
 where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM Expr := do
+  -- An emitted verdict-only leaf with no quantified values is a closed
+  -- computation. Kernel decision also unfolds irreducible Rat arithmetic;
+  -- symbolic leaves continue through the existing value-layer procedure.
+  if total == 0 then return ← proveByDecide stmt "closed DP leaf"
   let tac ← dpLeafTactic
+  -- Normalize equalities for the unsplit attempt. This closes structural
+  -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
+  -- leaf: 143k → 176 heartbeat units). Keep the constructor-split tactic's
+  -- original recognizer/hypothesis forms when the direct attempt fails.
+  -- Reflexivity and constructor discrimination belong in this same pass:
+  -- an equality can identify an order's arguments, exposing t = nil.
+  -- Without them simp_all can propagate that impossible equation through
+  -- the context before the ordinary order/arithmetic tactic sees it.
+  let directTac ← `(tactic|
+    (try simp_all only [logic_not_equal_nil_iff, ACL2.lexorder_refl,
+      SExpr.t, reduceCtorEq]) <;> subst_vars <;> $tac)
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
   -- whole-goal simp_all is the fastest path when it works (sub-second on
   -- propositional/equality facts) and catastrophic when it fails UNBOUNDED
@@ -717,8 +741,8 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let g ← assertDpOrderFacts g
         let g ← assertDpEqualNilComm g
         let g ← introDpIntValues g
-        let remaining ← Lean.Elab.runTactic g tac
-        if remaining.1.isEmpty then pure (some (← instantiateMVars mv)) else pure none
+        let remaining ← runDpTactic g directTac
+        if remaining.isEmpty then pure (some (← instantiateMVars mv)) else pure none
       catch _ => pure none)
       (fun _ => pure none)
   if let some p := direct? then return p

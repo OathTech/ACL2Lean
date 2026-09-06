@@ -1,5 +1,5 @@
-; Differential corpus: the remaining ACL2 AXIOMATIC PRIMITIVES not modeled by
-; evalOpt (all `unsupported`) — complex numbers and package/symbol primitives.
+; Differential corpus: complex-number primitives and the remaining unmodeled
+; package/symbol primitives. Complex values are supported by the NS1 migration.
 ; These complete the enumeration of ACL2's *primitive-formals-and-guards*
 ; (basis-b.lisp) in the corpus: exotic but part of the axiomatic core, so pinned
 ; here as a coverage record. Values are ACL2's; the completion values (a
@@ -7,23 +7,20 @@
 
 ; complex numbers (complex/complex-rationalp/realpart/imagpart). Note ACL2
 ; normalizes a zero-imaginary complex to the real: (complex 1 0) = 1.
-;@ unsupported
+;@ match
 (complex '1 '2)
-;@ unsupported
+;@ match
 (complex '1 '0)
-;@ unsupported
+;@ match
 (complex-rationalp (complex '1 '2))
-; complex-rationalp/realpart/imagpart/numerator/denominator are modeled since
-; the sorting arc (2026-07-28, numerator-denominator.lisp) on the COMPLEX-FREE
-; value space; rows whose INPUT needs (complex ...) stay unsupported (the
-; constructor itself is unmodeled), the rest ratchet-reclassified to match.
+; Full complex-rational cases complement the rational/nonnumber cases below.
 ;@ match
 (complex-rationalp '5)
-;@ unsupported
+;@ match
 (realpart (complex '3 '4))
-;@ unsupported
+;@ match
 (imagpart (complex '3 '4))
-;@ unsupported
+;@ match
 (< (complex '1 '2) (complex '1 '3))
 ; completion values on out-of-domain args (realpart/imagpart of non-number = 0)
 ;@ match

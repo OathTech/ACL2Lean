@@ -406,12 +406,10 @@ partial def totWalk (cfg : ReplayConfig) (envE : Expr)
           mkLambdaFVars #[hb] p
         let ht ←
           if ← isDefEq vc (mkConst ``SExpr.nil) then do
-            -- VACUOUS truthy branch (`mkVacuousTruthyBranch`): the test's
-            -- value is DEFINITIONALLY nil — `(COMPLEX-RATIONALP _)` in
-            -- ACL2-COUNT's own admission body — so the branch hypothesis
-            -- refutes itself; close by absurdity instead of walking a
-            -- branch whose self-call decrease (`(ACL2-COUNT (REALPART X))`)
-            -- the walk could never state.
+            -- A definitionally nil test has an impossible truthy branch.
+            -- COMPLEX-RATIONALP on an arbitrary value no longer satisfies
+            -- this check: that branch walks its actual body and component
+            -- decreases on the enlarged numeric domain (BUG-009).
             mkVacuousTruthyBranch toBoolVc
               (← mkConvPropEx cfg.worldExpr envE (reflectSExpr th))
           else

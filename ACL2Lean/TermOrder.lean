@@ -33,8 +33,23 @@ private def fnCountEvgInt (n : Int) (acc : Nat) : Nat :=
     if natN >= fnCountEvgMaxVal then fnCountEvgMaxVal
     else Nat.min fnCountEvgMaxVal (acc + 1 + natN)
 
-/-- Count the "size" of an atom for fn-count-evg. -/
-private def fnCountEvgAtom (a : Atom) (acc : Nat) : Nat :=
+/-- A recursive integer visit checks both source limits before counting.
+    Ratio/complex decomposition must not bypass this check (BUG-029). -/
+private def fnCountEvgIntCall (n : Int) (acc calls : Nat) : Nat :=
+  if calls >= fnCountEvgMaxCalls || acc >= fnCountEvgMaxVal then fnCountEvgMaxVal
+  else fnCountEvgInt n acc
+
+/-- A canonical rational visit: integer, or denominator followed by numerator,
+    with the accumulator/call increments of `linear-a.lisp:fn-count-evg-rec`. -/
+private def fnCountEvgRat (n : Int) (d acc calls : Nat) : Nat :=
+  if calls >= fnCountEvgMaxCalls || acc >= fnCountEvgMaxVal then fnCountEvgMaxVal
+  else if d == 1 then fnCountEvgInt n acc
+  else fnCountEvgIntCall n
+    (fnCountEvgIntCall (Int.ofNat d) (acc + 1) (calls + 1)) (calls + 2)
+
+/-- Count the "size" of an atom for fn-count-evg. The caller checked the
+    entry limits; component visits check them again at their own call depth. -/
+private def fnCountEvgAtom (a : Atom) (acc calls : Nat) : Nat :=
   match a with
   | .symbol s =>
     if s.name.isEmpty then Nat.min fnCountEvgMaxVal (acc + 8)
@@ -44,7 +59,10 @@ private def fnCountEvgAtom (a : Atom) (acc : Nat) : Nat :=
       else Nat.min fnCountEvgMaxVal (acc + 2 + 2 * len)
   | .number (.int n) => fnCountEvgInt n acc
   | .number (.rational n d _) =>
-    fnCountEvgInt n (fnCountEvgInt (Int.ofNat d) (acc + 1))
+    fnCountEvgRat n d acc calls
+  | .number (.complex r i _) =>
+    fnCountEvgRat r.num r.den
+      (fnCountEvgRat i.num i.den (acc + 1) (calls + 1)) (calls + 2)
   | .string s =>
     let len := s.length
     if len >= fnCountEvgMaxVal then fnCountEvgMaxVal
@@ -62,7 +80,7 @@ def fnCountEvgRec (evg : SExpr) (acc calls : Nat) : Nat :=
   if calls >= fnCountEvgMaxCalls || acc >= fnCountEvgMaxVal then fnCountEvgMaxVal
   else match evg with
   | .nil => Nat.min fnCountEvgMaxVal (acc + 8)
-  | .atom a => fnCountEvgAtom a acc
+  | .atom a => fnCountEvgAtom a acc calls
   | .cons a d =>
     let acc' := fnCountEvgRec a (acc + 1) (calls + 1)
     fnCountEvgRec d acc' (calls + 2)

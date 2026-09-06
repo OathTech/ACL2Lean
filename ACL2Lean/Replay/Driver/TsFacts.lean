@@ -89,11 +89,11 @@ def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
     else none
   | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
     if r.name == "<" && b == tsQuotedZero then
-      if pos then some (a, 48, ``ACL2.Replay.inTs_lt_zero_true)
+      if pos then some (a, 112, ``ACL2.Replay.inTs_lt_zero_true)
       else some (a, -49, ``ACL2.Replay.inTs_lt_zero_false)
     else if r.name == "<" && a == tsQuotedZero && pos then
       -- the constant on the LEFT (`CLASSIFY-POS`'s `(< '0 N)` hypothesis)
-      some (b, 14, ``ACL2.Replay.inTs_zero_lt_true)
+      some (b, 78, ``ACL2.Replay.inTs_zero_lt_true)
     else none
   | _ => none
 
@@ -121,7 +121,7 @@ def tsTestNilOf (t : SExpr) : Option (SExpr × Int × Lean.Name) :=
   match t with
   | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
     if r.name == "<" && b == tsQuotedZero then
-      some (a, 48, ``ACL2.Replay.logic_lt_zero_nil_of_ts_disjoint)
+      some (a, 112, ``ACL2.Replay.logic_lt_zero_nil_of_ts_disjoint)
     else none
   | _ => none
 
@@ -135,33 +135,6 @@ def tsRecogTrue : List (String × Int × Lean.Name) :=
   [("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
    ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
    ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
-
-/-- ACL2'S MASK, READ AGAINST OURS UNDER THE MODEL'S PINNED DOMAIN
-    RESTRICTION (T1+2 sprint P4b, `CD2-BOUND`).
-
-    `recogVerdictFromTs`'s cross-check asks that ACL2's emitted
-    `:TYPESET` be INSIDE the mask the replay derived — "we may prove
-    something weaker than ACL2 knew, never something it contradicts".
-    Basic type INDEX 6 is `*ts-complex-rational*`, and the model has NO
-    complex values at all (BUG-009): `tsIndex` never returns 6, so
-    `InTs m v` and `InTs (m ∪ {6}) v` are the SAME proposition here and
-    a derived mask can never carry that bit. ACL2's `<` does order
-    complex rationals, so `(< N '0)` true gets `:TYPESET 112` where the
-    model derives `48` — 112 = 48 ∪ {bit 6} exactly.
-
-    So the comparison DISCOUNTS index 6 and nothing else: ACL2's mask
-    must be inside ours ∪ {complex-rational}. Any OTHER bit ACL2 has and
-    we do not still fails the check, closed. This is not a weaker
-    verdict — the proof still runs on OUR mask `m` and OUR `InTs` fact —
-    it is the BUG-009 domain restriction applied at one more site, the
-    same treatment `mkVacuousTruthyBranch` already gives ACL2's complex
-    admission case. Delete the discount the day complex rationals are
-    modeled (BUG-009's fix makes index 6 inhabited and this becomes
-    unsound to skip). -/
-def tsAcl2MaskOk (acl2Ts derived : Int) : Bool :=
-  (List.range 14).all fun i =>
-    i == 6 || !ACL2.Replay.tsMember acl2Ts i
-      || ACL2.Replay.tsMember derived i
 
 /-- RECOGNIZER-VERDICT registry, `'NIL` side: recognizer ↦ (its TRUE
     type-set, the proved fact

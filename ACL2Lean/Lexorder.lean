@@ -21,10 +21,8 @@ inductive LexView
   | string (s : String)
   | sym (name pkg : String)
 
-/-- Ordering among view kinds, faithful to ACL2's `alphorder`
-    (axioms.lisp:26995): real/rational < character < string < symbol.
-    (Complex-rationals, which alphorder places between rationals and
-    characters, are not modeled; see BUG-009.) -/
+/-- Ordering among broad view kinds. The number comparator below orders
+    rationals before genuine complexes, both before characters. -/
 def viewKind : LexView → Nat
   | .number _ => 0
   | .char _ => 1
@@ -39,6 +37,20 @@ def symbolLe (n1 p1 n2 p2 : String) : Bool :=
   if n1 < n2 then true
   else if n1 = n2 then p1 ≤ p2
   else false
+
+/-- ACL2 alphorder on numbers: every rational precedes every genuine
+    complex; within complexes compare real parts, then imaginary parts.
+    Rational values retain exact cross-multiplication comparison. -/
+def numberLe (a b : Number) : Bool :=
+  match a, b with
+  | .complex ar ai _, .complex br bi _ =>
+    decide (ar < br ∨ (ar = br ∧ ai ≤ bi))
+  | .complex .., _ => false
+  | _, .complex .. => true
+  | _, _ =>
+    let r1 := Logic.toRat (.atom (.number a))
+    let r2 := Logic.toRat (.atom (.number b))
+    decide (r1.1 * (Int.ofNat r2.2) ≤ r2.1 * (Int.ofNat r1.2))
 
 /-- The view of an SExpr for `lexorder`; a cons has no view. This map is
     INJECTIVE on SExpr values (proved: `lexView?_inj`, LexorderOrder.lean),
@@ -59,22 +71,14 @@ def lexView? : SExpr → Option LexView
 /-- ACL2 `alphorder` on views (axioms.lisp:26995) as a Bool: order by class
     (`viewKind`: number < character < string < symbol) then within-class
     value.
-    NUMBERS: ACL2 `alphorder` (axioms.lisp:26997) compares ALL reals by
-    VALUE with a single `(<= x y)` — no int/rational split and no
-    lexicographic (numerator,denominator) compare. Reduce every number
-    to its exact rational `(n,d)` (`Logic.toRat`, d > 0) and compare
-    `n1/d1 ≤ n2/d2` ⟺ `n1*d2 ≤ n2*d1`. (Audit finding, 2026-07-10: the
-    former type-split + lexicographic-rational order gave wrong
-    verdicts, e.g. `(lexorder 1 1/2)` = T here but NIL in ACL2.) -/
+    Numbers use `numberLe`: rational value order, then genuine complexes
+    in component order. There is no separate integer/proper-ratio class. -/
 def alphLe (a b : LexView) : Bool :=
   if viewKind a < viewKind b then true
   else if viewKind a > viewKind b then false
   else -- same kind
     match a, b with
-    | .number v1, .number v2 =>
-      let r1 := Logic.toRat (.atom (.number v1))
-      let r2 := Logic.toRat (.atom (.number v2))
-      decide (r1.1 * (Int.ofNat r2.2) ≤ r2.1 * (Int.ofNat r1.2))
+    | .number v1, .number v2 => numberLe v1 v2
     | .char c1, .char c2 => decide (c1 ≤ c2)  -- by char-code
     | .string s1, .string s2 => decide (s1 ≤ s2)
     | .sym n1 p1, .sym n2 p2 => symbolLe n1 p1 n2 p2

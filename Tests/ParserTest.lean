@@ -20,6 +20,19 @@ private def parseFails (input : String) : Bool :=
 
 -- === Atoms ===
 
+-- BUG-009 / BUG-028: canonical complex reading and fail-closed components.
+#guard parseOne "#C(2/4 0/3)" = some (Logic.mkNumber 1 2)
+#guard parseOne "#c(1 . (2))" = some (Logic.mkParts 1 2)
+#guard parseOne "#C(#C(1 0) #f1.5)" = some (Logic.mkParts 1 (mkRat 3 2))
+#guard parseOne "#C(1 ; real component\n 2)" = some (Logic.mkParts 1 2)
+#guard parseFails "#C(1)"
+#guard parseFails "#C(1 2 3)"
+#guard parseFails "#C(1 . 2)"
+#guard parseFails "#C(nil 2)"
+#guard parseFails "#C(#C(1 2) 3)"
+#guard parseFails "1/0"
+#guard parseFails "#C(1 2/0)"
+
 -- nil → SExpr.nil (was .atom (.bool false) before Atom.bool removal)
 #guard parseOne "nil" = some SExpr.nil
 

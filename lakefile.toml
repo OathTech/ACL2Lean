@@ -1,6 +1,6 @@
 name = "ACL2Lean"
 version = "0.1.0"
-defaultTargets = ["acl2lean", "Tests"]
+defaultTargets = ["ACL2Lean", "acl2lean", "Tests"]
 
 [[require]]
 name = "mathlib"

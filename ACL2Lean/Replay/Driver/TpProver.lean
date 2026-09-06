@@ -111,13 +111,8 @@ partial def tpWalk (cfg : ReplayConfig) (envE : Expr)
             mkLambdaFVars #[hb] p
         let ht ←
           if ← isDefEq vc (mkConst ``SExpr.nil) then
-            -- VACUOUS truthy branch (`mkVacuousTruthyBranch`, shared with
-            -- the totality walk): `(COMPLEX-RATIONALP _)` in ACL2-COUNT's
-            -- own body is definitionally nil on the complex-free value
-            -- space, so the branch hypothesis refutes itself. ACL2 emits a
-            -- real verdict for that leaf — the vacuity is OURS (BUG-009's
-            -- pinned domain restriction), and it fails CLOSED if complex
-            -- values are ever modelled.
+            -- Only a definitionally false test has a vacuous truthy
+            -- branch. Arbitrary COMPLEX-RATIONALP tests now follow mkB.
             mkVacuousTruthyBranch toBoolVc
               (← mkAppM ``ConvToP
                 #[cfg.worldExpr, envE, reflectSExpr th, P])

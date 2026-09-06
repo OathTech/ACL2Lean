@@ -205,7 +205,12 @@ partial def chainLtLen (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
     below re-check everything they use — this is a syntactic
     pre-classification, never a license. -/
 def decreaseArgInReach : MeasureShape → SExpr → Bool
-  | .count _, d | .len _, d | .sumCount _ _, d => destructorChainOk true d
+  | .count _, d | .sumCount _ _, d =>
+    destructorChainOk true d || match d with
+      | .cons (.atom (.symbol f)) (.cons (.atom (.symbol _)) .nil) =>
+        f.name == "REALPART" || f.name == "IMAGPART"
+      | _ => false
+  | .len _, d => destructorChainOk true d
   | .nfix _, d =>
     -- `chainLtNfix`'s single arm: `(BINARY-+ '<int> base)`
     match d with
@@ -250,20 +255,20 @@ def chainLtNfix (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
     s!"the NFIX decrease summand {repr klit} is negative"
   mkAppM ``ACL2.Replay.nfixNat_plus_lt_of_not_zp #[hNeg, hzp]
 
-/-- Count-walk ≤ leg: `(valOf t).consCount ≤ (valOf base).consCount` for `t`
+/-- Count-walk ≤ leg: `(valOf t).valueCount ≤ (valOf base).valueCount` for `t`
     a (possibly empty) cdr/car chain over `base` — unconditional per-step
-    `consCount_cdr_le`/`car_le` composed by transitivity. -/
+    `valueCount_cdr_le`/`car_le` composed by transitivity. -/
 partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
     MetaM Expr := do
   if t == base then
-    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.consCount #[← kit.valOf base]]
+    mkAppM ``Nat.le_refl #[← mkAppM ``SExpr.valueCount #[← kit.valOf base]]
   else match t with
   | .cons (.atom (.symbol d)) (.cons u .nil) =>
     if d.name == "CDR" || d.name == "CAR" then
       let inner ← chainLe kit base u
       let vu ← kit.valOf u
-      let hLe ← if d.name == "CDR" then mkAppM ``ACL2.consCount_cdr_le #[vu]
-        else mkAppM ``ACL2.consCount_car_le #[vu]
+      let hLe ← if d.name == "CDR" then mkAppM ``ACL2.valueCount_cdr_le #[vu]
+        else mkAppM ``ACL2.valueCount_car_le #[vu]
       mkAppM ``Nat.le_trans #[hLe, inner]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
@@ -271,7 +276,7 @@ partial def chainLe (kit : DecreaseKit) (base t : SExpr) :
   | _ => throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
       the destructor-chain walk over {repr base} (frontier)"
 
-/-- Count-walk strict leg: `(valOf t).consCount < (valOf base).consCount`
+/-- Count-walk strict leg: `(valOf t).valueCount < (valOf base).valueCount`
     for `t` a NON-EMPTY cdr/car chain over `base` — the innermost destructor
     application to `base` is the ONE strict step (from `base`'s consp fact);
     every outer layer composes by `≤`. -/
@@ -282,15 +287,27 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
       if u == base then
         let hConsp ← kit.conspTrueOf base
         if d.name == "CDR" then
-          mkAppM ``ACL2.consCount_cdr_lt_of_consp #[hConsp]
+          mkAppM ``ACL2.valueCount_cdr_lt_of_consp #[hConsp]
         else
-          mkAppM ``ACL2.consCount_car_lt_of_consp #[hConsp]
+          mkAppM ``ACL2.valueCount_car_lt_of_consp #[hConsp]
       else
         let inner ← chainLt kit base u
         let vu ← kit.valOf u
-        let hLe ← if d.name == "CDR" then mkAppM ``ACL2.consCount_cdr_le #[vu]
-          else mkAppM ``ACL2.consCount_car_le #[vu]
+        let hLe ← if d.name == "CDR" then mkAppM ``ACL2.valueCount_cdr_le #[vu]
+          else mkAppM ``ACL2.valueCount_car_le #[vu]
         mkAppM ``Nat.lt_of_le_of_lt #[hLe, inner]
+    else if d.name == "REALPART" || d.name == "IMAGPART" then
+      unless u == base do
+        throwFrontier m!"complex component decrease requires the measured base: {repr t}"
+      let complexTest : SExpr :=
+        .cons (.atom (.symbol { name := "COMPLEX-RATIONALP" })) (.cons base .nil)
+      let some hcomplex ← kit.factOf? complexTest true
+        | throwFrontier m!"complex component decrease at {repr base} needs an emitted \
+            COMPLEX-RATIONALP ruling fact in scope"
+      if d.name == "REALPART" then
+        mkAppM ``ACL2.valueCount_realpart_lt_of_complex #[hcomplex]
+      else
+        mkAppM ``ACL2.valueCount_imagpart_lt_of_complex #[hcomplex]
     else if d.name == "EVENS" || d.name == "ODDS" then
       -- S4 REGISTRY (#37 plan): measure fns with PROVED Lean models
       -- (`CountSim`): sim lemma bridges the pinned value to the model,
@@ -335,8 +352,8 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
       let h2 ← kit.endpFalseOf
         (.cons (.atom (.symbol { name := "CDR" })) (.cons base .nil))
       let hCnt ←
-        if d.name == "EVENS" then mkAppM ``ACL2.consCount_evens_lt #[h1, h2]
-        else mkAppM ``ACL2.consCount_odds_lt #[h1, h2]
+        if d.name == "EVENS" then mkAppM ``ACL2.valueCount_evens_lt #[h1, h2]
+        else mkAppM ``ACL2.valueCount_odds_lt #[h1, h2]
       mkAppM ``count_lt_of_eq #[hSim, hCnt]
     else if d.name == "O-RST" || d.name == "O-FIRST-EXPT" then
       -- THE ORDINAL REGISTRY ROW (T1+2 sprint P3b): `O<` and `O-P` are
@@ -380,7 +397,7 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
           #[kit.cfg.worldExpr, kit.envE, hdef, hnCdr, reflectSExpr u, xvE, vT,
             hxv, hvT]
         mkAppM ``count_lt_of_eq
-          #[hSim, ← mkAppM ``ACL2.consCount_cdr_lt_of_consp #[hConsp]]
+          #[hSim, ← mkAppM ``ACL2.valueCount_cdr_lt_of_consp #[hConsp]]
       else
         checkShape ACL2.Replay.oFirstExptSym ACL2.Replay.oFirstExptBodyShape
         checkShape ACL2.Replay.oFinpSym ACL2.Replay.oFinpBodyShape
@@ -395,7 +412,7 @@ partial def chainLt (kit : DecreaseKit) (base t : SExpr) : MetaM Expr := do
             reflectSExpr u, xvE, vT, hConsp, hxv, hvT]
         mkAppM ``count_lt_of_eq
           #[hSim,
-            ← mkAppM ``ACL2.Replay.consCount_car_car_lt_of_consp #[hConsp]]
+            ← mkAppM ``ACL2.valueCount_car_car_lt_of_consp #[hConsp]]
     else
       throwFrontier m!"dischargeDecrease: decrease argument {repr t} beyond \
           the destructor-chain walk over {repr base} (frontier: candidate \
@@ -785,7 +802,7 @@ def recordedDecreaseAtCall (cfg : ReplayConfig) (envE : Expr)
        any uncovered ruler hard-fails;
     3. discharge the `<` by the COUNT WALK: single-count measures via the
        destructor-chain walk (`chainLt`); sum measures componentwise (one
-       strict component) or the swap pattern (`consCount_swap_…`).
+       strict component) or the swap pattern (`valueCount_swap_…`).
 
     `valOf` renders an actual-level term's VALUE `Expr` (the caller's value
     plumbing — dpValExpr at admission, ctxValExpr at IH time);
@@ -911,7 +928,7 @@ def dischargeDecrease (just : Justification)
       .cons (.atom (.symbol { name := "CDR" })) (.cons u .nil)
     if sx == y && sy == cdrOf x then
       let hConsp ← kit.conspTrueOf x
-      return ← mkAppOptM ``ACL2.consCount_swap_cdr_sum_lt_consp
+      return ← mkAppOptM ``ACL2.valueCount_swap_cdr_sum_lt_consp
         #[none, some (← kit.valOf y), some hConsp]
     -- componentwise: each component ≤ its original, at least one strict
     let leg (b t : SExpr) : MetaM (Bool × Expr) := do

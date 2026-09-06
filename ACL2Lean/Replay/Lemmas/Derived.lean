@@ -5,6 +5,7 @@
   order, so the import chain IS the dependency order.
 -/
 import ACL2Lean.Replay.Lemmas.Core
+import ACL2Lean.NumericLemmas
 
 namespace ACL2.Replay
 
@@ -183,6 +184,7 @@ theorem gz_def_nfix (a : SExpr) :
         rcases lt_or_ge k 0 with hk | hk <;>
           simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
       | rational n d hc => rfl
+      | complex _ _ _ => rfl
     | _ => rfl
   | _ => rfl
 
@@ -286,6 +288,7 @@ theorem gz_def_natp (a : SExpr) :
         rcases lt_or_ge k 0 with hk | hk <;>
           simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
       | rational n d hc => rfl
+      | complex _ _ _ => rfl
     | _ => rfl
   | _ => rfl
 
@@ -303,6 +306,7 @@ theorem gz_def_posp (a : SExpr) :
         rcases lt_or_ge 0 k with hk | hk <;>
           simp [Logic.toRat, hk, Int.not_lt.mpr]
       | rational n d hc => rfl
+      | complex _ _ _ => rfl
     | _ => rfl
   | _ => rfl
 
@@ -325,6 +329,7 @@ theorem gz_def_zp (a : SExpr) :
         rcases lt_or_ge 0 k with hk | hk <;>
           simp [Logic.toRat, hk, Int.not_lt.mpr, Int.not_le.mpr]
       | rational n d hc => rfl
+      | complex _ _ _ => rfl
     | _ => rfl
   | _ => rfl
 
@@ -490,11 +495,8 @@ theorem logic_equal_self (a : SExpr) : Logic.equal a a = SExpr.t :=
   Logic.equal_self a
 
 /-- T8: Commutativity of plus. -/
-theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a := by
-  simp only [Logic.plus]
-  congr 1
-  · omega
-  · exact Nat.mul_comm _ _
+theorem logic_plus_comm (a b : SExpr) : Logic.plus a b = Logic.plus b a :=
+  Logic.plus_comm a b
 
 /-- Plus of two integers is the integer sum (my-len/+ values are integers,
     so the proof can work at the integer level). -/
@@ -510,16 +512,13 @@ theorem logic_plus_zero_int (k : Int) :
     = .atom (.number (.int k)) := by
   rw [logic_plus_int, Int.zero_add]
 
-/-! ### Unconditional rational arithmetic for `Logic.plus`
+/-! ### Unconditional arithmetic for `Logic.plus`
 
-ACL2's `commutativity-of-+` and `commutativity-2-of-+` are UNCONDITIONAL rewrite
-rules (`binary-+` coerces non-numbers via `fix`), so a faithful replay must hold
-for all values — not just integers. We prove `Logic.plus` is associative
-(hence comm-2) over arbitrary `SExpr`. Strategy: `mkNumber` is invariant under
-scaling numerator+denominator (`mkNumber_scale`); composing with the reduced
-form of `toRat (mkNumber ..)` (`toRat_mkNumber`) gives the *unreduced*
-`plus (mkNumber n d) c` (`plus_mkNumber_left`), after which associativity is a
-ring identity on numerators and a `Nat`-comm identity on denominators. -/
+The stored ACL2 addition rules quantify over the complete value domain.
+`NumericLemmas` proves them through canonical rational real/imaginary
+components, including numeric completion on nonnumbers. Rational-only
+normal forms are not valid for these unconditional rules after BUG-009.
+-/
 
 /-- `toRat` always yields a positive denominator (canonical `Number`: a
     ratio's denominator is ≥ 2 by the carried invariant). -/
@@ -532,11 +531,12 @@ theorem toRat_den_pos (s : SExpr) : 0 < (Logic.toRat s).2 := by
     omega
   · exact Nat.one_pos
 
-/-- `Logic.plus` in terms of the rational components (definitional). -/
+/-- Addition in canonical components, for every ACL2 value. -/
 theorem plus_eq (a c : SExpr) :
-    Logic.plus a c = Logic.mkNumber
-      ((Logic.toRat a).1 * ((Logic.toRat c).2 : Int) + (Logic.toRat c).1 * ((Logic.toRat a).2 : Int))
-      ((Logic.toRat a).2 * (Logic.toRat c).2) := rfl
+    Logic.plus a c = Logic.mkParts
+      ((Logic.numberParts a).1 + (Logic.numberParts c).1)
+      ((Logic.numberParts a).2 + (Logic.numberParts c).2) :=
+  Logic.plus_parts a c
 
 /-- The reduced form produced by `mkNumber` (positive denominator). -/
 theorem toRat_mkNumber (n : Int) (d : Nat) (hd : 0 < d) :
@@ -627,50 +627,28 @@ theorem gz_def_evenp (a : SExpr) :
           have := Nat.le_of_dvd (by omega) hdg
           omega
         simp [Logic.mkNumber, hne, show ¬ (d * 2 = 0) by omega]
+      | complex r i hi =>
+        change SExpr.nil = Logic.integerp
+          (Logic.mkParts (r * mkRat 1 2 - i * 0) (r * 0 + i * mkRat 1 2))
+        have hin : i ≠ 0 := fun h => hi (congrArg Rat.num h)
+        have hprod : (i * mkRat 1 2).num ≠ 0 := fun h =>
+          (mul_ne_zero hin (by decide)) (Rat.num_eq_zero.mp h)
+        simp [Logic.mkParts, Number.fromParts, hprod]
     | _ => rfl
   | _ => rfl
 
-/-- The UNREDUCED form of `plus (mkNumber n d) c`: scaling collapses `mkNumber`'s
-    internal gcd reduction, so the result is `mkNumber (n·cd + cn·d) (d·cd)` with
-    `(cn, cd) = toRat c`. The key lemma for proving associativity. -/
-theorem plus_mkNumber_left (n : Int) (d : Nat) (hd : 0 < d) (c : SExpr) :
-    Logic.plus (Logic.mkNumber n d) c
-      = Logic.mkNumber (n * ((Logic.toRat c).2 : Int) + (Logic.toRat c).1 * (d : Int))
-                       (d * (Logic.toRat c).2) := by
-  have hg : 0 < Nat.gcd n.natAbs d := Nat.gcd_pos_of_pos_right _ hd
-  have hgn : (Nat.gcd n.natAbs d : Int) ∣ n := Int.ofNat_dvd_left.mpr (Nat.gcd_dvd_left _ _)
-  have hgd : Nat.gcd n.natAbs d ∣ d := Nat.gcd_dvd_right _ _
-  have hn : n / (Nat.gcd n.natAbs d : Int) * (Nat.gcd n.natAbs d : Int) = n :=
-    Int.ediv_mul_cancel hgn
-  have hdd : ((d / Nat.gcd n.natAbs d : Nat) : Int) * (Nat.gcd n.natAbs d : Int) = (d : Int) := by
-    rw [← Nat.cast_mul, Nat.div_mul_cancel hgd]
-  rw [plus_eq, toRat_mkNumber n d hd]
-  dsimp only
-  rw [← mkNumber_scale
-        (n / (Nat.gcd n.natAbs d : Int) * ((Logic.toRat c).2 : Int)
-          + (Logic.toRat c).1 * ((d / Nat.gcd n.natAbs d : Nat) : Int))
-        (d / Nat.gcd n.natAbs d * (Logic.toRat c).2) (Nat.gcd n.natAbs d) hg]
-  congr 1
-  · have hrw : (n / (Nat.gcd n.natAbs d : Int) * ((Logic.toRat c).2 : Int)
-          + (Logic.toRat c).1 * ((d / Nat.gcd n.natAbs d : Nat) : Int)) * (Nat.gcd n.natAbs d : Int)
-        = (n / (Nat.gcd n.natAbs d : Int) * (Nat.gcd n.natAbs d : Int)) * ((Logic.toRat c).2 : Int)
-          + (Logic.toRat c).1 * (((d / Nat.gcd n.natAbs d : Nat) : Int) * (Nat.gcd n.natAbs d : Int)) := by
-      ring
-    rw [hrw, hn, hdd]
-  · rw [Nat.mul_right_comm, Nat.div_mul_cancel hgd]
+/-- Adding a constructed rational to any numeric/completed value. The
+    imaginary part of `c` is preserved; no rational-only restriction on `c`. -/
+theorem plus_mkNumber_left (n : Int) (d : Nat) (c : SExpr) :
+    Logic.plus (Logic.mkNumber n d) c = Logic.mkParts
+      (mkRat n d + (Logic.numberParts c).1) (Logic.numberParts c).2 := by
+  rw [plus_eq, Logic.mkNumber_eq_fromRat, Logic.numberParts_fromRat]
+  simp only [Rat.zero_add]
 
 /-- Associativity of `Logic.plus` (unconditional). -/
 theorem logic_plus_assoc (a b c : SExpr) :
-    Logic.plus (Logic.plus a b) c = Logic.plus a (Logic.plus b c) := by
-  have hab : 0 < (Logic.toRat a).2 * (Logic.toRat b).2 :=
-    Nat.mul_pos (toRat_den_pos a) (toRat_den_pos b)
-  have hbc : 0 < (Logic.toRat b).2 * (Logic.toRat c).2 :=
-    Nat.mul_pos (toRat_den_pos b) (toRat_den_pos c)
-  rw [plus_eq a b, plus_mkNumber_left _ _ hab, logic_plus_comm a (Logic.plus b c),
-      plus_eq b c, plus_mkNumber_left _ _ hbc]
-  congr 1
-  · push_cast; ring
-  · ring
+    Logic.plus (Logic.plus a b) c = Logic.plus a (Logic.plus b c) :=
+  Logic.plus_assoc a b c
 
 /-- `commutativity-2-of-+` (unconditional): `(+ a (+ b c)) = (+ b (+ a c))`. -/
 theorem logic_plus_comm2 (a b c : SExpr) :

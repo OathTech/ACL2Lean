@@ -93,9 +93,10 @@ theorem conv_if_false (w : World) (env : Env) (c t el v : SExpr)
 theorem toBool_false_of_eq_nil {v : SExpr} (h : v = SExpr.nil) :
     Logic.toBool v = false := h ▸ rfl
 
-/-- Cast a model-level count decrease through a sim equality. -/
-theorem count_lt_of_eq {v m xv : SExpr} (h : v = m)
-    (hlt : m.consCount < xv.consCount) : v.consCount < xv.consCount :=
+/-- Cast a decrease through a sim equality, independently of its measure.
+    Sim convergence may use structural consCount while admission uses valueCount. -/
+theorem count_lt_of_eq {μ : SExpr → Nat} {v m xv : SExpr} (h : v = m)
+    (hlt : μ m < μ xv) : μ v < μ xv :=
   h ▸ hlt
 
 /-! ## EVENS -/

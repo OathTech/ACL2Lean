@@ -13,6 +13,7 @@
 -/
 import ACL2Lean.Replay.Lemmas.Judgments
 import ACL2Lean.Replay.MeasureTable
+import ACL2Lean.ValueCount
 
 namespace ACL2.Replay
 
@@ -25,7 +26,7 @@ open ACL2
 and `07-mutual-recursion`). `Logic.nfix` computes it as an int atom;
 `nfixNat` is the `Nat`-typed twin the μ-registry interprets it by — the
 same shape as `lenNat`/`Logic.len` (Judgments) and
-`SExpr.consCount`/`ACL2-COUNT`. -/
+`SExpr.valueCount`/`ACL2-COUNT`. -/
 
 /-- Nat-valued twin of `Logic.nfix`: a non-negative integer atom is its own
     natural, everything else is `0`. -/
@@ -75,6 +76,7 @@ theorem exists_int_of_toInt_ne_zero {x : SExpr} (h : Logic.toInt x ≠ 0) :
   match x with
   | .atom (.number (.int n)) => exact ⟨n, rfl⟩
   | .atom (.number (.rational _ _ _)) => exact absurd rfl h
+  | .atom (.number (.complex _ _ _)) => exact absurd rfl h
   | .atom (.symbol _) => exact absurd rfl h
   | .atom (.keyword _) => exact absurd rfl h
   | .atom (.string _) => exact absurd rfl h
@@ -102,7 +104,7 @@ theorem nfixNat_plus_lt_of_not_zp {c v : SExpr} (hc : Logic.toInt c < 0)
 
 /-- THE μ-REGISTRY: each measure-table row's trusted-core `SExpr → Nat`
     interpretation, ONE entry per measured variable in `MeasureShape.vars`
-    order (a `sumCount` row interprets each component by `consCount` and
+    order (a `sumCount` row interprets each component by `valueCount` and
     the consumer adds them). `none` = the row has NO μ — `userFn` measures
     are interpreted only by the RECORDED-TERMINATION route, through the
     replayed admission waterfall (`interpCount`), never here.
@@ -111,10 +113,10 @@ theorem nfixNat_plus_lt_of_not_zp {c v : SExpr} (hc : Logic.toInt c < 0)
     μ-registration, and the match is total, so adding a row to
     `MeasureShape` forces a decision at this site. -/
 def MeasureShape.muHeads : MeasureShape → Option (List Lean.Name)
-  | .count _ => some [``SExpr.consCount]
+  | .count _ => some [``SExpr.valueCount]
   | .len _ => some [``ACL2.Replay.lenNat]
   | .nfix _ => some [``ACL2.Replay.nfixNat]
-  | .sumCount _ _ => some [``SExpr.consCount, ``SExpr.consCount]
+  | .sumCount _ _ => some [``SExpr.valueCount, ``SExpr.valueCount]
   | .userFn _ _ => none
 
 end ACL2.Replay

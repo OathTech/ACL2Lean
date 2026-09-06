@@ -697,7 +697,8 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
               (← mkAppM nm #[hb]) (← inTsTy outMask))]
   return out
 
-/-- Prove `InTs target tv` for `t` — ACL2's OWN emitted mask — from the
+/-- Prove `InTs target tv` for `t` — ACL2's emitted mask, or the complement
+    of a marker-anchored test's registered TRUE mask — from the
     visible typing facts: one (weakened) or two (intersected), exactly as
     `tsFromFacts` does on the admission side. Anything else is a frontier
     rather than a guess. -/
@@ -803,9 +804,8 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     Two cross-checks, both against ACL2's OWN emitted numbers: the
     step's `:TRUETS` must equal the registry's, and ACL2's emitted
     `:TYPESET` must be INSIDE the mask we derived (we may prove something
-    weaker than ACL2 knew — never something it contradicts), modulo the
-    model's PINNED complex-rational restriction (`tsAcl2MaskOk`,
-    BUG-009). -/
+    weaker than ACL2 knew — never something it contradicts). All fourteen
+    basic types are included, including genuine complex rationals. -/
 def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
     (recog : String) (arg : SExpr) (verdict : SExpr)
     (stepTs trueTs : Option Int) (argLeaves : List TpLeaf)
@@ -836,12 +836,8 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
     else inTsCandidates cfg ctxA [] citedCr arg va
   for (m, hv) in cands do
     -- ACL2's own verdict for the argument must be INSIDE what we derived
-    -- BUG-009 discount (T1+2 sprint P4b): index 6 (*ts-complex-rational*)
-    -- is uninhabited in the model, so a derived mask can never carry it;
-    -- `tsAcl2MaskOk` discounts EXACTLY that bit and stays closed on every
-    -- other. See its docstring.
     let acl2Ok := match stepTs with
-      | some ts => tsAcl2MaskOk ts m
+      | some ts => ACL2.Replay.tsSubsumedM ts m
       | none => false
     unless acl2Ok do continue
     if verdict == SExpr.t then

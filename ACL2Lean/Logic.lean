@@ -25,14 +25,38 @@ open ACL2
 @[inline, simp] def toNat (s : SExpr) : Nat :=
   (toInt s).toNat
 
-/-- Extract (numerator, denominator) from any SExpr. Non-numbers → (0, 1).
-    On the canonical `Number` type (BUG-012 Option A) the denominator is ≥ 2
-    and the pair is reduced, so `toRat` is INJECTIVE on numbers. -/
+/-- Extract a rational's numerator/denominator. Non-rationals, including
+    genuine complex numbers, complete to (0, 1). Injective on rationals. -/
 @[inline] def toRat (s : SExpr) : Int × Nat :=
   match s with
   | .atom (.number (.int n)) => (n, 1)
   | .atom (.number (.rational n d _)) => (n, d)
   | _ => (0, 1)
+
+/-- Rational completion as a canonical core rational; this is not realpart. -/
+@[inline] def rationalValue (s : SExpr) : Rat :=
+  match s with
+  | .atom (.number (.int n)) => Rat.ofInt n
+  | .atom (.number (.rational n d h)) =>
+    have hc : 2 ≤ d ∧ n.natAbs.gcd d = 1 := by
+      simpa only [canonRat, Bool.and_eq_true, decide_eq_true_eq, beq_iff_eq] using h
+    ⟨n, d, by omega, hc.2⟩
+  | _ => 0
+
+/-- Numeric completion followed by rational real/imaginary decomposition. -/
+@[inline] def numberParts (s : SExpr) : Rat × Rat :=
+  match s with
+  | .atom (.number (.complex r i _)) => (r, i)
+  | _ => (rationalValue s, 0)
+
+/-- Whether the value is a genuine complex rational. -/
+@[inline, simp] def isComplex : SExpr → Bool
+  | .atom (.number (.complex ..)) => true
+  | _ => false
+
+/-- Canonical embedding of two rational components into the ACL2 universe. -/
+@[inline] def mkParts (real imag : Rat) : SExpr :=
+  .atom (.number (Number.fromParts real imag))
 
 /-- `natAbs` of an EXACT integer division by a positive `Nat` divisor.
     (Stated standalone with a clean variable so `subst` applies; proved from
@@ -90,6 +114,10 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
     so the DP-lift registry can carry it (sorting arc 2026-07-28); the
     `callBuiltin` arm delegates here, behavior-identical. -/
 @[inline] def neg (a : SExpr) : SExpr :=
+  if isComplex a then
+    let (r, i) := numberParts a
+    mkParts (-r) (-i)
+  else
   let (n, d) := toRat a
   mkNumber (-n) d
 
@@ -97,26 +125,47 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
 @[inline, simp] def zp (n : SExpr) : SExpr :=
   if toInt n <= 0 then .t else .nil
 
-/-- ACL2 `plus`. Full rational arithmetic. -/
+/-- ACL2 `plus`: exact complex-rational arithmetic, nonnumbers complete to zero. -/
 @[inline] def plus (a b : SExpr) : SExpr :=
+  if isComplex a || isComplex b then
+    let (ar, ai) := numberParts a
+    let (br, bi) := numberParts b
+    mkParts (ar + br) (ai + bi)
+  else
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   mkNumber (an * bd + bn * ad) (ad * bd)
 
-/-- ACL2 `minus`. Full rational arithmetic. -/
+/-- ACL2 `minus`, with numeric completion. -/
 @[inline] def minus (a b : SExpr) : SExpr :=
+  if isComplex a || isComplex b then
+    let (ar, ai) := numberParts a
+    let (br, bi) := numberParts b
+    mkParts (ar - br) (ai - bi)
+  else
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   mkNumber (an * bd - bn * ad) (ad * bd)
 
-/-- ACL2 `times`. Full rational arithmetic. -/
+/-- ACL2 `times`, with numeric completion. -/
 @[inline] def times (a b : SExpr) : SExpr :=
+  if isComplex a || isComplex b then
+    let (ar, ai) := numberParts a
+    let (br, bi) := numberParts b
+    mkParts (ar * br - ai * bi) (ar * bi + ai * br)
+  else
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   mkNumber (an * bn) (ad * bd)
 
-/-- ACL2 `div`. Full rational arithmetic. -/
+/-- ACL2 division. Core Rat's inverse completes zero to zero. -/
 @[inline] def div (a b : SExpr) : SExpr :=
+  if isComplex a || isComplex b then
+    let (ar, ai) := numberParts a
+    let (br, bi) := numberParts b
+    let norm := br * br + bi * bi
+    mkParts ((ar * br + ai * bi) / norm) ((ai * br - ar * bi) / norm)
+  else
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   if bn == 0 then .atom (.number (.int 0))
@@ -127,8 +176,18 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
     let rn := if bn < 0 then -rn else rn
     mkNumber rn rd
 
-/-- ACL2 `lt`. Full rational comparison. -/
+/-- ACL2 reciprocal, including its zero/nonnumber completion. -/
+@[inline] def reciprocal (a : SExpr) : SExpr :=
+  div (.atom (.number (.int 1))) a
+
+/-- ACL2 `<`: real part first, imaginary part on ties after numeric completion.
+    This differs from alphorder, which places every rational before complexes. -/
 @[inline, simp] def lt (a b : SExpr) : SExpr :=
+  if isComplex a || isComplex b then
+    let (ar, ai) := numberParts a
+    let (br, bi) := numberParts b
+    if ar < br ∨ (ar = br ∧ ai < bi) then .t else .nil
+  else
   let (an, ad) := toRat a
   let (bn, bd) := toRat b
   if an * bd < bn * ad then .t else .nil
@@ -162,14 +221,10 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number _) => .t
   | _ => .nil
 
-/-- ACL2 `rationalp`: true exactly on numbers — the model's `Number` is
-    canonical-rational (BUG-012), and complex numbers are unrepresentable
-    (complex literals are refused upstream), so `rationalp` coincides with
-    `acl2-numberp` ON THE MODEL while remaining a distinct predicate (it
-    must diverge if complex numbers ever land). Logic-level twin of
-    `callBuiltin`'s inline RATIONALP match. -/
+/-- ACL2 `rationalp`: integers and proper ratios, excluding genuine complexes. -/
 @[inline, simp] def rationalp (s : SExpr) : SExpr :=
   match s with
+  | .atom (.number (.complex ..)) => .nil
   | .atom (.number _) => .t
   | _ => .nil
 
@@ -273,28 +328,43 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   | .atom (.number (.rational _ d _)) => .atom (.number (.int d))
   | _ => .atom (.number (.int 1))
 
-/-- ACL2 `realpart` on the complex-free value space: a rational IS its own
-    real part; non-numbers complete to 0 (the completion axiom). Genuine
-    complexes are unrepresentable here (`#c` is a pinned unsupported reader
-    class) — differential-pinned (numerator-denominator.lisp). -/
+/-- ACL2 `realpart`: a rational is its own real part; nonnumbers complete to zero. -/
 @[inline, simp] def realpart (s : SExpr) : SExpr :=
   match s with
+  | .atom (.number (.complex r _ _)) => .atom (.number (Number.fromRat r))
   | .atom (.number n) => .atom (.number n)
   | _ => .atom (.number (.int 0))
 
-/-- ACL2 `imagpart` on the complex-free value space: rationals have imaginary
-    part 0, and non-numbers complete to 0 — constantly 0 on every
-    representable value. Differential-pinned alongside `realpart`. -/
-@[inline, simp] def imagpart (_ : SExpr) : SExpr :=
-  .atom (.number (.int 0))
+/-- ACL2 `imagpart`: rationals and nonnumbers have imaginary part zero. -/
+@[inline, simp] def imagpart (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.complex _ i _)) => .atom (.number (Number.fromRat i))
+  | _ => .atom (.number (.int 0))
 
-/-- ACL2 `complex-rationalp` on the complex-free value space: NIL on every
-    representable value (T only on genuine complexes, which the reader
-    refuses). Differential-pinned alongside `realpart`. -/
-@[inline, simp] def complexRationalp (_ : SExpr) : SExpr := .nil
+/-- ACL2 `complex-rationalp`: true exactly on genuine complex rationals. -/
+@[inline, simp] def complexRationalp (s : SExpr) : SExpr :=
+  if isComplex s then .t else .nil
+
+/-- ACL2 `complex` completes each nonrational argument to rational zero. -/
+@[inline] def complex (a b : SExpr) : SExpr :=
+  mkParts (rationalValue a) (rationalValue b)
 
 /-- ACL2 `quote`. -/
 @[inline, simp] def quote_ (s : SExpr) : SExpr := s
+
+/-- Exact component multiplication, also used by integer exponentiation. -/
+def partsMul (a b : Rat × Rat) : Rat × Rat :=
+  (a.1 * b.1 - a.2 * b.2, a.1 * b.2 + a.2 * b.1)
+
+/-- Natural power by repeated squaring; the numeric result is exact. -/
+def partsPow (a : Rat × Rat) (n : Nat) : Rat × Rat :=
+  if h : n = 0 then (1, 0)
+  else
+    let p := partsPow a (n / 2)
+    let square := partsMul p p
+    if n % 2 = 0 then square else partsMul a square
+termination_by n
+decreasing_by exact Nat.div_lt_self (Nat.pos_of_ne_zero h) (by decide)
 
 /-- ACL2 `expt` (guard-off — BUG-021 fix, 2026-07-26, differential-
     pinned): mirrors ACL2's cond order —
@@ -306,6 +376,12 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
   match b with
   | .atom (.number (.int i)) =>
     if i == 0 then .atom (.number (.int 1))
+    else if isComplex a then
+      let (r, im) := partsPow (numberParts a) i.natAbs
+      if i > 0 then mkParts r im
+      else
+        let norm := r * r + im * im
+        mkParts (r / norm) (-im / norm)
     else
       let (n, d) := toRat a
       if n == 0 then .atom (.number (.int 0))
@@ -317,23 +393,17 @@ theorem canonRat_mkNumber {n : Int} {d : Nat} (hd : d ≠ 0)
         mkNumber (sgn * Int.ofNat (d ^ k)) (n.natAbs ^ k)
   | _ => .atom (.number (.int 1))
 
-/-- ACL2 `le` (<=). Full rational comparison. -/
+/-- ACL2 `le` (<=): the complement of the reversed strict comparison. -/
 @[inline, simp] def le (a b : SExpr) : SExpr :=
-  let (an, ad) := toRat a
-  let (bn, bd) := toRat b
-  if an * bd ≤ bn * ad then .t else .nil
+  if toBool (lt b a) then .nil else .t
 
-/-- ACL2 `ge` (>=). Full rational comparison. -/
+/-- ACL2 `ge` (>=). -/
 @[inline, simp] def ge (a b : SExpr) : SExpr :=
-  let (an, ad) := toRat a
-  let (bn, bd) := toRat b
-  if an * bd ≥ bn * ad then .t else .nil
+  le b a
 
-/-- ACL2 `gt` (>). Full rational comparison. -/
+/-- ACL2 `gt` (>). -/
 @[inline, simp] def gt (a b : SExpr) : SExpr :=
-  let (an, ad) := toRat a
-  let (bn, bd) := toRat b
-  if an * bd > bn * ad then .t else .nil
+  lt b a
 
 /-- ACL2 `first`. -/
 @[inline, simp] def first (s : SExpr) : SExpr := car s
@@ -509,7 +579,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [zp, toInt, toBool] at h
     | number num =>
       cases num with
-      | rational _ _ _ => simp [zp, toInt, toBool] at h
+      | rational _ _ _ | complex _ _ _ => simp [zp, toInt, toBool] at h
       | int k =>
         simp only [zp, toInt] at h
         -- v4.33 (4.29 #12244): `simp` no longer rewrites inside the ite's
@@ -589,7 +659,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
-      | rational _ _ _ => simp [integerp, toBool] at h
+      | rational _ _ _ | complex _ _ _ => simp [integerp, toBool] at h
       | int k => simp [equal, toInt]
 
 @[grind →] theorem integerp_toInt (x : SExpr) : toBool (integerp x) = true → x = .atom (.number (.int (toInt x))) := by
@@ -602,7 +672,7 @@ instance : OfNat SExpr n where
     | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
     | number n =>
       cases n with
-      | rational _ _ _ => simp [integerp, toBool] at h
+      | rational _ _ _ | complex _ _ _ => simp [integerp, toBool] at h
       | int k => simp [toInt]
 
 @[simp] theorem toInt_minus_int (m n : Int) :
@@ -641,7 +711,7 @@ instance : OfNat SExpr n where
       | symbol _ | keyword _ | string _ | char _ => simp [integerp, toBool] at h
       | number n =>
         cases n with
-        | rational _ _ _ => simp [integerp, toBool] at h
+        | rational _ _ _ | complex _ _ _ => simp [integerp, toBool] at h
         | int k => exact ⟨k, rfl⟩
   · intro ⟨n, h⟩; subst h; simp [integerp, toBool]
 

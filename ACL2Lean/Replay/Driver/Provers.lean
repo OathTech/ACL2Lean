@@ -146,9 +146,10 @@ def proveTotality (cfg : ReplayConfig)
             [reflectSymbol f1, reflectSymbol f2]
           let avsE ← mkListLit (mkConst ``SExpr) [bv, cv]
           mkAppM ``bindArgs #[formalsE, avsE]
+        let some [mu1, mu2] := row.muHeads
+          | throwError "sumCount measure row must register two measure heads"
         let muAt := fun (a b : Expr) => do
-          mkAppM ``HAdd.hAdd #[← mkAppM ``SExpr.consCount #[a],
-            ← mkAppM ``SExpr.consCount #[b]]
+          mkAppM ``HAdd.hAdd #[← mkAppM mu1 #[a], ← mkAppM mu2 #[b]]
         let μE ← withLocalDeclD `u1 (mkConst ``SExpr) fun u1 =>
           withLocalDeclD `u2 (mkConst ``SExpr) fun u2 => do
             mkLambdaFVars #[u1, u2] (← muAt u1 u2)

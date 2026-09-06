@@ -131,11 +131,25 @@ differentially
 tested.
 
 ## BUG-009 — no complex-rational class (numbers/lexorder)
-Status: open
-Pinned-by: none (complex numbers not modeled; `unsupported` in the differential
-— Tests/differential/corpus/complex-and-packages.lisp)
+Status: fixed
+Pinned-by: differential (Tests/differential/corpus/complex-arith.lisp,
+complex-reader.lisp, complex-and-packages.lisp)
 `alphorder` places complex/complex-rationals between rationals and characters.
-We do not model complex numbers at all.
+The pre-NS1 model omitted complex numbers entirely.
+
+**Fixed at NS1 C1 (2026-09-06):** canonical complex values, arithmetic/completion,
+reader/reflection, numeric and alphabetical ordering, exact ACL2 value count,
+and inhabited type-set bit 6 are implemented. The complex-bit discount is
+removed. Three real captured complex theorems pass unconditional statement
+and axiom pins in `Tests/ComplexReplay.lean`. The ordinary differential suite
+passes with 529 matches, 138 unsupported cases, 10 known bugs, 25 refusals and
+zero failures (`.tmp/ns1/c1-full-differential-thin.log`). The full migration
+gate passes (`.gate-runs/31d8e42-20260906T010720Z.log`, `TRUE_EXIT=0`),
+preserving 116 unconditional rows, the unchanged golden and 21 native
+products. `#2C` dispatch arguments remain an explicitly refused reader
+syntax, separately classified `unsupported`; genuine complex values are
+represented and evaluated. See the
+[NS1 charter](plans/2026-09-05_bvchop-foundation-charter.md).
 
 **New-book reproduction (2026-09-05):** a fresh capture of
 `acl2/books/kestrel/bv/bvchop.lisp` at fork `e8d78e513d6867d04002f0df644da1723cc96e89`
@@ -145,6 +159,9 @@ succeeds, but `acl2lean-replay --dump` rejects it with
 integer-oriented book reaches the limitation through its dependencies.
 Commands and scope are recorded in the
 [post-sorting assessment](notes/2026-09-05_next-north-star-assessment.md).
+
+**Pre-migration dependency record:** the dated notes below describe the
+former implementation and explain the scope the NS1 repair must cover.
 
 Dependency note (2026-07-20, STRINGP-lift audit): `Logic.rationalp` coincides
 with `Logic.acl2Numberp` ON THE MODEL (both true exactly on `.atom (.number _)`)
@@ -188,11 +205,10 @@ becomes unsound to keep, so `tsAcl2MaskOk` must be DELETED (reverting to
 site.
 
 ## BUG-028 — reader accepts a rational literal with denominator zero
-Status: open
-Pinned-by: none (independently reproduced during NS1 C0; differential pin
-and reader repair are pending in the numeric migration)
+Status: fixed
+Pinned-by: differential (Tests/differential/corpus/complex-reader.lisp)
 
-`Parser.lean`'s rational-token branch passes any parsed natural denominator
+The pre-NS1 `Parser.lean` rational-token branch passed any parsed natural denominator
 to `Logic.mkNumber`. That smart constructor's zero-denominator completion
 returns integer zero, so `(quote 1/0)` evaluates to `0` in ACL2Lean.
 The pinned ACL2 reader rejects the token with `READER-ERROR`, caused by
@@ -209,12 +225,17 @@ at the reader boundary and cover ordinary and complex-component literals
 with isolated differential tests. See the
 [NS1 numeric design](notes/2026-09-05_ns1-numeric-design.md).
 
-## BUG-029 — rational term-order weight drops the recursive call limit
-Status: open
-Pinned-by: none (independently reproduced during NS1 C0; focused regression
-and numeric term-weight repair pending)
+**Fixed 2026-09-06:** the reader rejects zero denominators before numeric
+construction. Isolated ordinary and complex-component refusal cases pass
+the full differential suite; the C1 full claim gate records `TRUE_EXIT=0`
+in `.gate-runs/31d8e42-20260906T010720Z.log`.
 
-`TermOrder.fnCountEvgAtom` expands a rational's numerator and denominator
+## BUG-029 — rational term-order weight drops the recursive call limit
+Status: fixed
+Pinned-by: none (internal term-weight API; source/ACL2 boundary probes and
+Tests/TermOrderTest.lean guards pin the repaired rational and complex paths)
+
+The pre-NS1 `TermOrder.fnCountEvgAtom` expanded a rational's numerator and denominator
 with direct `fnCountEvgInt` calls, omitting the recursive call-count checks
 of ACL2's `fn-count-evg-rec` (`linear-a.lisp:1492` onward). Near the limit,
 this computes a small weight where ACL2 saturates at 200000 and can change
@@ -230,6 +251,12 @@ worktree. Preserve both accumulator saturation and call-count saturation
 when adding complex weights, and repair the existing rational path with
 source-based boundary checks. See the
 [NS1 numeric design](notes/2026-09-05_ns1-numeric-design.md).
+
+**Fixed 2026-09-06:** every rational/complex component visit checks both
+source limits, preserving the component order and call increments. The
+focused guards include a public 499-cons input; full C1 coverage is golden
+byte-identical. Gate `.gate-runs/31d8e42-20260906T010720Z.log` records
+`TRUE_EXIT=0`.
 
 ## BUG-010 — mixed/partial escaping within a symbol token not implemented
 Status: open

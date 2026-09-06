@@ -25,6 +25,8 @@ inductive TpCorClass where
   /-- `(IF (INTEGERP (f …)) (NOT (< (f …) '0)) 'NIL)` — ACL2's
       `*ts-non-negative-integer*` (the emitted `:BASICTS 7`). -/
   | nonNegInt
+  /-- `(ACL2-NUMBERP (f …))` — all seven numeric bits, `:BASICTS 127`. -/
+  | acl2Numberp
   /-- `(CONSP (f …))` — ACL2's `*ts-cons*` (the emitted `:BASICTS 3072`). -/
   | consp
   /-- `(TRUE-LISTP (f …))` — ACL2's `*ts-true-list*` (`:BASICTS 1152`). -/
@@ -60,6 +62,7 @@ inductive TpCorClass where
     `*ts-cons*`|`*ts-nil*` = 3072|128 = 3200. -/
 def TpCorClass.tsMask : TpCorClass → Int
   | .nonNegInt => 7
+  | .acl2Numberp => 127
   | .consp => 3072
   | .trueListp => 1152
   | .conspOrNil => 3200
@@ -117,6 +120,7 @@ def tpCorClass? (appPat cor : SExpr) : Option TpCorClass :=
       (app1 "NOT" (app2 "<" appPat (quo (.atom (.number (.int 0))))))
       (quo .nil) then some .nonNegInt
   else if cor == app1 "CONSP" appPat then some .consp
+  else if cor == app1 "ACL2-NUMBERP" appPat then some .acl2Numberp
   else if cor == app1 "TRUE-LISTP" appPat then some .trueListp
   else if cor == ifE (app1 "CONSP" appPat) (quo SExpr.t)
       (app2 "EQUAL" appPat (quo .nil)) then some .conspOrNil
@@ -159,6 +163,7 @@ def TpArgProfile.sndConstrained : TpArgProfile → Bool
     drifted lift OR a mis-registered profile fails closed. -/
 def tpClosure2 : List ((TpCorClass × String) × TpArgProfile × Name) :=
   [((.nonNegInt, "BINARY-+"), .both, ``ACL2.Replay.nonNegIntCor_closed_plus),
+   ((.acl2Numberp, "BINARY-+"), .neither, ``ACL2.Replay.acl2NumberpCor_closed_plus),
    ((.consp, "CONS"), .neither, ``ACL2.Replay.conspCor_closed_cons),
    ((.trueListp, "CONS"), .sndOnly,
     ``ACL2.Replay.trueListpCor_closed_cons),

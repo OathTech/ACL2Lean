@@ -305,6 +305,15 @@ theorem logic_not_equal_nil_eq (a b : SExpr)
     have hbeq : (a == b) = false := beq_eq_false_iff_ne.mpr hab
     simp [Logic.not, Logic.equal, Logic.toBool, hbeq, SExpr.t] at h
 
+/-- Equality-only normalization for verdict leaves. Keeping other negative
+    recognizer tests in their original form preserves their completion lemmas. -/
+theorem logic_not_equal_nil_iff (a b : SExpr) :
+    Logic.not (Logic.equal a b) = SExpr.nil ↔ a = b := by
+  constructor
+  · exact logic_not_equal_nil_eq a b
+  · rintro rfl
+    simp [Logic.not, Logic.toBool]
+
 /-- A TRUE `(not (equal a b))` literal value makes the equality nil (the
     linear-equalities case split's escape branch — 2b). -/
 theorem logic_not_equal_ne_nil_eq_nil (a b : SExpr)
@@ -333,6 +342,7 @@ theorem logic_zp_of_integerp_nil (v : SExpr) (h : Logic.integerp v = SExpr.nil) 
     | number n => cases n with
       | int k => simp [Logic.integerp, SExpr.t] at h
       | rational n d hc => simp [Logic.zp, Logic.toInt]
+      | complex _ _ _ => simp [Logic.zp, Logic.toInt]
     | _ => simp [Logic.zp, Logic.toInt]
   | nil => simp [Logic.zp, Logic.toInt]
   | cons a b => simp [Logic.zp, Logic.toInt]
@@ -525,8 +535,8 @@ theorem logic_consp_mkNumber (n : Int) (d : Nat) :
 
 theorem logic_consp_plus_nil (a b : SExpr) :
     Logic.consp (Logic.plus a b) = SExpr.nil := by
-  unfold Logic.plus
-  apply logic_consp_mkNumber
+  rw [Logic.plus_parts]
+  rfl
 
 /-- The LIFTED nonneg-int TP hypothesis pins its value to a Nat-image
     integer atom: `(bif toBool (integerp v) then not (lt v '0) else nil) = t`
@@ -550,7 +560,7 @@ theorem dp_nonneg_int_of_tp {v : SExpr}
                 Logic.toRat, hk, SExpr.t] at h
         · simp only [SExpr.atom.injEq, Atom.number.injEq, Number.int.injEq]
           omega
-      | rational n d hc => simp [Logic.integerp, Logic.toBool] at h
+      | rational n d hc | complex _ _ _ => simp [Logic.integerp, Logic.toBool] at h
     | symbol s => simp [Logic.integerp, Logic.toBool] at h
     | keyword s => simp [Logic.integerp, Logic.toBool] at h
     | string s => simp [Logic.integerp, Logic.toBool] at h
@@ -939,7 +949,7 @@ theorem cond_toBool_of_t_or_nil {v : SExpr}
 theorem logic_lt_t_or_nil (a b : SExpr) :
     Logic.lt a b = SExpr.t ∨ Logic.lt a b = SExpr.nil := by
   simp only [Logic.lt]
-  split <;> simp
+  split <;> split <;> simp
 
 theorem t_t_or_nil : SExpr.t = SExpr.t ∨ SExpr.t = SExpr.nil := Or.inl rfl
 theorem nil_t_or_nil : SExpr.nil = SExpr.t ∨ SExpr.nil = SExpr.nil := Or.inr rfl

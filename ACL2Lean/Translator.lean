@@ -84,6 +84,8 @@ name := \"{escapeStringLit s.name}\" }))"
   -- canonical Number (BUG-012): emit via the proving smart constructor —
   -- the parsed value is canonical, so mkNumber reproduces it exactly
   | .atom (.number (.rational n d _)) => s!"(Logic.mkNumber ({n}) ({d}))"
+  | .atom (.number (.complex r i _)) =>
+    s!"(Logic.mkParts (mkRat ({r.num}) {r.den}) (mkRat ({i.num}) {i.den}))"
   | .atom (.string s) => s!"(SExpr.atom (.string \"{escapeStringLit s}\"))"
   | .atom (.keyword k) => s!"(SExpr.atom (.keyword \"{escapeStringLit k}\"))"
   | .atom (.char c) => s!"(SExpr.atom (.char ({c.toNat} : UInt8)))"

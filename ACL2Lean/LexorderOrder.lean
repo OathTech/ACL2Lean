@@ -1,4 +1,4 @@
-import ACL2Lean.Lexorder
+import ACL2Lean.NumberOrder
 
 /-!
 # The `lexorder` order properties (ACL2's ground-zero lexorder rules)
@@ -37,111 +37,6 @@ core-only also keeps the axiom footprint of these theorems minimal.
 namespace ACL2
 
 open Logic
-
-/-! ## Within-class facts: numbers -/
-
-/-- Unpack the canonicity invariant. -/
-private theorem canonRat_facts {n : Int} {d : Nat} (h : canonRat n d = true) :
-    2 ≤ d ∧ Nat.gcd n.natAbs d = 1 := by
-  simpa [canonRat] using h
-
-/-- The denominator `toRat` extracts from a (canonical) number is positive. -/
-private theorem den_pos (v : Number) :
-    0 < (Logic.toRat (.atom (.number v))).2 := by
-  cases v with
-  | int n => simp [Logic.toRat]
-  | rational n d hc =>
-    have := (canonRat_facts hc).1
-    simp only [Logic.toRat]
-    omega
-
-private theorem mul_right_comm' (a b c : Int) : a * b * c = a * c * b := by
-  rw [Int.mul_assoc, Int.mul_comm b c, ← Int.mul_assoc]
-
-/-- Transitivity of the cross-multiplication order on exact rationals:
-    `n1/d1 ≤ n2/d2 ≤ n3/d3` (as `nᵢ*dⱼ ≤ nⱼ*dᵢ`) chains, cancelling the
-    positive middle denominator. -/
-private theorem cross_le_trans {n1 n2 n3 : Int} {d1 d2 d3 : Nat}
-    (hd2 : 0 < d2)
-    (h12 : n1 * (d2 : Int) ≤ n2 * (d1 : Int))
-    (h23 : n2 * (d3 : Int) ≤ n3 * (d2 : Int)) :
-    n1 * (d3 : Int) ≤ n3 * (d1 : Int) := by
-  have h1 : n1 * d2 * d3 ≤ n2 * d1 * d3 :=
-    Int.mul_le_mul_of_nonneg_right h12 (Int.natCast_nonneg d3)
-  have h2 : n2 * d3 * d1 ≤ n3 * d2 * d1 :=
-    Int.mul_le_mul_of_nonneg_right h23 (Int.natCast_nonneg d1)
-  have h3 : n1 * d2 * d3 ≤ n3 * d2 * d1 := by
-    refine Int.le_trans h1 ?_
-    rw [mul_right_comm' n2 d1 d3]
-    exact h2
-  have h4 : n1 * d3 * d2 ≤ n3 * d1 * d2 := by
-    rw [mul_right_comm' n1 d3 d2, mul_right_comm' n3 d1 d2]
-    exact h3
-  exact Int.le_of_mul_le_mul_right h4 (by omega)
-
-/-- A canonical rational is never integral: `m * d = n` is impossible when
-    `(n, d)` is canonical (`d ≥ 2` would divide `n`, contradicting
-    reducedness). -/
-private theorem cross_ne_int {m n : Int} {d : Nat} (hc : canonRat n d = true) :
-    m * (d : Int) ≠ n := by
-  intro h
-  rcases canonRat_facts hc with ⟨hd2, hcop⟩
-  have hdvd : (d : Int) ∣ n := ⟨m, by rw [← h]; exact Int.mul_comm m d⟩
-  have hdvd' : d ∣ n.natAbs := by
-    have := Int.natAbs_dvd_natAbs.mpr hdvd
-    simpa using this
-  have hg : d ∣ Nat.gcd n.natAbs d := Nat.dvd_gcd hdvd' (Nat.dvd_refl d)
-  rw [hcop] at hg
-  have := Nat.le_of_dvd Nat.one_pos hg
-  omega
-
-/-- INJECTIVITY of the exact rational value on canonical numbers: equal
-    cross-products mean equal `Number`s. This is where the BUG-012
-    canonical-`Number` invariant pays off — without it (e.g. with `2/4` and
-    `1/2` both representable) this, and hence lexorder antisymmetry, is
-    FALSE. -/
-private theorem number_eq_of_cross_eq {v1 v2 : Number}
-    (h : (Logic.toRat (.atom (.number v1))).1
-           * ((Logic.toRat (.atom (.number v2))).2 : Int)
-       = (Logic.toRat (.atom (.number v2))).1
-           * ((Logic.toRat (.atom (.number v1))).2 : Int)) :
-    v1 = v2 := by
-  cases v1 with
-  | int m =>
-    cases v2 with
-    | int n =>
-      simp [Logic.toRat] at h
-      exact congrArg Number.int h
-    | rational n d hc =>
-      simp [Logic.toRat] at h
-      exact absurd h (cross_ne_int hc)
-  | rational n d hc =>
-    cases v2 with
-    | int m =>
-      simp [Logic.toRat] at h
-      exact absurd h.symm (cross_ne_int hc)
-    | rational n2 d2 hc2 =>
-      simp only [Logic.toRat] at h
-      rcases canonRat_facts hc with ⟨hd2, hcop⟩
-      rcases canonRat_facts hc2 with ⟨hd2', hcop2⟩
-      -- |n|·d2 = |n2|·d, then coprimality forces d = d2, then n = n2
-      have habs : n.natAbs * d2 = n2.natAbs * d := by
-        have := congrArg Int.natAbs h
-        simpa [Int.natAbs_mul] using this
-      have hdd2 : d ∣ d2 := by
-        have hdvd : d ∣ n.natAbs * d2 :=
-          ⟨n2.natAbs, by rw [habs]; exact Nat.mul_comm _ _⟩
-        exact (Nat.Coprime.symm hcop).dvd_of_dvd_mul_left hdvd
-      have hd2d : d2 ∣ d := by
-        have hdvd : d2 ∣ n2.natAbs * d :=
-          ⟨n.natAbs, by rw [← habs]; exact Nat.mul_comm _ _⟩
-        exact (Nat.Coprime.symm hcop2).dvd_of_dvd_mul_left hdvd
-      have hdeq : d = d2 := Nat.dvd_antisymm hdd2 hd2d
-      subst hdeq
-      have hneq : n = n2 :=
-        Int.eq_of_mul_eq_mul_right (by omega : (d : Int) ≠ 0) h
-      subst hneq
-      rfl
 
 /-! ## Within-class facts: symbols
 
@@ -225,7 +120,7 @@ private theorem symbolLe_total (n1 p1 n2 p2 : String) :
 
 theorem alphLe_refl (a : LexView) : alphLe a a = true := by
   cases a with
-  | number v => simp [alphLe, viewKind]
+  | number v => simp [alphLe, viewKind, numberLe_refl]
   | char c => simp [alphLe, viewKind]
   | string s => simp [alphLe, viewKind]
   | sym n p => simp [alphLe, viewKind, symbolLe_refl]
@@ -235,7 +130,7 @@ theorem alphLe_antisymm : ∀ {a b : LexView},
   intro a b h12 h21
   cases a <;> cases b <;> simp_all [alphLe, viewKind]
   case number.number v1 v2 =>
-    exact number_eq_of_cross_eq (Int.le_antisymm h12 h21)
+    exact numberLe_antisymm h12 h21
   case char.char c1 c2 => exact UInt8.le_antisymm h12 h21
   case string.string s1 s2 => exact String.le_antisymm h12 h21
   case sym.sym n1 p1 n2 p2 => exact symbolLe_antisymm h12 h21
@@ -245,7 +140,7 @@ theorem alphLe_trans : ∀ {a b c : LexView},
   intro a b c h12 h23
   cases a <;> cases b <;> cases c <;> simp_all [alphLe, viewKind]
   case number.number.number v1 v2 v3 =>
-    exact cross_le_trans (den_pos v2) h12 h23
+    exact numberLe_trans h12 h23
   case char.char.char c1 c2 c3 => exact UInt8.le_trans h12 h23
   case string.string.string s1 s2 s3 => exact String.le_trans h12 h23
   case sym.sym.sym n1 p1 n2 p2 n3 p3 => exact symbolLe_trans h12 h23
@@ -253,7 +148,7 @@ theorem alphLe_trans : ∀ {a b c : LexView},
 theorem alphLe_total (a b : LexView) :
     alphLe a b = true ∨ alphLe b a = true := by
   cases a <;> cases b <;> simp [alphLe, viewKind]
-  case number.number v1 v2 => exact Int.le_total _ _
+  case number.number v1 v2 => exact numberLe_total _ _
   case char.char c1 c2 => exact UInt8.le_total c1 c2
   case string.string s1 s2 => exact String.le_total s1 s2
   case sym.sym n1 p1 n2 p2 => exact symbolLe_total n1 p1 n2 p2

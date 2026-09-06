@@ -2,7 +2,7 @@
 
 Dated 2026-09-05. First goal of the
 [post-sorting master plan](2026-09-05_master-plan.md).
-**Status: C0 checked 2026-09-05; C1 semantic migration next. NS1 incomplete.**
+**Status: C0 checked 2026-09-05; C1 semantic migration in progress. NS1 incomplete.**
 The strategic direction and preflight choices are agreed. On 2026-09-05 the
 user explicitly authorized ownership of the complex migration and the
 subagents proposed below. Those authorizations persist throughout this goal;
@@ -275,21 +275,150 @@ same approval again.
   the freshly checked baseline coverage artifacts; WordOps and its naming
   consumer were newly built. All existing products remain unchanged.
 
+## C1 execution evidence (2026-09-06)
+
+**C1 complete.** The full claim gate records `TRUE_EXIT=0` in
+`.gate-runs/31d8e42-20260906T010720Z.log`. This run consumed the fresh
+coverage/product rebuilds below and the repaired diagnostic test. The
+adopted design is implemented across the value model, evaluator, reader,
+reflection, order proofs, type sets and count measures. WordOps still contains
+specifications only: C1 adds no new mirror product.
+
+- Canonical complex values use core `Rat` components and a nonzero imaginary
+  part. Arithmetic preserves rational fast paths and normalizes complex
+  results. Numeric comparison follows real/imaginary order; alphorder places
+  rationals before complexes. Reader errors remain separate from arithmetic
+  completion. The full domain inhabits type-set bit 6; its discount is gone.
+- Count/sum-count admission measures use exact `SExpr.valueCount`, including
+  numeric and string contributions; structural `consCount` remains separate.
+  Complex-component decrease consumes the emitted COMPLEX-RATIONALP ruler
+  and the recorded obligation. Rational/complex term weights preserve both
+  source saturation limits, including the public 499-cons boundary case.
+- Unchanged, freshly captured `cov-complex` replays 2/2 unconditionally and
+  `cov-complex-defun` 1/1. `Tests/ComplexReplay.lean` independently pins their
+  source statements and rejects forbidden axioms. Receipts:
+  `.tmp/ns1/c1-replay-complex-3.log`,
+  `.tmp/ns1/c1-replay-complex-defun-2.log`, and
+  `.tmp/ns1/c1-independent-products-refl-build.log`.
+  Actual `COMPLEX-ADD` also checks over an abstract world with precisely
+  `noshadow:EQUAL` and `noshadow:BINARY-+` premises
+  (`.tmp/ns1/c1-complex-parametric.log`). These are replayed statements,
+  not mirrors.
+- **Full differential suite:** ordinary `TMPDIR="$PWD/.tmp" just diff-test`
+  passes: 529 matches, 138 unsupported cases, 10 known bugs, 25 refusals,
+  zero failures (`.tmp/ns1/c1-full-differential-thin.log`). Focused reader,
+  reflection, numeric type-set, count and saturation tests also build.
+- **Fresh coverage:** invalidated consumers and rebuilt
+  `Tests.DriverCoverage`: 116/116 unconditional rows across 29 books; sections
+  tile the unchanged golden, and `cmp Tests/driver-coverage.golden
+  Tests/driver-coverage.actual` exits zero. Receipt:
+  `.tmp/ns1/c1-fresh-coverage-post-intersection.log`. Sorting equivalence
+  replays 3/3 in 676,932 ms (1018 seconds for the full module build).
+- **Product regression:** the full build in
+  `.gate-runs/31d8e42-20260906T004820Z.log` passed all 21 mirror seams and
+  sorting equivalence (1070-second module build), including the final
+  type-set marker repair. Its only failure was the diagnostic test below;
+  the subsequent full gate passed. All product and replay receipts stay within
+  `{propext, Classical.choice, Quot.sound}`.
+
+Three concrete regressions determined the replay changes:
+
+1. **EQUAL-CONS:** its actual tau leaf consumed 142,633,845 internal
+   heartbeats after the migration. Generic negative-equality normalization
+   and variable substitution reduce it to 175,568, with only `propext` in
+   both isolated proofs. Normalization applies to the unsplit DP attempt;
+   the constructor fallback retains its original recognizer forms.
+   OrderedPerms builds; equality/linear books replay 6/6 unconditionally.
+2. **Qsort:** the actual `Subgoal *1/3.1` identifies the arguments of a
+   supposedly false lexorder test. Including existing reflexivity and
+   constructor discrimination in that normalization pass closes the leaf
+   in 205,530 internal heartbeats with accepted axioms
+   (`.tmp/ns1/c1-qsort-refl-leaf.log`). The complete Qsort module then builds
+   in 513 seconds, including HOW-MANY-FILTER-1 under its unchanged default
+   limit (`.tmp/ns1/c1-qsort-refl-build.log`). This build overlapped other
+   checks; it is not a controlled comparison with historical baseline
+   timings. No resource limit was raised.
+3. **CLASSIFY-POS:** in the full numeric domain, positivity mask 78 and
+   negative mask 112 both include complex bit 6. The recorded false-test
+   marker needs INTEGERP (23) intersected with positivity (78), yielding 6
+   and excluding 112. The marker consumer now calls the existing one/two-fact
+   algebra for the registered test mask's exact complement. Marker, cited
+   rule restrictions and final result check remain required. The real book
+   replays 2/2 unconditionally (`.tmp/ns1/c1-classify-intersection-replay.log`),
+   and the fresh full coverage above includes this repair.
+
+The DP runner now disables elaborator recovery on optional attempts. Previously
+an omega failure could return an admitted result, correctly rejected by the
+axiom guard before the intended fallback could run. A failed attempt now throws
+and permits that fallback. The parametric instantiation regression builds;
+actual Qsort HOW-MANY-APPEND/HOW-MANY-FILTER-1 replay unconditionally, including
+all six emitted DP leaves (`.tmp/ns1/c1-qsort-filter-strict.log`). Closed
+executable arithmetic and closed emitted DP leaves use kernel reduction of
+core Rat operations; no recorded rewrite chain is replaced by a DP call.
+
+The CLI now imports its interpreter, source-world generator and proof-tree
+modules directly. It has no product-consuming commands; the former root import
+made numerical differential tests wait for regeneration of all product proofs.
+The smaller build has 32 jobs (`.tmp/ns1/c1-thin-cli-build.log`); `ACL2Lean`
+is an explicit default Lake target, preserving full product checks in the gate.
+The superseded differential build was stopped before any tests ran and is not
+counted as a pass. Metadata, log parsing and tree dumping ran on the simple
+book. Compiling `gen-world` output exposed a pre-existing positional Symbol
+constructor missing its canonicity proof; the generator now uses the record
+constructor. Regenerated output compiles (`.tmp/ns1/c1-cli-world-check.log`).
+Its theorem stubs explicitly retain `sorry`: that command emits scaffolding,
+not checked replay products.
+
+The first full claim gate, `.gate-runs/31d8e42-20260906T004820Z.log`, found a
+stale printed axiom receipt in `Tests.SpikeTauOmega`: the proof now also uses
+`Classical.choice`, within the existing accepted set. The receipt and explicit
+complex constructor branch were updated; the focused build passes
+(`.tmp/ns1/c1-cli-spike-build.log`). The subsequent full gate passed as
+recorded above. BUG-009, BUG-028 and BUG-029 are closed with these receipts.
+
+## C2 ingestion preparation (2026-09-06)
+
+These are parser/capture findings. The selected BVCHOP dependency closure has
+not yet been established from reconstructed trees.
+
+- After the complex reader repair, the unchanged BVCHOP dump rejects
+  `REWRITE-STEP :PATH frame bkptr not a number/symbol: (RHS . 2)`
+  (`.tmp/ns1/bvchop-dump-c1.log`). The first raw occurrence is line 21988,
+  `(:PATH (((RHS . 2) . MOD)))`. ACL2's `relieve-hyp` passes this indexed
+  boundary when rewriting the RHS of a binding hypothesis
+  (`rewrite.lisp:19049`; predicate `type-set-b.lisp:7480`). A small authored
+  ACL2 book, `.tmp/ns1/binding-hyp-probe.lisp`, was captured normally (2/2
+  local proofs) and reproduces the same parser error. Its proof log and
+  sidecar are in `.tmp/ns1/binding-hyp-capture/`; no trace was fabricated.
+- Unchanged `bvchop-def` and `unsigned-byte-p` were captured to
+  `.tmp/ns1/dependencies/bv/` with normal sidecars
+  (`.tmp/ns1/dependency-capture-bv.log`). The former is rejected because
+  it includes a BVCHOP guard-obligation proof; the latter reaches
+  reconstruction but reports an unexpected `endBranch` inside a literal.
+  Receipts: `.tmp/ns1/dependency-tree-{bvchop-def,unsigned-byte-p}.log`.
+  Guard-proof replay remains excluded. These findings do not establish
+  that every route to a selected logical theorem needs guard-proof replay.
+- Captured `arithmetic-light/mod` (92/92 proofs) and `mod-and-expt` (18/18)
+  also stop at indexed binding-RHS paths, respectively `(RHS . 5)` and
+  `(RHS . 3)`. Receipts: `.tmp/ns1/dependency-tree-{mod,mod-and-expt}.log`.
+- `expt2` was not promoted: the capture counter demands 43 local events,
+  but the source repeats the identical EXPT-HACK theorem and ACL2 emits
+  42 distinct local proofs, with QED for the final EXPT-SPLIT-HACK and a
+  `CAPTURE-END :STATUS :COMPLETE` record. The attempt remains
+  `.tmp/ns1/dependencies/arithmetic-light/expt2.proof-log.tmp`. No sidecar
+  was forged and no completeness check was weakened. Positive handling
+  of redundant source events is a separate ingestion issue if selected
+  dependency demand reaches this book.
+
 ## Resume record
 
-- **Current artifact:** approved planning docs committed on `main` at `b452b70`;
-  execution worktree `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`,
-  branch `mdd/ns1-bvchop`. C0 baseline, specifications, numeric design and
-  both authorized reviews are checked. Proof/model code remains at the
-  assessed release baseline; WordOps contains unproved specifications only.
-- **Last observed blocker:** full `bvchop` log parsing rejects `#C` before
-  reconstruction. Reproduction is in the assessment.
-- **Settled preflight choices:** the run owns the numeric-model migration;
-  the two pairs of review-only subagents are authorized. No preflight
-  questions remain pending.
-- **Next action:** implement C1 using the
-  [adopted numeric design](../notes/2026-09-05_ns1-numeric-design.md), then
-  inspect the real BVCHOP proof tree at its next ingestion/replay boundary.
-  Do not restart candidate-book selection or implement an unrelated backlog.
-- **Execution outcome:** C0 checked; C1–C4 and all three new mirror proofs
-  remain open. NS1 is in progress.
+- Approved docs are committed on `main` at `b452b70`; implementation lives
+  in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
+  `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; the C1 migration commit
+  carries the full gate receipt above and this record.
+- C0's two review tasks are complete. The two C4 tasks remain authorized;
+  no preflight questions are pending.
+- Next: extend ingestion
+  at the recorded binding-RHS boundary and inspect the actual BVCHOP trees.
+- C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
+  there is no merge or push approval for the implementation.

@@ -102,6 +102,15 @@ theorem nonNegIntCor_closed_plus (u v : SExpr)
   rw [logic_plus_int, show (m : Int) + (n : Int) = ((m + n : Nat) : Int) by omega]
   exact nonNegIntCor_of_nat (m + n)
 
+/-- `ACL2-NUMBERP` × `BINARY-+`: ACL2's numeric completion makes the
+    result a number for arbitrary inputs. The emitted leaf still licenses
+    this closure; neither argument needs a numeric type hypothesis. -/
+theorem acl2NumberpCor_closed_plus (u v : SExpr)
+    (_hu : TpArgAny u) (_hv : TpArgAny v) :
+    Logic.acl2Numberp (Logic.plus u v) = SExpr.t := by
+  rw [Logic.plus_parts]
+  rfl
+
 /-! ### The CONSTRUCTOR classes (TP-replay arc increment 2, 2026-08-13)
 
 `CONSP` is ACL2's `*ts-cons*` (`:BASICTS 3072` = proper ∪ improper cons)

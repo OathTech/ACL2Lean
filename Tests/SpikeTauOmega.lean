@@ -45,13 +45,14 @@ theorem tau_leaf_07_subgoal_1'
       simp [plus, toRat, negOne, mkNumber, lt]
       omega
   | .atom (.number (.rational a b _)) => simp [zp, toInt] at h
+  | .atom (.number (.complex a b _)) => simp [zp, toInt] at h
   | .atom (.symbol s) => simp [zp, toInt] at h
   | .atom (.keyword k) => simp [zp, toInt] at h
   | .atom (.string s) => simp [zp, toInt] at h
   | .nil => simp [zp, toInt] at h
   | .cons a b => simp [zp, toInt] at h
 
-/-- info: 'ACL2.Tests.SpikeTauOmega.tau_leaf_07_subgoal_1'' depends on axioms: [propext, Quot.sound] -/
+/-- info: 'ACL2.Tests.SpikeTauOmega.tau_leaf_07_subgoal_1'' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms tau_leaf_07_subgoal_1'
 
