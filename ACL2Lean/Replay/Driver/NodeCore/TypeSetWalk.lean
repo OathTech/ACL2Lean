@@ -4,7 +4,7 @@
   file's own def-before-use order, so the import chain IS the
   dependency order.
 -/
-import ACL2Lean.Replay.Driver.NodeCore.Compose
+import ACL2Lean.Replay.Driver.NodeCore.TypeSetTp
 import ACL2Lean.Replay.Driver.TsFacts
 
 namespace ACL2.Replay.Driver
@@ -622,7 +622,7 @@ mutual
     RUNE NAMES the step cites. -/
 partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
     (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
-    (t : SExpr) (tv : Expr) : MetaM (List (Int × Expr)) := do
+    (t : SExpr) (tv : Expr) (citedTp : List String := []) : MetaM (List (Int × Expr)) := do
   let inTsTy (m : Int) : MetaM Expr :=
     mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
   let mut out : List (Int × Expr) := []
@@ -666,25 +666,32 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
           #[← mkAppM ``Logic.toBool_eq_false #[vP], hNil]
         out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
           (← inTsTy m))]
+  if let some h ← inTsFromCitedIntegerTp cfg ctx citedTp t tv then
+    out := out ++ [(23, h)]
   -- Unary primitive cells consume the same context-derived argument mask.
   if let .cons (.atom (.symbol op)) (.cons a .nil) := t then
     if let some (inMask, outMask, nm) := tsUnaryOf op.name then
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
-      if let some ha ← inTsFromCtx cfg ctxA localFacts citedCr a va inMask then
-        out := out ++ [(outMask, ← mkExpectedTypeHint
-          (← mkAppM nm #[ha]) (← inTsTy outMask))]
+      let h? ← match inMask with
+        | none => pure (some (← mkAppM nm #[va]))
+        | some m => do
+          match ← inTsFromCtx cfg ctxA localFacts citedCr a va m citedTp with
+          | none => pure none
+          | some ha => pure (some (← mkAppM nm #[ha]))
+      if let some h := h? then
+        out := out ++ [(outMask, ← mkExpectedTypeHint h (← inTsTy outMask))]
   -- (4) ARITHMETIC PRIMITIVES: ACL2's `type-set-binary-+` cell — both
   -- arguments typed (recursively, from the SAME sources) and the
   -- registered closure fact applied
   if let .cons (.atom (.symbol op)) (.cons a (.cons b .nil)) := t then
-    if let some (inMask, outMask, nm) := tsBinaryOf op.name then
+    for (inMask, outMask, nm) in tsBinaryOf op.name do
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
       let ctxB ← pinTermOpaques cfg cfg.envExpr ctxA b
       let vb ← ctxValExpr cfg ctxB b
-      match ← inTsFromCtx cfg ctxB localFacts citedCr a va inMask,
-            ← inTsFromCtx cfg ctxB localFacts citedCr b vb inMask with
+      match ← inTsFromCtx cfg ctxB localFacts citedCr a va inMask citedTp,
+            ← inTsFromCtx cfg ctxB localFacts citedCr b vb inMask citedTp with
       | some ha, some hb =>
         out := out ++ [(outMask, ← mkExpectedTypeHint
           (← mkAppM nm #[ha, hb]) (← inTsTy outMask))]
@@ -699,7 +706,7 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
       if let some k := quotedInt? c then
         let ctxB ← pinTermOpaques cfg cfg.envExpr ctx b
         let vb ← ctxValExpr cfg ctxB b
-        for (m, hb) in ← inTsCandidates cfg ctxB localFacts citedCr b vb do
+        for (m, hb) in ← inTsCandidates cfg ctxB localFacts citedCr b vb citedTp do
           if let some (outMask, nm) := tsPlusConstOf k m then
             out := out ++ [(outMask, ← mkExpectedTypeHint
               (← mkAppM nm #[hb]) (← inTsTy outMask))]
@@ -707,12 +714,12 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
 
 /-- Prove `InTs target tv` for `t` — ACL2's emitted mask, or the complement
     of a marker-anchored test's registered TRUE mask — from the
-    visible typing facts: one (weakened) or two (intersected), exactly as
-    `tsFromFacts` does on the admission side. Anything else is a frontier
-    rather than a guess. -/
+    visible typing facts. Keep the one/two-fact fast paths, then intersect
+    the existing candidates in their given order. No new fact or mask is
+    guessed; failure to establish the requested mask remains a frontier. -/
 partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
     (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
-    (t : SExpr) (tv : Expr) (target : Int) : MetaM (Option Expr) := do
+    (t : SExpr) (tv : Expr) (target : Int) (citedTp : List String := []) : MetaM (Option Expr) := do
   -- a QUOTED CONSTANT needs no fact at all: its value is closed, so
   -- ACL2's verdict for it is a kernel decision
   if let .cons (.atom (.symbol q)) (.cons _ .nil) := t then
@@ -724,7 +731,7 @@ partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
             #[Lean.toExpr target, ← mkAppM ``ACL2.Replay.tsIndex #[tv]])
           (mkConst ``Bool.true))) ty)
       catch _ => return none
-  let cands ← inTsCandidates cfg ctx localFacts citedCr t tv
+  let cands ← inTsCandidates cfg ctx localFacts citedCr t tv citedTp
   for (m, h) in cands do
     if ACL2.Replay.tsSubsumedM m target then
       return some (← mkAppM ``ACL2.Replay.inTs_weaken
@@ -737,6 +744,22 @@ partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
             #[Lean.toExpr m1, Lean.toExpr m2, Lean.toExpr target])
           (mkConst ``Bool.true))
         return some (← mkAppM ``ACL2.Replay.inTs_inter2 #[hsub, h1, h2])
+  -- INTEGERP-MOD needs integer, nonzero, and nonnegative together. Fold
+  -- the supplied facts once; every intersection is itself kernel checked.
+  if let (m0, h0) :: rest := cands then
+    let mut m := m0
+    let mut h := h0
+    for (mi, hi) in rest do
+      let combined := tsAnd m mi
+      let hsub ← mkDecideProof (← mkEq
+        (← mkAppM ``ACL2.Replay.tsInter2Subsumed
+          #[Lean.toExpr m, Lean.toExpr mi, Lean.toExpr combined])
+        (mkConst ``Bool.true))
+      h ← mkAppM ``ACL2.Replay.inTs_inter2 #[hsub, h, hi]
+      m := combined
+      if ACL2.Replay.tsSubsumedM m target then
+        return some (← mkAppM ``ACL2.Replay.inTs_weaken
+          #[← tsSubsumedProofM m target, h])
   return none
 
 end
@@ -759,8 +782,8 @@ end
     exactly the rules ACL2's own ttree says carried it. -/
 partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     (leaves : List TpLeaf) (localFacts : List (SExpr × Bool × Expr))
-    (citedCr : List String) (t : SExpr) (target : Int) :
-    MetaM (Option Expr) := do
+    (citedCr : List String) (t : SExpr) (target : Int)
+    (citedTp : List String := []) : MetaM (Option Expr) := do
   let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
   let vT ← ctxValExpr cfg ctxT t
   let want ← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr target, vT]
@@ -774,7 +797,7 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
         let hbTy ← mkEq bE (mkConst (if sign then ``Bool.true else ``Bool.false))
         withLocalDeclD `hb hbTy fun hb => do
           match ← inTsFromArgLeaves cfg ctx leaves
-              ((c, sign, hb) :: localFacts) citedCr br target with
+              ((c, sign, hb) :: localFacts) citedCr br target citedTp with
           | some p => pure (some (← mkLambdaFVars #[hb] p))
           | none => pure none
       let some hx ← branch true th | return none
@@ -794,7 +817,7 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     | return none
   unless ACL2.Replay.tsSubsumedM leaf.ts target do
     return none
-  match ← inTsFromCtx cfg ctxT localFacts citedCr t vT leaf.ts with
+  match ← inTsFromCtx cfg ctxT localFacts citedCr t vT leaf.ts citedTp with
   | none => return none
   | some hLeaf =>
     return some (← mkExpectedTypeHint (← mkAppM ``ACL2.Replay.inTs_weaken
@@ -817,7 +840,7 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
 def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
     (recog : String) (arg : SExpr) (verdict : SExpr)
     (stepTs trueTs : Option Int) (argLeaves : List TpLeaf)
-    (citedCr : List String) : MetaM (Option Expr) := do
+    (citedCr : List String) (citedTp : List String := []) : MetaM (Option Expr) := do
   let entry? : Option (Int × Lean.Name) :=
     if verdict == SExpr.t then
       (tsRecogTrue.find? (fun (n, _, _) => n == recog)).map (fun (_, m, l) => (m, l))
@@ -838,10 +861,10 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
       match stepTs with
       | none => pure []
       | some ts =>
-        match ← inTsFromArgLeaves cfg ctxA argLeaves [] citedCr arg ts with
+        match ← inTsFromArgLeaves cfg ctxA argLeaves [] citedCr arg ts citedTp with
         | some h => pure [(ts, h)]
         | none => pure []
-    else inTsCandidates cfg ctxA [] citedCr arg va
+    else inTsCandidates cfg ctxA [] citedCr arg va citedTp
   for (m, hv) in cands do
     -- ACL2's own verdict for the argument must be INSIDE what we derived
     let acl2Ok := match stepTs with

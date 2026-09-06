@@ -1162,6 +1162,54 @@ not an absent ACL2 proof step.
 
 ## Resume record
 
+The next IF/type-set increment crosses INTEGERP-MOD's recorded nested
+IF collapse, then its final integer recognizer. The collapse carries its
+enclosing branch facts and intersects the three existing type facts. The
+recognizer consumes its three emitted ARG-LEAVES, generic integer arithmetic
+cells, and the step-cited quotient TP. Shared Boolean range proofs replace
+the duplicate helpers; the collapse walker is extracted from Recognizer.
+
+**INTEGERP-MOD now REPLAYS conditionally**
+(`c2-integerp-mod-integer-leaves-replay.log`, 33101 ms), with ten remaining
+rule conditions: FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT, DISTRIBUTIVITY,
+DISTRIBUTIVITY-OF-MINUS-OVER-+, EQUAL-/-0, /-PRESERVES-POSITIVE,
+/-PRESERVES-NEGATIVE, NUMERATOR-NEGATIVE, EQUAL-DENOMINATOR-1, `(* -1 x)`,
+and `(< (* x y) 0)`. Its quotient TP closes; no assumed DP condition is on
+this row. This is 1/7 replayed rows in that prefix, zero unconditional.
+All other prefix failures remain reported; no native product is claimed.
+
+The affected build and existing NS1 arithmetic pins pass
+(`c2-integer-arg-leaves-build-rerun.log`, 6194 jobs), as do static checks
+(`c2-if-type-leaves-fast-static.log`). The existing CLASSIFY-POS regression
+has two unconditional rows (`c2-if-type-leaves-classify-regression.log`,
+1984 ms); ORDD-INS-MID remains unconditional with all three DP leaves
+(`c2-if-type-leaves-conjunction-regression.log`, 177418 ms).
+The first build attempts failed on a namespace qualification and a local
+Option-return elaboration; their failed receipts remain alongside the
+successful reruns. This is a **fast-gate** increment, not a full-gate claim.
+
+Fresh d973 dependency captures now cover pass1/basic-arithmetic-helper
+through FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT (11 QEDs), pass1/basic-arithmetic
+through EQUAL-/-0 (14), pass1/inequalities through /-PRESERVES-NEGATIVE (3),
+pass1/numerator-and-denominator through EQUAL-DENOMINATOR-1 (7), and
+bind-free/numerator-and-denominator through NUMERATOR-NEGATIVE (six QEDs,
+including separate TP/admission records). Their trees are
+`c2-d973-owner-{helper,basic,inequalities,numden,bind-numden}-tree.log`.
+Two initial prefix captures stopped at an include that already provided
+the requested name and were correctly rejected by the final-QED check;
+the replacements above identify the actual proof owners.
+
+The first inequalities replay leaves four actual reciprocal-sign tau
+clauses assumed (`c2-pass1-inequalities-first-replay.log`). The numerator
+sign rows replay conditional only on REWRITE-LINEAR-EQUALITIES-TO-IFF
+(`c2-bind-free-numden-first-replay.log`). The fresh reciprocal dependency
+has clause-composition frontiers and a missing associative USE premise
+(`c2-times-and-divide-first-replay.log`). The NIQ local reciprocal row
+reaches a stored-rule LHS substitution mismatch at `*-OF---ARG2`
+(`c2-niq-local-reciprocal-first-replay.log`); private helper admission
+failures remain separately reported. These are measured dependency
+frontiers, not completed proofs.
+
 The capture/consumer batch passes the full checkpoint gate:
 **`.gate-runs/9a73b92-20260906T085449Z.log`, `TRUE_EXIT=0`**. All 116 baseline
 rows remain unconditional, the assembled golden is unchanged, the combined

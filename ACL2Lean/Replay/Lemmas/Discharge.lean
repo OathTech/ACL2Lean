@@ -914,19 +914,11 @@ theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
 /-! Two-valuedness DISJUNCTION sources (G1 rung 1, inc-2 — the IF-headed
     `if1/boolean` test derives booleanness structurally from its branches). -/
 
-theorem logic_equal_t_or_nil (a b : SExpr) :
-    Logic.equal a b = SExpr.t ∨ Logic.equal a b = SExpr.nil := by
-  by_cases h : a == b <;> simp [Logic.equal, h]
-
 theorem logic_integerp_t_or_nil (v : SExpr) :
     Logic.integerp v = SExpr.t ∨ Logic.integerp v = SExpr.nil := by
   by_cases h : Logic.integerp v = SExpr.nil
   · exact Or.inr h
   · exact Or.inl (logic_integerp_ne_nil_t v h)
-
-theorem logic_not_t_or_nil (v : SExpr) :
-    Logic.not v = SExpr.t ∨ Logic.not v = SExpr.nil := by
-  cases v <;> simp [Logic.not]
 
 /-- Truthiness equivalence of two Boolean values is equality. Both value
 facts are required; a truthy non-T endpoint does not license this conversion. -/
@@ -947,20 +939,6 @@ theorem tp_boolean_t_or_nil (v : SExpr) {X : SExpr}
     · have h1 : (v == SExpr.t) = false := beq_eq_false_iff_ne.mpr hv
       have h2' : (v == SExpr.nil) = false := beq_eq_false_iff_ne.mpr h2
       simp [Logic.equal, Logic.toBool, h1, h2', SExpr.t] at h
-
-/-- An if with two-valued branches is two-valued. -/
-theorem cond_t_or_nil {x y : SExpr} (b : Bool)
-    (hx : x = SExpr.t ∨ x = SExpr.nil) (hy : y = SExpr.t ∨ y = SExpr.nil) :
-    cond b x y = SExpr.t ∨ cond b x y = SExpr.nil := by
-  cases b
-  · simpa using hy
-  · simpa using hx
-
-/-- The `if1/boolean` closer from a two-valuedness disjunction. -/
-theorem cond_toBool_of_t_or_nil {v : SExpr}
-    (h : v = SExpr.t ∨ v = SExpr.nil) :
-    cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
-  rcases h with h | h <;> simp [h, Logic.toBool, SExpr.t]
 
 theorem logic_lt_t_or_nil (a b : SExpr) :
     Logic.lt a b = SExpr.t ∨ Logic.lt a b = SExpr.nil := by

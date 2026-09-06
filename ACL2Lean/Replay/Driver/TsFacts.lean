@@ -96,6 +96,8 @@ def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
     else if r.name == "<" && a == tsQuotedZero && pos then
       -- the constant on the LEFT (`CLASSIFY-POS`'s `(< '0 N)` hypothesis)
       some (b, 78, ``ACL2.Replay.inTs_zero_lt_true)
+    else if r.name == "EQUAL" && b == tsQuotedZero && !pos then
+      some (a, -2, ``ACL2.Replay.inTs_not_zero)
     else none
   | _ => none
 
@@ -110,7 +112,18 @@ def tsCtxProbes (t : SExpr) : List SExpr :=
   let app2 (f : String) (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a (.cons b .nil))
   [app1 "INTEGERP" t, app1 "RATIONALP" t,
-   app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t]
+   app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t,
+   app2 "EQUAL" t tsQuotedZero]
+
+/-- A recorded true comparison can be checked from this sufficient type-set.
+The positive rational cell is consumed by INTEGERP-MOD's nested IF collapse. -/
+def tsTestTrueOf (t : SExpr) : Option (SExpr × Int × Lean.Name) :=
+  match t with
+  | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
+    if r.name == "<" && a == tsQuotedZero then
+      some (b, 14, ``ACL2.Replay.zero_lt_of_inTs)
+    else none
+  | _ => none
 
 /-- TEST-NIL registry — the `.isNil` direction of `tsFactOf`: a test
     term ↦ `(the term it types, the test's own TRUE type-set, the proved
@@ -157,15 +170,18 @@ def tsRecogNil : List (String × Int × Lean.Name) :=
     implication is ours to prove. Demand-driven: the
     arithmetic-countdown trio's `(BINARY-+ '-1 N)` / `(BINARY-+ '-2 N)`
     arguments. -/
-def tsBinaryOf (op : String) : Option (Int × Int × Lean.Name) :=
-  if op == "BINARY-+" then some (23, 23, ``ACL2.Replay.inTs_plus_int)
-  else if op == "BINARY-*" then some (63, 63, ``ACL2.Replay.inTs_times_rat)
-  else none
+def tsBinaryOf (op : String) : List (Int × Int × Lean.Name) :=
+  if op == "BINARY-+" then [(23, 23, ``ACL2.Replay.inTs_plus_int)]
+  else if op == "BINARY-*" then
+    [(23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, ``ACL2.Replay.inTs_times_rat)]
+  else []
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is
 reciprocal on the rational arguments of INTEGERP-MOD's multiplication node. -/
-def tsUnaryOf (op : String) : Option (Int × Int × Lean.Name) :=
-  if op == "UNARY-/" then some (63, 63, ``ACL2.Replay.inTs_reciprocal_rat)
+def tsUnaryOf (op : String) : Option (Option Int × Int × Lean.Name) :=
+  if op == "UNARY-/" then some (some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat)
+  else if op == "UNARY--" then some (some 23, 23, ``ACL2.Replay.inTs_neg_int)
+  else if op == "NUMERATOR" then some (none, 23, ``ACL2.Replay.inTs_numerator)
   else none
 
 /-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER

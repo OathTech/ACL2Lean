@@ -388,7 +388,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- This is the same source used when decoding IFF rule conclusions.
         let some hd ← boolDisj? cfg ctx c
           | throwError "if1/boolean: test {repr c} has no two-valuedness source (frontier)"
-        let hBool ← mkAppM ``cond_toBool_of_t_or_nil #[hd]
+        let hBool ← mkAppM ``cond_tnil_of_range #[hd]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← ctxValProof cfg ctx c
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hBool]
@@ -567,7 +567,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     unless vSplit.isAppOfArity ``Logic.equal 2 do
       throwError "equal-case-split: split value is not (Logic.equal _ _) \
                   (internal — the value walker's EQUAL composition)"
-    let hq ← mkAppM ``logic_equal_t_or_nil
+    let hq ← mkAppM ``logic_equal_range
       #[vSplit.appFn!.appArg!, vSplit.appArg!]
     let idRhs ← mkAppM ``logic_equal_case_split #[vOther, vSplit, hq]
     -- lhs value: equal p q — for the rhs-variant that IS equal other split;
@@ -672,7 +672,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           if vL.isAppOfArity ``Logic.lt 2 then
             mkAppM ``logic_lt_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
           else
-            mkAppM ``logic_equal_t_or_nil #[vL.appFn!.appArg!, vL.appArg!]
+            mkAppM ``logic_equal_range #[vL.appFn!.appArg!, vL.appArg!]
         let hT ← mkAppM ``Or.resolve_right #[hd, hne]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
@@ -878,9 +878,15 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhsσ
     let (chainOpt, finalT) ← rec.rewrites cfg ctx rhsσ rhsKids
     let chainOpt ← chainReqEqOfBoolean cfg ctx rhsσ finalT chainOpt
-    unless finalT == rhs do
-      throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
-                  {repr rhs}"
+    let chainOpt ← do
+      if finalT == rhs then pure chainOpt else
+      match ← bridgeIfCollapseNorm cfg ctx ctx.ifMarkers finalT rhs with
+      | some br => match chainOpt with
+        | none => pure (some br)
+        | some ch => pure (some (← mkAppM ``fuel_chain_eq #[ch, br]))
+      | none =>
+        throwError "rule {rname}: RHS chain reached {repr finalT}, node rhs is \
+                    {repr rhs}"
     match chainOpt with
     | none => return pCore
     | some ch => mkAppM ``fuel_chain_eq #[pCore, ch]

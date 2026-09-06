@@ -368,6 +368,12 @@ theorem cond_tnil_of_range {v : SExpr}
     cond (Logic.toBool v) SExpr.t SExpr.nil = v := by
   rcases h with h | h <;> subst h <;> rfl
 
+/-- Compose corresponding IF branches under their respective test facts. -/
+theorem cond_value_congr {v a b a' b' : SExpr}
+    (ha : v ≠ SExpr.nil → a = a') (hb : v = SExpr.nil → b = b') :
+    cond (Logic.toBool v) a b = cond (Logic.toBool v) a' b' := by
+  cases v <;> simp_all [Logic.toBool]
+
 /-- A `cond` on a test KNOWN `'t` takes its first branch. -/
 theorem cond_of_val_t {v x y : SExpr} (h : v = SExpr.t) :
     cond (Logic.toBool v) x y = x := by subst h; rfl

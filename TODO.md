@@ -43,8 +43,8 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Close INTEGERP-MOD's recorded nested IF-test collapse and the
-      FLOOR/quotient bounds. Guard trees reconstruct separately with
+      Discharge INTEGERP-MOD's ten remaining arithmetic-rule conditions,
+      then the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 

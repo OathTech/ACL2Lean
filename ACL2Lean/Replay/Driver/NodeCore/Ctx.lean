@@ -1268,7 +1268,7 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
   if t == quoteNil then return some (mkConst ``nil_t_or_nil)
   let v ← ctxValExpr cfg ctx t
   if v.isAppOfArity ``Logic.equal 2 then
-    return some (← mkAppM ``logic_equal_t_or_nil #[v.appFn!.appArg!, v.appArg!])
+    return some (← mkAppM ``logic_equal_range #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``ACL2.lexorder 2 then
     return some (← mkAppM ``lexorder_boolean #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``Logic.lt 2 then
@@ -1276,7 +1276,7 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
   if v.isAppOfArity ``Logic.integerp 1 then
     return some (← mkAppM ``logic_integerp_t_or_nil #[v.appArg!])
   if v.isAppOfArity ``Logic.not 1 then
-    return some (← mkAppM ``logic_not_t_or_nil #[v.appArg!])
+    return some (← mkAppM ``logic_not_range #[v.appArg!])
   match t with
   | .cons (.atom (.symbol hs)) (.cons c (.cons a (.cons b .nil))) =>
     if hs.name == "IF" then do
@@ -1284,7 +1284,7 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
       let some hb ← boolDisj? cfg ctx b | return none
       let vc ← ctxValExpr cfg ctx c
       try
-        return some (← mkAppM ``cond_t_or_nil
+        return some (← mkAppM ``cond_range
           #[mkApp (mkConst ``Logic.toBool) vc, ha, hb])
       catch _ => return none
     else boolDisjFnTp t
