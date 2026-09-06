@@ -1,7 +1,38 @@
 import ACL2Lean.Replay.Lemmas.TsAlgebra
+import ACL2Lean.NumericReciprocal
+import ACL2Lean.NumericMultiplication
 
 namespace ACL2.Replay
 open ACL2
+
+/-- Numeric values occupy exactly the seven numeric type-set cells. -/
+theorem inTs_acl2Numberp {v : SExpr} (h : Logic.acl2Numberp v = .t) : InTs 127 v := by
+  cases v with
+  | nil | cons _ _ => simp [Logic.acl2Numberp] at h
+  | atom a => cases a with
+    | number n => cases n with
+      | int i => simp only [InTs, tsIndex_int]; split_ifs <;> decide
+      | rational p q hc => simp only [InTs, tsIndex_rat]; split_ifs <;> decide
+      | complex r i hi => simp only [InTs, tsIndex_complex]; decide
+    | _ => simp [Logic.acl2Numberp] at h
+
+/-- The recorded ACL2-NUMBERP reciprocal node in inverse uniqueness has
+TYPESET 126 and TRUETS 127. Its primitive numeric range suffices. -/
+theorem inTs_reciprocal_number (v : SExpr) : InTs 127 (Logic.reciprocal v) :=
+  inTs_acl2Numberp (Logic.acl2Numberp_reciprocal v)
+
+/-- The sharp zero-product cell consumed by the reciprocal-zero theorem's
+recorded disjoint-type equality node. Both factors remain unrestricted. -/
+theorem inTs_times_zero_right (v : SExpr) :
+    InTs 1 (Logic.times v (.atom (.number (.int (Int.ofNat 0))))) := by
+  rw [Logic.times_zero_right]
+  unfold InTs
+  decide
+
+theorem inTs_times_zero_left (v : SExpr) :
+    InTs 1 (Logic.times (.atom (.number (.int (Int.ofNat 0)))) v) := by
+  rw [Logic.times_comm]
+  exact inTs_times_zero_right v
 
 /-- ACL2-NUMBERP is two-valued on every value, including genuine complexes. -/
 theorem logic_acl2Numberp_ne_nil_t (v : SExpr)

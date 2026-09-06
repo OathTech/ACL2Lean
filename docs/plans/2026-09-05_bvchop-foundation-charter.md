@@ -1622,6 +1622,67 @@ primitive axiom (`c2-positive-actual-instances-probe-rerun.log`); its whole
 proof still reaches use:POSITIVE. These are temporary node/premise checks,
 not completed dependency statements. Failed initial probes remain recorded.
 
+### C2 reciprocal dependencies (2026-09-06)
+
+The exact unrestricted statements for UNIQUENESS-OF-*-INVERSES-LEMMA,
+EQUAL-/ and EQUAL-/-0 now pass independent source and axiom pins in
+`Tests.Ns1Arithmetic` (`c2-reciprocal-zero-type-cell-build.log`, 3124 jobs).
+The EQUAL-/ executable replay is unconditional, with all three recorded
+DP leaves checked (`c2-reciprocal-equality-focused-replay.log`, prefix
+5/6 unconditional; COMMUTATIVITY-2-OF-* still fails). EQUAL-/-0 is also
+unconditional with its helper-book dependency
+(`c2-reciprocal-zero-focused-replay.log`, 72983 ms for the focused prefix;
+4/14 rows replayed, including one unrelated conditional row).
+
+The proof follows the actual primitive reciprocal completion rule and its
+OR hypothesis, the scoped IF windows (including empty swapped windows and
+nested boundaries), Boolean equality normalization, and literal type-set
+verdict. The latter is a recorded verdict-only leaf under the actual
+nonnumber branch; hypothesis relief still uses its structural consumer.
+Numeric type cells include the reciprocal's completed range and zero
+multiplication. No DP allowance or resource budget changes. The permanent
+context controls reject changed literal verdicts/polarity, changed window
+tests, non-Boolean masks and deleted addressed IF leaves.
+
+Production fork `ef2746dadef2d8160f978207f0eef822d886c1a2` records both
+Boolean equality orientations, their consumed masks, supporting runes and
+addressed IF leaves. Its image builds; all 107 permanent logs are recaptured
+at the clean fork and pass provenance checks
+(`c2-equal-boolean-production-image-build.log`,
+`c2-equal-boolean-recapture-all.log`,
+`c2-equal-boolean-production-provenance.log`). The tracked P8 artifact's
+only changes are generated banner/provenance metadata. Initial failed
+consumer probes remain recorded.
+
+A focused sorting replay initially fails at the new Boolean equality step
+on PERM (`c2-equal-boolean-convert-perm-with-deps.log`, 12/13 replayed,
+11 unconditional). Its recursive tree cites PERM's Boolean type
+prescription. The type-set consumer has been extended to instantiate that
+exact cited corollary through the existing TP proof channel. The repaired
+focused run passes 13/13 unconditional in 40701 ms
+(`c2-equal-boolean-sorting-tp-replay.log`). This is a focused regression
+check; the earlier failing run remains a regression receipt.
+BUG-032/039/046/047 remain open until the full checkpoint.
+
+The final affected build passes 6225 jobs, including all three reciprocal
+source/axiom pins and the permanent context controls
+(`c2-reciprocal-boolean-tp-build.log`). Static and provenance mutation gates
+pass (`c2-reciprocal-boolean-tp-static.log`). This is an intermediate
+**fast-gate** increment; the full checkpoint is next.
+
+A fresh unchanged FLOOR-MOD capture through INTEGERP-MOD now composes the
+whole statement conditionally on EQUAL-/,
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT and NUMERATOR-NEGATIVE
+(`c2-reciprocal-closed-integerp-mod-frontier.log`, 51391 ms). The first two
+have checked source pins, but this raw probe lacks the prepared dependency
+registry and exposes the existing inverse-lemma name collision: plus and
+star both sanitize to the same name, causing a refused transfer. The third
+comes from bind-free/numerator-and-denominator, distinct from the already
+pinned pass1 book; its fresh capture and recursive tree are recorded in
+`c2-bind-free-numerator-capture.log` and
+`c2-bind-free-numerator-tree.log`. These are dependency frontiers, not new
+native products. All three NS1 mirrors remain unproved.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

@@ -8,6 +8,7 @@ import ACL2Lean.Replay.Driver.NodeCore.HypRelief
 import ACL2Lean.Replay.Driver.NodeCore.GroundFold
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveEquation
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveInverse
+import ACL2Lean.Replay.Driver.NodeCore.EqualBoolean
 import ACL2Lean.NumericCompletion
 import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericNegation
@@ -40,6 +41,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     throwError "replayNode: rune ({rty}, {rname}) applied under equivalence \
                 {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
   match rty, rname with
+  | "equal-boolean", _ => replayEqualBoolean cfg ctx n
   | "rewriting-equivalence", _ =>
     -- SOLIDIFY: the rewrite `lhs ⇒ rhs` is justified by a clause hypothesis — the
     -- (post-rewrite) literal named by `equivSource`, whose falsity in the spine
@@ -290,6 +292,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       replayPrimitiveEquation rec cfg ctx lhs zero rhs law children
     | _ => throwError "inverse-of-+: expected a binary application"
   | "rewrite", "INVERSE-OF-*" => replayPrimitiveInverse rec cfg ctx n
+  | "rewrite", "DEFAULT-UNARY-/" => replayPrimitiveReciprocalDefault rec cfg ctx n
   | "rewrite", "COMMUTATIVITY-OF-+" | "rewrite", "COMMUTATIVITY-OF-*" =>
     let (fn, law) := if rname == "COMMUTATIVITY-OF-+" then
       ("BINARY-+", ``Logic.plus_comm) else ("BINARY-*", ``Logic.times_comm)

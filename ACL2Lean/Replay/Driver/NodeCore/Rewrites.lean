@@ -389,6 +389,7 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
             term (pre-Phase-1 log? recapture)"
       let wpath := innerPathOf n
       let wswapped := innerSwappedOf n
+      let wtest := innerIfTestOf n
       let mut group : List ProofNode := [n]
       let mut restG := rest
       let mut scanning := true
@@ -396,7 +397,8 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         match restG with
         | m :: r' =>
           if innerKindOf m == kind && innerTermOf m == some wterm &&
-              innerPathOf m == wpath && innerSwappedOf m == wswapped then
+              innerPathOf m == wpath && innerSwappedOf m == wswapped &&
+              innerIfTestOf m == wtest then
             group := group ++ [m]
             restG := r'
           else scanning := false
@@ -499,6 +501,26 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                     some base, some (base, bidx))]
               | none => pure ()
           | none => pure ()
+      -- BEGIN-IF records the post-swap test. A surviving IF anchor must
+      -- have that test (after its recorded swap, if any). This removes
+      -- structurally plausible addresses that still name the pre-swap
+      -- branch. No term search or preference among disagreeing readings.
+      if let some recordedTest := wtest then
+        let hadCandidates := !cands.isEmpty
+        cands := cands.filter fun (_, pre, br) => match br with
+          | none => true
+          | some (base, _) => match (navigateFrames start base).toOption with
+            | some (_, .cons (.atom (.symbol f))
+                (.cons c (.cons _ (.cons _ .nil)))) =>
+              f.name == "IF" && (if pre.isSome then
+                match c with
+                | .cons (.atom (.symbol g)) (.cons t (.cons a (.cons b .nil))) =>
+                  g.name == "IF" && a == quoteNil && b == quoteT && t == recordedTest
+                | _ => false
+                else c == recordedTest)
+            | _ => false
+        if hadCandidates && cands.isEmpty then
+          throwError "replayRewrites: no inline window anchor matches its recorded IF test"
       let mut start := start
       let mut frames := relW
       let mut preChain : Option Expr := none
@@ -789,6 +811,19 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               literal root (frontier — R-parameterized literal chains)"
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
+    -- A preserved window boundary scopes its actual child coordinates;
+    -- an empty one still supplied the enclosing recorded swap.
+    if (runeOf n).ty == "if-window" then
+      let .node _ _ _ kids prov := n
+      unless prov.origin == "if-window/begin" &&
+          innerKindOf n == "" && lhs == start && rhs == start do
+        throwError "empty IF window: boundary does not match its branch"
+      let (p, mid) ← replayRewritesWith rec cfg ctx start kids
+      let (q, final) ← replayRewritesWith rec cfg ctx mid rest chainPrefix
+      match p with
+      | none => return (q, final)
+      | some (p, false) => return (some (← chainWithR cfg ctx p mid q), final)
+      | some (p, true) => return (some (← chainIffWithR cfg ctx p final q), final)
     -- an if-simplification recorded as an IDENTITY (`X ⇒ X`, no children) is
     -- ambiguous: either a true no-op, or a DISPLAY-FOLDED constant-test
     -- collapse (`(if 'c a b) ⇒ branch` logged with the already-collapsed
@@ -942,6 +977,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
     if let .node ⟨"if-simplification", _, _⟩ _ _ children prov := n then
       if prov.origin == "if-finish/combined" then
         let rel := relativizeFrames (nodePath n)
+        if prov.swapped then
+          if let some (p, root') ← normalizeCombinedIfSwap cfg start rel lhs then
+            let (q, final) ← replayRewritesWith rec cfg ctx root' nodes chainPrefix
+            return (some (← chainWithR cfg ctx p root' q), final)
         let (steps, S) ← ofExcept (navigateFrames start rel)
         let _ := steps
         let .cons (.atom (.symbol ifS)) (.cons c (.cons thn (.cons els .nil))) := S

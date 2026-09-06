@@ -4,6 +4,37 @@ import ACL2Lean.NumericComplexView
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+private theorem equalNumberNonnumber (a b : SExpr)
+    (ha : Logic.acl2Numberp a ≠ .nil) (hb : Logic.acl2Numberp b = .nil) :
+    Logic.equal a b = .nil := by
+  apply (Logic.equal_nil_iff a b).mpr
+  intro h
+  exact ha (h.symm ▸ hb)
+
+/-- Completion normalization for recorded tau leaves with nonnumeric
+inputs. The NUMBERP premise remains a hypothesis of that exact leaf. -/
+def dpReciprocalCompletionTactic : MetaM (TSyntax `tactic) :=
+  `(tactic| simp_all only [Logic.not_nil_iff, Logic.toBool_eq_true,
+    Logic.equal_ne_nil_iff, Logic.equal_nil_iff, Logic.reciprocal_nonnumber] <;>
+    first | assumption | contradiction | (symm; assumption))
+
+private theorem equalNonnumberNumber (a b : SExpr)
+    (ha : Logic.acl2Numberp a = .nil) (hb : Logic.acl2Numberp b ≠ .nil) :
+    Logic.equal a b = .nil := by
+  apply (Logic.equal_nil_iff a b).mpr
+  intro h
+  exact hb (h ▸ ha)
+
+/-- Primitive completion and number/nonnumber separation inside a recorded
+verdict leaf. Explicit nonnumber premises come from that leaf's context. -/
+def dpNumericSeparationTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp only [Logic.equal_ne_nil_iff] <;>
+    simp (disch := first | assumption | decide |
+      (simp only [Logic.acl2Numberp_reciprocal, Logic.acl2Numberp_times]; decide)) only
+      [equalNumberNonnumber, equalNonnumberNumber, Logic.times_nonnumber_right] <;>
+    simp [Logic.equal_atom_int])
+
 /-- Arithmetic normalization for actual verdict leaves. Only equalities
 with proved NUMBERP premises move to the field; completed primitive products
 and explicit nonnumber premises have their own representation equations. -/

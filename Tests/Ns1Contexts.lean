@@ -242,4 +242,103 @@ elab "ns1_cancellation_dedup_control%" : command => Elab.Command.liftTermElabM d
 
 ns1_cancellation_dedup_control%
 
+private partial def literalVerdicts : List ClauseItem → List (SExpr × LiteralProof)
+  | [] => []
+  | .branch seg items :: rest =>
+    (items.filterMap fun
+      | .literal lp => if lp.nodes.any (fun n => match n with
+          | .node r _ _ _ _ => r.ty == "type-set") && lp.literal != quoteT
+          then some (seg, lp) else none
+      | _ => none) ++ literalVerdicts items ++ literalVerdicts rest
+  | _ :: rest => literalVerdicts rest
+
+private partial def clauseLiteralVerdicts (cn : ClauseNode) : List (SExpr × LiteralProof) :=
+  cn.steps.flatMap (fun st => literalVerdicts st.items) ++ cn.children.flatMap clauseLiteralVerdicts
+
+elab "ns1_literal_verdict_control%" : command => Elab.Command.liftTermElabM do
+  let dev := Ns1Arithmetic.helperDev
+  let some cp := findThm dev "EQUAL-/" | throwError "literal verdict control: theorem absent"
+  let some cn := cp.root | throwError "literal verdict control: root absent"
+  let [(seg, lp)] := clauseLiteralVerdicts cn | throwError "literal verdict control: not unique"
+  let some [test] := seg.toList? | throwError "literal verdict control: nonsingleton branch"
+  Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+    let w := mkConst ``Ns1Arithmetic.helperWorld
+    let cfg := Runner.mkBookConfig dev dev.toWorld w env []
+    let ctx ← pinTermOpaques cfg env {} test
+    Meta.withLocalDeclD `hBranch (← Meta.mkEq (← ctxValExpr cfg ctx test)
+        (mkConst ``SExpr.nil)) fun h => do
+      let ctx := { ctx with segFacts := [(test, h)] }
+      let (p, ctx) ← replayLiteralTypeSetVerdict cfg ctx lp
+      let [.node r lhs rhs kids prov] := lp.nodes | throwError "literal verdict control: bad node"
+      for bad in [
+          { lp with nodes := [.node r lhs (.atom (.keyword "NIL")) kids prov] },
+          { lp with nodes := [.node r lhs rhs kids { prov with literalNotFlg := none }] },
+          { lp with nodes := [.node r lhs rhs kids { prov with literalNotFlg := some true }] }] do
+        let rejected ← try
+          let _ ← replayLiteralTypeSetVerdict cfg ctx bad
+          pure false
+        catch e => pure (((← e.toMessageData.toString).splitOn
+          "node term/polarity/children mismatch").length > 1)
+        unless rejected do throwError "literal verdict control: changed record accepted"
+      let proof ← evtrueOfLitTrue cfg ctx [lp.literal] 0 lp.literal p
+      let ty ← Meta.mkAppM ``EvTrue #[w, env, reflectSExpr lp.literal]
+      let type ← Meta.mkForallFVars #[env,h] ty
+      let value ← Meta.mkLambdaFVars #[env,h] proof
+      addDecl (.thmDecl {
+        name := `ACL2.Tests.Ns1Contexts.literalTypeVerdict,
+        levelParams := [], type, value })
+      logInfo "actual literal verdict consumed; changed result and polarity rejected"
+
+ns1_literal_verdict_control%
+
+/-- info: 'ACL2.Tests.Ns1Contexts.literalTypeVerdict' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms literalTypeVerdict
+
+elab "ns1_reciprocal_record_controls%" : command => Elab.Command.liftTermElabM do
+  let .ok log := ProofLog.parse congruenceCapture | throwError "reciprocal records: parse failed"
+  let test := app "EQUAL" [app "IF" [app "ACL2-NUMBERP" [sym "X"], sym "X",
+    app "QUOTE" [.atom (.number (.int 0))]], app "QUOTE" [.atom (.number (.int 0))]]
+  for mode in ["window-test", "boolean-mask", "boolean-leaf"] do
+    let active ← IO.mkRef false
+    let changed ← IO.mkRef false
+    let events ← log.events.mapM fun ev => do
+      match ev with
+      | .defthm name _ _ _ => active.set (name == "EQUAL-/"); pure ev
+      | .step s =>
+        unless ← active.get do return ev
+        let traceEvents ← s.traceEvents.mapM fun ev => do
+          if ← changed.get then return ev
+          match ev with
+          | .beginIfRewrite t u =>
+            if mode == "window-test" && t == test && u == .nil then
+              changed.set true
+              return .beginIfRewrite quoteNil u
+          | .rewriteStep st =>
+            if st.origin == "equal/boolean-rhs" then
+              if mode == "boolean-mask" then
+                changed.set true
+                return .rewriteStep { st with typeSet := some 127 }
+              if mode == "boolean-leaf" && !st.argLeaves.isEmpty then
+                changed.set true
+                return .rewriteStep { st with argLeaves := st.argLeaves.dropLast }
+          | _ => pure ()
+          return ev
+        pure (.step { s with traceEvents })
+      | _ => pure ev
+    unless ← changed.get do throwError "reciprocal records: actual {mode} record absent"
+    let .ok bad := ClauseTree.buildDevelopment { log with events }
+      | throwError "reciprocal records: mutation failed before consumer"
+    let some cp := findThm bad "EQUAL-/" | throwError "reciprocal records: theorem absent"
+    let (status, _) ← Runner.tryReplay bad bad.toWorld (mkConst ``Ns1Arithmetic.helperWorld)
+      cp (rulesBefore bad cp.name)
+    let expected := if mode == "window-test" then "anchor matches its recorded IF test"
+      else if mode == "boolean-mask" then "operand mask is not Boolean"
+      else "recorded operand type cannot be replayed"
+    unless (status.splitOn expected).length > 1 do
+      throwError "reciprocal records: unexpected {mode} result: {status}"
+    logInfo m!"reciprocal {mode} mutation rejected at its consuming check"
+
+ns1_reciprocal_record_controls%
+
 end ACL2.Tests.Ns1Contexts

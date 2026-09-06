@@ -775,9 +775,13 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- Full numeric products admit a field representation, including the
   -- complex-rational values. This remains inside the existing bounded
   -- verdict-leaf attempt and falls back unless every goal is discharged.
-  let directTac ← if (stmt.find? (fun e => e.isConstOf ``Logic.times)).isSome then do
+  let directTac ← if (stmt.find? (fun e => e.isConstOf ``Logic.times ||
+      e.isConstOf ``Logic.reciprocal)).isSome then do
+    let completionTac ← dpReciprocalCompletionTactic
+    let separationTac ← dpNumericSeparationTactic
     let complexTac ← dpComplexViewTactic
-    `(tactic| solve | $complexTac:tactic | $directTac:tactic)
+    `(tactic| solve | $completionTac:tactic | $separationTac:tactic |
+      $complexTac:tactic | $directTac:tactic)
     else pure directTac
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
   -- whole-goal simp_all is the fastest path when it works (sub-second on

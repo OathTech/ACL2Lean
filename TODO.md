@@ -43,10 +43,11 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Discharge INTEGERP-MOD's remaining arithmetic-rule condition, EQUAL-/-0.
-      Complete EQUAL-/'s recorded literal type-set verdict and reciprocal
-      type cell, complete the root-IF repair's whole-proof validation (BUG-039),
-      and close the FLOOR/quotient bounds. Guard trees reconstruct separately with
+      Validate the reciprocal/window repairs against the full baseline
+      (BUG-032/039/046/047), including sorting's cited Boolean TP. Close
+      INTEGERP-MOD's remaining dependency imports: the inverse-lemma registry
+      collision below and bind-free NUMERATOR-NEGATIVE. Then close the
+      FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
@@ -73,7 +74,11 @@ charter or the archive carry the record.
       names such as `(+ 0 x)` and `(* 0 x)` sanitize to the same Lean constant
       in `Runner.runBook`. Observed on NS1's unchanged bind-free/basic capture;
       the later row fails on the duplicate name. Use an injective naming
-      scheme and check both actual rows. This is a completeness limitation.
+      scheme and check both actual rows. The same issue occurs in the
+      cross-book registry: the `+` and `*` inverse-uniqueness lemmas collide
+      while importing helperDev into pass1World (the reciprocal-zero source
+      pin exposes a refused unrelated transfer). Repair both paths together.
+      This is a completeness limitation.
 
 - [ ] **NS1 — three BVCHOP mirrors.** Execute the
       [first-goal charter](docs/plans/2026-09-05_bvchop-foundation-charter.md):

@@ -5,6 +5,15 @@ import ACL2Lean.NumericInverse
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+private def primitiveBlockKind (n : ProofNode) : String :=
+  let .node _ _ _ _ p := n
+  if p.blockKind.isEmpty then p.innerKind else p.blockKind
+
+private def primitiveEmptyChain (cfg : ReplayConfig) (t : SExpr) : MetaM Expr := do
+  let evalFn ← withLocalDeclD `fuel (mkConst ``Nat) fun f =>
+    mkLambdaFVars #[f] (mkAppN (mkConst ``evalOpt) #[f, cfg.worldExpr, cfg.envExpr, reflectSExpr t])
+  mkAppM ``fuel_eq_refl #[evalFn]
+
 /-- INVERSE-OF-* is a primitive conditional axiom. Consume the actual HYP
 blocks through the same relief walker as stored rules, then its RHS chain. -/
 def replayPrimitiveInverse (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
@@ -20,15 +29,10 @@ def replayPrimitiveInverse (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   let zero := app "QUOTE" [.atom (.number (.int 0))]
   let one := app "QUOTE" [.atom (.number (.int 1))]
   let hyps := [app "ACL2-NUMBERP" [a], app "NOT" [app "EQUAL" [a, zero]]]
-  let block := fun (p : ProofNode) =>
-    let .node _ _ _ _ prov := p
-    if prov.blockKind.isEmpty then prov.innerKind else prov.blockKind
+  let block := primitiveBlockKind
   unless kids.all (fun k => block k == "hyp" || block k == "rhs") do
     throwError "inverse-of-*: child outside HYP/RHS blocks"
-  let identity (t : SExpr) : MetaM Expr := do
-    let evalFn ← withLocalDeclD `fuel (mkConst ``Nat) fun f =>
-      mkLambdaFVars #[f] (mkAppN (mkConst ``evalOpt) #[f, cfg.worldExpr, cfg.envExpr, reflectSExpr t])
-    mkAppM ``fuel_eq_refl #[evalFn]
+  let identity := primitiveEmptyChain cfg
   let prems ← replayRuleHypotheses rec cfg ctx "INVERSE-OF-*" hyps [] []
     (kids.filter (fun k => block k == "hyp")) prov.runes identity
   let hn ← mkAppM ``ne_nil_of_evtrue_conv #[prems[0]!, ← ctxValProof cfg ctx hyps[0]!]
@@ -41,5 +45,27 @@ def replayPrimitiveInverse (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     mkLambdaFVars #[heq] (mkApp hNe hNil)
   let law ← mkAppM ``Logic.times_reciprocal #[va, hn, hz]
   replayPrimitiveEquation rec cfg ctx lhs one rhs law (kids.filter (fun k => block k == "rhs"))
+
+/-- The primitive reciprocal completion rule consumes its recorded OR
+hypothesis and the actual RHS continuation, as the inverse rule does. -/
+def replayPrimitiveReciprocalDefault (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (n : ProofNode) : MetaM Expr := do
+  let .node _ lhs rhs kids prov := n
+  let some (op, [a]) := asApp lhs | throwError "reciprocal default: expected unary application"
+  unless op.name == "UNARY-/" && prov.subst == [(.atom (.symbol { name := "X" }), a)] do
+    throwError "reciprocal default: application/substitution mismatch"
+  let app := fun name args => SExpr.ofList (.atom (.symbol { name }) :: args)
+  let zero := app "QUOTE" [.atom (.number (.int 0))]
+  let nn := app "NOT" [app "ACL2-NUMBERP" [a]]
+  let hyp := app "IF" [nn, nn, app "EQUAL" [a, zero]]
+  let block := primitiveBlockKind
+  unless kids.all (fun k => block k == "hyp" || block k == "rhs") do
+    throwError "reciprocal default: child outside HYP/RHS blocks"
+  let identity := primitiveEmptyChain cfg
+  let prems ← replayRuleHypotheses rec cfg ctx "DEFAULT-UNARY-/" [hyp] [] []
+    (kids.filter (fun k => block k == "hyp")) prov.runes identity
+  let h ← mkAppM ``ne_nil_of_evtrue_conv #[prems[0]!, ← ctxValProof cfg ctx hyp]
+  let law ← mkAppM ``Logic.reciprocal_default #[← ctxValExpr cfg ctx a, h]
+  replayPrimitiveEquation rec cfg ctx lhs zero rhs law (kids.filter (fun k => block k == "rhs"))
 
 end ACL2.Replay.Driver

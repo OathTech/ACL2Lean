@@ -179,13 +179,15 @@ def tsBinaryOf (op : String) : List (Int × Int × Lean.Name) :=
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is
 reciprocal on the rational arguments of INTEGERP-MOD's multiplication node. -/
-def tsUnaryOf (op : String) : Option (Option Int × Int × Lean.Name) :=
-  if op == "UNARY-/" then some (some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat)
-  else if op == "UNARY--" then some (some 23, 23, ``ACL2.Replay.inTs_neg_int)
-  else if op == "NUMERATOR" then some (none, 23, ``ACL2.Replay.inTs_numerator)
-  else if op == "DENOMINATOR" then some (none, 6, ``ACL2.Replay.inTs_denominator)
-  else if op == "NOT" then some (none, 384, ``ACL2.Replay.inTs_not)
-  else none
+def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
+  if op == "UNARY-/" then
+    [(some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat),
+     (none, 127, ``ACL2.Replay.inTs_reciprocal_number)]
+  else if op == "UNARY--" then [(some 23, 23, ``ACL2.Replay.inTs_neg_int)]
+  else if op == "NUMERATOR" then [(none, 23, ``ACL2.Replay.inTs_numerator)]
+  else if op == "DENOMINATOR" then [(none, 6, ``ACL2.Replay.inTs_denominator)]
+  else if op == "NOT" then [(none, 384, ``ACL2.Replay.inTs_not)]
+  else []
 
 /-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER
     `k`. The one shape `tsPlusConstOf` is keyed on. -/

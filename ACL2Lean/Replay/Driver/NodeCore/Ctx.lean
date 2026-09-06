@@ -672,6 +672,8 @@ def innerPathOf : ProofNode → List PathFrame | .node _ _ _ _ p => p.innerPath
 def swappedOf : ProofNode → Bool | .node _ _ _ _ p => p.swapped
 /-- The enclosing window's `:SWAPPED-P` (fold-back audit V3). -/
 def innerSwappedOf : ProofNode → Bool | .node _ _ _ _ p => p.innerSwapped
+
+def innerIfTestOf : ProofNode → Option SExpr | .node _ _ _ _ p => p.innerIfTest
 /-- ALL occurrence positions of `sub` in `t` as PathFrame lists (never
     descending QUOTE). Deterministic; the inline-window handler uses the
     UNIQUE-occurrence case only (ambiguity hard-fails).
@@ -712,7 +714,7 @@ def clearWindowTag : ProofNode → ProofNode
   | .node rune lhs rhs children prov =>
     .node rune lhs rhs children
       { prov with innerKind := "", innerTerm := none, innerPath := [],
-                  innerSwapped := false }
+                  innerSwapped := false, innerIfTest := none }
 /-- RE-ROOT a whole-if finishing child at the if: keep the path's entry
     frame, drop the `k` window→if frames after it, so the post-walk's
     uniform drop-1 navigates from the if itself. VALIDATED by the caller

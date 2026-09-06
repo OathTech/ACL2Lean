@@ -7,6 +7,7 @@
 -/
 import ACL2Lean.Replay.Driver.Waterfall.Compose
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReflexivity
+import ACL2Lean.Replay.Driver.Waterfall.LiteralVerdict
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
@@ -1026,6 +1027,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- closes on the literally-true literal, no chain to replay.
     if lp.literal == quoteT && lp.result == .atom (.keyword "TRUE") then
       return ← closeOnTrueLit cfg lp.literal (restLits.map (·.2)) (← quoteTFact cfg)
+    if lp.nodes.any (fun n => (runeOf n).ty == "type-set") then
+      unless branchSegs.isEmpty do
+        throwError "literal verdict: branches after the closing literal at {idStr}"
+      let (hTrue, ctx') ← replayLiteralTypeSetVerdict cfg ctx lp
+      return ← evtrueOfLitTrue cfg ctx' (clauseLits.map (·.2)) 0 lp.literal hTrue
     if lp.result == quoteT then
       -- the closer: its chain proves it `t`; any later literals (scanned or
       -- not) are short-circuited by the true test.

@@ -38,4 +38,10 @@ theorem complexValue_nonnumber (v : SExpr) (h : acl2Numberp v = .nil) :
     | number _ => simp [acl2Numberp] at h
     | _ => apply Complex.ext <;> simp [complexValue, numberParts, rationalValue]
 
+/-- Multiplication completes a nonnumeric argument to zero. -/
+theorem times_nonnumber_right (a b : SExpr) (hb : acl2Numberp b = .nil) :
+    times a b = .atom (.number (.int (Int.ofNat 0))) := by
+  apply (number_eq_iff_complex _ _ (by rw [acl2Numberp_times]; decide) (by decide)).mpr
+  rw [complexValue_times, complexValue_nonnumber b hb, complexValue_zero, mul_zero]
+
 end ACL2.Logic

@@ -29,6 +29,34 @@ theorem inTs_not (v : SExpr) : InTs 384 (Logic.not v) := by
   unfold Logic.not InTs
   split <;> decide
 
+theorem inTs_of_boolean_range {v : SExpr} (h : v = .t ∨ v = .nil) : InTs 384 v := by
+  rcases h with h | h <;> subst v <;> unfold InTs <;> decide
+
+theorem boolean_range_of_inTs {v : SExpr} (h : InTs 384 v) : v = .nil ∨ v = .t := by
+  match v with
+  | .nil => exact Or.inl rfl
+  | .atom (.symbol s) =>
+    simp only [InTs, tsIndex_symbol] at h
+    split_ifs at h with hs
+    · exact Or.inr (eq_of_beq hs)
+    · exfalso; revert h; decide
+  | .cons a d =>
+    simp only [InTs, tsIndex_cons] at h
+    split_ifs at h <;> (exfalso; revert h; decide)
+  | .atom (.number (.int n)) =>
+    simp only [InTs, tsIndex_int] at h
+    split_ifs at h <;> (exfalso; revert h; decide)
+  | .atom (.number (.rational n d hc)) =>
+    simp only [InTs, tsIndex_rat] at h
+    split_ifs at h <;> (exfalso; revert h; decide)
+  | .atom (.number (.complex _ _ _)) | .atom (.keyword _) |
+    .atom (.string _) | .atom (.char _) =>
+    simp only [InTs, tsIndex] at h
+    exfalso; revert h; decide
+
+theorem equal_t_of_inTs {v : SExpr} (h : InTs 384 v) : Logic.equal v .t = v := by
+  rcases boolean_range_of_inTs h with hv | hv <;> subst v <;> rfl
+
 theorem ne_nil_of_inTs {m : Int} {v : SExpr}
     (hn : tsMember m 7 = false) (h : InTs m v) : v ≠ SExpr.nil := by
   intro hv

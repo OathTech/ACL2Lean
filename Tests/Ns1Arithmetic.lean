@@ -51,6 +51,12 @@ replayed_theorem multiplicationCongruenceReplayed :=
   driver_replayed% helperDev helperWorld "EQUIV-1-IMPLIES-EQUIV-*"
 replayed_theorem multiplicationCancellationReplayed :=
   driver_replayed% helperDev helperWorld "RIGHT-CANCELLATION-FOR-*"
+replayed_theorem multiplicativeInverseUniqueReplayed :=
+  driver_replayed% helperDev helperWorld "UNIQUENESS-OF-*-INVERSES-LEMMA"
+replayed_theorem reciprocalEqualityReplayed :=
+  driver_replayed% helperDev helperWorld "EQUAL-/"
+replayed_theorem reciprocalZeroReplayed :=
+  driver_replayed% pass1Dev pass1World "EQUAL-/-0" deps [helperDev]
 replayed_theorem productNegationReplayed :=
   driver_replayed% helperDev helperWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
 
@@ -98,6 +104,26 @@ example (env : Env) : EvTrue helperWorld env
         app "EQUAL" [zero, app "FIX" [sym "Z"]],
         app "EQUAL" [app "FIX" [sym "X"], app "FIX" [sym "Y"]]]]) :=
   multiplicationCancellationReplayed env
+
+example (env : Env) : EvTrue helperWorld env
+    (app "IMPLIES" [app "IF" [app "ACL2-NUMBERP" [sym "X"],
+      app "IF" [app "NOT" [app "EQUAL" [sym "X", zero]],
+        app "IF" [app "ACL2-NUMBERP" [sym "Y"],
+          app "EQUAL" [app "BINARY-*" [sym "X", sym "Y"],
+            app "QUOTE" [.atom (.number (.int 1))]], nilTerm], nilTerm], nilTerm],
+      app "EQUAL" [app "UNARY-/" [sym "X"], sym "Y"]]) :=
+  multiplicativeInverseUniqueReplayed env
+
+example (env : Env) : EvTrue helperWorld env
+    (app "EQUAL" [app "EQUAL" [app "UNARY-/" [sym "X"], sym "Y"],
+      app "IF" [app "NOT" [app "EQUAL" [app "FIX" [sym "X"], zero]],
+        app "EQUAL" [app "QUOTE" [.atom (.number (.int 1))],
+          app "BINARY-*" [sym "X", sym "Y"]], app "EQUAL" [sym "Y", zero]]]) :=
+  reciprocalEqualityReplayed env
+
+example (env : Env) : EvTrue pass1World env
+    (app "EQUAL" [app "EQUAL" [app "UNARY-/" [sym "X"], zero],
+      app "EQUAL" [app "FIX" [sym "X"], zero]]) := reciprocalZeroReplayed env
 
 example (env : Env) : EvTrue pass1World env
     (app "EQUAL" [app "BINARY-*" [zero, sym "X"], zero]) := pass1TimesZeroReplayed env
@@ -237,5 +263,19 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.multiplicationCancellationReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms multiplicationCancellationReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.multiplicativeInverseUniqueReplayed' depends on axioms: [propext,
+ Classical.choice,
+ Quot.sound] -/
+#guard_msgs in
+#print axioms multiplicativeInverseUniqueReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalEqualityReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms reciprocalEqualityReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalZeroReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms reciprocalZeroReplayed
 
 end ACL2.Tests.Ns1Arithmetic

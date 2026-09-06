@@ -863,6 +863,21 @@ def liftNegTestSwap (cfg : ReplayConfig) (steps : List PathStep)
     throwError "liftNegTestSwap: reconstructed {repr curL} ≠ {repr root}"
   return (inner, curR)
 
+/-- A combined IF node records its normalized test. Apply the recorded
+negation swap before partitioning that node's branch windows. Matching the
+recorded test also makes this a single normalization, including nested NOTs. -/
+def normalizeCombinedIfSwap (cfg : ReplayConfig) (root : SExpr)
+    (frames : List PathFrame) (recorded : SExpr) : MetaM (Option (Expr × SExpr)) := do
+  let some (rf, [rt, _, _]) := asApp recorded | return none
+  unless rf.name == "IF" do return none
+  let (steps, sub) ← ofExcept (navigateFrames root frames)
+  let some (f, [test, a, b]) := asApp sub | return none
+  unless f.name == "IF" && test != rt do return none
+  let some (nf, [c, qn, qt]) := asApp test | return none
+  unless nf.name == "IF" && qn == quoteNil && qt == quoteT && c == rt do return none
+  let swapped := SExpr.ofList [.atom (.symbol f), c, b, a]
+  return some (← liftNegTestSwap cfg steps root sub c a b swapped)
+
 /-- The EQUAL-NIL variant of `liftNegTestSwap` (sorting-completion-2
     Class A): `(IF (EQUAL 'NIL c) a b) ⇒ (IF c b a)` via
     `re_if_equal_nil_test_swap` (EQUAL unshadowed — kernel-decided). -/

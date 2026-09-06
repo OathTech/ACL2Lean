@@ -2,6 +2,51 @@ import ACL2Lean.NumericOrder
 
 namespace ACL2.Logic
 
+private theorem numberpMkNumber (n : Int) (d : Nat) : acl2Numberp (mkNumber n d) = .t := by
+  unfold mkNumber
+  split
+  · rfl
+  · dsimp only
+    split <;> rfl
+
+/-- Reciprocal's completed result is numeric, including at zero and on
+nonnumbers. Used by recorded reciprocal recognizer and literal verdicts. -/
+theorem acl2Numberp_reciprocal (v : SExpr) : acl2Numberp (reciprocal v) = .t := by
+  unfold reciprocal div
+  split
+  · rfl
+  · dsimp only
+    split
+    · rfl
+    · exact numberpMkNumber _ _
+
+/-- The nonnumeric arm of ACL2's reciprocal completion axiom. -/
+theorem reciprocal_nonnumber (v : SExpr) (h : acl2Numberp v = .nil) :
+    reciprocal v = .atom (.number (.int 0)) := by
+  cases v with
+  | nil | cons _ _ => rfl
+  | atom a => cases a with
+    | number n => cases n <;> simp [acl2Numberp, SExpr.t] at h
+    | symbol _ | keyword _ | string _ | char _ => rfl
+
+/-- The ground-zero reciprocal default rule is the two default arms of the
+primitive completion axiom, with its original translated OR hypothesis. -/
+theorem reciprocal_default (v : SExpr)
+    (h : (bif toBool (not (acl2Numberp v)) then not (acl2Numberp v)
+      else equal v (.atom (.number (.int 0)))) ≠ .nil) :
+    reciprocal v = .atom (.number (.int 0)) := by
+  by_cases hn : acl2Numberp v = .nil
+  · exact reciprocal_nonnumber v hn
+  · by_cases hv : v = .atom (.number (.int 0))
+    · subst v; rfl
+    · have hnn : not (acl2Numberp v) = .nil := by
+        cases hnum : acl2Numberp v with
+        | nil => exact False.elim (hn hnum)
+        | atom _ | cons _ _ => rfl
+      rw [hnn] at h
+      change equal v (.atom (.number (.int 0))) ≠ .nil at h
+      exact False.elim (h (by simp [equal, beq_iff_eq, hv]))
+
 
 /-- Primitive reciprocal on the real component. The actual reciprocal-sign
 tau clauses in arithmetic-3/pass1/inequalities require this representation

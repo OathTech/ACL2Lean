@@ -401,9 +401,11 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure
         let result ← lookupKeyword "RESULT" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :RESULT") pure
-        let notFlg := match lookupKeyword "NOT-FLG" rest with
-          | some .nil => false
-          | _ => true
+        let notFlg ← match lookupKeyword "NOT-FLG" rest with
+          | some .nil => pure false
+          | some v => if v == SExpr.t then pure true else
+              throw "TYPE-SET-REASONING: :NOT-FLG is not T or NIL"
+          | none => throw "TYPE-SET-REASONING: missing :NOT-FLG"
         let justification := (lookupKeyword "JUSTIFICATION" rest).getD .nil
         pure (.typeSetReasoning term result notFlg justification)
     | .atom (.keyword "BEGIN-INNER-REWRITE") :: rest =>

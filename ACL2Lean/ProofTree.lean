@@ -80,6 +80,8 @@ structure StepProvenance where
   equivSource : Option EquivSource := none
   /-- Type-set of the argument (for recognizer steps, from ACL2's type-set engine). -/
   typeSet : Option Int := none
+  /-- The original atom's NOT flag on a literal type-set verdict. -/
+  literalNotFlg : Option Bool := none
   /-- True type-set of the recognizer (bits where it returns T). -/
   trueTs : Option Int := none
   /-- `:FALSETS`/`:STRONGP` (audit 2026-08-07 S4: previously parsed and
@@ -152,6 +154,9 @@ structure StepProvenance where
       source argument 3 and if-right argument 2. Set alongside
       `innerKind`. -/
   innerSwapped : Bool := false
+  /-- Normalized test of the enclosing BEGIN-IF-REWRITE block, scoped
+      through that block's immediate branch windows. -/
+  innerIfTest : Option SExpr := none
   deriving Repr, Inhabited
 
 inductive ProofNode where
@@ -352,6 +357,7 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
     else hard-fails. -/
 partial def parseProofNodesAux (events : List TraceEvent)
     (pendingChildren : List ProofNode) (nodes : List ProofNode)
+    (windowTest : Option SExpr := none)
     : Except String (List ProofNode × List TraceEvent) := do
   -- `pendingChildren` are inner-rewrite-block nodes awaiting the rewrite step
   -- that adopts them as children. At every return we FLUSH them onto the result
@@ -367,8 +373,25 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- adopting step can partition its children (HYP-relief chains vs RHS
       -- continuation vs body).
       let (innerNodes, rest') ← parseProofNodesAux rest [] []
+      -- Even an empty swapped branch window records a normalization.
+      -- Preserve its actual boundary as a marker, not a rewrite rule.
+      let innerNodes ← if innerNodes.isEmpty && wswapped &&
+          (kind == "if-left" || kind == "if-right") then do
+        let some t := term | throw "swapped branch window has no :TERM"
+        pure [ProofNode.node ⟨"if-window", "", none⟩ t t []
+          { origin := "if-window/begin" }]
+        else pure innerNodes
       let isWindowKind := kind == "if-left" || kind == "if-right" ||
         kind == "equal-cars" || kind == "equal-cdrs"
+      -- Nested unadopted branch windows use coordinates relative to this
+      -- window. Keep the enclosing boundary instead of flattening those
+      -- coordinates into its parent's chain.
+      let innerNodes ← if (kind == "if-left" || kind == "if-right") &&
+          innerNodes.any (fun | .node _ _ _ _ p => !p.innerKind.isEmpty) then do
+        let some t := term | throw "enclosing branch window has no :TERM"
+        pure [ProofNode.node ⟨"if-window", "", none⟩ t t innerNodes
+          { origin := "if-window/begin" }]
+        else pure innerNodes
       let tagged := innerNodes.map fun
         | n@(.node rune lhs rhs children prov) =>
           -- an already-tagged node is a DEEPER block's unadopted flush-out
@@ -378,7 +401,9 @@ partial def parseProofNodesAux (events : List TraceEvent)
           if prov.innerKind.isEmpty then
             .node rune lhs rhs children
               { prov with innerKind := kind, innerTerm := term,
-                          innerPath := wpath, innerSwapped := wswapped }
+                          innerPath := wpath, innerSwapped := wswapped,
+                          innerIfTest := if kind == "if-left" || kind == "if-right"
+                            then windowTest else none }
           else if !isWindowKind && prov.blockKind.isEmpty then
             .node rune lhs rhs children { prov with blockKind := kind }
           else n
@@ -399,11 +424,11 @@ partial def parseProofNodesAux (events : List TraceEvent)
         kind == "equal-cars" || kind == "equal-cdrs" ||
         kind == "if-left" || kind == "if-right"
       if inline then
-        parseProofNodesAux rest' pendingChildren (tagged.reverse ++ nodes)
+        parseProofNodesAux rest' pendingChildren (tagged.reverse ++ nodes) windowTest
       else
-        parseProofNodesAux rest' (pendingChildren ++ tagged) nodes
-  | .beginIfRewrite _ _ :: rest =>
-      let (innerNodes, rest') ← parseProofNodesAux rest [] []
+        parseProofNodesAux rest' (pendingChildren ++ tagged) nodes windowTest
+  | .beginIfRewrite test _ :: rest =>
+      let (innerNodes, rest') ← parseProofNodesAux rest [] [] (some test)
       -- The combined summary step (pushed AFTER the END-IF) adopts the
       -- block. Since the emit-guard fix (BUG-025) a NO-OP rewrite-if1
       -- emits no combined step — the old folded guard emitted ~591
@@ -416,25 +441,26 @@ partial def parseProofNodesAux (events : List TraceEvent)
         | .rewriteStep step :: _ => step.origin == "if-finish/combined"
         | _ => false
       if adopterFollows then
-        parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes
+        parseProofNodesAux rest' (pendingChildren ++ innerNodes) nodes windowTest
       else
-        parseProofNodesAux rest' pendingChildren (innerNodes.reverse ++ nodes)
+        parseProofNodesAux rest' pendingChildren (innerNodes.reverse ++ nodes) windowTest
   | .endInnerRewrite _ :: rest | .endIfRewrite _ _ :: rest =>
       return (nodes.reverse ++ pendingChildren, rest)
   | .rewriteStep step :: rest =>
-      parseProofNodesAux rest [] (rewriteStepNode step pendingChildren :: nodes)
-  | .typeSetReasoning term result _ justification :: rest =>
+      parseProofNodesAux rest [] (rewriteStepNode step pendingChildren :: nodes) windowTest
+  | .typeSetReasoning term result notFlg justification :: rest =>
       -- a term closed by type-set reasoning (e.g. a literal forced true/false);
       -- the :JUSTIFICATION is the rune list of supporting rules — carry it so the
       -- type fact's provenance (which ACL2 supplied) isn't dropped.
       let runes ← ProofLog.parseRunes justification
       parseProofNodesAux rest []
-        (.node ⟨"type-set", "", none⟩ term result pendingChildren { runes } :: nodes)
+        (.node ⟨"type-set", "", none⟩ term result pendingChildren
+          { runes, literalNotFlg := some notFlg } :: nodes) windowTest
   | .branchSubstitution equiv lhs rhs :: rest =>
       parseProofNodesAux rest []
-        (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
+        (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes) windowTest
   | .contextSubst var value _ :: rest =>
-      parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes)
+      parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes) windowTest
   | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis ifBasis :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
@@ -444,13 +470,13 @@ partial def parseProofNodesAux (events : List TraceEvent)
                  nodes: {repr hyp}"
       parseProofNodesAux rest []
         (.node ⟨"hyp-relief", "", none⟩ hyp hyp []
-          { origin, taRunes, parents, recogBasis, lookupBasis, ifBasis } :: nodes)
+          { origin, taRunes, parents, recogBasis, lookupBasis, ifBasis } :: nodes) windowTest
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
-      parseProofNodesAux rest pendingChildren nodes
+      parseProofNodesAux rest pendingChildren nodes windowTest
   | .rewrittenLiteral _ _ :: rest =>
       -- the literal's net result, captured separately by findLiteralResult.
-      parseProofNodesAux rest pendingChildren nodes
+      parseProofNodesAux rest pendingChildren nodes windowTest
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ _ :: _
   | .fcDerivations _ :: _ | .complementClose _ :: _ | .dedupDrop _ :: _

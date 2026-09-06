@@ -30,6 +30,36 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-046 — IF window reconstruction drops its test and empty swapped windows
+Status: open
+Pinned-by: none (recursive proof-tree records, not interpreter values)
+
+EQUAL-/ has a recorded BEGIN-IF test and swapped branch windows. The parser
+discarded the test, leaving two plausible addresses in the running term,
+and discarded empty windows even when their SWAPPED-P field records a
+normalization. The branch composer consequently fails before the next
+recorded literal result. Retaining the scoped test resolves the first
+address ambiguity. The parser now retains empty swapped boundaries and nested
+window scope; the consumer also composes the combined IF record's negated-test
+swap. EQUAL-/ and EQUAL-/-0 pass whole-proof and source/axiom pins
+(`c2-reciprocal-zero-type-cell-build.log`). Changed window tests are rejected
+by the permanent context controls. Full regression validation remains pending.
+
+## BUG-047 — rewrite-equal omits Boolean equality normalization
+Status: open
+Pinned-by: none (ACL2 instrumentation, not interpreter values)
+
+rewrite.lisp's two Boolean type-set arms return the nonconstant side of
+`(EQUAL value 'T)` or `(EQUAL 'T value)` without logging the step. EQUAL-/
+reaches this second orientation with an IF-valued Boolean expression.
+Fork ef2746dade adds both actual steps, their consumed type-set masks and
+addressed IF leaves. EQUAL-/ passes its whole-proof and source/axiom pins;
+changed masks and deleted addressed leaves are rejected. The sorting replay
+also exposes a cited Boolean defun TP (PERM), requiring the same consumer to
+instantiate that recorded corollary. The repaired focused sorting replay
+passes 13/13 unconditional (`c2-equal-boolean-sorting-tp-replay.log`). Full
+regression validation remains pending.
+
 ## BUG-001 — no character type: `#\a` is modeled as a symbol
 Status: fixed
 Pinned-by: none (fixed 2026-07-08 — corpus entries reclassified to `match`)

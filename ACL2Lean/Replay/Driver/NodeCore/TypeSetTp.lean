@@ -4,11 +4,11 @@ import ACL2Lean.Replay.Driver.TsFacts
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- Consume a cited defun TP whose corollary asserts INTEGERP, possibly with
-an additional conjunct. INTEGERP-MOD cites the quotient TP inside its emitted
-argument leaves. The corollary proof remains an ordinary replay obligation. -/
-def inTsFromCitedIntegerTp (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (cited : List String) (t : SExpr) (tv : Expr) : MetaM (Option Expr) := do
+/-- Consume a cited defun TP's integer or Boolean corollary. INTEGERP-MOD
+cites the quotient TP in its argument leaves; sorting's Boolean equality
+step cites PERM. The corollary proof remains an ordinary replay obligation. -/
+def inTsFromCitedTp (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (cited : List String) (t : SExpr) (tv : Expr) : MetaM (Option (Int × Expr)) := do
   let .cons (.atom (.symbol fn)) argsSpine := t | return none
   unless cited.contains fn.name do return none
   let some (_, cor, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fn.name)
@@ -17,22 +17,29 @@ def inTsFromCitedIntegerTp (cfg : ReplayConfig) (ctx : ReplayCtx)
   let some args := argsSpine.toList? | return none
   unless formals.length == args.length do return none
   let inst := ACL2.Replay.substTerm formals args cor
+  let conv ← ctxValProof cfg ctx t
+  let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
+    ++ (args.map reflectSExpr).toArray ++ #[tv, conv])
+  let eqT (x y : SExpr) := SExpr.ofList [.atom (.symbol { name := "EQUAL" }), x, y]
+  let booleanCor := SExpr.ofList [.atom (.symbol { name := "IF" }),
+    eqT t quoteT, quoteT, eqT t quoteNil]
+  if inst == booleanCor then
+    let h ← mkAppM ``tp_boolean_t_or_nil #[tv, fact]
+    return some (384, ← mkExpectedTypeHint (← mkAppM ``inTs_of_boolean_range #[h])
+      (← mkAppM ``InTs #[Lean.toExpr (384 : Int), tv]))
   let recog := SExpr.ofList [.atom (.symbol { name := "INTEGERP" }), t]
   let conjunct? : Option SExpr := match inst.toList? with
     | some [.atom (.symbol ifS), c, th, el] =>
       if ifS.name == "IF" && c == recog && el == quoteNil then some th else none
     | _ => none
   unless inst == recog || conjunct?.isSome do return none
-  let conv ← ctxValProof cfg ctx t
-  let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-    ++ (args.map reflectSExpr).toArray ++ #[tv, conv])
   let hInt ← match conjunct? with
     | none => pure fact
     | some th => do
       let ctxTh ← pinTermOpaques cfg cfg.envExpr ctx th
       mkAppM ``tp_cond_integerp_t #[tv, ← ctxValExpr cfg ctxTh th, fact]
   let hb ← mkAppM ``congrArg #[mkConst ``Logic.toBool, hInt]
-  return some (← mkExpectedTypeHint (← mkAppM ``inTs_integerp_true #[hb])
+  return some (23, ← mkExpectedTypeHint (← mkAppM ``inTs_integerp_true #[hb])
     (← mkAppM ``InTs #[Lean.toExpr (23 : Int), tv]))
 
 end ACL2.Replay.Driver

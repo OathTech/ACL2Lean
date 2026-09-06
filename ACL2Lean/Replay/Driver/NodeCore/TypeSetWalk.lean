@@ -637,6 +637,14 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   let inTsTy (m : Int) : MetaM Expr :=
     mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
   let mut out : List (Int × Expr) := []
+  -- The EQUAL primitive's range is the same cell that type-set uses
+  -- when rewrite-equal removes equality with T. The caller still checks
+  -- the emitted operand mask (and each addressed IF leaf).
+  if let some (f, [a, b]) := asApp t then
+    if f.name == "EQUAL" then
+      let h ← mkAppM ``logic_equal_range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
+      out := out ++ [(384, ← mkExpectedTypeHint
+        (← mkAppM ``inTs_of_boolean_range #[h]) (← inTsTy 384))]
   -- (1) the caller's LOCAL branch hypotheses
   for (f, pos, hb) in localFacts do
     if f == t then
@@ -681,11 +689,11 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
           #[← mkAppM ``Logic.toBool_eq_false #[vP], hNil]
         out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
           (← inTsTy m))]
-  if let some h ← inTsFromCitedIntegerTp cfg ctx citedTp t tv then
-    out := out ++ [(23, h)]
+  if let some cell ← inTsFromCitedTp cfg ctx citedTp t tv then
+    out := out ++ [cell]
   -- Unary primitive cells consume the same context-derived argument mask.
   if let .cons (.atom (.symbol op)) (.cons a .nil) := t then
-    if let some (inMask, outMask, nm) := tsUnaryOf op.name then
+    for (inMask, outMask, nm) in tsUnaryOf op.name do
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
       let h? ← match inMask with
@@ -700,6 +708,13 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- arguments typed (recursively, from the SAME sources) and the
   -- registered closure fact applied
   if let .cons (.atom (.symbol op)) (.cons a (.cons b .nil)) := t then
+    if op.name == "BINARY-*" then
+      if quotedInt? a == some 0 then
+        out := out ++ [(1, ← mkExpectedTypeHint
+          (← mkAppM ``inTs_times_zero_left #[← ctxValExpr cfg ctx b]) (← inTsTy 1))]
+      if quotedInt? b == some 0 then
+        out := out ++ [(1, ← mkExpectedTypeHint
+          (← mkAppM ``inTs_times_zero_right #[← ctxValExpr cfg ctx a]) (← inTsTy 1))]
     for (inMask, outMask, nm) in tsBinaryOf op.name do
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
