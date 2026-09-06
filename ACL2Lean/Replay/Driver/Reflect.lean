@@ -368,10 +368,10 @@ def applyStep (w e : Expr) (st : PathStep) (sub sub' : SExpr) (inner : Expr) : M
         reflectSExpr sub', ns, inner]
   | _, _, _ => throwError "applyStep: unsupported arity/argIdx {st.arity}/{st.argIdx}"
 
-def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
+def emitCongruenceAlong (w e : Expr) (term : SExpr) (frames : List PathFrame)
     (lhs rhs : SExpr) (nodeProof : Expr)
     : MetaM (Expr × SExpr) := do
-  let path ← ofExcept (pathStepsFromFrames term (relativizeFrames frames) lhs)
+  let path ← ofExcept (pathStepsFromFrames term frames lhs)
   -- Fold from the innermost path step outward.
   let mut inner := nodeProof
   let mut curL := lhs
@@ -383,6 +383,11 @@ def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
   unless curL == term do
     throwError "emitCongruence: reconstructed outer term {repr curL} ≠ input {repr term}"
   return (inner, curR)
+
+/-- Rewrite-node paths include one descriptor; explicit fold paths do not. -/
+def emitCongruence (w e : Expr) (term : SExpr) (frames : List PathFrame)
+    (lhs rhs : SExpr) (nodeProof : Expr) : MetaM (Expr × SExpr) :=
+  emitCongruenceAlong w e term (relativizeFrames frames) lhs rhs nodeProof
 
 /-- Chain a non-empty list of fuel-robust equalities `[a=b, b=c, …]` with `fuel_chain_eq`. -/
 def chainEqs (proofs : List Expr) : MetaM Expr := do

@@ -5,7 +5,7 @@
   The INDUCTION processor (scheme replay, IH solidify, measure decrease) —
   the home of the #37 decrease-fragment rework.
 -/
-import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.RulingFacts
 
 namespace ACL2.Replay.Driver
 
@@ -430,55 +430,10 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                 let hCast ← mkExpectedTypeHint cf.signE eqTy
                 mkAppM ``consp_toBool_of_endp_nil #[hCast]
               | none =>
-              match facts.find? (fun f => f.test == atomT && !f.sign) with
-              | some cf => do
-                -- direct falsy (atom v) — J4's INTERLEAVE shape
-                let eqTy ← mkEq (mkApp (mkConst ``Logic.atom) xvE) nilC
-                unless ← isDefEq (← inferType cf.signE) eqTy do
-                  throwError "replayInduction: the falsy (atom {mv.name}) \
-                              fact's value is not Logic.atom of the \
-                              measured var's env value"
-                let hCast ← mkExpectedTypeHint cf.signE eqTy
-                mkAppM ``consp_toBool_of_atom_nil #[hCast]
-              | none => do
-                -- J3 (design I5): a COMPOUND or-form ruling test — ACL2's
-                -- `(IF a a c)` or-normal form (ZIP2/ZIP3) — whose NIL fact
-                -- or-contains the (ATOM mv) leaf. Invert along the EMITTED
-                -- term's shape; any other shape hard-fails.
-                let rec orContains (t : SExpr) : Bool :=
-                  t == atomT ||
-                    match t with
-                    | .cons (.atom (.symbol ifS))
-                        (.cons a (.cons a2 (.cons c .nil))) =>
-                      ifS.name == "IF" && a == a2
-                        && (orContains a || orContains c)
-                    | _ => false
-                let some cf := facts.find?
-                    (fun f => !f.sign && orContains f.test)
-                  | throwError "replayInduction: no in-scope truthy \
-                      (consp {mv.name}) / falsy (endp/atom {mv.name}) \
-                      fact, and no nil or-form ruling fact contains \
-                      (ATOM {mv.name}) — IH decrease underivable \
-                      (frontier)"
-                let rec invert (t : SExpr) (hNil : Expr) : MetaM Expr := do
-                  if t == atomT then
-                    mkAppM ``consp_toBool_of_atom_nil #[hNil]
-                  else match t with
-                    | .cons (.atom (.symbol ifS))
-                        (.cons a (.cons a2 (.cons c .nil))) => do
-                      unless ifS.name == "IF" && a == a2 do
-                        throwError "replayInduction: ruling test {repr t} \
-                            is not or-form (J3 inversion frontier)"
-                      let hpair ← mkAppM ``cond_or_nil_inv #[hNil]
-                      if orContains a then
-                        invert a (← mkAppM ``And.left #[hpair])
-                      else
-                        invert c (← mkAppM ``And.right #[hpair])
-                    | _ =>
-                      throwError "replayInduction: or-form inversion \
-                          reached a non-if non-(ATOM {mv.name}) component \
-                          {repr t} (frontier)"
-                invert cf.test cf.signE
+              match ← falseRulingFact? cfg' ctxD facts atomT with
+              | some h => mkAppM ``consp_toBool_of_atom_nil #[h]
+              | none => throwFrontier m!"replayInduction: no recorded CONSP / \
+                  false ENDP / false ATOM ruler for {mv.name}"
             -- DECREASE via the emitted-obligation prover (#37 rework,
             -- design I4; docs/plans/2026-07-18_decrease-prover-rework.md):
             -- locate the scheme fn's EMITTED termination clause for THIS
@@ -559,7 +514,10 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
               factOf? := fun test pos => do
                 match facts.find?
                     (fun f => f.test == test && f.sign == pos) with
-                | none => pure none
+                | none => do
+                  if pos then return none
+                  let some h ← falseRulingFact? cfg' ctxNow facts test | return none
+                  return some (← mkAppM ``toBool_false_of_eq_nil #[h])
                 | some cf => do
                   let vT ← ctxValExpr cfg' ctxNow test
                   let nilC := mkConst ``SExpr.nil

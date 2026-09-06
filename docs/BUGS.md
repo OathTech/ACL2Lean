@@ -51,6 +51,17 @@ actual missing fold is `(:PATH NIL :LHS (< '-1 '0) :RHS 'T)`.
 The observer does not rerun the computation. Its image and tagging checks
 pass; consumer support and production integration remain open.
 
+Production fork **1167a1ac98** now includes the observer; all 110 captures
+are stamped there. Strict parsing preserves the plain hypothesis and every
+ordered fold. The consumer checks the captured primitive domain/guard,
+quoted computation and exact argument path, then composes to the marker's
+hypothesis. All 16 nonempty NIQ markers pass explicit kernel/axiom checks;
+deleted folds, changed positions/results and missing guards are rejected.
+Permanent malformed-field controls also pass
+(`c2-substitution-permanent-tests-build.log`, 3134 jobs). Whole NIQ replay
+crosses the original fold and now stops at the separate < '0 J type-set
+basis below (BUG-039). Full regression for this increment remains pending.
+
 ## BUG-049 — linear equation insertion is absent before trivial substitution
 Status: open
 Pinned-by: none (intermediate clause transformation is missing from the proof log)
@@ -732,7 +743,7 @@ rows and coverage golden are preserved, and the 21 existing mirrors pass.
 This is a capture/consumer repair; the NS1 native mirrors remain open.
 
 ## BUG-039 — silent hypothesis relief omits its type-set basis
-Status: fixed
+Status: open
 Pinned-by: none (proof-capture/replay provenance; no interpreter-value divergence)
 MOD-BOUND-LINEAR-ARG2 exposes two distinct missing records. The known-true
 marker for PREFER-POSITIVE-ADDENDS-<'s ACL2-NUMBERP arithmetic-result hypothesis
@@ -775,6 +786,15 @@ Full regression recovery, 2026-09-06: the gate at `2953c78` records
 source pins and controls pass, all 116 baseline theorem rows remain
 unconditional, the golden is unchanged, and the 21 existing mirrors pass.
 This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
+Reopened 2026-09-06 for NONNEGATIVE-INTEGER-QUOTIENT-UPPER-BOUND-LINEAR's
+application of <-OF-*-OF-/-ARG1-ARG2. The known-true marker for `(< '0 J)`
+has no recognizer/IF basis or parent record; its context contains integer,
+nonnegative and nonzero facts for J. The current replay refuses that marker
+(`c2-quotient-production-after-folds.log`; production NIQ log:20435ff).
+Capture the actual type-set lookup/comparison route before adding its
+consumer. Do not replace this hypothesis relief with a DP or infer the
+missing type-set evidence. The earlier repaired basis classes remain intact.
 
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set

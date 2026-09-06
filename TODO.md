@@ -39,9 +39,11 @@ charter or the archive carry the record.
       branch `mdd/ns1-bvchop`, from approved docs `b452b70`. C0/C1 checked;
       all three native proofs remain open. Close the actual FLOOR/quotient
       dependency trees, then carry the selected BVCHOP statements through the
-      shared native correspondence/decode kit. Finish the recorded induction
-      ruler and terminal OR-collapse consumers; consume hypothesis instantiation
-      folds (BUG-050) and the quoted-constructor match evidence if encountered.
+      shared native correspondence/decode kit. Capture and consume the quotient's
+      remaining comparison type-set basis (BUG-039); replay its ordinary plus /
+      times-and-divide dependencies and quoted-constructor match if encountered.
+      Validate the recorded hypothesis-instantiation fold repair (BUG-050) with
+      the next full gate.
       Integrate the linear equation producer/consumer (BUG-049) after msort's
       count/rewritten-linear-rule classes replay; cancellation is unconditional
       from its isolated capture. Validate the exact-name registry repair below.

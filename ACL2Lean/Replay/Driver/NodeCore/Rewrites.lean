@@ -1073,55 +1073,57 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let mut bridge? : Option Expr := none
         let mut postStart := target
         if prov.equiv == "iff" && thn' != quoteT then
-          if let some pc0 := postCh.head? then
-            let (pcLhs, _) := nodeLhsRhs pc0
-            if pcLhs == .cons (.atom (.symbol ifS))
-                (.cons c (.cons quoteT (.cons els' .nil))) then
-              unless thenCh.isEmpty && thn' == thn do
-                throwError "if-finish/combined: or-collapse bridge with a \
-                    rewritten then-branch (frontier)"
-              unless rel.isEmpty do
-                throwError "if-finish/combined: or-collapse bridge below the \
-                    literal root (frontier — needs the mixed lift)"
-              let mut testNodes : List ProofNode := []
-              for pn in chainPrefix do
-                -- a prefix node whose path does not relativize under THIS
-                -- node's frame is at another position — a NON-MATCH, not an
-                -- error (audit Q1: deliberate; a wrong selection still
-                -- fails closed on the xA == c check below). WINDOW-TAGGED
-                -- prefix nodes are excluded outright (fold-back audit
-                -- B-F3): their paths are window-local — relative to their
-                -- own window's term, not the literal — so a leading
-                -- `.arg 1` frame there is a coincidence, not a
-                -- test-position descent.
-                if innerKindOf pn != "" then
-                  continue
-                let relPn? := some (relativizeFrames (nodePath pn))
-                if let some (.arg 1 _ :: _) := relPn? then
-                  -- re-root at the then-copy: drop the test-position frame
-                  -- (validated by the .arg 1 filter above) so the sub-walk's
-                  -- uniform drop-one navigates within `thn` — the strips this
-                  -- replaced retired with gstack-coordinate emission
-                  testNodes := testNodes ++ [retargetAtIf pn 1]
-              let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes
-              unless xA == c do
-                throwError "if-finish/combined: or-collapse bridge — the \
-                    re-composed test chain reached {repr xA}, the rewritten \
-                    test is {repr c} (frontier)"
-              let chA ← chainReqEq chA
-              let hAX ← match chA with
-                | some hp => pure hp
-                -- The recorded prefix can be empty when the then-copy IS
-                -- already the test (INTEGERP-MOD's denominator rewrite).
-                -- xA == c above still checks the endpoint; replaying zero
-                -- test steps is exactly reflexivity, as for branch chains.
-                | none => mkIdEq thn
-              bridge? := some (← mkAppM ``evrel_siff_if_or_bridge
-                #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
-                  reflectSExpr els', vC, ← ctxValExpr cfg ctx els',
-                  hAX, pC, ← ctxValProof cfg ctx els'])
-              postStart := .cons (.atom (.symbol ifS))
-                (.cons c (.cons quoteT (.cons els' .nil)))
+          let pcLhs := (postCh.head?.map fun pn => (nodeLhsRhs pn).1).getD rhs
+          if pcLhs == .cons (.atom (.symbol ifS))
+              (.cons c (.cons quoteT (.cons els' .nil))) then
+            unless lhs == .cons (.atom (.symbol ifS))
+                (.cons c (.cons c (.cons els' .nil))) do
+              throwError "if-finish/combined: recorded OR-collapse instance differs"
+            unless thenCh.isEmpty && thn' == thn do
+              throwError "if-finish/combined: or-collapse bridge with a \
+                  rewritten then-branch (frontier)"
+            unless rel.isEmpty do
+              throwError "if-finish/combined: or-collapse bridge below the \
+                  literal root (frontier — needs the mixed lift)"
+            let mut testNodes : List ProofNode := []
+            for pn in chainPrefix do
+              -- a prefix node whose path does not relativize under THIS
+              -- node's frame is at another position — a NON-MATCH, not an
+              -- error (audit Q1: deliberate; a wrong selection still
+              -- fails closed on the xA == c check below). WINDOW-TAGGED
+              -- prefix nodes are excluded outright (fold-back audit
+              -- B-F3): their paths are window-local — relative to their
+              -- own window's term, not the literal — so a leading
+              -- `.arg 1` frame there is a coincidence, not a
+              -- test-position descent.
+              if innerKindOf pn != "" then
+                continue
+              let relPn? := some (relativizeFrames (nodePath pn))
+              if let some (.arg 1 _ :: _) := relPn? then
+                -- re-root at the then-copy: drop the test-position frame
+                -- (validated by the .arg 1 filter above) so the sub-walk's
+                -- uniform drop-one navigates within `thn` — the strips this
+                -- replaced retired with gstack-coordinate emission
+                testNodes := testNodes ++ [retargetAtIf pn 1]
+            let (chA, xA) ← replayRewritesWith rec cfg ctx thn testNodes
+            unless xA == c do
+              throwError "if-finish/combined: or-collapse bridge — the \
+                  re-composed test chain reached {repr xA}, the rewritten \
+                  test is {repr c} (frontier)"
+            let chA ← chainReqEq chA
+            let hAX ← match chA with
+              | some hp => pure hp
+              -- The recorded prefix can be empty when the then-copy IS
+              -- already the test (INTEGERP-MOD's denominator rewrite).
+              -- xA == c above still checks the endpoint; replaying zero
+              -- test steps is exactly reflexivity, as for branch chains.
+              | none => mkIdEq thn
+            bridge? := some (← mkAppM ``evrel_siff_if_or_bridge
+              #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
+                reflectSExpr els', vC, ← ctxValExpr cfg ctx els',
+                hAX, pC, ← ctxValProof cfg ctx els'])
+            postStart := .cons (.atom (.symbol ifS))
+              (.cons c (.cons quoteT (.cons els' .nil)))
         -- whole-if finishing steps apply AFTER the branch congruence, on the
         -- rebuilt if
         let (postOpt, final) ← replayRewritesWith rec cfg ctx postStart postCh

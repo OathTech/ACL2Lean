@@ -1,7 +1,8 @@
 import Tests.Ns1Arithmetic
 
-/-! The multiplication-cancellation theorem remains open at its linear equation
-insertion. These pins consume its six actual atom boundary prefixes/verdicts;
+/-! Multiplication cancellation replays from the isolated linear-insertion
+capture; that producer is not yet promoted. These pins consume the production
+capture's six actual atom boundary prefixes/verdicts;
 the arithmetic pins check actual emitted verdict leaves under the ordinary
 command budget. Negative controls change only parsed records in memory. No native product is
 claimed by these fragment checks. -/

@@ -1263,6 +1263,11 @@ partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Un
       if !prov.subst.isEmpty then
         let substStrs := prov.subst.map fun (k, v) => s!"{k} → {v}"
         IO.println s!"{pad}  subst: {String.intercalate ", " substStrs}"
+      if let some basis := prov.substBasis then
+        if !basis.folds.isEmpty then
+          IO.println s!"{pad}  unfolded hypothesis: {basis.input}"
+          for fold in basis.folds do
+            IO.println s!"{pad}  substitution fold @ {repr fold.path}: {fold.lhs} => {fold.rhs}"
       if let some eq := prov.equivTerm then
         IO.println s!"{pad}  equiv: {eq}"
       if let some src := prov.equivSource then

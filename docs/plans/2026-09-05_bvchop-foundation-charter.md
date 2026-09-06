@@ -2173,6 +2173,78 @@ fields. Add strict parsing and recorded fold consumption before any
 producer promotion. No hypothesis DP, new arithmetic lemma, budget change,
 book edit, or native-spec change was made.
 
+### C2 recorded induction rulers and hypothesis instantiation, 2026-09-06
+
+The induction accessor now shares proof-producing false OR-component
+extraction with the existing ATOM decrease path. Equality aliases are
+checked against the captured World definition, with their values related
+by body convergence and uniqueness. The terminal IFF OR-collapse uses the
+existing recorded test-prefix replay and bridge; its endpoint is the combined
+record's result when no finishing child follows. The emitted collapse LHS
+is checked explicitly. No new arithmetic lemma or resource limit was added.
+
+Production fork **1167a1ac98330ab04ed57fae18ed6726f8134b25** incorporates
+the isolated f5cada538a substitution observer. Its image succeeds and passes
+the explicit freshness check (`c2-substitution-production-image-build.log`).
+`just recapture-all` succeeds (`c2-substitution-production-recapture-all.log`),
+and all **110** sidecars carry that clean fork. Source books/hints and the
+native specifications are unchanged. The tracked P8 fixture and sidecar
+were regenerated normally; other captures remain ignored artifacts.
+
+The reader retains a strict plain-instance/ordered-fold basis on the actual
+hypothesis marker. Replay validates each fold's ground arguments, emitted
+primitive guard, result and zero-based argument path, then composes those
+checked computations to the exact relieved hypothesis. It consumes the
+marker there and transports back to the original stored-rule instance.
+Quoted truth at the marker is checked directly. This route adds no hypothesis
+DP or inferred normalization. One initial compile failed because an early
+`return` escaped the enclosing Array-valued computation; replacing it with
+a value-producing branch fixes the error.
+
+The temporary actual-tree test and permanent `Tests.Ns1Substitution` check
+all **16** nonempty markers using `Meta.checkWithKernel` and the accepted
+axiom scan. They reject deleted folds, changed results/positions and missing
+primitive guards; the permanent test also rejects unpaired fields and a
+non-integer path. Receipts are `c2-substitution-folds-actual-controls.log`
+and **`c2-substitution-permanent-tests-build.log`** (3134 jobs, including
+Ns1Positive, Ns1Contexts and TamperTests). Reader/driver builds pass
+(`c2-ruling-substitution-reader-build.log`,
+`c2-hyp-substitution-consumer-build-rerun.log`,
+`c2-hyp-substitution-tree-build.log`). The reconstructed tree displays the
+actual fold under its hypothesis (`c2-substitution-fold-reconstructed-tree.log`).
+
+Focused regression preserves **LEN-ZIP2 1/1**, **LEN-ZIP3 1/1** and
+**ordered-perms 6/6**, all unconditional, in 5276, 8202 and 60342 ms
+respectively (`c2-ruling-zip2-replay-rerun.log`,
+`c2-ruling-zip3-replay-rerun.log`, `c2-ruling-ordered-perms-replay.log`).
+The first ZIP commands used a doubled recon-tests path; those command
+failures are superseded by the correctly named book reruns. Static recipes
+pass (`c2-substitution-production-static.log`).
+
+The capture comparison is explicit about its limits. **108 parsed logs
+preserve 14696 original events**, modulo the added hypothesis basis and
+one newly cited recognizer tuple: p6-or-collapse-arith now cites
+ACL2-NUMBERP through its actually recorded ground fold. All existing
+recognizer entries are unchanged by unique function key; proof event order
+is preserved. `cov-force-round` and `cov-or-hint` retain their existing
+forcing/package-marker parser refusals; their events were not compared.
+The initial comparison stopped on the first parser frontier; the next
+stopped on the recognizer addition. The final comparison checks that every
+added recognizer is named by an actual fold and reports the two uncompared
+logs (`c2-substitution-production-event-comparison-final.log`). These
+comparison projections are never used as replay inputs. The initial
+user-facing description as an ordering change was corrected after inspecting
+the complete snapshot: it is one added entry.
+
+Whole NIQ upper-bound replay passes these nodes but still refuses the
+known-true `(< '0 J)` hypothesis of <-OF-*-OF-/-ARG1-ARG2
+(`c2-quotient-production-after-folds.log`). Its marker has no recorded
+comparison/type-set basis; BUG-039 is reopened for that distinct class.
+The quoted-constructor matcher remains unchanged. Next capture the actual
+query route and consume its evidence, while preserving the no-hypothesis-DP
+boundary. These are fast-gate receipts. A fresh full regression run remains
+required for this increment; C2 and all three native products remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

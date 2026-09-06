@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Driver.NodeCore.GroundFold
+import ACL2Lean.Replay.Driver.NodeCore.SubstitutionFolds
 import ACL2Lean.Replay.Driver.NodeCore.KnownTrue
 
 /-! Replay the recorded hypothesis relief of an ordinary stored rule.
@@ -78,8 +78,20 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
     (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
   let mut prems : Array Expr := #[]
   for (h, idx) in hyps.zipIdx do
-    let hσ := ACL2.Replay.substTerm σvars σterms h
-    let hasMarker := reliefMarkers.any fun c => (nodeLhsRhs c).1 == hσ
+    let originalHσ := ACL2.Replay.substTerm σvars σterms h
+    let marker? := reliefMarkers.find? (fun c => hypothesisMarkerInput c == originalHσ)
+    let hasMarker := marker?.isSome
+    let (hσ, foldProof?) ← match marker? with
+      | some (.node _ lhs rhs _ prov) => do
+        unless lhs == rhs do throwError "rule {rname}: hypothesis marker endpoints differ"
+        match prov.substBasis with
+        | none => pure (originalHσ, none)
+        | some basis =>
+          unless prov.origin == "relieve-hyp/known-true" do
+            throwError "rule {rname}: substitution basis on unsupported relief origin"
+          pure (lhs, ← replayHypSubstitution cfg basis lhs)
+      | none => pure (originalHσ, none)
+    let reliefMarkers := marker?.toList
     let ownBinding := (bindingKids.filter (fun p => p.1 == idx + 1)).map Prod.snd
     let chainKids := if ownBinding.isEmpty then plainKids else ownBinding
     -- a SYNP hyp (syntaxp/bind-free): ACL2 relieves it by the meta-level
@@ -116,86 +128,97 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
         let conv ← replayExecGround cfg hσ SExpr.t
         mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
       else if hasMarker then do
-        -- relieved SILENTLY from the clause context (the emitted marker
-        -- names the instantiated hyp): the spine's (not hσ)-falsity fact
-        -- (the type-alist source the type-alist recipe also consumes)
-        let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
-          (.cons hσ .nil)
-        let vH ← ctxValExpr cfg ctx hσ
-        -- TYPE-CHECKED lookup (G1 arc 2026-07-29): a term-keyed fact from
-        -- another env context (pool-root/elim crossings) must not be
-        -- consumed — mismatches fall through to the alternate sources.
-        let checkedHit ← ctx.litFactByTermChecked? notH
-          (← mkEq (mkApp (mkConst ``Logic.not) vH) (mkConst ``SExpr.nil))
-        match checkedHit with
-        | some hNotNil => do
-          let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
-          mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
-        | none =>
-          -- a NOT-wrapped hyp whose ATOM's falsity is in scope: the hyp's
-          -- truth is definitional (Logic.not nil = t) — the complement
-          -- orientation of the direct case above (multi-elim guard-child
-          -- walks surface this: DEFAULT-CAR's hyp (NOT (CONSP v2)) with
-          -- the literal (CONSP v2) assumed false). The lookup —
-          -- lit-facts, false-branch assumptions, and upstream
-          -- `assoc-equiv`'s two-orientation EQUAL match — is
-          -- `notAtomFalsity?` (Compose.lean).
-          if let some hAtmNil ← notAtomFalsity? cfg ctx hσ then do
-            let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
-            let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+        let quoted? := match hσ with
+          | .cons (.atom (.symbol q)) (.cons value .nil) =>
+            if q.name == "QUOTE" then some value else none
+          | _ => none
+        if let some value := quoted? then do
+          -- Check the recorded final truth value after substitution folding.
+          let ne ← proveByDecide
+            (← mkAppM ``Ne #[reflectSExpr value, mkConst ``SExpr.nil]) "quoted hypothesis is nonnil"
+          let conv ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr value]
+          mkAppM ``evtrue_of_conv_ne_nil #[conv, ne]
+        else do
+          -- relieved SILENTLY from the clause context (the emitted marker
+          -- names the instantiated hyp): the spine's (not hσ)-falsity fact
+          -- (the type-alist source the type-alist recipe also consumes)
+          let notH : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+            (.cons hσ .nil)
+          let vH ← ctxValExpr cfg ctx hσ
+          -- TYPE-CHECKED lookup (G1 arc 2026-07-29): a term-keyed fact from
+          -- another env context (pool-root/elim crossings) must not be
+          -- consumed — mismatches fall through to the alternate sources.
+          let checkedHit ← ctx.litFactByTermChecked? notH
+            (← mkEq (mkApp (mkConst ``Logic.not) vH) (mkConst ``SExpr.nil))
+          match checkedHit with
+          | some hNotNil => do
+            let hne ← mkAppM ``logic_not_nil_ne #[vH, hNotNil]
             mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
-          else if (ACL2.Replay.freeVars hσ).isEmpty then do
-            -- GROUND hyp KNOWN-TRUE (Phase-3 class, 2026-08-04:
-            -- convert-perm's TRUE-LISTP-RM / RM-TLFIX — marker
-            -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)). Audit
-            -- 2026-08-04 F1 corrected the mechanism attribution: ACL2's
-            -- verdict here comes from the BUILT-IN RECOGNIZER TUPLE in
-            -- type-set-rec (probed live: knownp=T with ZERO runes added
-            -- — type-set-rec has no ground-evaluation clause), NOT from
-            -- the executable counterpart. It is a VERDICT-ONLY type-set
-            -- step — the ratified DP carve-out shape — and the replay
-            -- SUBSTITUTES closed-form evaluation for it on the closed
-            -- hyp instance: same value, kernel-checked, leaf-granular.
-            -- F2 caution: the marker's :TA-RUNES are the cumulative
-            -- incoming set (the verdict adds none), so there is nothing
-            -- verdict-specific to anchor on; the arm keys on the closed
-            -- term alone. A ground hyp whose value is not exactly t
-            -- hard-fails inside replayExecGround (honest frontier).
-            -- R4 EXPIRY DISCHARGED (2026-08-07): the arm is GATED on
-            -- the EMITTED recognizer tuple for the ground hyp's head
-            -- fn — the verdict basis ACL2's type-set-rec consulted,
-            -- now read from the cited snapshot (fork-batch item 2)
-            -- per the user's option-2 ruling. The value recompute
-            -- stays (kernel-checked evaluation toward the recorded
-            -- verdict); a ground hyp whose head has NO cited tuple
-            -- hard-fails — no tuple, no verdict basis, no discharge.
-            let headFn ← match hσ with
-              | .cons (.atom (.symbol hs)) _ => pure hs.name
-              | _ => throwError "ground-hyp: {repr hσ} has no \
-                  application head (frontier)"
-            unless (cfg.recogTuples.find? (fun t => t.fn == headFn)).isSome do
-              throwError "ground-hyp: head fn {headFn} has no cited \
-                  recognizer tuple in the emitted snapshot — the \
-                  KNOWN-TRUE verdict's basis is absent (frontier)"
-            let conv ← replayExecGround cfg hσ SExpr.t
-            mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
-          else if let some p ← replayHypLookupFromBasis? cfg ctx hσ reliefMarkers then
-            pure p
-          else if let some p ← replayKnownTrueIf? cfg ctx hσ reliefMarkers then
-            pure p
-          else if let some p ← replayKnownTruePrimitive? cfg ctx hσ reliefMarkers then
-            pure p
-          else do
-          -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
-          -- marker's :TA-RUNES name the forward-chaining rule that put the
-          -- fact on the type-alist. Registered reliefs (rule-of-three:
-          -- a third entry triggers registry-ization): LEXORDER-TOTAL —
-          -- pinned against the EMITTED snapshot (audit-F2 style), the
-          -- instantiated FC hyp discharged from the in-scope falsity
-          -- fact, the conclusion via the kernel-proved
-          -- `ACL2.lexorder_total`.
-          fcReliefLexorderTotal cfg ctx rname hσ notH vH tNeNil
-            reliefMarkers
+          | none =>
+            -- a NOT-wrapped hyp whose ATOM's falsity is in scope: the hyp's
+            -- truth is definitional (Logic.not nil = t) — the complement
+            -- orientation of the direct case above (multi-elim guard-child
+            -- walks surface this: DEFAULT-CAR's hyp (NOT (CONSP v2)) with
+            -- the literal (CONSP v2) assumed false). The lookup —
+            -- lit-facts, false-branch assumptions, and upstream
+            -- `assoc-equiv`'s two-orientation EQUAL match — is
+            -- `notAtomFalsity?` (Compose.lean).
+            if let some hAtmNil ← notAtomFalsity? cfg ctx hσ then do
+              let hT ← mkAppM ``logic_not_t_of_nil #[hAtmNil]
+              let hne ← mkAppM ``ne_of_eq_of_ne #[hT, tNeNil]
+              mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hσ, hne]
+            else if (ACL2.Replay.freeVars hσ).isEmpty then do
+              -- GROUND hyp KNOWN-TRUE (Phase-3 class, 2026-08-04:
+              -- convert-perm's TRUE-LISTP-RM / RM-TLFIX — marker
+              -- RELIEVE-HYP/KNOWN-TRUE on (TRUE-LISTP 'NIL)). Audit
+              -- 2026-08-04 F1 corrected the mechanism attribution: ACL2's
+              -- verdict here comes from the BUILT-IN RECOGNIZER TUPLE in
+              -- type-set-rec (probed live: knownp=T with ZERO runes added
+              -- — type-set-rec has no ground-evaluation clause), NOT from
+              -- the executable counterpart. It is a VERDICT-ONLY type-set
+              -- step — the ratified DP carve-out shape — and the replay
+              -- SUBSTITUTES closed-form evaluation for it on the closed
+              -- hyp instance: same value, kernel-checked, leaf-granular.
+              -- F2 caution: the marker's :TA-RUNES are the cumulative
+              -- incoming set (the verdict adds none), so there is nothing
+              -- verdict-specific to anchor on; the arm keys on the closed
+              -- term alone. A ground hyp whose value is not exactly t
+              -- hard-fails inside replayExecGround (honest frontier).
+              -- R4 EXPIRY DISCHARGED (2026-08-07): the arm is GATED on
+              -- the EMITTED recognizer tuple for the ground hyp's head
+              -- fn — the verdict basis ACL2's type-set-rec consulted,
+              -- now read from the cited snapshot (fork-batch item 2)
+              -- per the user's option-2 ruling. The value recompute
+              -- stays (kernel-checked evaluation toward the recorded
+              -- verdict); a ground hyp whose head has NO cited tuple
+              -- hard-fails — no tuple, no verdict basis, no discharge.
+              let headFn ← match hσ with
+                | .cons (.atom (.symbol hs)) _ => pure hs.name
+                | _ => throwError "ground-hyp: {repr hσ} has no \
+                    application head (frontier)"
+              unless (cfg.recogTuples.find? (fun t => t.fn == headFn)).isSome do
+                throwError "ground-hyp: head fn {headFn} has no cited \
+                    recognizer tuple in the emitted snapshot — the \
+                    KNOWN-TRUE verdict's basis is absent (frontier)"
+              let conv ← replayExecGround cfg hσ SExpr.t
+              mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
+            else if let some p ← replayHypLookupFromBasis? cfg ctx hσ reliefMarkers then
+              pure p
+            else if let some p ← replayKnownTrueIf? cfg ctx hσ reliefMarkers then
+              pure p
+            else if let some p ← replayKnownTruePrimitive? cfg ctx hσ reliefMarkers then
+              pure p
+            else do
+            -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
+            -- marker's :TA-RUNES name the forward-chaining rule that put the
+            -- fact on the type-alist. Registered reliefs (rule-of-three:
+            -- a third entry triggers registry-ization): LEXORDER-TOTAL —
+            -- pinned against the EMITTED snapshot (audit-F2 style), the
+            -- instantiated FC hyp discharged from the in-scope falsity
+            -- fact, the conclusion via the kernel-proved
+            -- `ACL2.lexorder_total`.
+            fcReliefLexorderTotal cfg ctx rname hσ notH vH tNeNil
+              reliefMarkers
       else if !ownBinding.isEmpty then
         replayBindingRhs rec cfg ctx rname (idx + 1) h hσ ownBinding
       else if let some (notS, atm) := (match hσ with
@@ -243,6 +266,9 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
                         composed to no steps"
         let hconv ← mkAppM ``fuel_conv_of_eq #[chain, ← quoteTFact cfg]
         mkAppM ``evtrue_of_conv_ne_nil #[hconv, tNeNil]
+    let evTrueEnv ← match foldProof? with
+      | none => pure evTrueEnv
+      | some p => mkAppM ``evtrue_of_fuel_eq #[p, evTrueEnv]
     -- transport to env': eval env' h ≡ eval env hσ (the bridge, reversed)
     let pB ← bridge h
     prems := prems.push

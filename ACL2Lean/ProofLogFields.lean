@@ -64,6 +64,36 @@ def parseRunes (s : SExpr) : Except String (List Rune) :=
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
 
+/-- Preserve the paired substitution fields; reject malformed fold records. -/
+def parseHypSubstitutionBasis (input folds : Option SExpr) :
+    Except String (Option HypSubstitutionBasis) := do
+  match input, folds with
+  | none, none => return none
+  | some input, some folds =>
+    let some rows := folds.toList? | throw "HYP-RELIEF: :SUBST-FOLDS is not a list"
+    let folds ← rows.mapM fun row => do
+      let some fields := row.toList? | throw "HYP-RELIEF: substitution fold is not a plist"
+      let rec validate : List SExpr → List String → Except String Unit
+        | [], seen => unless seen.length == 3 do
+            throw "HYP-RELIEF: substitution fold requires :PATH, :LHS and :RHS"
+        | .atom (.keyword key) :: _ :: rest, seen => do
+          unless ["PATH", "LHS", "RHS"].contains key && !seen.contains key do
+            throw "HYP-RELIEF: unknown or repeated substitution fold field"
+          validate rest (key :: seen)
+        | _, _ => throw "HYP-RELIEF: malformed substitution fold plist"
+      validate fields []
+      let some path := lookupKeyword "PATH" fields | throw "HYP-RELIEF: fold path absent"
+      let some parts := path.toList? | throw "HYP-RELIEF: fold path is not a list"
+      let path ← parts.mapM fun part => match part with
+        | .atom (.number (.int i)) =>
+          if i ≥ 0 then pure i.toNat else throw "HYP-RELIEF: negative fold path index"
+        | _ => throw "HYP-RELIEF: fold path index is not an integer"
+      let some lhs := lookupKeyword "LHS" fields | throw "HYP-RELIEF: fold lhs absent"
+      let some rhs := lookupKeyword "RHS" fields | throw "HYP-RELIEF: fold rhs absent"
+      return ({ path, lhs, rhs } : SubstitutionFold)
+    return some { input, folds }
+  | _, _ => throw "HYP-RELIEF: :UNFOLDED-HYP and :SUBST-FOLDS must occur together"
+
 /-- Decode the actual PROCESS-EQUATIONAL-POLYS insertion. Its payload is
 provenance, never a proof of the inserted equation. -/
 def parseLinearEquation (rest : List SExpr) : Except String TraceEvent := do

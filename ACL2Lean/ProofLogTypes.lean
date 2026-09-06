@@ -280,6 +280,19 @@ def parseIntField (v : Option SExpr) : Option Int :=
   | some (.atom (.number (.int n))) => some n
   | _ => none
 
+/-- A ground fold actually performed by sublis-var, at a zero-based argument path. -/
+structure SubstitutionFold where
+  path : List Nat
+  lhs : SExpr
+  rhs : SExpr
+  deriving Repr, BEq, Inhabited
+
+/-- The plain hypothesis instance and its actual ordered instantiation folds. -/
+structure HypSubstitutionBasis where
+  input : SExpr
+  folds : List SubstitutionFold
+  deriving Repr, BEq, Inhabited
+
 /-- The exact argument verdict and active tuple consumed by
 `type-set-recognizer` for a known-true hypothesis's root application. -/
 structure HypRecognizerBasis where
@@ -394,6 +407,7 @@ inductive TraceEvent where
       (recogBasis : Option HypRecognizerBasis := none)
       (lookupBasis : Option HypLookupBasis := none)
       (ifBasis : Option HypIfBasis := none)
+      (substBasis : Option HypSubstitutionBasis := none)
   /-- The clause's approved forward-chaining derivations, emitted where
       ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
       per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS
