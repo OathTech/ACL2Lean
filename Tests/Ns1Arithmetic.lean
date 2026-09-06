@@ -47,6 +47,8 @@ replayed_theorem productMinusOneReplayed :=
 
 replayed_theorem additiveInverseReplayed :=
   driver_replayed% helperDev helperWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
+replayed_theorem multiplicationCongruenceReplayed :=
+  driver_replayed% helperDev helperWorld "EQUIV-1-IMPLIES-EQUIV-*"
 replayed_theorem productNegationReplayed :=
   driver_replayed% helperDev helperWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
 
@@ -79,6 +81,11 @@ private def app (s : String) (xs : List SExpr) : SExpr := .cons (sym s) (SExpr.o
 private def zero : SExpr := app "QUOTE" [.atom (.number (.int 0))]
 private def nilTerm : SExpr := app "QUOTE" [.nil]
 private def trueTerm : SExpr := app "QUOTE" [.t]
+
+example (env : Env) : EvTrue helperWorld env
+    (app "IMPLIES" [app "EQUAL" [sym "X1", sym "X2"],
+      app "EQUAL" [app "BINARY-*" [sym "X1", sym "Y"],
+        app "BINARY-*" [sym "X2", sym "Y"]]]) := multiplicationCongruenceReplayed env
 
 example (env : Env) : EvTrue pass1World env
     (app "EQUAL" [app "BINARY-*" [zero, sym "X"], zero]) := pass1TimesZeroReplayed env
@@ -210,5 +217,9 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.bindProductSignReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms bindProductSignReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.multiplicationCongruenceReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms multiplicationCongruenceReplayed
 
 end ACL2.Tests.Ns1Arithmetic

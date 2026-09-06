@@ -1532,6 +1532,25 @@ This reopens BUG-039's root-IF case; the production parser/consumer and fork
 integration remain pending. Production `acl2/` is still clean at `2f0dd071ca`.
 The three NS1 native products remain unproved.
 
+The production dispatcher now routes recorded post-clausify substitution
+and equal-self steps through the existing spine consumer. The whole
+EQUIV-1-IMPLIES-EQUIV-* statement replays unconditionally in 335 ms with no
+DP leaves (`c2-congruence-dispatch-replay.log`). The preceding
+COMMUTATIVITY-2-OF-* row still fails; this is not a whole-prefix claim.
+The CLI and independent source/axiom pin build in 6208 jobs
+(`c2-congruence-dispatch-build.log`). The permanent negative control deletes
+one actual substitution and is rejected at equal-self clause membership;
+all five context controls build in 3117 jobs
+(`c2-congruence-contexts-build.log`). Static checks pass
+(`c2-congruence-dispatch-static.log`). This is an intermediate fast-gate
+increment after the full checkpoint above.
+
+RIGHT-CANCELLATION-FOR-* still reaches a vacuous residual without a matching
+child. Inspection of `rewrite-clause-lst` identifies a producer boundary
+error: `crunch-clause-segments` runs before BEGIN-BRANCH, so its substitution
+records occur outside the branch they simplify. The consumer must not infer
+their ownership from clause contents; the producer boundary needs repair.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

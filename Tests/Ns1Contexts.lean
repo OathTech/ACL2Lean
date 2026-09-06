@@ -121,4 +121,39 @@ elab "ns1_product_marker_control%" : command => Elab.Command.liftTermElabM do
 
 ns1_product_marker_control%
 
+private def congruenceCapture : String :=
+  include_str "../acl2_samples/ns1/basic-arithmetic-helper.proof-log"
+
+elab "ns1_congruence_substitution_control%" : command => Elab.Command.liftTermElabM do
+  let .ok log := ProofLog.parse congruenceCapture | throwError "congruence control: capture parse failed"
+  let active ← IO.mkRef false
+  let changed ← IO.mkRef (0 : Nat)
+  let events ← log.events.mapM fun ev => do
+    match ev with
+    | .defthm name _ _ _ =>
+      active.set (name == "EQUIV-1-IMPLIES-EQUIV-*")
+      pure ev
+    | .step s =>
+      unless (← active.get) do return ev
+      let traceEvents ← s.traceEvents.flatMapM fun ev => do
+        if let .branchSubstitution _ _ _ := ev then
+          changed.modify (· + 1)
+          return []
+        return [ev]
+      pure (.step { s with traceEvents })
+    | _ => pure ev
+  unless (← changed.get) == 1 do
+    throwError "congruence control: did not remove exactly one actual substitution"
+  let .ok bad := ClauseTree.buildDevelopment { log with events }
+    | throwError "congruence control: reconstruction failed before consumption"
+  let some cp := findThm bad "EQUIV-1-IMPLIES-EQUIV-*" | throwError "congruence control: target missing"
+  let (status, _) ← Runner.tryReplay bad bad.toWorld (mkConst ``Ns1Arithmetic.helperWorld)
+    cp (rulesBefore bad cp.name)
+  unless (status.splitOn "FAIL: replayClauseSpine: equal-self literal").length > 1 &&
+      (status.splitOn "not in the clause").length > 1 do
+    throwError "congruence control: unexpected result after removing substitution: {status}"
+  logInfo "congruence substitution removal rejected at equal-self clause membership"
+
+ns1_congruence_substitution_control%
+
 end ACL2.Tests.Ns1Contexts

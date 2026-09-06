@@ -44,8 +44,8 @@ charter or the archive carry the record.
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
       Discharge INTEGERP-MOD's remaining arithmetic-rule condition, EQUAL-/-0.
-      Consume the root-IF hypothesis basis (reopened BUG-039), wire the
-      existing clause walker to post-clausify substitution/reflexivity,
+      Consume the root-IF hypothesis basis (reopened BUG-039), repair
+      ownership of branch postpass records in the cancellation proof,
       and close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

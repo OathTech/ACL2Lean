@@ -307,7 +307,13 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         let postItems := (allItems.drop (clausifyIdx + 1)).filter fun
           | .clausify i => !(isNoopClausify i)
           | _ => true
-        let hasWalk := postItems.any fun | .literal _ => true | _ => false
+        -- A simplify pass can finish through clause-level substitution and
+        -- reflexivity without entering a literal scan. Those recorded steps
+        -- have the same existing spine consumer (including equation relief).
+        let hasWalk := postItems.any fun
+          | .literal _ => true
+          | .step n => ["branch-substitution", "equal-self"].contains (runeOf n).ty
+          | _ => false
         if hasWalk && info.out.length == 1 then
           let litsIdx := cl.zipIdx.map fun (l, i) => (i + 1, l)
           spineConsumed := true
