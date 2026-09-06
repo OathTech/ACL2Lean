@@ -410,6 +410,29 @@ are needed; it removes no event from an existing log.
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
+## BUG-042 — USE instance substitutions are logged before term translation
+Status: open
+Pinned-by: none (proof-log payload; actual arithmetic-3 helper capture exposes the mismatch)
+
+`prove.lisp`'s USE-HINT/PAYLOAD records `:LMI-LST` from the source hint,
+while `:HYPS` contains ACL2's translated instances. The consumer applies
+that raw substitution to the translated dependency statement, so source
+macros such as `(* X Y)` and `(- Y)` disagree with the recorded `BINARY-*`
+and `UNARY--` terms. It correctly refuses the mismatch. The real
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT tree cites
+UNIQUENESS-OF-+-INVERSES-LEMMA with both shapes; the clean d973 capture is
+`.tmp/ns1/c2-d973-dependencies/pass1/basic-arithmetic-helper.proof-log`,
+and the measured refusal is `c2-pass1-helper-first-replay-rerun.log`.
+
+ACL2's `history-management.lisp:translate-lmi/instance` already computes
+and adjusts the translated substitution before `sublis-var`. Replay needs
+that evidence, aligned with the original LMI and instantiated hypothesis;
+matching the result backwards or implementing source macro expansion in
+the checker would conceal the missing record. The existing verbatim
+instance check must remain. Other plain-instance consumers in the same
+capture exhibit the same refusal. Nested and functional instances retain
+their existing explicit scope boundaries.
+
 ## BUG-041 — a top-level LOCAL defun is emitted as an encapsulation witness
 Status: fixed
 Pinned-by: none (proof-log provenance; Tests.Ns1LocalDefinitions pins the actual dependency capture)

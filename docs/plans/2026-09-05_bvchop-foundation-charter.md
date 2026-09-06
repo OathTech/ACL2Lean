@@ -1221,6 +1221,46 @@ conditions; no NIQ proof or new native mirror is claimed from this gate.
 Next is the recorded nested IF collapse in INTEGERP-MOD, followed by the
 selected FLOOR/NIQ dependency closure.
 
+The reciprocal-sign increment closes both actual pass1/inequalities
+proofs, retaining the recorded IFF rewrite, IF splits, and two tau leaves
+per sign (`c2-pass1-inequalities-reciprocal-replay-rerun.log`: 3/3
+unconditional rows, 13674 ms). The primitive reciprocal view is normalized
+before component expansion; default proof budgets are unchanged. The new
+permanent prefix has 305 lines and three QEDs, and the existing NS1
+arithmetic test now pins both source formulas and clean axiom receipts.
+The first pin build correctly rejected an IFF in the handwritten statement:
+the source states EQUAL of the Boolean comparisons. The corrected pins
+retain that EQUAL. Failed probe/build receipts remain explicitly failed.
+
+The small pass1/mini-theories prerequisite is unconditional
+(`c2-pass1-mini-first-replay.log`: 1/1, four DP leaves). With it, the
+bind-free numerator-sign prefix is also unconditional
+(`c2-bind-free-numden-with-mini-replay.log`: 3/3, five DP leaves).
+Supplying these proofs and the reciprocal signs to INTEGERP-MOD reduces
+its conditions from ten to seven
+(`c2-integerp-mod-sign-dependencies-replay.log`: 49063 ms):
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT, DISTRIBUTIVITY,
+DISTRIBUTIVITY-OF-MINUS-OVER-+, EQUAL-/-0, EQUAL-DENOMINATOR-1,
+`(* -1 x)`, and `(< (* x y) 0)`. It remains conditional, with no assumed
+DP condition; C2 and the three new native products remain open.
+
+The permanent reciprocal prefix replays with all eight DP leaves and
+3/3 unconditional rows (`c2-reciprocal-permanent-replay.log`, 19322 ms).
+The six arithmetic pins, including both new whole-proof axiom receipts,
+build (`c2-reciprocal-sign-pins-build-rerun.log`, 3110 jobs); the affected
+CLI build is `c2-reciprocal-sign-build-rerun.log` (6184 jobs). Static checks
+pass (`c2-reciprocal-fast-static.log`, 103 clean d973 captures), with the
+subsequent BUG-042 index check in `c2-reciprocal-bug-index-check.log`.
+This checkpoint uses **fast-gate**; no full gate or native-product claim
+is made for this increment.
+
+The first multiplication-helper replay has 1/11 unconditional rows
+(`c2-pass1-helper-first-replay-rerun.log`: 64901 ms). Its selected
+FUNCTIONAL-COMMUTATIVITY dependency exposes BUG-042: raw source LMI
+substitutions disagree with the translated hypothesis. Other helper
+rows expose existing clause-composition, recognizer, and DP frontiers.
+No helper proof is claimed beyond the one measured unconditional row.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

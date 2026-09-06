@@ -9,6 +9,7 @@ import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.Replay.Driver.IntegerViews
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericNegation
+import ACL2Lean.NumericReciprocal
 
 namespace ACL2.Replay.Driver
 
@@ -227,7 +228,7 @@ partial def dpSpine : SExpr → List SExpr × SExpr
     reduce through them. `trueListp_ne_nil_iff` is recognizer booleanness —
     what tau itself knows about every recognizer (truthiness IS `= t`). -/
 def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := false)
-    (withComparison : Bool := false) :
+    (withComparison : Bool := false) (withReciprocal : Bool := false) :
     MetaM (TSyntax `tactic) := do
   let ordinary ← `(tactic| first
       | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
@@ -275,6 +276,19 @@ def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := fals
           -- Lean 4.33's lazy matcher congruences otherwise export colliding
           -- sparseCasesOn auxiliaries from separately compiled replays.
           grind -matchEqs -splitMatch)
+      | $ordinary:tactic) else pure ordinary
+  let ordinary ← if withReciprocal then `(tactic| first
+      -- Normalize reciprocal before expanding components. A single simp pass
+      -- can unfold numberParts before its fromRat view becomes applicable.
+      | ((try simp_all only [Logic.rationalp, Logic.not, Logic.toBool, SExpr.t, reduceCtorEq]) <;>
+          (try simp_all only [Logic.reciprocal_int_view, Logic.reciprocal_rat_view]) <;>
+          (try simp_all only [Logic.lt_parts, Logic.numberParts_fromRat]) <;>
+          (try simp_all only [Logic.numberParts, Logic.rationalValue]) <;>
+          (try simp_all only [show Rat.ofInt (Int.ofNat 0) = (0 : Rat) from rfl,
+            Rat.inv_pos, Logic.rat_inv_lt_zero, Rat.lt_irrefl, and_false, or_false]) <;>
+          (try split_ifs at *) <;>
+          simp_all only [Logic.toBool, reduceCtorEq, ite_self, not_false_eq_true,
+            SExpr.t, ne_eq, ite_false, ite_true])
       | $ordinary:tactic) else pure ordinary
   if !withNumericOrder then return ordinary
   `(tactic| first
@@ -714,7 +728,8 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
       (e.isAppOfArity ``Logic.plus 2 && e.getAppArgs[0]! == minusOne)).isSome
   let withNegation := (stmt.find? (fun e => e.isConstOf ``Logic.neg)).isSome
   let withComparison := (stmt.find? (fun e => e.isConstOf ``Logic.lt)).isSome
-  let tac ← dpLeafTactic withNumericOrder withNegation withComparison
+  let withReciprocal := (stmt.find? (fun e => e.isConstOf ``Logic.reciprocal)).isSome
+  let tac ← dpLeafTactic withNumericOrder withNegation withComparison withReciprocal
   -- Normalize equalities for the unsplit attempt. This closes structural
   -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
   -- leaf: 143k → 176 heartbeat units). Keep the constructor-split tactic's

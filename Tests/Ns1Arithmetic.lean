@@ -23,6 +23,15 @@ private def pass1Log : String := include_str "../acl2_samples/ns1/basic-arithmet
 def pass1Dev : Development := load_development% pass1Log
 derive_world pass1World from pass1Dev
 
+private def inequalitiesLog : String := include_str "../acl2_samples/ns1/inequalities.proof-log"
+def inequalitiesDev : Development := load_development% inequalitiesLog
+derive_world inequalitiesWorld from inequalitiesDev
+
+replayed_theorem reciprocalPositiveReplayed :=
+  driver_replayed% inequalitiesDev inequalitiesWorld "/-PRESERVES-POSITIVE"
+replayed_theorem reciprocalNegativeReplayed :=
+  driver_replayed% inequalitiesDev inequalitiesWorld "/-PRESERVES-NEGATIVE"
+
 replayed_theorem timesZeroReplayed :=
   driver_replayed% timesDev timesWorld "*-OF-0"
 replayed_theorem floorZeroReplayed :=
@@ -49,6 +58,27 @@ example (env : Env) : EvTrue modWorld env
 example (env : Env) : EvTrue pass1World env
     (app "EQUAL" [app "UNARY--" [app "UNARY--" [sym "X"]],
       app "FIX" [sym "X"]]) := negateTwiceReplayed env
+
+-- Independent translated source statements: preserve both directions of
+-- the sign equivalence and the rational hypothesis, with zero in its source
+-- position. The two source proofs each split into two recorded tau leaves.
+example (env : Env) : EvTrue inequalitiesWorld env
+    (app "IMPLIES" [app "RATIONALP" [sym "X"],
+      app "EQUAL" [app "<" [zero, app "UNARY-/" [sym "X"]],
+        app "<" [zero, sym "X"]]]) := reciprocalPositiveReplayed env
+
+example (env : Env) : EvTrue inequalitiesWorld env
+    (app "IMPLIES" [app "RATIONALP" [sym "X"],
+      app "EQUAL" [app "<" [app "UNARY-/" [sym "X"], zero],
+        app "<" [sym "X", zero]]]) := reciprocalNegativeReplayed env
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalPositiveReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms reciprocalPositiveReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalNegativeReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms reciprocalNegativeReplayed
 
 /-- info: 'ACL2.Tests.Ns1Arithmetic.negateTwiceReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
