@@ -31,6 +31,19 @@ theorem Logic.eq_of_equal_ne_nil {a b : SExpr}
   · exact eq_of_beq hab
   · simp [Logic.equal, hab] at h
 
+/-- Propositional view of ACL2 equality, without unfolding symbolic booleans. -/
+theorem Logic.equal_ne_nil_iff (a b : SExpr) : Logic.equal a b ≠ .nil ↔ a = b := by
+  constructor
+  · exact Logic.eq_of_equal_ne_nil
+  · rintro rfl
+    rw [Logic.equal_self]
+    decide
+
+/-- Preserve a recorded implication premise during DP normalization. -/
+theorem Logic.implies_ne_nil_iff (a b : SExpr) :
+    Logic.implies a b ≠ .nil ↔ (a ≠ .nil → b ≠ .nil) := by
+  cases a <;> cases b <;> simp [Logic.implies, Logic.toBool, SExpr.t]
+
 /-- Logic.not returns NIL iff the argument is truthy (non-nil). -/
 theorem Logic.not_nil_iff (a : SExpr) :
     Logic.not a = SExpr.nil ↔ Logic.toBool a = true := by

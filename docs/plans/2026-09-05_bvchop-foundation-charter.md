@@ -1302,6 +1302,40 @@ Those two recorded tau leaves are the next proof target. This is a
 **fast-gate** increment; the full checkpoint and BUG-042 close-out remain
 pending. No new native mirror is claimed.
 
+The following helper increment closes both recorded tau leaves. Numeric
+equality is normalized through canonical components with explicit number
+premises; the second leaf consumes the recorded USE implication after
+primitive multiplication-by-zero normalization. Both whole statements now
+replay unconditionally (`c2-helper-dp-literal-replay.log`: 3/11 prefix rows,
+27432 ms). The other eight prefix rows retain their measured frontiers.
+`Tests.Ns1Arithmetic` pins both source formulas, including the translated
+SYNTAXP premise, and both axiom trios; the clean permanent capture remains
+at fork `2f0dd071ca`. Supplying the helper reduces INTEGERP-MOD to **four**
+conditions: EQUAL-/-0, EQUAL-DENOMINATOR-1, `(* -1 x)`, and `(< (* x y) 0)`
+(`c2-helper-dp-integer-mod-replay.log`: 97741 ms).
+
+The initial integration exposed two normalization issues. An incomplete
+reciprocal-sign branch prevented fallback; requiring full closure restores
+EQUAL-DENOMINATOR-1's two DP leaves (4659 ms), while the reciprocal-sign
+prefix remains 3/3 unconditional with 8/8 DP leaves (22934 ms). The
+multiplication-zero simp lemma must retain the reflected integer constructor
+in its index. The actual production-handler probes now close both helper
+leaves without a resource increase (`c2-helper-dp-literal-probe.log`).
+Failed intermediate probes and replays remain as negative execution records.
+
+The full gate `.gate-runs/5044b6d-20260906T104829Z.log` is **TRUE_EXIT=1**:
+DriverTests still expected DISTRIBUTIVITY as an open FSQ premise, although
+the recorded primitive now closes it. That exact statement pin is updated
+to retain only UNICITY-OF-1. The remaining SortsEquivalent build job was
+terminated after this failure so the fixes could be built; this run provides
+no full-gate completion receipt. The affected build subsequently passes
+(`c2-helper-dp-literal-build.log`, 6216 jobs), as do both new helper pins
+(`c2-helper-statement-pins-build.log`, 3114 jobs). An earlier affected-build
+command also named a nonexistent test target; its corrected rerun passes.
+The final static suite passes (`c2-helper-dp-final-static.log`, 105 clean
+capture stamps). This remains a **fast-gate** increment. BUG-042's full checkpoint and all
+three native mirror proofs remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

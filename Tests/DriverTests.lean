@@ -1045,7 +1045,7 @@ elab "acl2_replay_fsq_real% " : term => do
     -- PIN the kept-hypothesis set (the statement itself is machine-generated
     -- from the log): a regression that weakens the replayed statement by keeping MORE
     -- hypotheses must fail here, not pass silently
-    let expected := ["rule:DISTRIBUTIVITY", "rule:UNICITY-OF-1"]
+    let expected := ["rule:UNICITY-OF-1"]
     unless conds == expected do
       throwError "fsq-unfolds: kept hypotheses {conds} ≠ pinned {expected}"
     logInfo m!"fsq-unfolds replayed; conditions: {conds}"
@@ -1077,17 +1077,12 @@ private def fsqRuleEq (lhs rhs : SExpr) : Prop :=
     verbatim, `(fsq a)` un-unfolded (the root Goal clause; the
     translated-`let` LAMBDA application appears in the child subgoal,
     INSIDE the replay — which is where the lambda machinery this pin
-    guards actually runs). Conditional on the two remaining ground-zero
-    arithmetic rules (specs from the D5 snapshot: hyp-free, EQUAL;
-    distributivity, unicity-of-1 → fix). COMMUTATIVITY-OF-* now replays
-    its primitive equation followed by every recorded child. -/
+    guards actually runs). Conditional on the remaining UNICITY-OF-1
+    equation to FIX (hyp-free, EQUAL). COMMUTATIVITY-OF-* and
+    DISTRIBUTIVITY replay their primitive equations followed by every
+    recorded child. -/
 example :
     ∀ (env : Env),
-      fsqRuleEq (fsqAp2 "BINARY-*" (fsqSym "X")
-                  (fsqAp2 "BINARY-+" (fsqSym "Y") (fsqSym "Z")))
-                (fsqAp2 "BINARY-+"
-                  (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Y"))
-                  (fsqAp2 "BINARY-*" (fsqSym "X") (fsqSym "Z"))) →
       fsqRuleEq (fsqAp2 "BINARY-*"
                   (.cons (fsqSym "QUOTE") (.cons (.atom (.number (.int 1))) .nil))
                   (fsqSym "X"))

@@ -2,7 +2,7 @@ import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
 /-! BUG-042: the actual macro-instance capture retains source and translated
-LMIs. The product theorem consumes the recorded USE of the earlier theorem.
+LMIs. The second theorem consumes the recorded USE of the earlier theorem.
 Negative controls modify only parsed records in memory. -/
 open ACL2 ACL2.Replay ACL2.Replay.Driver Lean
 namespace ACL2.Tests.Ns1UseInstances

@@ -27,6 +27,15 @@ private def inequalitiesLog : String := include_str "../acl2_samples/ns1/inequal
 def inequalitiesDev : Development := load_development% inequalitiesLog
 derive_world inequalitiesWorld from inequalitiesDev
 
+private def helperLog : String := include_str "../acl2_samples/ns1/basic-arithmetic-helper.proof-log"
+def helperDev : Development := load_development% helperLog
+derive_world helperWorld from helperDev
+
+replayed_theorem additiveInverseReplayed :=
+  driver_replayed% helperDev helperWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
+replayed_theorem productNegationReplayed :=
+  driver_replayed% helperDev helperWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
+
 replayed_theorem reciprocalPositiveReplayed :=
   driver_replayed% inequalitiesDev inequalitiesWorld "/-PRESERVES-POSITIVE"
 replayed_theorem reciprocalNegativeReplayed :=
@@ -46,6 +55,24 @@ replayed_theorem negateTwiceReplayed :=
 private def sym (s : String) : SExpr := .atom (.symbol { name := s })
 private def app (s : String) (xs : List SExpr) : SExpr := .cons (sym s) (SExpr.ofList xs)
 private def zero : SExpr := app "QUOTE" [.atom (.number (.int 0))]
+private def nilTerm : SExpr := app "QUOTE" [.nil]
+private def trueTerm : SExpr := app "QUOTE" [.t]
+
+example (env : Env) : EvTrue helperWorld env
+    (app "IMPLIES" [app "IF" [app "ACL2-NUMBERP" [sym "X"],
+      app "IF" [app "ACL2-NUMBERP" [sym "Y"],
+        app "EQUAL" [app "BINARY-+" [sym "X", sym "Y"], zero], nilTerm], nilTerm],
+      app "EQUAL" [app "UNARY--" [sym "X"], sym "Y"]]) := additiveInverseReplayed env
+
+-- Keep the source's syntactic premise and its translated quoted arguments.
+-- The replay consumes both recorded USE instances before its tau leaf.
+example (env : Env) : EvTrue helperWorld env
+    (app "IMPLIES" [app "SYNP" [nilTerm,
+      app "QUOTE" [app "SYNTAXP" [app "NOT" [app "QUOTEP" [sym "Y"]]]],
+      app "QUOTE" [app "IF" [app "NOT" [app "QUOTEP" [sym "Y"]], trueTerm, nilTerm]]],
+      app "EQUAL" [app "BINARY-*" [sym "X", app "UNARY--" [sym "Y"]],
+        app "UNARY--" [app "BINARY-*" [sym "X", sym "Y"]]]]) := productNegationReplayed env
+
 example (env : Env) : EvTrue timesWorld env
     (app "EQUAL" [app "BINARY-*" [zero, sym "X"], zero]) := timesZeroReplayed env
 
@@ -75,6 +102,14 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalPositiveReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms reciprocalPositiveReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.additiveInverseReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms additiveInverseReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.productNegationReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms productNegationReplayed
 
 /-- info: 'ACL2.Tests.Ns1Arithmetic.reciprocalNegativeReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

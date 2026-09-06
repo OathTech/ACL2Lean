@@ -10,6 +10,7 @@ import ACL2Lean.Replay.Driver.IntegerViews
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericNegation
 import ACL2Lean.NumericReciprocal
+import ACL2Lean.NumericEquality
 
 namespace ACL2.Replay.Driver
 
@@ -228,7 +229,8 @@ partial def dpSpine : SExpr → List SExpr × SExpr
     reduce through them. `trueListp_ne_nil_iff` is recognizer booleanness —
     what tau itself knows about every recognizer (truthiness IS `= t`). -/
 def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := false)
-    (withComparison : Bool := false) (withReciprocal : Bool := false) :
+    (withComparison : Bool := false) (withReciprocal : Bool := false)
+    (withImplication : Bool := false) :
     MetaM (TSyntax `tactic) := do
   let ordinary ← `(tactic| first
       | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
@@ -261,9 +263,29 @@ def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := fals
           (try split_ifs at *) <;> intros <;>
           simp_all [Nat.div_self, Nat.pos_iff_ne_zero] <;> omega)
       | omega)
-  let ordinary ← if withNegation then `(tactic| first
+  let ordinary ← if withNegation then `(tactic| solve
+      -- Component equality keeps explicit numeric premises. This closes
+      -- the recorded additive-inverse tau leaf without constructor splitting.
+      | (simp_all only [Logic.not_nil_iff, Logic.toBool_eq_true,
+          Logic.equal_ne_nil_iff] <;>
+          simp (disch := first | assumption | decide) only
+            [Logic.plus_parts, Logic.neg_parts, Logic.mkParts_eq_iff,
+             Logic.numberParts_mkParts] at * <;>
+          simp_all only [show Logic.numberParts
+              (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from rfl,
+            Prod.ext_iff, Prod.fst, Prod.snd, Logic.rat_neg_eq_iff, and_true, true_and])
       | (simp_all [-Logic.toBool, Logic.neg_parts, Logic.numberParts_mkParts,
           Logic.mkParts_numberParts, Logic.equal, Logic.toBool_eq_true, Logic.toBool_eq_false] <;> omega)
+      | $ordinary:tactic) else pure ordinary
+  let ordinary ← if withImplication then `(tactic| solve
+      -- Preserve implication premises before component normalization. The
+      -- actual USE tau leaf needs propositional elimination, and expanding
+      -- all its nested arithmetic first exhausts the direct leaf budget.
+      | ((try simp_all only [Logic.acl2Numberp_times,
+          Logic.times_zero_right, show Logic.toBool SExpr.t = true from rfl,
+          Bool.cond_eq_ite, ↓reduceIte, Logic.not_nil_iff, Logic.toBool_eq_true,
+          Logic.equal_ne_nil_iff, Logic.implies_ne_nil_iff]) <;>
+          grind -matchEqs -splitMatch)
       | $ordinary:tactic) else pure ordinary
   let ordinary ← if withComparison then `(tactic| first
       | (simp_all [-Logic.toBool, -Logic.lt, Logic.lt_parts, Logic.plus_parts,
@@ -277,7 +299,9 @@ def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := fals
           -- sparseCasesOn auxiliaries from separately compiled replays.
           grind -matchEqs -splitMatch)
       | $ordinary:tactic) else pure ordinary
-  let ordinary ← if withReciprocal then `(tactic| first
+  let ordinary ← if withReciprocal then `(tactic| solve
+      -- An incomplete sign normalization must fall through to the older
+      -- leaf tactic (the integer DENOMINATOR leaf needs its constructor simp).
       -- Normalize reciprocal before expanding components. A single simp pass
       -- can unfold numberParts before its fromRat view becomes applicable.
       | ((try simp_all only [Logic.rationalp, Logic.not, Logic.toBool, SExpr.t, reduceCtorEq]) <;>
@@ -729,7 +753,8 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   let withNegation := (stmt.find? (fun e => e.isConstOf ``Logic.neg)).isSome
   let withComparison := (stmt.find? (fun e => e.isConstOf ``Logic.lt)).isSome
   let withReciprocal := (stmt.find? (fun e => e.isConstOf ``Logic.reciprocal)).isSome
-  let tac ← dpLeafTactic withNumericOrder withNegation withComparison withReciprocal
+  let withImplication := (stmt.find? (fun e => e.isConstOf ``Logic.implies)).isSome
+  let tac ← dpLeafTactic withNumericOrder withNegation withComparison withReciprocal withImplication
   -- Normalize equalities for the unsplit attempt. This closes structural
   -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
   -- leaf: 143k → 176 heartbeat units). Keep the constructor-split tactic's

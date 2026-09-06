@@ -37,4 +37,11 @@ used at its recorded rewrite in INTEGERP-MOD. -/
 theorem neg_plus (a b : SExpr) : neg (plus a b) = plus (neg a) (neg b) := by
   simp only [neg_parts, plus_parts, numberParts_mkParts, Rat.neg_add]
 
+/-- Scalar normalization used by the recorded additive-inverse tau leaf. -/
+theorem rat_neg_eq_iff (a b : Rat) : -a = b ↔ a + b = 0 := by
+  constructor
+  · rintro rfl; exact Rat.add_neg_cancel a
+  · intro h
+    exact Rat.add_left_cancel a (by rw [Rat.add_neg_cancel, h])
+
 end ACL2.Logic

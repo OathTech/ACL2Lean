@@ -12,6 +12,7 @@
   corollary itself, never about any particular function.
 -/
 import ACL2Lean.Replay.Lemmas.Discharge
+import ACL2Lean.NumericMultiplication
 
 namespace ACL2.Replay
 
@@ -115,15 +116,8 @@ theorem acl2NumberpCor_closed_plus (u v : SExpr)
 query for an arbitrary arithmetic result. -/
 theorem acl2NumberpCor_closed_times (u v : SExpr)
     (_hu : TpArgAny u) (_hv : TpArgAny v) :
-    Logic.acl2Numberp (Logic.times u v) = SExpr.t := by
-  unfold Logic.times
-  split
-  · rfl
-  · cases Logic.toRat u
-    cases Logic.toRat v
-    dsimp only
-    rw [Logic.mkNumber_eq_fromRat]
-    rfl
+    Logic.acl2Numberp (Logic.times u v) = SExpr.t :=
+  Logic.acl2Numberp_times u v
 
 /-! ### The CONSTRUCTOR classes (TP-replay arc increment 2, 2026-08-13)
 

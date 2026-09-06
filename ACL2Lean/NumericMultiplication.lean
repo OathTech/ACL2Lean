@@ -29,6 +29,11 @@ theorem times_parts (a b : SExpr) :
     rcases rationalValue_num_den b with ⟨hbn, hbd⟩
     rw [han, had, hbn, hbd]
 
+/-- ACL2's multiplication always returns a number, including completed inputs. -/
+theorem acl2Numberp_times (a b : SExpr) : acl2Numberp (times a b) = .t := by
+  rw [times_parts]
+  rfl
+
 /-- The primitive DISTRIBUTIVITY axiom, on arbitrary ACL2 values.
 Required by the recorded rewrite in INTEGERP-MOD. -/
 theorem times_add (a b c : SExpr) :
@@ -36,5 +41,16 @@ theorem times_add (a b c : SExpr) :
   simp only [times_parts, plus_parts, numberParts_mkParts,
     Rat.sub_eq_add_neg, Rat.mul_add, Rat.neg_add]
   congr 1 <;> ac_rfl
+
+/-- Multiplication by zero, including ACL2's nonnumber completion.
+Normalizes a primitive subterm of the recorded USE-implication tau leaf.
+The explicit integer constructor matches reflected literals in simp's index. -/
+theorem times_zero_right (a : SExpr) :
+    times a (.atom (.number (.int (Int.ofNat 0)))) = .atom (.number (.int (Int.ofNat 0))) := by
+  rw [times_parts]
+  change mkParts ((numberParts a).1 * 0 - (numberParts a).2 * 0)
+    ((numberParts a).1 * 0 + (numberParts a).2 * 0) = _
+  simp only [Rat.mul_zero, Rat.sub_eq_add_neg, Rat.neg_zero, Rat.add_zero]
+  rfl
 
 end ACL2.Logic

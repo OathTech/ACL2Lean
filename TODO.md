@@ -43,9 +43,10 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Discharge INTEGERP-MOD's five remaining arithmetic-rule conditions;
-      validate the USE substitution repair (BUG-042), close the two selected
-      helper tau leaves, then the FLOOR/quotient bounds. Guard trees reconstruct separately with
+      Discharge INTEGERP-MOD's four remaining arithmetic-rule conditions,
+      starting with the recorded primitive USEs in EQUAL-DENOMINATOR-1;
+      validate the USE substitution repair (BUG-042) at the full checkpoint,
+      then close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
