@@ -1892,6 +1892,62 @@ Code/document whitespace checks are separate. Full claim-gate is next;
 BUG-048's producer and diagnostic capture remain isolated, and BUG-049
 is the current whole-cancellation frontier.
 
+The full gate at `d452422` is red:
+`.gate-runs/d452422-20260906T194643Z.log`, **TRUE_EXIT=1**. Basics/REV-APP,
+PERM-CONS/PERM-SYMMETRIC/PERM-RM and the corresponding coverage, driver,
+pattern and sorting pins reject the new boundary endpoint check. The
+actual PERM-CONS literal is `(NOT (CONSP (CONS X1 X2)))`: the old log keeps
+a recognizer rewrite to T before the boundary verdict on the original
+CONSP atom (`c2-perm-boundary-regression-shapes.log`). The known BUG-048
+producer replacement is needed on those captures too; weakening the new
+check would retain the wrong proof path.
+
+The production fork now has the two checked boundary fixes, cherry-picked
+as `094ebcc7ee` and `aac5e1a45d`, with a fresh image
+(`c2-boundary-production-image-build.log`). Full corpus recapture and a
+new gate are pending. The isolated fork has separate diagnostic commit
+`1589f73292`, recording the actual linear equation insertion's input/output,
+inserted literal, numeric flags, selected polynomial pair, assumptions and
+runes. The first image failed the raw-code registration check; registering
+PROCESS-EQUATIONAL-POLYS fixes it. Its image, tag check and source capture
+pass (`c2-linear-insertion-registered-image-build.log`,
+`c2-linear-insertion-registered-tags.log`,
+`c2-linear-insertion-dirty-capture.log`); the clean committed image rebuild
+also passes (`c2-linear-insertion-clean-image-build.log`). The diagnostic
+source capture was made before that commit and is stamped dirty; it is not
+a production artifact. Its six records all have KNOWN-TRUE numeric flags,
+no added assumptions and complementary two-term polynomial pairs. The
+current reader rejects LINEAR-EQUATION, as it should
+(`c2-linear-insertion-current-reader.log`). No linear insertion is replayed.
+
+The three new MOD capture paths follow the repository's generated-artifact
+convention: their files remain on disk and their capture commands are in
+Justfile, but the accidentally force-added logs/sidecars are removed from
+Git tracking in this fix round. Their bytes are unchanged by that index
+correction. The earlier capture-integrity and source-pin receipts stand.
+
+The production recapture finishes successfully
+(`c2-boundary-production-recapture-all.log`), with 110 logs stamped at
+clean aac5e1a45d. The times prefix now ends at <-OF-*-AND-*-CANCEL so its
+actual boundary controls are permanent in Tests.Ns1Positive. The affected
+build passes in 3159 jobs (`c2-boundary-production-focused-build.log`):
+Basics and PermBook import again; sorting/perm matches its unchanged 8/8
+golden; the six boundary compositions and their USE/CASES mutation controls
+pass; INTEGERP-MOD and its missing-dependency control still pass. Static
+checks pass (`c2-boundary-production-static.log`). This producer-integration
+checkpoint is **fast-gate**, not a repaired full-baseline claim.
+
+The clean isolated 1589f73292 image/capture also passes
+(`c2-linear-insertion-clean-capture.log`, 22450 lines, 22/22 source events).
+The full corpus boundary-shape triage reports 77 supported-tree boundary
+instances, all the same negative/T/NIL class. It explicitly reports the
+known unread/unreconstructed pattern books; it is a shape inventory, not
+coverage (`c2-boundary-corpus-shape-triage.log`). A prior inventory looked
+only at Git-tracked logs and returned no boundaries; most captures are
+intentionally generated/ignored. The new linear-insertion reader is prepared
+but not yet applied. Its next-step source notes are in
+`.tmp/ns1/linear-insertion-next.md`; no new proof scope has been assumed.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

@@ -71,8 +71,10 @@ the winning path. The consumer checks all six actual prefix/verdict
 compositions, with accepted axioms, and rejects removed prefixes, changed
 verdict inputs/results and changed polarity
 (`c2-positive-boundary-use-controls-rerun2.log`). Whole cancellation now
-stops at BUG-049. Production capture integration and full regression remain
-pending, so this entry stays open.
+stops at BUG-049. Production fork aac5e1a45d and all 110 captures now include
+the fix; permanent Tests.Ns1Positive controls, Basics and PermBook imports,
+and sorting/perm coverage pass (`c2-boundary-production-focused-build.log`).
+The full regression rerun remains pending, so this entry stays open.
 
 ## BUG-046 — IF window reconstruction drops its test and empty swapped windows
 Status: open

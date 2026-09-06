@@ -188,7 +188,7 @@ certify-ns1:
 # The sidecar records that scope and still hashes the entire unchanged source.
 capture-ns1-logs: certify-ns1
     mkdir -p acl2_samples/ns1/pass1 acl2_samples/ns1/bind-free
-    CAPTURE_THROUGH='*-OF-0' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
+    CAPTURE_THROUGH='<-OF-*-AND-*-CANCEL' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
     CAPTURE_THROUGH=FLOOR-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/floor.lisp
     CAPTURE_THROUGH=MOD-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/mod.lisp
     CAPTURE_THROUGH=TIMES-ZERO OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/basic-arithmetic.lisp
