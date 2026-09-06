@@ -35,25 +35,17 @@ charter or the archive carry the record.
 
 ## In flight
 
-- [ ] **NS1 — C2 first BVCHOP mirror.** Long run launched 2026-09-05
-      in `.claude/worktrees/ns1-bvchop`, branch `mdd/ns1-bvchop`, from the
-      approved docs commit `b452b70`. C0 baseline, native specifications and
-      both design reviews and C1 migration checked. Establish the selected
-      dependency closure from the reconstructed BVCHOP tree and close the
-      strong MOD-bound dependency before the first native proof. Complete the
-      first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
-      the strong MOD leaf now composes with those two visible conditions.
-      Validate the reciprocal/window repairs against the full baseline
-      (BUG-032/039/046/047), including sorting's cited Boolean TP. Close
-      the POSITIVE/CASES dependency: validate the boundary replacements against
-      the full baseline (BUG-048), then complete and integrate the recorded
-      linear equation consumer (BUG-049), including the source NOT-<-SAME
-      dependency and msort's count/linear-rule polynomial classes. The isolated
-      cancellation proof is now unconditional; promote its producer/closure
-      after the baseline classes replay, and rerun the full gate after the
-      DP normalization and test-traversal repairs. Validate the exact-name registry repair
-      below and close the quotient bounds. Guard trees reconstruct separately with
-      replay still excluded. Record:
+- [ ] **NS1 — C2 first BVCHOP mirror.** In `.claude/worktrees/ns1-bvchop`,
+      branch `mdd/ns1-bvchop`, from approved docs `b452b70`. C0/C1 checked;
+      all three native proofs remain open. Close the actual FLOOR/quotient
+      dependency trees, then carry the selected BVCHOP statements through the
+      shared native correspondence/decode kit. Finish the recorded induction
+      ruler and terminal OR-collapse consumers; consume hypothesis instantiation
+      folds (BUG-050) and the quoted-constructor match evidence if encountered.
+      Integrate the linear equation producer/consumer (BUG-049) after msort's
+      count/rewritten-linear-rule classes replay; cancellation is unconditional
+      from its isolated capture. Validate the exact-name registry repair below.
+      Guard trees reconstruct separately; their replay remains excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog

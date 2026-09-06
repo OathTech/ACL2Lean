@@ -30,6 +30,27 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-050 — hypothesis instantiation folds are absent from relief records
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+NONNEGATIVE-INTEGER-QUOTIENT-UPPER-BOUND-LINEAR applies
+<-OF-+-ARG1-WHEN-NEGATIVE-CONSTANT with K := '-1. Its actual hypothesis
+`(< '-1 '0)` is folded by `sublis-var`/`cons-term` before
+`known-whether-nil`; the emitted known-true marker names only `'T`.
+The exact hypothesis matcher therefore refuses the rule at Subgoal *1/4.
+Computing an unrecorded hypothesis or weakening the substitution check is
+not an acceptable repair.
+
+Isolated fork f5cada538a observes the actual instantiation walk and records
+its unfolded hypothesis and addressed ground folds on the known-true marker.
+The unchanged source prefix through
+NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2 captures successfully
+(`.tmp/ns1/c2-substitution-fold-capture/`, 14/12 QED/DEFTHM events); the
+actual missing fold is `(:PATH NIL :LHS (< '-1 '0) :RHS 'T)`.
+The observer does not rerun the computation. Its image and tagging checks
+pass; consumer support and production integration remain open.
+
 ## BUG-049 — linear equation insertion is absent before trivial substitution
 Status: open
 Pinned-by: none (intermediate clause transformation is missing from the proof log)
@@ -68,10 +89,12 @@ associativity model proof at its actual :USE instances
 (`c2-associativity-use-cancellation.log`, accepted axiom trio).
 Msort's fresh diagnostic capture contains additional
 count/linear-rule polynomial classes, so this producer has not been
-integrated into the production fork. Full regression remains pending.
+integrated into the production fork. The current production consumer passes
+full regression at 2953c78 (`.gate-runs/2953c78-20260906T215722Z.log`,
+`TRUE_EXIT=0`); the isolated insertion producer's integration remains open.
 
 ## BUG-048 — atom boundary type-set replacement retains the attempted rewrite
-Status: open
+Status: fixed
 Pinned-by: none (ACL2 instrumentation and proof-tree composition, not interpreter values)
 
 The actual <-OF-*-AND-*-CANCEL tree has six negated POSITIVE multiplication
@@ -99,8 +122,15 @@ the fix; permanent Tests.Ns1Positive controls, Basics and PermBook imports,
 and sorting/perm coverage pass (`c2-boundary-production-focused-build.log`).
 The full regression rerun remains pending, so this entry stays open.
 
+Full regression recovery, 2026-09-06: the gate at `2953c78` records
+`TRUE_EXIT=0` in `.gate-runs/2953c78-20260906T215722Z.log`. The repaired
+source pins and controls pass, all 116 baseline theorem rows remain
+unconditional, the golden is unchanged, and the 21 existing mirrors pass.
+This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
+
 ## BUG-046 — IF window reconstruction drops its test and empty swapped windows
-Status: open
+Status: fixed
 Pinned-by: none (recursive proof-tree records, not interpreter values)
 
 EQUAL-/ has a recorded BEGIN-IF test and swapped branch windows. The parser
@@ -119,8 +149,15 @@ repaired consumer shares the existing EQUAL-NIL swap shape with the other
 IF normalizers. Both failed modules and a changed-test control now pass
 (`c2-ordered-window-regression-pins-build.log`). A full rerun remains pending.
 
+Full regression recovery, 2026-09-06: the gate at `2953c78` records
+`TRUE_EXIT=0` in `.gate-runs/2953c78-20260906T215722Z.log`. The repaired
+source pins and controls pass, all 116 baseline theorem rows remain
+unconditional, the golden is unchanged, and the 21 existing mirrors pass.
+This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
+
 ## BUG-047 — rewrite-equal omits Boolean equality normalization
-Status: open
+Status: fixed
 Pinned-by: none (ACL2 instrumentation, not interpreter values)
 
 rewrite.lisp's two Boolean type-set arms return the nonconstant side of
@@ -133,6 +170,13 @@ also exposes a cited Boolean defun TP (PERM), requiring the same consumer to
 instantiate that recorded corollary. The repaired focused sorting replay
 passes 13/13 unconditional (`c2-equal-boolean-sorting-tp-replay.log`). Full
 regression validation remains pending.
+
+Full regression recovery, 2026-09-06: the gate at `2953c78` records
+`TRUE_EXIT=0` in `.gate-runs/2953c78-20260906T215722Z.log`. The repaired
+source pins and controls pass, all 116 baseline theorem rows remain
+unconditional, the golden is unchanged, and the 21 existing mirrors pass.
+This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
 
 ## BUG-001 — no character type: `#\a` is modeled as a symbol
 Status: fixed
@@ -408,7 +452,7 @@ Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-032 — clausification folds evaluator builtins beyond ACL2's primitive domain
-Status: open
+Status: fixed
 Pinned-by: none (actual BVCHOP-UPPER-BOUND branch-collapse frontier)
 
 `collapseEval` uses absence from the Lean World as its ground primitive test.
@@ -434,6 +478,13 @@ reduces it to `(EQUAL Y '0)`. `if-compile` PUSHes an application unchanged
 when its arguments contain no IF; only CALL invokes the primitive folds in
 `call-stack`. The primitive-domain/guard repair above remains in place;
 the additional compiler-boundary repair is in progress.
+
+Full regression recovery, 2026-09-06: the gate at `2953c78` records
+`TRUE_EXIT=0` in `.gate-runs/2953c78-20260906T215722Z.log`. The repaired
+source pins and controls pass, all 116 baseline theorem rows remain
+unconditional, the golden is unchanged, and the 21 existing mirrors pass.
+This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
 
 ## BUG-033 — snapshot collector treats quoted symbol data as function references
 Status: fixed
@@ -681,7 +732,7 @@ rows and coverage golden are preserved, and the 21 existing mirrors pass.
 This is a capture/consumer repair; the NS1 native mirrors remain open.
 
 ## BUG-039 — silent hypothesis relief omits its type-set basis
-Status: open
+Status: fixed
 Pinned-by: none (proof-capture/replay provenance; no interpreter-value divergence)
 MOD-BOUND-LINEAR-ARG2 exposes two distinct missing records. The known-true
 marker for PREFER-POSITIVE-ADDENDS-<'s ACL2-NUMBERP arithmetic-result hypothesis
@@ -718,6 +769,13 @@ checks with the accepted axiom trio, and deleting its pruned leaf is rejected
 (`.tmp/ns1/c2-known-if-actual-node.log`). All 107 production captures are
 stamped at the new fork. Whole EQUAL-/ replay and full regression validation
 remain pending. This consumer does not invoke a hypothesis DP.
+
+Full regression recovery, 2026-09-06: the gate at `2953c78` records
+`TRUE_EXIT=0` in `.gate-runs/2953c78-20260906T215722Z.log`. The repaired
+source pins and controls pass, all 116 baseline theorem rows remain
+unconditional, the golden is unchanged, and the 21 existing mirrors pass.
+This closes this repair; NS1's three native BVCHOP mirrors remain open.
+
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set
 Status: fixed

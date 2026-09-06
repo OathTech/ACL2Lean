@@ -2122,6 +2122,57 @@ consumer must connect their actual proof chain to the inserted equation;
 they must not be treated as if they were already replayed. The isolated
 producer remains unpromoted.
 
+### C2 regression recovery and quotient frontier, 2026-09-06 22:33 UTC
+
+The source remained clean at **2953c78** throughout the full rerun:
+`TMPDIR="$PWD/.tmp" just claim-gate`, artifact
+`.gate-runs/2953c78-20260906T215722Z.log`, manually read **TRUE_EXIT=0**.
+All 116 baseline theorem rows are unconditional, the coverage golden is
+byte-identical, and the seam gate reports all 21 existing products with
+accepted proof paths. This closes the pending full regression checks for
+BUG-032/039/046/047/048 and the rational DP/test-traversal repairs. It does
+not promote the isolated linear insertion producer or close a new mirror.
+
+The current NIQ upper-bound tree first stops at its induction decrease:
+the nonzero NFIX ruler and IFIX lower bound are inside the recorded false
+`(IF a a c)` test. A temporary consumer extracts the two components using
+the existing `cond_or_nil_inv` proof and proves the captured `=` alias's
+value equality from its actual World definition. The actual decrease
+passes an explicit kernel check. It then reaches a terminal IFF OR-collapse:
+the combined record already identifies the collapse, but the consumer
+previously required a following finishing child. Extending that existing
+route to the combined record's result also passes an explicit kernel check
+inside the actual theorem (`c2-quotient-ruling-or-kernel.log`). These are
+fragment receipts; the whole NIQ upper-bound still fails at BUG-050.
+No production Lean implementation was changed during the gate.
+
+Isolated fork **f5cada538a**, branch `mdd/ns1-hyp-subst`, lives at
+`.tmp/ns1/acl2-quoted-unify` (the directory was created for the earlier
+quoted-match investigation; that matcher is still unchanged). It observes
+`sublis-var`'s actual cons-term fold inputs, outputs and argument positions,
+and snapshots that basis on the known-true hypothesis marker. Raw observer
+macros expand to the original forms in the logic. The initial image build
+failed the bootstrap's raw-macro declaration check; declaring those three
+intentional raw/logic differences fixes it. `make LISP="sbcl --no-sysinit"`
+then succeeds (`c2-substitution-fold-image-build-rerun.log`), as do fork tags
+and diff checks. A raw diagnostic initially hit nono's `/etc/sbclrc` denial;
+using the capture script's existing `--no-sysinit` resolves it. The two raw
+observer examples preserve returned values and report the expected fold
+positions (`c2-substitution-observer-probe-rerun.log`); they are diagnostics,
+not positive proof artifacts.
+
+After the full gate completed, the unchanged NIQ source through
+NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2 was captured with that clean
+image, `CAPTURE_WORKER=1` and an isolated OUTDIR. The capture succeeds with
+14/12 QED/DEFTHM events (`c2-substitution-fold-capture.log`); source hash is
+7a5098c9c7f5f9e19bc65f36a4d26bfe5e53984bb2fefb9bafeb34aa367be391.
+The actual missing hypothesis fold is now present at
+`c2-substitution-fold-capture/nonnegative-integer-quotient.proof-log:20406`.
+The old reader reconstructs the tree but does not yet retain these new
+fields. Add strict parsing and recorded fold consumption before any
+producer promotion. No hypothesis DP, new arithmetic lemma, budget change,
+book edit, or native-spec change was made.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries
