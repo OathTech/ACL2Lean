@@ -439,10 +439,10 @@ structure ReplayCtx where
       set by the discharge call sites from the verdict node; gates and
       widens `replayDischargeNode`'s rule-premise pass. -/
   tauBasis : Option SExpr := none
-  /-- The enclosing recorded clause node's rune set. Linear premise injection
-      must use a cited :LINEAR rule when this channel exists. None is reserved
-      for callers without a clause record; some [] permits no linear rules. -/
-  linearRunes : Option (List Rune) := none
+  /-- The enclosing recorded clause node's rune set. Ordinary linear and TP
+      premises must use cited rules. None keeps the admission callers' separate
+      linear policy; cited TP injection always requires a clause record. -/
+  clauseRunes : Option (List Rune) := none
   ifMarkers : List (SExpr × Bool × SExpr) := []  -- P3b: the literal's IF-test markers, `bridgeIfCollapseNorm`'s anchor
   /-- ENCLOSING UNRESOLVED-IF test facts (the if-finish branch context,
       ACL2's assume-true-false): the test term, its value expr, the branch
@@ -1273,6 +1273,8 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
     return some (← mkAppM ``lexorder_boolean #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``Logic.lt 2 then
     return some (← mkAppM ``logic_lt_t_or_nil #[v.appFn!.appArg!, v.appArg!])
+  if v.isAppOfArity ``Logic.integerp 1 then
+    return some (← mkAppM ``logic_integerp_t_or_nil #[v.appArg!])
   match t with
   | .cons (.atom (.symbol hs)) (.cons c (.cons a (.cons b .nil))) =>
     if hs.name == "IF" then do

@@ -918,6 +918,12 @@ theorem logic_equal_t_or_nil (a b : SExpr) :
     Logic.equal a b = SExpr.t ∨ Logic.equal a b = SExpr.nil := by
   by_cases h : a == b <;> simp [Logic.equal, h]
 
+theorem logic_integerp_t_or_nil (v : SExpr) :
+    Logic.integerp v = SExpr.t ∨ Logic.integerp v = SExpr.nil := by
+  by_cases h : Logic.integerp v = SExpr.nil
+  · exact Or.inr h
+  · exact Or.inl (logic_integerp_ne_nil_t v h)
+
 /-- The boolean-TP corollary fact as a disjunction. -/
 theorem tp_boolean_t_or_nil (v : SExpr) {X : SExpr}
     (h : cond (Logic.toBool (Logic.equal v SExpr.t)) X (Logic.equal v SExpr.nil)

@@ -50,4 +50,63 @@ theorem logic_acl2Numberp_t_of_inTs {m : Int} {v : SExpr}
     | string _ => exact absurd h127 (by simp only [InTs, tsIndex_string]; decide)
     | char _ => exact absurd h127 (by simp only [InTs, tsIndex_char]; decide)
 
+/-- Primitive rational type cells consumed at INTEGERP-MOD's recorded
+RATIONALP multiplication/reciprocal node (argument mask 40, true mask 63).
+These prove the numeric model's closure; they do not prove the book theorem. -/
+theorem not_complex_of_inTs_rational {v : SExpr} (h : InTs 63 v) :
+    Logic.isComplex v = false := by
+  cases v with
+  | nil | cons _ _ => rfl
+  | atom a =>
+    cases a with
+    | number n =>
+      cases n with
+      | int _ | rational _ _ _ => rfl
+      | complex _ _ _ =>
+        exact absurd h (by simp only [InTs, tsIndex_complex]; decide)
+    | _ => rfl
+
+theorem inTs_mkNumber_rational (n : Int) (d : Nat) : InTs 63 (Logic.mkNumber n d) := by
+  apply inTs_rationalp_true
+  unfold Logic.mkNumber
+  split
+  · rfl
+  · dsimp only
+    split <;> rfl
+
+theorem inTs_times_rat {a b : SExpr} (ha : InTs 63 a) (hb : InTs 63 b) :
+    InTs 63 (Logic.times a b) := by
+  simp only [Logic.times, not_complex_of_inTs_rational ha, not_complex_of_inTs_rational hb,
+    Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  exact inTs_mkNumber_rational _ _
+
+theorem inTs_reciprocal_rat {a : SExpr} (ha : InTs 63 a) :
+    InTs 63 (Logic.reciprocal a) := by
+  simp only [Logic.reciprocal, Logic.div,
+    show Logic.isComplex (.atom (.number (.int 1))) = false from rfl,
+    not_complex_of_inTs_rational ha,
+    Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  split
+  · exact inTs_rationalp_true rfl
+  · exact inTs_mkNumber_rational _ _
+
+theorem logic_rationalp_t_of_inTs {m : Int} {v : SExpr}
+    (hm : tsSubsumedM m 63 = true) (h : InTs m v) :
+    Logic.rationalp v = SExpr.t := by
+  have h63 : InTs 63 v := inTs_weaken hm h
+  cases v with
+  | nil => exact absurd h63 (by simp only [InTs, tsIndex_nil]; decide)
+  | cons a d =>
+    exact absurd h63 (by simp only [InTs, tsIndex_cons]; split_ifs <;> decide)
+  | atom a =>
+    cases a with
+    | number n =>
+      cases n with
+      | int _ | rational _ _ _ => rfl
+      | complex _ _ _ => exact absurd h63 (by simp only [InTs, tsIndex_complex]; decide)
+    | symbol s => exact absurd h63 (by simp only [InTs, tsIndex_symbol]; split_ifs <;> decide)
+    | keyword _ => exact absurd h63 (by simp only [InTs, tsIndex_keyword]; decide)
+    | string _ => exact absurd h63 (by simp only [InTs, tsIndex_string]; decide)
+    | char _ => exact absurd h63 (by simp only [InTs, tsIndex_char]; decide)
+
 end ACL2.Replay

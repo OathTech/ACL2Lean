@@ -1084,8 +1084,11 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
               let chA ← chainReqEq chA
               let hAX ← match chA with
                 | some hp => pure hp
-                | none => throwError "if-finish/combined: or-collapse bridge — \
-                    empty test chain but then-copy {repr thn} ≠ test {repr c}"
+                -- The recorded prefix can be empty when the then-copy IS
+                -- already the test (INTEGERP-MOD's denominator rewrite).
+                -- xA == c above still checks the endpoint; replaying zero
+                -- test steps is exactly reflexivity, as for branch chains.
+                | none => mkIdEq thn
               bridge? := some (← mkAppM ``evrel_siff_if_or_bridge
                 #[cfg.worldExpr, cfg.envExpr, reflectSExpr c, reflectSExpr thn,
                   reflectSExpr els', vC, ← ctxValExpr cfg ctx els',

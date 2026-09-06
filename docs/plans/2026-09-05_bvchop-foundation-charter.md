@@ -1072,6 +1072,51 @@ standalone bracket still reports the three linear leaves without their rule
 premise. Unselected prefix rows keep their reported frontiers; no whole-book
 claim is made.
 
+Commit `f0257a8` checkpoints the passing capture/consumer batch above. The
+next increment has now applied the rational multiplication/reciprocal cells to
+the existing type-set walker and RATIONALP recognizer registry; its affected
+build and actual owning-theorem replay are pending. The prepared integer-view
+module reuses the existing `Logic.integerp_int` fact rather than introducing
+an identical lemma.
+
+The rational type-cell build and four existing NS1 arithmetic pins pass
+(`c2-rational-cell-wiring-build.log`). INTEGERP-MOD's actual replay crosses
+the RATIONALP node and reaches the following if-finish/or-copy join
+(`c2-integerp-mod-rational-cells-replay.log`). That join rejects an empty test
+prefix even after checking that the unchanged then-copy equals the test.
+The empty-prefix arm now uses the same reflexive fuel equality as empty
+branch chains; its endpoint check and all actual branch/post steps remain.
+The affected build and owning-theorem rerun are pending. No new whole row is
+claimed complete.
+
+The empty test-prefix change builds (`c2-empty-test-prefix-build.log`), and
+ORDD-INS-MID remains unconditional with three passing informational DP leaves
+(`c2-empty-test-prefix-bridge-regression.log`, 200675 ms). The INTEGERP-MOD
+rerun crosses that join and reaches the Boolean result check. That check now
+uses the existing shared `boolDisj?` walk, extended by INTEGERP's core
+Boolean-result fact; the duplicate if1/boolean dispatch was removed.
+
+The next applied batch adds leaf-cited, whole-formula TP premises and the
+integer-witness context decomposition. The build and four NS1 arithmetic
+pins pass (`c2-cited-tp-integer-views-build.log`); static checks pass
+(`c2-rational-cited-tp-fast-static.log`); all three 03-linear rows remain
+unconditional (`c2-integer-views-linear-regression.log`, 5854 ms). The owning
+INTEGERP-MOD tree now reaches an IFF-continuation/EQUAL-parent composition
+frontier (`c2-integerp-mod-cited-tp-batch-replay.log`). The prior
+`c2-integerp-mod-boolean-replay.log` is an invalid run: a concurrent rebuild
+removed Ctx.olean before the runtime import; it supplies no proof receipt.
+The actual strong MOD-bound rerun with its cited owning dependency is in
+progress. No new complete row or native mirror is claimed.
+
+The strong-bound rerun now composes its actual linear leaf without an
+ASSUMED DP hypothesis: **MOD-BOUND-LINEAR-ARG2-STRONG is REPLAYED conditional
+on `rule:MY-FLOOR-LOWER-BOUND-ALT` and `tpthm:INTEGERP-MOD`**
+(`c2-mod-cited-tp-integer-views-replay.log`, 193715 ms; 12/58 replayed,
+2 unconditional and 10 conditional). Both remaining conditions name actual
+book dependencies still to replay. The standalone informational discharge
+probe, which lacks these premises, still reports an assumed leaf. This is
+an intermediate fast-gate checkpoint, not C2 completion or a full-gate claim.
+
 ## Resume record
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives

@@ -137,6 +137,7 @@ def tsTestNilOf (t : SExpr) : Option (SExpr × Int × Lean.Name) :=
 def tsRecogTrue : List (String × Int × Lean.Name) :=
   [("ACL2-NUMBERP", 127, ``ACL2.Replay.logic_acl2Numberp_t_of_inTs),
    ("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
+   ("RATIONALP", 63, ``ACL2.Replay.logic_rationalp_t_of_inTs),
    ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
    ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
 
@@ -158,6 +159,13 @@ def tsRecogNil : List (String × Int × Lean.Name) :=
     arguments. -/
 def tsBinaryOf (op : String) : Option (Int × Int × Lean.Name) :=
   if op == "BINARY-+" then some (23, 23, ``ACL2.Replay.inTs_plus_int)
+  else if op == "BINARY-*" then some (63, 63, ``ACL2.Replay.inTs_times_rat)
+  else none
+
+/-- Unary primitive closure at a recorded type-set query. The first cell is
+reciprocal on the rational arguments of INTEGERP-MOD's multiplication node. -/
+def tsUnaryOf (op : String) : Option (Int × Int × Lean.Name) :=
+  if op == "UNARY-/" then some (63, 63, ``ACL2.Replay.inTs_reciprocal_rat)
   else none
 
 /-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER

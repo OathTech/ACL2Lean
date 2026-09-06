@@ -666,6 +666,14 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
           #[← mkAppM ``Logic.toBool_eq_false #[vP], hNil]
         out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
           (← inTsTy m))]
+  -- Unary primitive cells consume the same context-derived argument mask.
+  if let .cons (.atom (.symbol op)) (.cons a .nil) := t then
+    if let some (inMask, outMask, nm) := tsUnaryOf op.name then
+      let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
+      let va ← ctxValExpr cfg ctxA a
+      if let some ha ← inTsFromCtx cfg ctxA localFacts citedCr a va inMask then
+        out := out ++ [(outMask, ← mkExpectedTypeHint
+          (← mkAppM nm #[ha]) (← inTsTy outMask))]
   -- (4) ARITHMETIC PRIMITIVES: ACL2's `type-set-binary-+` cell — both
   -- arguments typed (recursively, from the SAME sources) and the
   -- registered closure fact applied

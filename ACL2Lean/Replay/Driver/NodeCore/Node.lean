@@ -383,55 +383,12 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         unless thn == quoteT && els == quoteNil && rhs == c do
           throwError "if1/boolean: node is not (if tst 't 'nil) ⇒ tst: \
                       {repr lhs} ⇒ {repr rhs}"
-        let vC ← ctxValExpr cfg ctx c
-        let hBool ←
-          if vC.isAppOfArity ``Logic.equal 2 then
-            mkAppM ``cond_toBool_equal #[vC.appFn!.appArg!, vC.appArg!]
-          else if vC.isAppOfArity ``ACL2.lexorder 2 then
-            -- LEXORDER test: two-valuedness DIRECTLY from `lexorder_boolean`
-            -- (a builtin boolean predicate — no TP hypothesis needed).
-            mkAppM ``cond_toBool_lexorder #[vC.appFn!.appArg!, vC.appArg!]
-          else if vC.isAppOfArity ``Logic.lt 2 then
-            -- `<` test (G1 rung 1, p6): two-valued builtin — same closer
-            -- via the disjunction form.
-            mkAppM ``cond_toBool_of_t_or_nil
-              #[← mkAppM ``logic_lt_t_or_nil #[vC.appFn!.appArg!, vC.appArg!]]
-          else if (match c with
-                   | .cons (.atom (.symbol s)) (.cons _ (.cons _ (.cons _ .nil))) =>
-                     s.name == "IF"
-                   | _ => false) then do
-            -- IF-headed test (G1 rung 1, inc-2 — p3-conj-mid-literal):
-            -- two-valuedness derived STRUCTURALLY from the branches
-            -- (quoted constants / equal / lexorder / boolean-TP fns,
-            -- recursively through nested ifs) — the same sources ACL2's
-            -- type-set unions over the if's leaves.
-            let some hd ← boolDisj? cfg ctx c
-              | throwError "if1/boolean: IF-headed test {repr c} has a \
-                  branch with no two-valuedness source (frontier)"
-            mkAppM ``cond_toBool_of_t_or_nil #[hd]
-          else do
-            -- USER-FN test: two-valuedness from the fn's EMITTED
-            -- :TYPE-PRESCRIPTION hypothesis (the boolean corollary shape),
-            -- instantiated at the test's pinned value — consumed, not
-            -- inferred (same source as the type-alist truthy verdict)
-            let .cons (.atom (.symbol fs)) argsSpine := c
-              | throwError "if1/boolean: test {repr c} is neither a \
-                            Logic.equal value nor a fn application \
-                            (two-valuedness source, frontier)"
-            let some (_, _, tpHyp) := ctx.tpHyps.find? (fun (nm, _, _) => nm == fs.name)
-              | throwError "if1/boolean: no :TYPE-PRESCRIPTION hypothesis for \
-                            {fs.name} (emit more, frontier)"
-            let some (formals, _) := cfg.worldVal.defs.get? fs
-              | throwError "if1/boolean: {fs.name} not defined in the world"
-            let args := (argsSpine.toList?).getD []
-            unless formals.length == args.length do
-              throwError "if1/boolean: arity mismatch instantiating the TP \
-                          of {fs.name}"
-            let some (v, conv) := ctx.val? c
-              | throwError "if1/boolean: {repr c} has no pinned value (frontier)"
-            let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
-              ++ (args.map reflectSExpr).toArray ++ #[v, conv])
-            mkAppM ``cond_toBool_of_tp_boolean #[v, fact]
+        -- The shared two-valuedness walk handles core predicates and the
+        -- emitted Boolean TP of a user function, recursively through IF.
+        -- This is the same source used when decoding IFF rule conclusions.
+        let some hd ← boolDisj? cfg ctx c
+          | throwError "if1/boolean: test {repr c} has no two-valuedness source (frontier)"
+        let hBool ← mkAppM ``cond_toBool_of_t_or_nil #[hd]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← ctxValProof cfg ctx c
         return ← mkAppM ``fuel_eq_of_conv #[pl, pr, hBool]

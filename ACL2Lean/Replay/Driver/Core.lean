@@ -140,7 +140,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- Refresh at every clause entry: filtering the offers themselves here would
   -- incorrectly lose rules cited only by a child. Admission bundles already
   -- have their own recorded-rune gate at their construction site.
-  let ctx := { ctx with linearRunes := some (cn.steps.flatMap (·.runes)) }
+  let ctx := { ctx with clauseRunes := some (cn.steps.flatMap (·.runes)) }
   -- never-silently-skip (R7a audit F4, the F12 class): a :USE-HINT
   -- payload is consumed ONLY by the apply-top-hints arm (the no-clausify
   -- branch below) — any node routed to another processor arm with a

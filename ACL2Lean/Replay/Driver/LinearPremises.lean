@@ -37,11 +37,10 @@ open ACL2 Lean Lean.Meta
 /-- First-order ONE-WAY match: bind the pattern's VARIABLES (bare symbol
     atoms — ACL2 constants are quoted, functions are application heads) to
     subterms of `target`. Deterministic; fail-closed on conflicting
-    bindings. The replay's ONLY matcher, justified at the verdict-class
-    :LINEAR premise site alone (2b): ACL2 records no :SUBST for pot-setup
-    rule uses, and the pattern is the EMITTED max-term — nothing is
-    invented, and the instantiated premise is re-proved from the
-    hypothesis, kernel-checked. -/
+    bindings. Used at verdict-class premise sites where ACL2 records no
+    substitution: the emitted LINEAR max-term or cited TP trigger selects
+    the instance. The complete instantiated fact is transported from the
+    offered theorem, with every source variable bound and kernel-checked. -/
 partial def oneWayMatch (pat target : SExpr)
     (acc : List (Symbol × SExpr) := []) :
     Option (List (Symbol × SExpr)) :=
@@ -116,7 +115,7 @@ def addLinearPremises (cfg : ReplayConfig) (ctx : ReplayCtx)
   let mut ctxL := ctx
   let mut newOps := []
   for (spec, hypV) in ctx.linearHyps do
-    if let some runes := ctx.linearRunes then
+    if let some runes := ctx.clauseRunes then
       unless runes.any (fun r => r.ty == "linear" && r.name == spec.name) do
         continue
     for op in srcOps do

@@ -40,10 +40,11 @@ charter or the archive carry the record.
       approved docs commit `b452b70`. C0 baseline, native specifications and
       both design reviews and C1 migration checked. Establish the selected
       dependency closure from the reconstructed BVCHOP tree and close the
-      strong MOD-bound dependency before the first native proof. Wire the
-      recorded rational primitive type cells, the actually cited INTEGERP-MOD
-      prescription, and the checked integer-view decomposition at its leaf.
-      Close the owning arithmetic proofs and the FLOOR/quotient bounds. Guard trees
+      strong MOD-bound dependency before the first native proof. Complete the
+      first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
+      the strong MOD leaf now composes with those two visible conditions.
+      Close the Boolean IFF/equality join in INTEGERP-MOD and the FLOOR/quotient
+      bounds. Guard trees
       reconstruct separately with replay still excluded. Resolve BUG-041's
       local induction-helper provenance in the quotient dependency. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).

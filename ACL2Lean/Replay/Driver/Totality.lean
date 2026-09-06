@@ -8,7 +8,7 @@
   walks) moved to `Driver/Decrease.lean` at the 2026-08-14 ratchet split.
 -/
 import ACL2Lean.Replay.Driver.Decrease
-import ACL2Lean.Replay.Driver.LinearPremises
+import ACL2Lean.Replay.Driver.CitedTypePremises
 
 namespace ACL2.Replay.Driver
 
@@ -682,9 +682,10 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   for _round in List.range 3 do
     -- Match targets remain the opaque arithmetic atoms, as before.
     let (data, ctx', freshOps) ← addLinearPremises cfg ctxL srcOps linData
+    let (data, ctx', typeOps) ← addCitedTypePremises cfg ctx' srcOps data
     linData := data
     ctxL := ctx'
-    let mut newOps := freshOps
+    let mut newOps := (freshOps ++ typeOps).eraseDups
     -- RULE-content premises (2c): boolean-strengthened stored rules
     -- (equiv EQUAL, rhs 'T, one hyp — TRUE-LISTP-RM / ORDEREDP-RM's
     -- shape) whose LHS one-way-matches an obligation APPLICATION SUBTERM
