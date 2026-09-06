@@ -190,10 +190,8 @@ elab "coverage_book% " nameLit:str : command => do
             for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
                 depDev.justifications depDev do
               unless termByFn.any (·.1 == fn) do
-                let base := String.map
-                  (fun c => if c.isAlphanum then c else '_')
-                  s!"usefi_term_{name}_{fn}"
-                let mName := Lean.Name.mkStr2 "ReplayedTermination" base
+                let mName := ACL2.Replay.Runner.registryName "ReplayedTermination"
+                  ["usefi", name, fn]
                 -- THE TRANSPORT (perf arc phase 2 item 1c): the dep
                 -- book's own admission constant (imported via the
                 -- covDeps module DAG), carried to this world — one

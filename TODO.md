@@ -45,9 +45,10 @@ charter or the archive carry the record.
       the strong MOD leaf now composes with those two visible conditions.
       Validate the reciprocal/window repairs against the full baseline
       (BUG-032/039/046/047), including sorting's cited Boolean TP. Close
-      INTEGERP-MOD's remaining dependency imports: the inverse-lemma registry
-      collision below and bind-free NUMERATOR-NEGATIVE. Then close the
-      FLOOR/quotient bounds. Guard trees reconstruct separately with
+      the POSITIVE/CASES dependency: integrate the checked boundary capture
+      and controls (BUG-048), then capture and consume its intermediate linear
+      equation insertion (BUG-049). Validate the exact-name registry repair
+      below and close the quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 

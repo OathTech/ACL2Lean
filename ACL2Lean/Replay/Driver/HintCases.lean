@@ -41,28 +41,35 @@ partial def composeRecordedCases (cfg : ReplayConfig) (ctx : ReplayCtx)
       #[← proveNoShadow cfg { name := "NOT" }, ← ctxValProof cfg ctx c, pos, neg, next]
   | _, _ => throwError "cases-hint: case/child arity mismatch"
 
+/-- The exact case partition emitted by apply-cases-hint-clause. Shared by
+plain CASES and the case clauses underneath USE's negated premises. -/
+def recordedCasePartition (input : List SExpr) (clauses : List (List SExpr)) :
+    Except String (List SExpr) := do
+  unless !input.isEmpty do throw "cases-hint: empty input clause"
+  let first :: rest := clauses | throw "cases-hint: no output clause"
+  unless first.length > input.length do throw "cases-hint: no case prefix"
+  let count := first.length - input.length
+  let cases := first.take count
+  unless first.drop count == input do throw "cases-hint: input suffix changed"
+  let expected := cases.map fun c =>
+    SExpr.cons (.atom (.symbol { name := "NOT" })) (.cons c .nil) :: input
+  unless rest == expected do throw "cases-hint: negated branches differ from recorded cases"
+  return cases
+
 /-- Validate the recorded clause-set transformation before consuming any child.
-The source algorithm is apply-cases-hint-clause (prove.lisp). This initial
-consumer requires all generated clauses to survive unchanged; deduplicated
-or tautology-dropped branches remain explicit frontiers. -/
+The source algorithm is apply-cases-hint-clause (prove.lisp). This consumer
+requires all generated clauses to survive unchanged; deduplicated or
+tautology-dropped branches remain explicit frontiers. -/
 def recordedCases (cn : ClauseNode) : Except String (List SExpr) := do
   let [step] := cn.steps | throw "cases-hint: expected one processor step"
   unless step.processor.toLower == "apply-top-hints-clause" && step.items.isEmpty &&
       step.extraFields.isEmpty && step.runes.isEmpty do
     throw "cases-hint: processor has additional content"
-  unless !cn.inputClause.isEmpty do throw "cases-hint: empty input clause"
   let clauses ← step.newClauses.mapM fun x =>
     match x.toList? with
     | some cl => pure cl
     | none => throw "cases-hint: improper output clause"
-  let first :: rest := clauses | throw "cases-hint: no output clause"
-  unless first.length > cn.inputClause.length do throw "cases-hint: no case prefix"
-  let count := first.length - cn.inputClause.length
-  let cases := first.take count
-  unless first.drop count == cn.inputClause do throw "cases-hint: input suffix changed"
-  let expected := cases.map fun c =>
-    SExpr.cons (.atom (.symbol { name := "NOT" })) (.cons c .nil) :: cn.inputClause
-  unless rest == expected do throw "cases-hint: negated branches differ from recorded cases"
+  let cases ← recordedCasePartition cn.inputClause clauses
   unless cn.children.map (·.inputClause) == clauses do
     throw "cases-hint: child clauses differ from processor outputs"
   return cases

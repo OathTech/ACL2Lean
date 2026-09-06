@@ -1042,7 +1042,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       closeOnTrueLit cfg lp.literal (restLits.map (·.2)) pclose
     else
       -- the literal's rewrite chain: literal ⇒ result
-      let (chainOpt, finalT) ← replayLiteralChain cfg ctx lp
+      let (chainOpt, finalT) ←
+        if !lp.boundaryVerdicts.isEmpty && lp.notFlg && lp.result == quoteNil then do
+          let (p, t) ← replayNegatedAtomBoundary cfg ctx lp
+          pure (some (p, false), t)
+        else replayLiteralChain cfg ctx lp
       -- rewrite-if's SILENT swap at the chain end (BUG-026): a swapped if
       -- whose branch windows are EMPTY leaves no tree trace (empty windows
       -- carry no nodes to tag), so the marked swap must be re-derived

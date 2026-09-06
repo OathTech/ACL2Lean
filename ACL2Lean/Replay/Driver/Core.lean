@@ -526,35 +526,45 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       return ← mkExpectedTypeHint p
         (← mkAppM ``EvTrue
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm cn.inputClause)])
-    let [appCl] := appClauses
-      | throwError "use-hint: {appClauses.length} application clause(s) at \
-          {cn.idStr} (frontier — the single-surviving-clause composition)"
     let negs : List SExpr := hyps.map fun h =>
       .cons (.atom (.symbol { name := "NOT" })) (.cons h .nil)
-    unless appCl == negs ++ cn.inputClause do
-      throwError "use-hint: application clause {repr appCl} ≠ ¬hyps ++ the \
-          input clause at {cn.idStr} (shape divergence)"
-    let some child := cn.children.find? (·.inputClause == appCl)
-      | throwError "use-hint: no child subgoal matches the application \
-          clause at {cn.idStr} (linking gap)"
-    for c in cn.children do
-      unless c.idStr == child.idStr do
-        throwError "use-hint: child {c.idStr} matches no application \
-            clause at {cn.idStr} (linking gap)"
-    let pApp ← replayClauseWith rec cfg { ctxU with litFacts := [], dedupDrops := [] } child
-    -- peel each ¬Lᵢ head: Lᵢ truthy (its instantiated statement) makes
-    -- (NOT Lᵢ) nil, and evtrue_extract_else drops it from the disjunction
-    let mut p := pApp
-    for (hypI, hL) in hLs do
-      let negL : SExpr := .cons (.atom (.symbol { name := "NOT" }))
-        (.cons hypI .nil)
-      ctxU ← pinTermOpaques cfg cfg.envExpr ctxU negL
-      let hNe ← mkAppM ``ne_nil_of_evtrue_conv
-        #[hL, ← ctxValProof cfg ctxU hypI]
-      let hfNot ← mkAppM ``not_nil_of_truthy #[hNe]
-      p ← mkAppM ``evtrue_extract_else
-        #[← castConvToNil cfg ctxU negL hfNot, p]
-    return p
+    -- Each actual child retains the same USE premises before its case
+    -- clause (apply-top-hints-clause1 applies CASES first, then USE).
+    unless cn.children.map (·.inputClause) == appClauses do
+      throwError "use-hint: child clauses differ from the recorded applications at {cn.idStr}"
+    for appCl in appClauses do
+      unless appCl.take negs.length == negs do
+        throwError "use-hint: application clause has a different negated-premise prefix"
+    let caseClauses := appClauses.map (·.drop negs.length)
+    let cases ← if caseClauses == [cn.inputClause] then pure [] else do
+      let outputs ← (cn.steps.flatMap (·.newClauses)).mapM fun x =>
+        match x.toList? with
+        | some cl => pure cl
+        | none => throwError "use-hint: improper processor output"
+      unless outputs == appClauses do
+        throwError "use-hint: applications differ from processor outputs at {cn.idStr}"
+      ofExcept (recordedCasePartition cn.inputClause caseClauses)
+    let peel (pApp : Expr) : MetaM Expr := do
+      let mut p := pApp
+      let mut ctxP := ctxU
+      for (hypI, hL) in hLs do
+        let negL : SExpr := .cons (.atom (.symbol { name := "NOT" }))
+          (.cons hypI .nil)
+        ctxP ← pinTermOpaques cfg cfg.envExpr ctxP negL
+        let hNe ← mkAppM ``ne_nil_of_evtrue_conv
+          #[hL, ← ctxValProof cfg ctxP hypI]
+        let hfNot ← mkAppM ``not_nil_of_truthy #[hNe]
+        p ← mkAppM ``evtrue_extract_else
+          #[← castConvToNil cfg ctxP negL hfNot, p]
+      return p
+    ctxU ← pinTermOpaques cfg cfg.envExpr ctxU (disjoinTerm (cases ++ cn.inputClause))
+    let childCtx := { ctxU with litFacts := [], dedupDrops := [] }
+    let proofs ← cn.children.mapM fun child => do
+      peel (← replayClauseWith rec cfg childCtx child)
+    let pos :: negativeCases := proofs | throwError "use-hint: missing application proofs"
+    let p ← composeRecordedCases cfg ctxU cases cn.inputClause pos negativeCases
+    return ← mkExpectedTypeHint p (← mkAppM ``EvTrue
+      #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm cn.inputClause)])
   if cn.steps.any (fun st => st.processor.toLower == "apply-top-hints-clause") then
     -- :USE payloads were consumed above. The remaining recorded case partition
     -- carries all branch clauses; validate their exact cover and replay each.

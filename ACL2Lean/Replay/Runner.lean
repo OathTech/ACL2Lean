@@ -358,13 +358,10 @@ def tryReplay (dev : Development) (w : World) (wExpr : Expr)
       -- D1: emit the replayed-statement constant (checked + axiom-clean above)
       let mut registered : Option (List String) := none
       if let some nm := replayedName? then
-        -- name-collision guard (audit 2026-07-15): the sanitization
-        -- (non-alphanumerics ↦ '_') is not injective across (book, theorem)
-        -- pairs — name the collision instead of surfacing addDecl's
-        -- "already declared" as a bare FAIL on a green replay
+        -- Callers may supply a declaration name explicitly. Report reuse
+        -- here rather than surfacing addDecl's bare duplicate-name error.
         if (← Lean.getEnv).contains nm then
-          return (s!"FAIL: replayed-constant name collision: {nm} (sanitized \
-                     book/theorem pair duplicates an earlier one)", none)
+          return (s!"FAIL: replayed-constant name collision: {nm} (declaration name already registered)", none)
         let pv ← Lean.instantiateMVars p.1
         Lean.addDecl <| .thmDecl
           { name := nm, levelParams := [], type := ← Meta.inferType pv, value := pv }
@@ -443,9 +440,10 @@ byte-identical to what the unconditional re-replay route would have
 produced, so consumers (`thmAt`/the totality prover) see no
 difference. -/
 
-/-- The one shared name sanitizer of the registry constants. -/
-private def xSan (s : String) : String :=
-  String.map (fun c => if c.isAlphanum then c else '_') s
+/-- Preserve every component of a registry key, including punctuation and
+component boundaries. ACL2 theorem names containing `+` and `*` are distinct. -/
+def registryName (space : String) (parts : List String) : Name :=
+  parts.foldl Name.str (Name.mkSimple space)
 
 /-- Build (or reuse) the per-(consumer, dep) PAIR TRANSPORT constant
     `∀ env t, EvTrue w_dep env t → EvTrue w env t` — the two decidable
@@ -456,7 +454,7 @@ private def xSan (s : String) : String :=
     `none` = transport unavailable for this pair (fail-closed). -/
 def tryBuildPairTransport (bookKey src : String) (dw w : World)
     (dwExpr wExpr : Expr) : TermElabM (Option Name) := do
-  let pairName := Name.mkStr2 "CrossBookTransport" (xSan s!"pair_{bookKey}_{src}")
+  let pairName := registryName "CrossBookTransport" [bookKey, src]
   if (← Lean.getEnv).contains pairName then return some pairName
   let news := w.defs.entries.filterMap fun kv =>
     if dw.defs.contains kv.1 then none else some kv.1
@@ -542,7 +540,7 @@ def tryTransportDepConst (pairName : Name) (dwExpr wExpr : Expr)
 
 /-- Transport-first recorded-admission reuse (phase 2 item 1c — the
     profile's QSORT-3x finding): when the dep book's OWN admission
-    constant (`ReplayedTermination.term_<src>_<fn>`) is visible in the
+    constant (`ReplayedTermination.<src>.<fn>`) is visible in the
     environment and the dep world is included in the consumer's, carry
     it to the consumer's world instead of re-replaying the admission
     waterfall. Shared by `crossBookRegistry`'s xterm pass and the
@@ -551,7 +549,7 @@ def tryTransportDepConst (pairName : Name) (dwExpr wExpr : Expr)
 def tryTransportDepAdmission (bookKey src : String) (dw w : World)
     (wExpr : Expr) (fn : String) (tcp : ClauseProof) (tgtName : Name) :
     TermElabM Bool := do
-  let depDecl := Name.mkStr2 "ReplayedTermination" (xSan s!"term_{src}_{fn}")
+  let depDecl := registryName "ReplayedTermination" [src, fn]
   unless (← Lean.getEnv).contains depDecl do return false
   unless worldIncludes dw w do return false
   let dwE ← reflectWorld dw
@@ -722,9 +720,9 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
     -- re-replaying. The focused CLI imports no coverage modules, so
     -- `anyDep` is false there and this costs nothing.
     let depThmDecl := fun (t : String) =>
-      Name.mkStr2 "ReplayedStatements" (xSan s!"replayed_{src}_{t}")
+      registryName "ReplayedStatements" [src, t]
     let depTermDecl := fun (fn : String) =>
-      Name.mkStr2 "ReplayedTermination" (xSan s!"term_{src}_{fn}")
+      registryName "ReplayedTermination" [src, fn]
     let recTerms := recordedTerminationDefuns depDev.justifications depDev
     let envNow ← Lean.getEnv
     let anyDep := thms.any (fun (cp, _) => envNow.contains (depThmDecl cp.name))
@@ -743,17 +741,14 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
     -- exactly as its own book replays it, at the world that includes it.
     for (fn, tcp) in recTerms do
       if xterm.any (·.1 == fn) then continue
-      let tBase := String.map (fun c => if c.isAlphanum then c else '_')
-        s!"xterm_{bookKey}_{src}_{fn}"
-      let tName := Name.mkStr2 "CrossBookTermination" tBase
-      let tCondsName := Name.mkStr2 "CrossBookTermination" s!"{tBase}_conds"
+      let tName := registryName "CrossBookTermination" [bookKey, src, fn]
+      let tCondsName := Name.str tName "conditions"
       let tXa0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
       let conds? ←
         if (← Lean.getEnv).contains tName then
           unless (← Lean.getEnv).contains tCondsName do
             throwError "crossBookRegistry: cached {tName} exists WITHOUT \
-              its companion {tCondsName} (partial cache state or \
-              sanitizer collision)"
+              its companion {tCondsName} (partial cache state)"
           some <$> (unsafe Meta.evalExpr (List String) condsTy
             (mkConst tCondsName))
         else do
@@ -805,22 +800,18 @@ def crossBookRegistry (bookKey : String) (w : World) (wExpr : Expr)
             IO.eprintln s!"[xbook-diag] {bookKey}: demanded {src}/{cp.name} \
               DROPPED — no reconstructed proof tree"
           continue
-      let base := String.map (fun c => if c.isAlphanum then c else '_')
-        s!"{bookKey}_{src}_{cp.name}"
-      let mName := Name.mkStr2 "CrossBookReplayed" base
-      let condsName := Name.mkStr2 "CrossBookReplayed" s!"{base}_conds"
+      let mName := registryName "CrossBookReplayed" [bookKey, src, cp.name]
+      let condsName := Name.str mName "conditions"
       let formula := disjoinTerm root.inputClause
       -- CACHE (the `with_termination` pattern): a constant already
       -- declared for this (consumer world, dep book, theorem) is reused —
       -- the transfer is idempotent across the invocations of one module.
-      -- The sanitizer is not injective, so a collision is possible; it is
-      -- fail-closed (the constant is only ever APPLIED, and a type
-      -- mismatch fails unification), but a partial cache state is named.
+      -- Each key component is preserved. A partial cache state is still
+      -- rejected explicitly; every reused proof is checked when applied.
       if (← Lean.getEnv).contains mName then
         unless (← Lean.getEnv).contains condsName do
           throwError "crossBookRegistry: cached {mName} exists WITHOUT its \
-            companion {condsName} (partial cache state or sanitizer \
-            collision)"
+            companion {condsName} (partial cache state)"
         let conds ← unsafe Meta.evalExpr (List String) condsTy
           (mkConst condsName)
         reg := reg ++ [{ thm := cp.name, decl := mName, conds := conds,
@@ -1077,9 +1068,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         citedRuneNamesDeep tcp).eraseDups
       for (cp, rules) in thms do
         if !termCited.contains cp.name then continue
-        let pName := Name.mkStr2 "PreTermReplayed"
-          (String.map (fun c => if c.isAlphanum then c else '_')
-            s!"pre_{name}_{cp.name}")
+        let pName := registryName "PreTermReplayed" [name, cp.name]
         if (← Lean.getEnv).contains pName then continue
         let tPt0 ← IO.monoMsNow  -- perf-arc phase 1 instrumentation
         let (status, reg?) ← tryReplay dev w wExpr cp rules
@@ -1101,9 +1090,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         | none =>
           IO.println s!"    [pre-termination {name}/{cp.name}: {status}]"
       for (fn, tcp) in recTermDefuns do
-        let mName := Name.mkStr2 "ReplayedTermination"
-          (String.map (fun c => if c.isAlphanum then c else '_')
-            s!"term_{name}_{fn}")
+        let mName := registryName "ReplayedTermination" [name, fn]
         let tTm0 ← IO.monoMsNow
         let (status, reg?) ← replayAdmission dev w wExpr tcp mName
           (crossTrees := crossTrees) (replayed := replayed)
@@ -1142,9 +1129,7 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
         -- ratified carve-out; attempt the DP-lift replay (c1) per leaf.
         let dis := theoremDischargeLeaves cp
         let tps := dev.typePrescriptions
-        let mName := Name.mkStr2 "ReplayedStatements"
-          (String.map (fun c => if c.isAlphanum then c else '_')
-            s!"replayed_{name}_{cp.name}")
+        let mName := registryName "ReplayedStatements" [name, cp.name]
         let tThm0 ← IO.monoMsNow
         -- FI-citing rows carry the applied usefi constants through the
         -- remaining passes — structurally larger by design, entitled to

@@ -783,6 +783,10 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
     `(tactic| solve | $completionTac:tactic | $separationTac:tactic |
       $complexTac:tactic | $directTac:tactic)
     else pure directTac
+  let directTac ← if withComparison then do
+    let primitiveTac ← dpPrimitivePositiveTactic
+    `(tactic| solve | $primitiveTac:tactic | $directTac:tactic)
+    else pure directTac
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
   -- whole-goal simp_all is the fastest path when it works (sub-second on
   -- propositional/equality facts) and catastrophic when it fails UNBOUNDED

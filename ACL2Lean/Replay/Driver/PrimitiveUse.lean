@@ -1,5 +1,6 @@
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericRational
+import ACL2Lean.NumericPositive
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -10,6 +11,29 @@ private theorem rationalReconstructionTrue (v : SExpr) :
         SExpr.nil :=
   (Logic.implies_ne_nil_iff _ _).mpr fun h =>
     (Logic.equal_ne_nil_iff _ _).mpr (Logic.rational_reconstruct v h)
+
+open Logic in
+private theorem positiveSchema (a b : SExpr) :
+    (bif toBool (implies (bif toBool (lt (.atom (.number (.int 0))) a)
+        then lt (.atom (.number (.int 0))) b else .nil)
+      (lt (.atom (.number (.int 0))) (plus a b))) then
+      implies (bif toBool (rationalp a) then
+        (bif toBool (rationalp b) then
+          (bif toBool (lt (.atom (.number (.int 0))) a)
+            then lt (.atom (.number (.int 0))) b else .nil) else .nil) else .nil)
+        (lt (.atom (.number (.int 0))) (times a b)) else .nil) ≠ SExpr.nil := by
+  apply ACL2.Replay.and_value_ne_nil
+  · apply (ACL2.Replay.Logic.implies_ne_nil_iff _ _).mpr
+    intro h
+    exact Logic.positiveAdd a b (ACL2.Replay.cond_tnil_ne_nil_test h)
+      (ACL2.Replay.cond_tnil_ne_nil_then h)
+  · apply (ACL2.Replay.Logic.implies_ne_nil_iff _ _).mpr
+    intro h
+    have h1 := ACL2.Replay.cond_tnil_ne_nil_then h
+    have h2 := ACL2.Replay.cond_tnil_ne_nil_then h1
+    exact Logic.positiveTimes a b (ACL2.Replay.cond_tnil_ne_nil_test h)
+      (ACL2.Replay.cond_tnil_ne_nil_test h1)
+      (ACL2.Replay.cond_tnil_ne_nil_test h2) (ACL2.Replay.cond_tnil_ne_nil_then h2)
 
 private def primitiveEqualityTrue (lhs rhs law : Expr) : MetaM Expr := do
   mkAppM ``Iff.mpr #[← mkAppM ``Logic.equal_ne_nil_iff #[lhs, rhs], law]
@@ -32,7 +56,15 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let den := app "DENOMINATOR" [x]
   let denRhs := app "IF" [app "RATIONALP" [x], den,
     app "QUOTE" [.atom (.number (.int 1))]]
+  let zero := app "QUOTE" [.atom (.number (.int 0))]
+  let both := fun a b => app "IF" [a, b, quoteNil]
+  let positiveXY := both (app "<" [zero, x]) (app "<" [zero, y])
+  let positive := both
+    (app "IMPLIES" [positiveXY, app "<" [zero, app "BINARY-+" [x, y]]])
+    (app "IMPLIES" [both (app "RATIONALP" [x]) (both (app "RATIONALP" [y]) positiveXY),
+      app "<" [zero, app "BINARY-*" [x, y]]])
   let schema? := match name with
+    | "POSITIVE" => some positive
     | "DISTRIBUTIVITY" => some (app "EQUAL" [distLhs, distRhs])
     | "RATIONAL-IMPLIES2" => some (app "IMPLIES" [app "RATIONALP" [x],
         app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
@@ -45,6 +77,7 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let ctx ← pinTermOpaques cfg cfg.envExpr ctx hyp
   let vx ← ctxValExpr cfg ctx (instantiate x)
   let hne ← match name with
+    | "POSITIVE" => mkAppM ``positiveSchema #[vx, ← ctxValExpr cfg ctx (instantiate y)]
     | "DISTRIBUTIVITY" => do
       let law ← mkAppM ``Logic.times_add #[vx,
         ← ctxValExpr cfg ctx (instantiate y), ← ctxValExpr cfg ctx (instantiate z)]

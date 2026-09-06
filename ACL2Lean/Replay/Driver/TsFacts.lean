@@ -172,7 +172,8 @@ def tsRecogNil : List (String × Int × Lean.Name) :=
     arithmetic-countdown trio's `(BINARY-+ '-1 N)` / `(BINARY-+ '-2 N)`
     arguments. -/
 def tsBinaryOf (op : String) : List (Int × Int × Lean.Name) :=
-  if op == "BINARY-+" then [(23, 23, ``ACL2.Replay.inTs_plus_int)]
+  if op == "BINARY-+" then
+    [(23, 23, ``ACL2.Replay.inTs_plus_int), (63, 63, ``ACL2.Replay.inTs_plus_rat)]
   else if op == "BINARY-*" then
     [(23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, ``ACL2.Replay.inTs_times_rat)]
   else []
@@ -183,7 +184,9 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
   if op == "UNARY-/" then
     [(some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat),
      (none, 127, ``ACL2.Replay.inTs_reciprocal_number)]
-  else if op == "UNARY--" then [(some 23, 23, ``ACL2.Replay.inTs_neg_int)]
+  else if op == "UNARY--" then
+    [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
+     (some 63, 63, ``ACL2.Replay.inTs_neg_rat)]
   else if op == "NUMERATOR" then [(none, 23, ``ACL2.Replay.inTs_numerator)]
   else if op == "DENOMINATOR" then [(none, 6, ``ACL2.Replay.inTs_denominator)]
   else if op == "NOT" then [(none, 384, ``ACL2.Replay.inTs_not)]

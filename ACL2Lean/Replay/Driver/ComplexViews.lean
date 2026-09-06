@@ -1,8 +1,18 @@
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericComplexView
+import ACL2Lean.NumericPositive
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
+
+/-- Boolean normalization plus the primitive POSITIVE laws inside a recorded
+verdict leaf. Numeric subterms stay abstract; the leaf itself must supply all
+rationality and sign premises. This avoids constructor enumeration for the
+isolated rewrite-atm verdict in multiplication cancellation. -/
+def dpPrimitivePositiveTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp only [Bool.cond_eq_ite, Logic.toBool_eq_true] <;>
+    grind only [Logic.positiveTimes, Logic.positiveAdd])
 
 private theorem equalNumberNonnumber (a b : SExpr)
     (ha : Logic.acl2Numberp a ≠ .nil) (hb : Logic.acl2Numberp b = .nil) :

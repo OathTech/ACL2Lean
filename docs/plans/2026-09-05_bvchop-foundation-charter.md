@@ -1737,6 +1737,161 @@ and INTEGERP-MOD has only the accepted axiom trio. A separate independent
 source-formula pin is running. Production registry naming and permanent
 capture/pin integration remain pending; this is still no native product.
 
+The independent INTEGERP-MOD source pin now passes too
+(`c2-integerp-mod-frozen-source-pin.log`, exit 0, accepted axiom trio).
+It remains a diagnostic staged replay. Both production macro attempts —
+standard and `inline_deps` — hit the default 200000 command budget
+(`c2-integerp-mod-standard-import.log`, `c2-integerp-mod-inline-import.log`).
+The importer needs decomposition; no limit was raised. Profiling is in
+`c2-integerp-mod-inline-profile.log`.
+
+The production naming change now preserves registry keys as structured Lean
+name components, across CLI declarations, cross-book/termination caches,
+transport lookups and their statement pins. The affected executable and
+arithmetic pins build in 6224 jobs (`c2-registry-name-focused-build.log`).
+Both actual escaped zero rules replay (`c2-registry-escaped-zero-replay.log`;
+7/13 unconditional plus two conditional rows in the selected prefix,
+47417 ms). A permanent control checks that the plus/star inverse-uniqueness
+imports and their multiplication consumer have distinct declarations of
+their exact source-statement types, with no premise binders and only
+accepted axioms (`c2-registry-name-contexts-build.log`, 3125 jobs).
+The changed sorting declaration pins and full regression still need checking.
+
+The next FLOOR-bound dependency has a fresh unchanged capture through
+<-OF-*-AND-*-CANCEL at ef2746dade (23170 lines, 22/22 QED/declarations;
+`c2-positive-primitive-current-capture.log`). Its two actual POSITIVE USE
+instances now consume the complete primitive axiom from axioms.lisp:4340:
+addition includes the complex lexicographic order; multiplication retains
+both rationality premises. Primitive wiring builds in 6214 jobs
+(`c2-positive-primitive-wiring-build.log`). The whole proof then reaches
+its two application clauses (`c2-positive-primitive-whole-cancel.log`).
+The source uses CASES and USE together; prove.lisp applies CASES first and
+USE to each case. Both recorded children are present. Sharing the existing
+case-partition validator/composer with USE is in progress; the first build
+fails on mutable-variable shadowing (`c2-positive-use-cases-build.log`).
+No whole cancellation or new native mirror is claimed.
+
+The USE+CASES composer builds after the shadowing fix
+(`c2-positive-use-cases-build-rerun.log`, 6214 jobs). The actual children
+then expose a RATIONALP sum/negation cell and later-literal rational
+assumptions. The shared primitive type-set table and its clause-context
+demands now cover those operands; RATIONALP's two-valued range is consumed
+by the recorded Y recognizer. The NOT-FLG path also applies the existing
+recorded IF-collapse checker before its constant negation fold, matching
+rewrite-clause's dumb-negate-lit step (simplify.lisp:7753). Builds pass
+through `c2-positive-negated-if-build.log` (6214 jobs), but the whole
+cancellation proof remains open at the boundary verdict described below.
+
+The first full profiler run was stopped after its instrumentation became
+costly; it yielded no completed importer profile. Narrow diagnostic timing
+(`c2-integerp-mod-harness-timing.log`) shows INTEGERP-MOD's own tree takes
+about 31600 user heartbeat units, with the timeout during dependency
+discharge. An experimental explicit source-development option stages eight
+dependencies at the consumer's world. Each checks under the unchanged
+200000 command limit, but the final import still exceeds it
+(`c2-integerp-mod-source-stages.log`). Further timing identifies the cost:
+EQUAL-DENOMINATOR-1, reciprocal sign and product sign dependencies were
+still replayed inside that final command. Staging those existing proofs too
+passes the whole import, its independent INTEGERP-MOD source pin and all
+sixteen axiom checks (`c2-integerp-mod-all-cost-stages.log`, exit 0). The
+option and these diagnostic captures are not yet integrated permanently.
+No budget was raised.
+
+BUG-048 records rewrite-atm's independent boundary proof replacing the
+attempted rewrite while the instrumentation retains both in one chain.
+A separate sparse fork checkout `.tmp/ns1/acl2-atm-boundary`, branch
+`mdd/ns1-atm-boundary`, has diagnostic commit `567617bd10`. Its raw-only
+retention follows the source's three actual outcomes: independent type-set
+proof, retained IMPLIES expansion, or the original rewrite accepted by
+try-clause. The initial image build failed on a missing closing parenthesis;
+the corrected image and tag check pass
+(`c2-atm-boundary-isolated-image-build-rerun.log`,
+`c2-atm-boundary-isolated-tags.log`). An initial capture lacked its output
+directory; the next lacked the production system-books path. With
+ACL2_SYSTEM_BOOKS pointing at the unchanged production books, capture passes
+22450 lines and 22/22 QED/declarations at the clean diagnostic commit
+(`c2-atm-boundary-capture-system-books.log`). All six reconstructed boundary
+instances now retain one IMPLIES expansion before their verdict
+(`c2-positive-boundaries-isolated.log`). Replay still refuses the nontrivial
+boundary (`c2-positive-isolated-whole-frontier.log`); its checked consumer
+and production integration remain pending. The production fork remains
+clean at ef2746dade. Current static checks pass
+(`c2-registry-positive-static.log`); the affected regression build is running.
+
+The affected registry regression build passes all four requested modules,
+including Tests.SortingPins and Tests.SortingPinsEndgame
+(`c2-registry-positive-regression-build.log`, 3138 jobs). This is an affected
+build receipt, not a full-gate result. The isolated boundary fork adds a
+freshness check so it retains only the verdict emitted by the current
+TYPE-SET call: clean commit `56948b4df642`. Its image rebuild, tags and fresh
+22450-line capture pass (`c2-atm-boundary-freshness-clean-image-build.log`,
+`c2-atm-boundary-freshness-tags.log`, `c2-atm-boundary-fresh-capture.log`).
+The production fork remains ef2746dade.
+
+The production `driver_replayed% ... from sourceDev` interface now stages
+source trees at the consumer world and refuses any retained conditions.
+Definition and primitive world checks still run at every actual use; this
+is reconstruction, not transport under an assumed world inclusion. Three
+unchanged-source captures have permanent paths under `acl2_samples/ns1/`
+and commands in `capture-ns1-logs`. The first permanent build passes
+(`c2-mod-permanent-staging-build.log`, 3152 jobs): Tests.Ns1Mod has the
+independent INTEGERP-MOD source pin and build-failing axiom checks on all
+sixteen declarations. All commands use the default heartbeat limit. A
+missing-dependency control is being added.
+
+The original isolated boundary DP and composition probes timed out inside
+the decision procedure (`c2-positive-boundary-dp-timed.log`,
+`c2-positive-boundary-compose-rerun.log`). A diagnostic using Boolean
+normalization and the already proved primitive POSITIVE laws checks the
+exact fresh leaf with no clause assumptions
+(`c2-positive-boundary-primitive-rerun4.log`, exit 0, accepted axiom trio).
+Proof construction takes about 694 user heartbeat units, kernel checking
+about 157 more. Earlier tactic probes failed or left goals and carry no
+proof receipt. The small tactic is now wired inside the existing bounded
+DP attempt; the boundary composer replays the retained prefix, checks its
+endpoint, proves the isolated verdict, then applies NOT-FLG. Its affected
+build and whole cancellation replay remain pending. There are still zero
+new NS1 native products.
+
+The boundary consumer's affected build passes in 3149 jobs
+(`c2-atom-boundary-consumer-build.log`). All six actual prefix/verdict
+compositions check, with accepted axiom closures, and the diagnostic
+mutations of prefix, input, output and polarity are rejected. Both actual
+POSITIVE instances reject changed substitutions and hypotheses; a missing
+CASES child and a changed case partition are rejected too
+(`c2-positive-boundary-use-controls-rerun2.log`). Two preceding control
+files failed on Lean record-layout syntax. These remain diagnostic controls
+until the isolated capture is integrated.
+
+Whole cancellation advances to Subgoal 2.9's X2 := X1 substitution
+(`c2-positive-boundary-whole-replay.log`); it is not a complete proof.
+BUG-049 records the missing intermediate equation insertion in
+process-equational-polys. Source inspection distinguishes that operation
+from remove-trivial-equivalences, whose emitted substitution follows it.
+The old quoted-RHS fallback is unchanged. The actual insertion, numeric
+completion and possible forcing flags need recording before composition.
+
+The permanent source-stage negative control passes: an actual
+NUMERATOR-NEGATIVE import without its mini-theories dependency is refused.
+Tests.Ns1Mod and Tests.Ns1Contexts both build with the new leaf checker
+(`c2-mod-source-stage-controls-build.log`, 3127 jobs). An earlier direct
+invocation raced the affected rebuild and failed on the temporarily absent
+Runner.olean (`c2-mod-source-stage-control.log`); it carries no proof receipt.
+The initial static round passes (`c2-staged-mod-boundary-static.log`);
+tracking the new files/captures requires the final static rerun before an
+intermediate fast-gate commit. Full regression and NS1's three products
+remain open.
+
+The final tracked-file static round passes
+(`c2-staged-mod-boundary-tracked-static.log`): 110 provenance-stamped logs,
+88 embedded-log references, and all ordinary static recipes. This
+checkpoint is **fast-gate**, with the affected builds and focused actual
+replay/control receipts above. The new source captures retain ACL2's raw
+trailing whitespace; they were not edited to silence `git diff --check`.
+Code/document whitespace checks are separate. Full claim-gate is next;
+BUG-048's producer and diagnostic capture remain isolated, and BUG-049
+is the current whole-cancellation frontier.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

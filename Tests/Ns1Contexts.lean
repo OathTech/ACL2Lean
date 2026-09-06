@@ -373,4 +373,24 @@ elab "ns1_equal_nil_window_control%" : command => Elab.Command.liftTermElabM do
 
 ns1_equal_nil_window_control%
 
+elab "ns1_registry_names_control%" : command => Elab.Command.liftTermElabM do
+  for target in ["UNIQUENESS-OF-+-INVERSES-LEMMA", "UNIQUENESS-OF-*-INVERSES-LEMMA",
+      "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"] do
+    let name := Runner.registryName "CrossBookReplayed"
+      ["ACL2.Tests.Ns1Arithmetic.pass1World", "ACL2.Tests.Ns1Arithmetic.helperDev", target]
+    let decl ← getConstInfo name
+    let some cp := findThm Ns1Arithmetic.helperDev target | throwError "registry pin: source absent"
+    let some root := cp.root | throwError "registry pin: source tree absent"
+    let expected ← Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+      Meta.mkForallFVars #[env] (← Meta.mkAppM ``EvTrue
+        #[mkConst ``Ns1Arithmetic.pass1World, env, reflectSExpr (disjoinTerm root.inputClause)])
+    unless ← Meta.isDefEq decl.type expected do
+      throwError "registry pin: {target} differs from its source statement or retains conditions"
+    let axioms ← Runner.collectProofAxioms (mkConst name)
+    unless axioms.all (fun a => [``propext, ``Classical.choice, ``Quot.sound].contains a) do
+      throwError "registry pin: {target} has unexpected axioms {axioms}"
+  logInfo "both inverse-uniqueness imports and their multiplication consumer have distinct checked declarations"
+
+ns1_registry_names_control%
+
 end ACL2.Tests.Ns1Contexts

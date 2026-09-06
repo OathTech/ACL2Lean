@@ -336,7 +336,7 @@ Goal:preprocess/type-set-fc ✓ cond[total:(QSORT X), tp:QSORT]]"),
   -- (the type pin below is the content gate); since W1 item 6 it ALSO
   -- registers a golden row (termination:QSORT)
   unless (← getEnv).contains
-      (Name.mkStr2 "ReplayedTermination" "term_pins_sorting_qsort_QSORT") do
+      (Runner.registryName "ReplayedTermination" ["pins/sorting/qsort", "QSORT"]) do
     throwError "sorting statement pins: QSORT termination replayed statement was not registered"
   logInfo "sorting statement pins: replay statuses hold (ORDEREDP-ISORT, \
     PERM-QSORT, TRUE-LISTP-QSORT, PERM-CONS, ORDEREDP-RM, ORDEREDP-MSORT, \
@@ -403,9 +403,9 @@ def qt (e : SExpr) : SExpr := .cons (sym "QUOTE") (.cons e .nil)
 example :
     ∀ (env : Env),
       EvTrue isortPinsWorld env (ap1 "ORDEREDP" (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_isort_ORDEREDP_ISORT
+  ReplayedStatements.«pins/sorting/isort».«ORDEREDP-ISORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_isort_ORDEREDP_ISORT
+#print axioms ReplayedStatements.«pins/sorting/isort».«ORDEREDP-ISORT»
 
 /-! ## qsort book (acl2/books/sorting/qsort.lisp) -/
 
@@ -461,9 +461,9 @@ example :
       -- pinned type drops them. INTENTIONAL; diagnosed against the
       -- golden.)
       EvTrue qsortPinsWorld env (ap2 "PERM" (ap1 "QSORT" (sym "X")) (sym "X")) :=
-  ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
+  ReplayedStatements.«pins/sorting/qsort».«PERM-QSORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_qsort_PERM_QSORT
+#print axioms ReplayedStatements.«pins/sorting/qsort».«PERM-QSORT»
 
 /-- PIN the machine-generated statement of `TRUE-LISTP-QSORT`: the replayed statement
     of the ACL2 defthm `(true-listp (qsort x))`, **UNCONDITIONAL since
@@ -492,9 +492,9 @@ example :
       -- left the telescope and the pinned type drops it. INTENTIONAL;
       -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "QSORT" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
+  ReplayedStatements.«pins/sorting/qsort».«TRUE-LISTP-QSORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_qsort_TRUE_LISTP_QSORT
+#print axioms ReplayedStatements.«pins/sorting/qsort».«TRUE-LISTP-QSORT»
 
 /-! ## The QSORT termination replayed statement (recorded admission waterfall)
 
@@ -538,9 +538,9 @@ example :
       -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env
         (ap3 "IF" (qsortDecreaseClause "GTE") (qsortDecreaseClause "LT") (qt .nil)) :=
-  ReplayedTermination.term_pins_sorting_qsort_QSORT
+  ReplayedTermination.«pins/sorting/qsort».«QSORT»
 
-#print axioms ReplayedTermination.term_pins_sorting_qsort_QSORT
+#print axioms ReplayedTermination.«pins/sorting/qsort».«QSORT»
 
 /-! ## perm book (acl2/books/sorting/perm.lisp) -/
 
@@ -556,9 +556,9 @@ example :
           (ap2 "EQUAL"
             (ap2 "PERM" (sym "X") (ap2 "CONS" (sym "A") (sym "Y")))
             (ap2 "PERM" (ap2 "RM" (sym "A") (sym "X")) (sym "Y")))) :=
-  ReplayedStatements.replayed_pins_sorting_perm_PERM_CONS
+  ReplayedStatements.«pins/sorting/perm».«PERM-CONS»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_perm_PERM_CONS
+#print axioms ReplayedStatements.«pins/sorting/perm».«PERM-CONS»
 
 /-! ## ordered-perms book (acl2/books/sorting/ordered-perms.lisp) -/
 
@@ -571,10 +571,10 @@ example :
       EvTrue orderedPermsPinsWorld env
         (ap2 "IMPLIES" (ap1 "ORDEREDP" (sym "A"))
           (ap1 "ORDEREDP" (ap2 "RM" (sym "E") (sym "A")))) :=
-  ReplayedStatements.replayed_pins_sorting_ordered_perms_ORDEREDP_RM
+  ReplayedStatements.«pins/sorting/ordered-perms».«ORDEREDP-RM»
 
 #print axioms
-  ReplayedStatements.replayed_pins_sorting_ordered_perms_ORDEREDP_RM
+  ReplayedStatements.«pins/sorting/ordered-perms».«ORDEREDP-RM»
 
 /-! ## msort book (acl2/books/sorting/msort.lisp) -/
 
@@ -599,9 +599,9 @@ example :
       -- Both totalities REPLAY from the emitted clauses, so both
       -- hypotheses left the telescope. INTENTIONAL.)
       EvTrue msortPinsWorld env (ap1 "ORDEREDP" (ap1 "MSORT" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
+  ReplayedStatements.«pins/sorting/msort».«ORDEREDP-MSORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_msort_ORDEREDP_MSORT
+#print axioms ReplayedStatements.«pins/sorting/msort».«ORDEREDP-MSORT»
 
 /-! ## bsort book (acl2/books/sorting/bsort.lisp) -/
 
@@ -626,9 +626,9 @@ example :
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "BNEXT" (sym "X")))
           (ap2 "HOW-MANY" (sym "E") (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
+  ReplayedStatements.«pins/sorting/bsort».«HOW-MANY-BNEXT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_bsort_HOW_MANY_BNEXT
+#print axioms ReplayedStatements.«pins/sorting/bsort».«HOW-MANY-BNEXT»
 
 /-! ## convert-perm-to-how-many book
     (acl2/books/sorting/convert-perm-to-how-many.lisp) -/
@@ -653,10 +653,10 @@ example :
           (ap2 "EQUAL"
             (ap2 "HOW-MANY" (sym "A") (ap2 "RM" (sym "B") (sym "X")))
             (ap2 "HOW-MANY" (sym "A") (sym "X")))) :=
-  ReplayedStatements.replayed_pins_sorting_convert_perm_to_how_many_HOW_MANY_RM
+  ReplayedStatements.«pins/sorting/convert-perm-to-how-many».«HOW-MANY-RM»
 
 #print axioms
-  ReplayedStatements.replayed_pins_sorting_convert_perm_to_how_many_HOW_MANY_RM
+  ReplayedStatements.«pins/sorting/convert-perm-to-how-many».«HOW-MANY-RM»
 
 /-! ## p3-conj-mid-literal (acl2_samples/pattern-tests/p3-conj-mid-literal.lisp)
 
@@ -727,9 +727,9 @@ example :
           (ap3 "IF" (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
             (ap1 "ORDD" (ap2 "INS" (sym "X1") (sym "IT")))
             (ap2 "EQUAL" (sym "IT") (qt (sym "JUNK"))))) :=
-  ReplayedStatements.replayed_pins_p3_conj_ORDD_INS_MID
+  ReplayedStatements.«pins/p3-conj».«ORDD-INS-MID»
 
-#print axioms ReplayedStatements.replayed_pins_p3_conj_ORDD_INS_MID
+#print axioms ReplayedStatements.«pins/p3-conj».«ORDD-INS-MID»
 
 /-! ## ORDEREDP-QSORT (acl2/books/sorting/qsort.lisp:115) — the perm-lane
     headline row (G2 rung 2, 2026-07-30): the first green row whose replay
@@ -827,9 +827,9 @@ example :
       -- `dis_rule_orderedp_append` was deleted with it. INTENTIONAL;
       -- diagnosed against the golden.)
       EvTrue qsortPinsWorld env (ap1 "ORDEREDP" (ap1 "QSORT" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_qsort_ORDEREDP_QSORT
+  ReplayedStatements.«pins/sorting/qsort».«ORDEREDP-QSORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_qsort_ORDEREDP_QSORT
+#print axioms ReplayedStatements.«pins/sorting/qsort».«ORDEREDP-QSORT»
 
 /-! ## p5-or-shape-flipped (acl2_samples/pattern-tests/p5-or-shape-flipped.lisp)
 
@@ -914,9 +914,9 @@ example :
           (ap3 "IF" (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
             (ap2 "EQUAL" (sym "X") (qt (sym "JUNK")))
             (ap1 "DUPP" (ap2 "CONS" (sym "E") (sym "X"))))) :=
-  ReplayedStatements.replayed_pins_p5_flip_DUPP_REP_MID
+  ReplayedStatements.«pins/p5-flip».«DUPP-REP-MID»
 
-#print axioms ReplayedStatements.replayed_pins_p5_flip_DUPP_REP_MID
+#print axioms ReplayedStatements.«pins/p5-flip».«DUPP-REP-MID»
 
 /-- PIN the machine-generated statement of `P7-TARGET`:
     `(equal (ln (dub x)) (ln x))` under ln's non-negative-integer TP. -/
@@ -926,9 +926,9 @@ example :
       -- tp:HOW-MANY above: LN is len-shaped.)
       EvTrue p7CongPinsWorld env
         (ap2 "EQUAL" (ap1 "LN" (ap1 "DUB" (sym "X"))) (ap1 "LN" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_p7_cong_P7_TARGET
+  ReplayedStatements.«pins/p7-cong».«P7-TARGET»
 
-#print axioms ReplayedStatements.replayed_pins_p7_cong_P7_TARGET
+#print axioms ReplayedStatements.«pins/p7-cong».«P7-TARGET»
 
 /-- PIN the machine-generated statement of `SAME-LN-IMPLIES-EQUAL-LN-1`
     (the defcong's macro-expanded defthm). -/
@@ -940,9 +940,9 @@ example :
         (ap2 "IMPLIES"
           (ap2 "SAME-LN" (sym "X") (sym "X-EQUIV"))
           (ap2 "EQUAL" (ap1 "LN" (sym "X")) (ap1 "LN" (sym "X-EQUIV")))) :=
-  ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+  ReplayedStatements.«pins/p7-cong».«SAME-LN-IMPLIES-EQUAL-LN-1»
 
-#print axioms ReplayedStatements.replayed_pins_p7_cong_SAME_LN_IMPLIES_EQUAL_LN_1
+#print axioms ReplayedStatements.«pins/p7-cong».«SAME-LN-IMPLIES-EQUAL-LN-1»
 
 /-! ## TRUE-LISTP-ISORT + HOW-MANY-ISORT (isort.lisp:26, 29) — the isort
     book's remaining green rows (validator/lifter arc W1 item 3: the
@@ -955,9 +955,9 @@ example :
 example :
     ∀ (env : Env),
       EvTrue isortPinsWorld env (ap1 "TRUE-LISTP" (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
+  ReplayedStatements.«pins/sorting/isort».«TRUE-LISTP-ISORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_isort_TRUE_LISTP_ISORT
+#print axioms ReplayedStatements.«pins/sorting/isort».«TRUE-LISTP-ISORT»
 
 /-- PIN `HOW-MANY-ISORT`: `(equal (how-many e (isort x)) (how-many e x))`,
     **UNCONDITIONAL since 2026-08-12** — the pinned type is premise-free;
@@ -975,9 +975,9 @@ example :
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "ISORT" (sym "X")))
           (ap2 "HOW-MANY" (sym "E") (sym "X"))) :=
-  ReplayedStatements.replayed_pins_sorting_isort_HOW_MANY_ISORT
+  ReplayedStatements.«pins/sorting/isort».«HOW-MANY-ISORT»
 
-#print axioms ReplayedStatements.replayed_pins_sorting_isort_HOW_MANY_ISORT
+#print axioms ReplayedStatements.«pins/sorting/isort».«HOW-MANY-ISORT»
 
 /-! ## Equisort SCOPE pins (Phase 4, R6): the structured scope surface
     read off the recaptured log — the single derivation the parametric

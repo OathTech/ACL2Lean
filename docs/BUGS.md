@@ -30,6 +30,50 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-049 — linear equation insertion is absent before trivial substitution
+Status: open
+Pinned-by: none (intermediate clause transformation is missing from the proof log)
+
+The actual <-OF-*-AND-*-CANCEL tree stops at Subgoal 2.9's X2 := X1
+branch substitution. Neither orientation of the justifying equality occurs
+in the recorded input clause. simplify.lisp's process-equational-polys
+first derives and adds a negated equation to that clause; simplify-clause1
+then passes the expanded clause to remove-trivial-equivalences. Only the
+latter substitution is emitted. The returned step cites
+fake-rune-for-linear-equalities but does not record the intermediate clause,
+its equation or the numeric-assumption flags. The current consumer refuses
+this nonconstant substitution (`c2-positive-boundary-whole-replay.log`).
+Capture the actual insertion and its justification, including numeric
+completion/forcing distinctions; do not infer an equation from the desired
+child clause or loosen the old quoted-substitution guard.
+
+## BUG-048 — atom boundary type-set replacement retains the attempted rewrite
+Status: open
+Pinned-by: none (ACL2 instrumentation and proof-tree composition, not interpreter values)
+
+The actual <-OF-*-AND-*-CANCEL tree has six negated POSITIVE multiplication
+instances where rewrite-atm's final try-type-set-and-clause succeeds on the
+original, expanded IMPLIES atom in isolation. That branch returns the new
+type-set proof tree combined with ttree0, discarding the attempted rewrite's
+ttree (simplify.lisp:5551–5603). The log retains the attempted recognizer/IF
+chain before an ATM/IMPLIES-EXPAND step whose lhs is the original atom,
+followed by ATM/TRY-TYPE-SET. These do not form one sequential rewrite chain.
+The existing rollback handles keeping an unchanged atom, but does not handle
+this successful replacement. The boundary reader also requires definitional
+equality to the verdict, which cannot check this nontrivial recorded leaf.
+The current whole replay stops at that boundary check
+(`c2-positive-negated-if-whole-replay.log`); the reconstructed records are in
+`c2-positive-boundaries-rerun2.log`. Repair the emission's retained proof
+path and consume the actual boundary verdict with its precise scope.
+
+The isolated producer fix at 56948b4df642 and its fresh capture retain only
+the winning path. The consumer checks all six actual prefix/verdict
+compositions, with accepted axioms, and rejects removed prefixes, changed
+verdict inputs/results and changed polarity
+(`c2-positive-boundary-use-controls-rerun2.log`). Whole cancellation now
+stops at BUG-049. Production capture integration and full regression remain
+pending, so this entry stays open.
+
 ## BUG-046 — IF window reconstruction drops its test and empty swapped windows
 Status: open
 Pinned-by: none (recursive proof-tree records, not interpreter values)

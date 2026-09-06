@@ -12,6 +12,7 @@ import Tests.ComplexReplay
 import Tests.Ns1Ingestion
 import Tests.Ns1NumericAdmission
 import Tests.Ns1Arithmetic
+import Tests.Ns1Mod
 import Tests.Ns1Contexts
 import Tests.Ns1GuardTrees
 import Tests.Ns1LocalDefinitions

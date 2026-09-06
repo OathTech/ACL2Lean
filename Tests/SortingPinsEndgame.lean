@@ -66,9 +66,9 @@ example :
         (ap2 "EQUAL"
           (ap2 "HOW-MANY-SMALLER" (sym "E") (ap1 "BNEXT" (sym "X")))
           (ap2 "HOW-MANY-SMALLER" (sym "E") (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_bsort_HOW_MANY_SMALLER_BNEXT
+  ReplayedStatements.«sorting/bsort».«HOW-MANY-SMALLER-BNEXT»
 
-#print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_SMALLER_BNEXT
+#print axioms ReplayedStatements.«sorting/bsort».«HOW-MANY-SMALLER-BNEXT»
 
 /-- PIN `HOW-MANY-BAD-PAIRS-BNEXT` (bsort.lisp:45): the replayed statement of
       `(implies (not (equal x (bnext x)))
@@ -97,9 +97,9 @@ example :
           (ap1 "NOT" (ap2 "EQUAL" (sym "X") (ap1 "BNEXT" (sym "X"))))
           (ap2 "<" (ap1 "BNEXT-SIZE" (ap1 "BNEXT" (sym "X")))
             (ap1 "BNEXT-SIZE" (sym "X")))) :=
-  ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BAD_PAIRS_BNEXT
+  ReplayedStatements.«sorting/bsort».«HOW-MANY-BAD-PAIRS-BNEXT»
 
-#print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BAD_PAIRS_BNEXT
+#print axioms ReplayedStatements.«sorting/bsort».«HOW-MANY-BAD-PAIRS-BNEXT»
 
 /-- PIN `ORDEREDP-WHEN-BNEXT-CONSTANT` (bsort.lisp:57, the endgame arc's
     2e row): the replayed statement of
@@ -118,10 +118,10 @@ example :
         (ap2 "IMPLIES"
           (ap2 "EQUAL" (ap1 "BNEXT" (sym "X")) (sym "X"))
           (ap1 "ORDEREDP" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_bsort_ORDEREDP_WHEN_BNEXT_CONSTANT
+  ReplayedStatements.«sorting/bsort».«ORDEREDP-WHEN-BNEXT-CONSTANT»
 
 #print axioms
-  ReplayedStatements.replayed_sorting_bsort_ORDEREDP_WHEN_BNEXT_CONSTANT
+  ReplayedStatements.«sorting/bsort».«ORDEREDP-WHEN-BNEXT-CONSTANT»
 
 /-- PIN `ORDEREDP-BSORT` (bsort.lisp:61): the replayed statement of
       `(orderedp (bsort x))`
@@ -159,9 +159,9 @@ example :
       -- unconditional), so the hypothesis left the telescope and the
       -- pinned type drops it. INTENTIONAL; diagnosed row-by-row.)
       EvTrue bsortSweepWorld env (ap1 "ORDEREDP" (ap1 "BSORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_bsort_ORDEREDP_BSORT
+  ReplayedStatements.«sorting/bsort».«ORDEREDP-BSORT»
 
-#print axioms ReplayedStatements.replayed_sorting_bsort_ORDEREDP_BSORT
+#print axioms ReplayedStatements.«sorting/bsort».«ORDEREDP-BSORT»
 
 /-- PIN `TRUE-LISTP-BSORT` (bsort.lisp:68): the replayed statement of
       `(implies (true-listp x) (true-listp (bsort x)))`
@@ -198,9 +198,9 @@ example :
       EvTrue bsortSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
           (ap1 "TRUE-LISTP" (ap1 "BSORT" (sym "X")))) :=
-  ReplayedStatements.replayed_sorting_bsort_TRUE_LISTP_BSORT
+  ReplayedStatements.«sorting/bsort».«TRUE-LISTP-BSORT»
 
-#print axioms ReplayedStatements.replayed_sorting_bsort_TRUE_LISTP_BSORT
+#print axioms ReplayedStatements.«sorting/bsort».«TRUE-LISTP-BSORT»
 
 /-- PIN `HOW-MANY-BSORT` (bsort.lisp:76): the replayed statement of
       `(equal (how-many e (bsort x)) (how-many e x))`
@@ -244,9 +244,9 @@ example :
         (ap2 "EQUAL"
           (ap2 "HOW-MANY" (sym "E") (ap1 "BSORT" (sym "X")))
           (ap2 "HOW-MANY" (sym "E") (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BSORT
+  ReplayedStatements.«sorting/bsort».«HOW-MANY-BSORT»
 
-#print axioms ReplayedStatements.replayed_sorting_bsort_HOW_MANY_BSORT
+#print axioms ReplayedStatements.«sorting/bsort».«HOW-MANY-BSORT»
 
 /-! ## convert-perm-to-how-many book -/
 
@@ -279,10 +279,10 @@ example :
             (ap2 "BINARY-+" (qt (.atom (.number (.int (-1)))))
               (ap2 "HOW-MANY" (sym "A") (sym "X")))
             (ap2 "HOW-MANY" (sym "A") (sym "X")))) :=
-  ReplayedStatements.replayed_sorting_convert_perm_to_how_many_HOW_MANY_RM_GENERAL
+  ReplayedStatements.«sorting/convert-perm-to-how-many».«HOW-MANY-RM-GENERAL»
 
 #print axioms
-  ReplayedStatements.replayed_sorting_convert_perm_to_how_many_HOW_MANY_RM_GENERAL
+  ReplayedStatements.«sorting/convert-perm-to-how-many».«HOW-MANY-RM-GENERAL»
 
 /-! ## sorts-equivalent book (acl2/books/sorting/sorts-equivalent.lisp) -/
 
@@ -352,9 +352,9 @@ example :
       EvTrue sortsEqSweepWorld env
         (ap2 "IMPLIES" (ap1 "TRUE-LISTP" (sym "X"))
           (ap2 "EQUAL" (ap1 "BSORT" (sym "X")) (ap1 "ISORT" (sym "X")))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_BSORT_IS_ISORT
+  ReplayedStatements.«sorting/sorts-equivalent».«BSORT-IS-ISORT»
 
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_BSORT_IS_ISORT
+#print axioms ReplayedStatements.«sorting/sorts-equivalent».«BSORT-IS-ISORT»
 
 /-! ## sorts-equivalent CAPSTONE statement pins — MOVED HERE from
 Tests/SortingPins.lean 2026-08-18 (perf arc phase 2 item 3, the cascade
@@ -413,9 +413,9 @@ example :
       -- diagnosed row-by-row against the golden.)
       EvTrue sortsEqSweepWorld env
         (ap2 "EQUAL" (ap1 "MSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+  ReplayedStatements.«sorting/sorts-equivalent».«MSORT-IS-ISORT»
 
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_MSORT_IS_ISORT
+#print axioms ReplayedStatements.«sorting/sorts-equivalent».«MSORT-IS-ISORT»
 
 /-- PIN the machine statement of `QSORT-IS-ISORT`
     (sorts-equivalent.lisp:18): the mirror of
@@ -494,8 +494,8 @@ example :
       -- diagnosed against the golden.)
       EvTrue sortsEqSweepWorld env
         (ap2 "EQUAL" (ap1 "QSORT" (sym "X")) (ap1 "ISORT" (sym "X"))) :=
-  ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+  ReplayedStatements.«sorting/sorts-equivalent».«QSORT-IS-ISORT»
 
-#print axioms ReplayedStatements.replayed_sorting_sorts_equivalent_QSORT_IS_ISORT
+#print axioms ReplayedStatements.«sorting/sorts-equivalent».«QSORT-IS-ISORT»
 
 end ACL2.Tests.SortingPinsEndgame

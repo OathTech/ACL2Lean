@@ -187,7 +187,7 @@ certify-ns1:
 # Selected NS1 dependency prefixes; ACL2 stops after the named source event.
 # The sidecar records that scope and still hashes the entire unchanged source.
 capture-ns1-logs: certify-ns1
-    mkdir -p acl2_samples/ns1
+    mkdir -p acl2_samples/ns1/pass1 acl2_samples/ns1/bind-free
     CAPTURE_THROUGH='*-OF-0' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
     CAPTURE_THROUGH=FLOOR-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/floor.lisp
     CAPTURE_THROUGH=MOD-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/mod.lisp
@@ -197,6 +197,9 @@ capture-ns1-logs: certify-ns1
     OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/bind-free/basic.lisp
     ./scripts/capture-proof-log.sh acl2_samples/ns1/use-instances.lisp
     CAPTURE_THROUGH='<-*-0' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/inequalities.lisp
+    CAPTURE_THROUGH=REWRITE-LINEAR-EQUALITIES-TO-IFF OUTDIR=acl2_samples/ns1/pass1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/pass1/mini-theories.lisp
+    CAPTURE_THROUGH=NUMERATOR-NEGATIVE OUTDIR=acl2_samples/ns1/bind-free ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/bind-free/numerator-and-denominator.lisp
+    CAPTURE_THROUGH=INTEGERP-MOD OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/floor-mod/floor-mod.lisp
     CAPTURE_THROUGH=NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/nonnegative-integer-quotient.lisp
 
 # Recapture the WHOLE log surface after an instrumentation change; a partial

@@ -42,4 +42,41 @@ def replayLiteralTypeSetVerdict (cfg : ReplayConfig) (ctx : ReplayCtx)
     throwError "literal verdict: value instantiation differs"
   return (fact, ctx)
 
+/-- A successful rewrite-atm boundary type-set proof replaces the attempted
+rewrite. Replay the retained prefix (IMPLIES expansion, when present), then
+prove the exact verdict in isolation: ACL2 calls type-set with an empty
+clause/type-alist. NOT-FLG finally negates that truthy atom to NIL. The
+preceding chain must reach the verdict input exactly; no child is skipped. -/
+def replayNegatedAtomBoundary (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (lp : LiteralProof) : MetaM (Expr × SExpr) := do
+  let [st] := lp.boundaryVerdicts | throwError "atom boundary: expected one verdict"
+  unless lp.notFlg && lp.result == quoteNil && st.origin == "atm/try-type-set" &&
+      st.rune.ty == "fake-rune-for-type-set" && st.equiv == "iff" && st.rhs == quoteT do
+    throwError "atom boundary: verdict or literal polarity differs"
+  let some (ns, [atm]) := asApp lp.literal | throwError "atom boundary: malformed literal"
+  unless ns.name == "NOT" do throwError "atom boundary: literal is not negated"
+  let ctx := literalReplayCtx ctx lp
+  let (atomChain, mid) ← replayRewrites cfg ctx atm lp.nodes
+  let atomChain ← chainReqEq atomChain
+  unless mid == st.lhs do throwError "atom boundary: atomChain does not reach verdict input"
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx mid
+  -- try-type-set-and-clause calls TYPE-SET with an empty type-alist.
+  let vars := freeVars mid
+  let ops := collectOpaques mid
+  let stmt ← dpFactStmt [] mid vars ops []
+  let p ← proveDpFact stmt (vars.length + ops.length) (dpConeIndices [] mid vars ops [])
+  let vs ← vars.mapM fun s => ctxValExpr cfg ctx (.atom (.symbol s))
+  let os ← ops.mapM fun op => ctxValExpr cfg ctx op
+  let h := mkAppN p (vs ++ os).toArray
+  let expected ← mkAppM ``Ne #[← ctxValExpr cfg ctx mid, mkConst ``SExpr.nil]
+  unless ← isDefEq (← inferType h) expected do throwError "atom boundary: wrong value instantiation"
+  let hMid ← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx mid, h]
+  let hAtm ← match atomChain with
+    | none => pure hMid
+    | some p => mkAppM ``evtrue_of_fuel_eq #[p, hMid]
+  let pNot ← mkAppM ``conv_not_nil_of_evtrue #[← proveNoShadow cfg ns, hAtm]
+  let pNil ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, mkConst ``SExpr.nil]
+  let eq ← mkAppM ``fuel_eq_of_conv #[pNot, pNil, ← mkEqRefl (mkConst ``SExpr.nil)]
+  return (eq, quoteNil)
+
 end ACL2.Replay.Driver

@@ -41,6 +41,15 @@ theorem logic_acl2Numberp_ne_nil_t (v : SExpr)
   | atom a => cases a <;> simp_all [Logic.acl2Numberp]
   | _ => simp_all [Logic.acl2Numberp]
 
+/-- RATIONALP's true branch is exactly T, including the complex rejection. -/
+theorem logic_rationalp_ne_nil_t (v : SExpr)
+    (h : Logic.rationalp v ≠ SExpr.nil) : Logic.rationalp v = SExpr.t := by
+  cases v with
+  | atom a => cases a with
+    | number n => cases n <;> simp_all [Logic.rationalp]
+    | _ => simp_all [Logic.rationalp]
+  | _ => simp_all [Logic.rationalp]
+
 /-- RATIONALP supplies ACL2's rational mask, excluding genuine complexes.
 The clause walker intersects this with the separately recorded sign fact;
 MOD-BOUND-LINEAR-ARG2's equality test is the first consumer. -/
@@ -109,6 +118,18 @@ theorem inTs_times_rat {a b : SExpr} (ha : InTs 63 a) (hb : InTs 63 b) :
     InTs 63 (Logic.times a b) := by
   simp only [Logic.times, not_complex_of_inTs_rational ha, not_complex_of_inTs_rational hb,
     Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  exact inTs_mkNumber_rational _ _
+
+/-- Rational sum and negation cells at the recorded RATIONALP query in
+the multiplication-order cancellation proof's POSITIVE instance. -/
+theorem inTs_plus_rat {a b : SExpr} (ha : InTs 63 a) (hb : InTs 63 b) :
+    InTs 63 (Logic.plus a b) := by
+  simp only [Logic.plus, not_complex_of_inTs_rational ha, not_complex_of_inTs_rational hb,
+    Bool.false_or, Bool.false_eq_true, ↓reduceIte]
+  exact inTs_mkNumber_rational _ _
+
+theorem inTs_neg_rat {a : SExpr} (ha : InTs 63 a) : InTs 63 (Logic.neg a) := by
+  simp only [Logic.neg, not_complex_of_inTs_rational ha, Bool.false_eq_true, ↓reduceIte]
   exact inTs_mkNumber_rational _ _
 
 theorem inTs_reciprocal_rat {a : SExpr} (ha : InTs 63 a) :

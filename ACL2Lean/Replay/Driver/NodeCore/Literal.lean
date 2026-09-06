@@ -36,6 +36,13 @@ def validateBoundaryVerdicts (cfg : ReplayConfig) (ctx : ReplayCtx)
           reduce to the recorded {repr st.rhs} (truthy-but-not-'T class \
           — frontier)"
 
+/-- The recorded type-alist and IF scope attached to one literal. Shared by
+ordinary chains and the independent boundary-verdict composer. -/
+def literalReplayCtx (ctx : ReplayCtx) (lp : LiteralProof) : ReplayCtx :=
+  { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
+             taSubsts := lp.taSubsts ++ ctx.taSubsts,
+             ifMarkers := lp.ifMarkers ++ ctx.ifMarkers }
+
 /-- Replay a literal's rewrite chain at the LITERAL level. ACL2's rewriter works on
     the literal's ATOM (`rewrite-atm`): for a `:NOT-FLG T` literal `(not atm)` the
     node `:PATH`s are atom-relative, so chain on the atom and lift the composed
@@ -43,13 +50,7 @@ def validateBoundaryVerdicts (cfg : ReplayConfig) (ctx : ReplayCtx)
     literal-level chain (if any) and the final literal. -/
 def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof)
     : MetaM (Option (Expr × Bool) × SExpr) := do
-  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
-                        taSubsts := lp.taSubsts ++ ctx.taSubsts,
-                        -- T1+2 sprint P3b: this literal's IF-test markers,
-                        -- so a NODE recipe's chain-end reconciliation can
-                        -- anchor on the same records the literal-level
-                        -- bridge uses
-                        ifMarkers := lp.ifMarkers ++ ctx.ifMarkers }
+  let ctx := literalReplayCtx ctx lp
   validateBoundaryVerdicts cfg ctx lp
   if lp.notFlg then
     let .cons (.atom (.symbol notS)) (.cons atm .nil) := lp.literal
@@ -80,6 +81,24 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
           pure (some combined, expanded)
         else pure (chainOpt, finalAtom)
       | _ => pure (chainOpt, finalAtom)
+    -- rewrite-atm returns the atom before dumb-negate-lit applies NOT-FLG.
+    -- Reconcile its recorded IF decisions before the existing constant NOT
+    -- fold. The target is dictated by this literal's recorded Boolean result;
+    -- every conditional collapse still passes the marker/constant checker.
+    let (chainOpt, finalAtom) ← do
+      let target? := if lp.result == quoteNil then some quoteT
+        else if lp.result == quoteT then some quoteNil else none
+      match target? with
+      | some target =>
+        if finalAtom == target then pure (chainOpt, finalAtom) else
+        match ← bridgeIfCollapseNorm cfg ctx lp.ifMarkers finalAtom target with
+        | some bridge =>
+          let p ← match chainOpt with
+            | none => pure bridge
+            | some p => mkAppM ``fuel_chain_eq #[p, bridge]
+          pure (some p, target)
+        | none => pure (chainOpt, finalAtom)
+      | none => pure (chainOpt, finalAtom)
     let finalLit := SExpr.cons (.atom (.symbol notS)) (.cons finalAtom .nil)
     let lifted ← match chainOpt with
       | none => pure none
@@ -141,10 +160,7 @@ def replayLiteral (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof) : M
   -- with-lemma-to-'t, clause-context-resolution reports are all ordinary
   -- node recipes now — must reduce the literal to `(quote t)`; close by the
   -- chain + the quote's evaluation.
-  let ctx := { ctx with taBases := taBasesOfNodes lp.nodes ++ ctx.taBases,
-                        taSubsts := lp.taSubsts ++ ctx.taSubsts,
-                        -- see `replayLiteralChain` (T1+2 sprint P3b)
-                        ifMarkers := lp.ifMarkers ++ ctx.ifMarkers }
+  let ctx := literalReplayCtx ctx lp
   validateBoundaryVerdicts cfg ctx lp
   if lp.nodes.isEmpty then
     throwError "replayLiteral: literal {repr lp.literal} has no proof nodes"
@@ -267,6 +283,23 @@ def ifMarkerDemands : SExpr × Bool × SExpr → List ContextDemand
       | _ => []
     else []
 
+/-- Context probes consumed by the registered primitive type-set cells.
+Recurse only into operands whose cells require an input mask; constants and
+unregistered functions supply no recursive demands. The spine still hoists
+only exact literals of the actual clause, and the type-set walker checks them. -/
+partial def typeSetContextDemands (t : SExpr) : List ContextDemand :=
+  let direct := (tsCtxProbes t).flatMap fun p =>
+    [true, false].filterMap fun pos =>
+      (tsFactOf p pos).map fun _ => ContextDemand.term
+        (if pos then .cons (.atom (.symbol { name := "NOT" })) (.cons p .nil) else p)
+  let operands := match t with
+    | .cons (.atom (.symbol f)) (.cons a .nil) =>
+      if (tsUnaryOf f.name).any (fun (m, _, _) => m.isSome) then [a] else []
+    | .cons (.atom (.symbol f)) (.cons a (.cons b .nil)) =>
+      if !(tsBinaryOf f.name).isEmpty then [a, b] else []
+    | _ => []
+  direct ++ operands.flatMap typeSetContextDemands
+
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
     (ACL2 rewrites literal i under the falsity of ALL other clause literals):
@@ -286,6 +319,13 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     let ifTestDemands : List ContextDemand :=
       (ifTestsOf l ++ ifTestsOf rh).flatMap ifTestDemandsOf
+    let typeDemands :=
+      if (prov.origin == "recognizer/true" || prov.origin == "recognizer/false") &&
+          prov.typeSet.isSome && prov.trueTs.isSome then
+        match l with
+        | .cons (.atom (.symbol _)) (.cons arg .nil) => typeSetContextDemands arg
+        | _ => []
+      else []
     (if rty == "hyp-relief" then
        [ContextDemand.term (notOf l)] ++
        -- a (NOT atom) hyp's clause-context source is the ATOM literal — its
@@ -450,7 +490,7 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
           else []
         | _ => [])
      else if prov.origin == "recognizer/false" then [ContextDemand.term l]
-     else []) ++ ifTestDemands ++ children.flatMap (collectContextDemands fcDerivs)
+     else []) ++ typeDemands ++ ifTestDemands ++ children.flatMap (collectContextDemands fcDerivs)
 
 /-- WORLD-AWARE demand augmentation: a DEFINITION node's unfolded body (read
     from the world's defun, formals substituted by the recorded call args)

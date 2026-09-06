@@ -103,21 +103,34 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
     an unclosed dependency remains a visible condition. This decomposes imports
     whose registry preparation exceeds the command budget without raising it.
 
+    `from sourceDev` explicitly stages a source tree at the consumer world.
+    All definition/no-shadow checks run at that world; the resulting replay
+    must be unconditional. This invokes reconstruction, not transport of a
+    proof across unequal worlds. It lets repeated dependencies become named
+    declarations while preserving the ordinary command budget.
+
     Units at every site are USER units (1 unit = 1000 heartbeats).
     Re-measure with `lake env lean -D trace.profiler=true -D
     trace.profiler.useHeartbeats=true <module>`; a number without a date
     is stale by construction. -/
+syntax sourceClauseDR := &" from " ident
 syntax depsClauseDR := &" deps " "[" ident,* "]"
 
 elab "driver_replayed%" devId:ident worldId:ident nm:str
+    src:(sourceClauseDR)?
     wt:(&" with_termination")?
     uf:(&" usefi")?
     directDeps:(&" inline_deps")?
     deps:(depsClauseDR)? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
-  let dev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
+  let targetDev ← unsafe Meta.evalExpr Development (mkConst ``ACL2.Development)
     (mkConst devName)
+  let dev ← match src with
+    | none => pure targetDev
+    | some s => do
+      let sourceName ← Lean.resolveGlobalConstNoOverload (⟨s.raw[1]⟩ : Ident)
+      unsafe Meta.evalExpr Development (mkConst ``ACL2.Development) (mkConst sourceName)
   let some cp := Driver.findThm dev nm.getString
     | throwError "{nm.getString}: not found in the development (or ambiguous \
                   up to case — findThm refuses to guess)"
@@ -147,7 +160,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   -- its totality from the fn's REPLAYED admission waterfall). Each
   -- recorded admission is replayed ONCE PER WORLD and declared as a
   -- `ReplayedTermination.*` constant, its undischarged conditions
-  -- persisted in a companion `*_conds` constant so later invocations
+  -- persisted in a companion `conditions` constant so later invocations
   -- reuse both without re-replaying. A failed or circular replay is
   -- skipped (the consumer then hard-fails at the honest frontier).
   let mut termReplayed : List (String × Name × List String × List SExpr)
@@ -156,27 +169,22 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
     for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
         dev.justifications dev do
-      let base := String.map (fun c => if c.isAlphanum then c else '_')
-        s!"term_replayed_{worldName}_{fn}"
-      let mName := Name.mkStr2 "ReplayedTermination" base
-      let condsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
-      -- CACHE-KEY HAZARD (audit 2026-07-31 inside finding 2, same
-      -- hazard the runner documents for its constants): the
-      -- alphanumeric sanitizer is not injective across (world, fn)
-      -- pairs. A collision is fail-closed (the cached constant is only
-      -- ever APPLIED, so a type mismatch fails unification) — but
-      -- guard the partial-state case with a named error.
+      let mName := ACL2.Replay.Runner.registryName "ReplayedTermination"
+        ["macro", worldName.toString, fn]
+      let condsName := Name.str mName "conditions"
+      -- Preserve the exact world/function key and reject a partial cache
+      -- entry explicitly. Reused proofs are checked when applied.
       let conds? ← do
         if (← getEnv).contains mName then
           unless (← getEnv).contains condsName do
             throwError "driver_replayed% with_termination: cached \
               termination constant {mName} exists WITHOUT its companion \
-              {condsName} (partial cache state or sanitizer collision)"
+              {condsName} (partial cache state)"
           some <$> (unsafe Meta.evalExpr (List String) condsTy
             (mkConst condsName))
         else
           let (status, reg?) ← ACL2.Replay.Runner.replayAdmission dev
-            dev.toWorld (mkConst worldName) tcp mName
+            targetDev.toWorld (mkConst worldName) tcp mName
             (crossTrees := crossTrees)
           if reg?.isNone then
             throwError "driver_replayed% with_termination: the {fn} \
@@ -226,16 +234,15 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
   -- — a waypoint row states a frontier, it does not carry one.
   let mut preparedUseFi : List (String × Name × List (String × String)) := []
   if uf.isSome then
-    let wVal := dev.toWorld
+    let wVal := targetDev.toWorld
     let wExpr := mkConst worldName
     let mut termByFn : List (String × Name × List String × List SExpr) := []
     for (depName, depDev) in crossDevs do
       for (fn, tcp) in ACL2.Replay.Runner.recordedTerminationDefuns
           depDev.justifications depDev do
         unless termByFn.any (·.1 == fn) do
-          let base := String.map (fun c => if c.isAlphanum then c else '_')
-            s!"usefi_term_{worldName}_{fn}"
-          let mName := Name.mkStr2 "ReplayedTermination" base
+          let mName := ACL2.Replay.Runner.registryName "ReplayedTermination"
+            ["usefi", worldName.toString, fn]
           -- THE COMPANION CONDS CONSTANT (close-out arc, J-1-2), the same
           -- device `crossBookRegistry` has always used for its own
           -- termination cache. A cached constant's CONDITION LIST cannot be
@@ -251,7 +258,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
           -- need BSORT's totality; the FIRST row that does is
           -- BSORT-IS-ISORT, and the first pre-pass in a module registers the
           -- constant that every later row then re-reads.
-          let mCondsName := Name.mkStr2 "ReplayedTermination" s!"{base}_conds"
+          let mCondsName := Name.str mName "conditions"
           let condsTy := mkApp (mkConst ``List [.zero]) (mkConst ``String)
           let clause := (tcp.root.map (·.inputClause)).getD []
           let conds? : Option (List String) ←
@@ -351,7 +358,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
         pure (([] : ACL2.Replay.Driver.ReplayedRegistry),
               ([] : List (String × Name × List String × List SExpr)))
       else
-        (ACL2.Replay.Runner.crossBookRegistry worldName.toString dev.toWorld
+        (ACL2.Replay.Runner.crossBookRegistry worldName.toString targetDev.toWorld
           (mkConst worldName) crossDevs
           -- the SAME seed the sweep uses (P6's widening): a pin and its
           -- golden row must demand the same dependency set, or the pin
@@ -372,7 +379,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       (crossTerm.filter fun (fn, _, _, _) =>
         !recTermDefuns.any (fun (g, _) => g == fn)
           && !termReplayed.any (fun (g, _, _, _) => g == fn))
-    let cfg := ACL2.Replay.Runner.mkBookConfig dev dev.toWorld
+    let cfg := ACL2.Replay.Runner.mkBookConfig dev targetDev.toWorld
       (mkConst worldName) env termReplayed
     let replayed := sameWorld ++ crossReg
     let (proof, conds) ← replayProofConditional cfg ch.tps cp
@@ -383,6 +390,11 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
       replayed
       (equivRefls := ch.equivRefls) (termReplayed := termReplayed)
       (congTrees := some ch.localTrees)
+    -- Explicit source stages publish complete proofs only. Their source
+    -- telescope may differ from the consumer's; no conditional binder is
+    -- allowed to masquerade as a consumer-world dependency.
+    if src.isSome && !conds.isEmpty then
+      throwError "driver_replayed% from: source replay keeps conditions {conds}"
     -- register the enclosing definition for later same-world consumers.
     -- INVARIANT (audit F6): the registered decl must be a plain
     -- `def X := driver_replayed% …` — or, since the v4.33 bump, the

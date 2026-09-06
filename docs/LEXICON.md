@@ -125,6 +125,14 @@ byte-nest (equisort's encapsulate world is the live example) has its
 transfers REFUSED and printed, and the consumer keeps the honest
 hypothesis or takes the parametric route instead.
 
+An explicit source stage (`driver_replayed% ... from sourceDev`) instead
+reconstructs one named tree directly at the consumer world. Each used
+definition and primitive is checked there, and the stage must close all
+conditions before registration. This exposes the conditional discharger's
+existing reconstruction route as separate declarations; it does not
+transport an existing proof across unequal worlds or weaken the automatic
+whole-world transfer gate.
+
 **QUIESCENCE (T1+2 sprint P6)** — the discharge sweep's outer loop: a
 book's post-replay discharge passes (`total:` / `tp:` / the D5 gz
 pass) are re-run until a round retires nothing, rather than once.
