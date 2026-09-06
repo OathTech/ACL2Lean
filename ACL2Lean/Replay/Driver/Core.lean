@@ -9,6 +9,8 @@
 -/
 import ACL2Lean.Replay.Driver.CoreSpine
 
+import ACL2Lean.Replay.Driver.HintCases
+
 namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -135,6 +137,10 @@ def replayUseHintClausify (cfg : ReplayConfig) (ctx : ReplayCtx)
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
     to its pool-root child when the clauses coincide. -/
 partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
+  -- Refresh at every clause entry: filtering the offers themselves here would
+  -- incorrectly lose rules cited only by a child. Admission bundles already
+  -- have their own recorded-rune gate at their construction site.
+  let ctx := { ctx with linearRunes := some (cn.steps.flatMap (·.runes)) }
   -- never-silently-skip (R7a audit F4, the F12 class): a :USE-HINT
   -- payload is consumed ONLY by the apply-top-hints arm (the no-clausify
   -- branch below) — any node routed to another processor arm with a
@@ -534,6 +540,10 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       p ← mkAppM ``evtrue_extract_else
         #[← castConvToNil cfg ctxU negL hfNot, p]
     return p
+  if cn.steps.any (fun st => st.processor.toLower == "apply-top-hints-clause") then
+    -- :USE payloads were consumed above. The remaining recorded case partition
+    -- carries all branch clauses; validate their exact cover and replay each.
+    return ← replayRecordedCases rec cfg ctx cn
   if lits.isEmpty && cn.inputClause.length == 1 then
     -- a SINGLE-literal clause discharged entirely at PREPROCESS: clause-level
     -- step nodes chain the formula to 't (no literal bracketing is emitted at

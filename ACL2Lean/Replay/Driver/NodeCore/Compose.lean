@@ -239,6 +239,26 @@ def tsAnd : Int → Int → Int
   | .negSucc x, .ofNat y => .ofNat (y ^^^ (x &&& y))
   | .negSucc x, .negSucc y => .negSucc (x ||| y)
 
+/-- Check ACL2's recognizer verdict from its emitted argument and tuple masks. -/
+def checkRecogVerdict (ts trueTs falseTs : Int) (recog : String)
+    (wantTrue : Bool) : MetaM Unit := do
+  -- Int bitwise: two's-complement semantics match ACL2's type-set
+  -- encoding (negative numbers = complemented sets).
+  if wantTrue then
+    unless tsAnd ts falseTs == 0 do
+      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
+          false-ts {falseTs} — the emitted data does not support \
+          the TRUE verdict (frontier)"
+    unless tsAnd ts trueTs != 0 do
+      throwError "recogVerdictGate: ts {ts} does not intersect {recog}'s \
+          true-ts {trueTs} — the emitted data does not support the \
+          TRUE verdict (frontier)"
+  else
+    unless tsAnd ts trueTs == 0 do
+      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
+          true-ts {trueTs} — the emitted data does not support the \
+          FALSE verdict (frontier)"
+
 /-- The R2 DATA-DRIVEN verdict gate, rewired per audit 2026-08-07 S4 to
     ACL2's OWN `type-set-recognizer` semantics: with `ts` the argument's
     type-set — the STEP's recorded `:TYPESET` when present (the exact
@@ -259,22 +279,7 @@ def recogVerdictGate (cfg : ReplayConfig) (fn recog : String)
   let some tup := cfg.recogTuples.find? (fun t => t.fn == recog)
     | throwError "recogVerdictGate: no cited recognizer tuple for \
         {recog} (emission gap — the fn was not cited at capture)"
-  -- Int bitwise: two's-complement semantics match ACL2's type-set
-  -- encoding (negative numbers = complemented sets).
-  if wantTrue then
-    unless tsAnd ts tup.falseTs == 0 do
-      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
-          false-ts {tup.falseTs} — the emitted data does not support \
-          the TRUE verdict (frontier)"
-    unless tsAnd ts tup.trueTs != 0 do
-      throwError "recogVerdictGate: ts {ts} does not intersect {recog}'s \
-          true-ts {tup.trueTs} — the emitted data does not support the \
-          TRUE verdict (frontier)"
-  else
-    unless tsAnd ts tup.trueTs == 0 do
-      throwError "recogVerdictGate: ts {ts} intersects {recog}'s \
-          true-ts {tup.trueTs} — the emitted data does not support the \
-          FALSE verdict (frontier)"
+  checkRecogVerdict ts tup.trueTs tup.falseTs recog wantTrue
 
 #guard builtinRecogFacts.all (fun e => (dpUnary.lookup e.1).isSome)
 

@@ -143,6 +143,12 @@ inductive WorldEvent where
   | captureEnd (books : SExpr)
   /-- A proved theorem and its clause-tree proof. -/
   | theorem (proof : ClauseProof)
+  /-- Guard-verification tree: retained in event order, never registered as a
+      logical theorem, rule, or admission proof. Replay is unsupported. -/
+  | guardProof (obligation : GuardObligation) (proof : ClauseProof)
+  /-- Redundant declaration: retained for provenance, with no new proof and
+      no contribution to theorem/rule offers. -/
+  | redundantTheorem (name : String) (formula : SExpr) (classes : Option SExpr)
   /-- An INCLUDE-BOOK'd theorem (R2): certified in its OWN book — no
       waterfall runs on include, so this log carries its statement (and,
       separately, its stored rules via a `.rules` event) but NO proof tree.
@@ -235,9 +241,14 @@ def Development.scopes (dev : Development) : Except String (List Scope) := do
       | _ => go rest depth cur acc
   go dev 0 none []
 
-/-- All INCLUDE-BOOK'd theorems in development order. (The explicit `_` for
-    `classes` matters: a 2-arg pattern would DEFAULT-FILL `classes := none`
-    and silently skip classed entries — the TamperTests F1 lesson.) -/
+/-- Separately recorded guard proofs, with no logical rule/definition effects. -/
+def Development.guardProofs : Development → List (GuardObligation × ClauseProof)
+  | .bind (.guardProof g p) rest => (g, p) :: rest.guardProofs
+  | .bind _ rest => rest.guardProofs
+  | .done => []
+
+/-- All INCLUDE-BOOK'd theorems in development order. The explicit `_` for
+    `classes` prevents default-filling from skipping classed entries. -/
 def Development.includedTheorems : Development → List (String × SExpr)
   | .bind (.includedTheorem n f _) rest => (n, f) :: rest.includedTheorems
   | .bind _ rest => rest.includedTheorems
@@ -958,10 +969,25 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
   -- semantics (scope membership, per-scope dedup) are Phase 4.
   let mut encDepth : Nat := 0
   let mut curClasses : Option SExpr := none
+  let mut curGuard : Option GuardObligation := none
   for ev in log.events do
+    if let some guard := curGuard then
+      unless (match ev with
+        | .step _ | .induction _ | .poolConsider _ | .poolSubsumed _ _ | .qed => true
+        | _ => false) do
+        throw s!"buildDevelopment: {guard.label} has no closing (:QED) before {repr ev}"
     match ev with
-    | .defthm name formula .includeBook cls =>
-      -- an INCLUDE-BOOK'd theorem: no waterfall runs, no proof block, no
+    | .verifyGuards guard =>
+      -- A defun can finish its admission waterfall, then verify guards,
+      -- then emit DEFUN. Keep its pending termination proof across this
+      -- separate block; the guard QED must never replace that proof.
+      unless curName.isNone && curEvents.isEmpty do
+        throw s!"buildDevelopment: {guard.label} starts inside an unclosed proof block"
+      curName := some guard.label
+      curFormula := guard.formula
+      curGuard := some guard
+    | .defthm name formula .includeBook cls | .defthm name formula .redundant cls =>
+      -- An included or redundant declaration has no waterfall, proof block, or
       -- QED. An OPEN named block here still means THAT theorem's proof
       -- never closed — hard-fail exactly as below.
       if let some openName := curName then
@@ -970,7 +996,10 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
       if let some p := p? then pendingTermination := some p
-      events := events.push (.includedTheorem name formula cls)
+      let decl := match ev with
+        | .defthm _ _ .redundant _ => WorldEvent.redundantTheorem name formula cls
+        | _ => .includedTheorem name formula cls
+      events := events.push decl
       curEvents := #[]
     | .defthm _ _ _ _ | .qed =>
       -- A named (:DEFTHM) block is a completed proof ONLY if it ends with its
@@ -986,7 +1015,9 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
       let (p?, a) ← closeBlock curName curFormula curEvents anon
       anon := a
       if let some p := p? then
-        if curName.isSome then
+        if let some guard := curGuard then
+          events := events.push (.guardProof guard p)
+        else if curName.isSome then
           events := events.push (.theorem { p with classes := curClasses })
         else pendingTermination := some p
       -- A :DEFTHM opens the next block; a :QED closes to the between-blocks state.
@@ -995,6 +1026,7 @@ def buildDevelopment (log : ProofLog) : Except String Development := do
         curName := some name; curFormula := formula; curClasses := cls
         curEvents := #[]
       | _ => curName := none; curFormula := .nil; curEvents := #[]
+      curGuard := none
     | .defun n formals body just =>
       let termination := pendingTermination.map fun t => { t with name := s!"termination of {n}" }
       events := events.push (.defun n formals body just termination)
@@ -1406,6 +1438,13 @@ partial def printDevelopment : ACL2.Development → IO Unit
     | .theorem proof =>
       IO.println s!"\n══ THEOREM {proof.name} ══"
       printClauseProof proof 2
+    | .guardProof guard proof =>
+      IO.println s!"\n── {guard.label}: recorded tree; replay UNSUPPORTED ──"
+      for c in guard.clauses do IO.println s!"  obligation clause: {SExpr.ofList c}"
+      printClauseProof proof 2
+    | .redundantTheorem name formula _ =>
+      IO.println s!"\n── redundant declaration {name} (no new proof) ──"
+      IO.println s!"  {formula}"
     | .includedTheorem name formula cls =>
       IO.println s!"\n── included theorem {name} (certified in its own book) ──"
       IO.println s!"  {formula}"

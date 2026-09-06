@@ -627,41 +627,11 @@ theorem evtrue_of_conv_ne_nil {w : World} {env : Env} {a va : SExpr}
   obtain ⟨N, hconv⟩ := hconv
   exact ⟨N, fun f hf => ⟨va, hconv f hf, hne⟩⟩
 
-/-- The LINEAR-rule premise fact (2b): from the `linear:` hypothesis
-    instance (`EvTrue h → EvTrue (EQUAL l r)`) and the three terms'
-    pinned values, the DP-obligation premise `(IF h (EQUAL l r) 'T)`'s
-    value is `t` — cond-shaped exactly like a TP corollary, so the
-    INT-VIEW lift consumes it unchanged. `hnd`: EQUAL is undefined in
-    the world (no-shadow; `by decide` at the concrete world). -/
-theorem linear_premise_fact {w : World} {env : Env} {h l r vh vl vr : SExpr}
-    (hnd : w.defs.get? ({ name := "EQUAL" } : Symbol) = none)
-    (hyp : EvTrue w env h → EvTrue w env
-      (.cons (.atom (.symbol { name := "EQUAL" }))
-        (.cons l (.cons r .nil))))
-    (ph : ∃ N, ∀ f ≥ N, evalOpt f w env h = some vh)
-    (pl : ∃ N, ∀ f ≥ N, evalOpt f w env l = some vl)
-    (pr : ∃ N, ∀ f ≥ N, evalOpt f w env r = some vr) :
-    cond (Logic.toBool vh) (Logic.equal vl vr) SExpr.t = SExpr.t := by
-  cases hb : Logic.toBool vh with
-  | false => rfl
-  | true =>
-    have hne : vh ≠ SExpr.nil := fun hnil => by
-      rw [hnil] at hb; exact absurd hb (by decide)
-    have hc := hyp (evtrue_of_conv_ne_nil ph hne)
-    have hpe := conv_builtin2 w env { name := "EQUAL" } l r vl vr
-      (Logic.equal vl vr) (by decide) hnd pl pr (callBuiltin_equal vl vr)
-    have hne2 := ne_nil_of_evtrue_conv hc hpe
-    show Logic.equal vl vr = SExpr.t
-    rcases logic_equal_t_or_nil vl vr with ht | hn
-    · exact ht
-    · exact absurd hn hne2
-
 /-- The RULE-content premise fact (2c): from a boolean-strengthened
     stored-rule hypothesis instance (`EvTrue h → eval l ≐ eval 'T`) and
     the two terms' pinned values, the DP-obligation premise
-    `(IF h (EQUAL l 'T) 'T)`'s value is `t` — the `linear_premise_fact`
-    twin for `rule:` content (lhs ⇒ 'T shapes: TRUE-LISTP-RM /
-    ORDEREDP-RM). -/
+    `(IF h (EQUAL l 'T) 'T)`'s value is `t` for `rule:` content
+    (lhs ⇒ 'T shapes: TRUE-LISTP-RM / ORDEREDP-RM). -/
 theorem rule_premise_fact {w : World} {env : Env} {h l vh vl : SExpr}
     (hyp : EvTrue w env h → ∃ N, ∀ f ≥ N,
       evalOpt f w env l = evalOpt f w env

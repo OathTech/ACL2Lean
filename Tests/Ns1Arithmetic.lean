@@ -19,12 +19,18 @@ private def modLog : String := include_str "../acl2_samples/ns1/mod.proof-log"
 def modDev : Development := load_development% modLog
 derive_world modWorld from modDev
 
+private def pass1Log : String := include_str "../acl2_samples/ns1/basic-arithmetic.proof-log"
+def pass1Dev : Development := load_development% pass1Log
+derive_world pass1World from pass1Dev
+
 replayed_theorem timesZeroReplayed :=
   driver_replayed% timesDev timesWorld "*-OF-0"
 replayed_theorem floorZeroReplayed :=
   driver_replayed% floorDev floorWorld "FLOOR-OF-0-ARG1" deps [timesDev]
 replayed_theorem modZeroReplayed :=
   driver_replayed% modDev modWorld "MOD-OF-0-ARG1" deps [timesDev, floorDev]
+replayed_theorem negateTwiceReplayed :=
+  driver_replayed% pass1Dev pass1World "FUNCTIONAL-SELF-INVERSION-OF-MINUS"
 
 -- Independent source-formula pin: ACL2 multiplication completes nonnumbers
 -- as well as rational/complex inputs. The actual proof is one recorded DP leaf.
@@ -39,6 +45,14 @@ example (env : Env) : EvTrue floorWorld env
 
 example (env : Env) : EvTrue modWorld env
     (app "EQUAL" [app "MOD" [zero, sym "Y"], zero]) := modZeroReplayed env
+
+example (env : Env) : EvTrue pass1World env
+    (app "EQUAL" [app "UNARY--" [app "UNARY--" [sym "X"]],
+      app "FIX" [sym "X"]]) := negateTwiceReplayed env
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.negateTwiceReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms negateTwiceReplayed
 
 /-- info: 'ACL2.Tests.Ns1Arithmetic.modZeroReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in

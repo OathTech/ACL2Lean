@@ -39,9 +39,13 @@ charter or the archive carry the record.
       in `.claude/worktrees/ns1-bvchop`, branch `mdd/ns1-bvchop`, from the
       approved docs commit `b452b70`. C0 baseline, native specifications and
       both design reviews and C1 migration checked. Establish the selected
-      dependency closure from the now-reconstructed BVCHOP tree; extend the
-      linear-premise and recorded :cases consumers, close the three upper-bound
-      linear leaves and their actual dependencies, then the first native proof. Record:
+      dependency closure from the reconstructed BVCHOP tree and close the
+      strong MOD-bound dependency before the first native proof. Wire the
+      recorded rational primitive type cells, the actually cited INTEGERP-MOD
+      prescription, and the checked integer-view decomposition at its leaf.
+      Close the owning arithmetic proofs and the FLOOR/quotient bounds. Guard trees
+      reconstruct separately with replay still excluded. Resolve BUG-041's
+      local induction-helper provenance in the quotient dependency. Record:
       [NS1 charter](docs/plans/2026-09-05_bvchop-foundation-charter.md).
 
 ## Live backlog

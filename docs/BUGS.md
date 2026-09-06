@@ -410,6 +410,98 @@ are needed; it removes no event from an existing log.
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
+## BUG-041 — a top-level LOCAL defun is emitted as an encapsulation witness
+Status: open
+Pinned-by: none (actual nonnegative-integer-quotient dependency capture)
+
+The unchanged kestrel/arithmetic-light/nonnegative-integer-quotient book
+declares NONNEGATIVE-INTEGER-QUOTIENT-DOUBLE-INDUCT inside LOCAL, outside an
+ENCAPSULATE. The DEFUN emitter's remaining non-nil in-local-flg arm labels
+it LOCAL-WITNESS. Reconstruction then rejects the witness outside a scope.
+BUG-030 distinguished inherited LOCAL-INCLUDE-BOOK, but did not distinguish
+this actual local helper from a constrained function's witness. The capture
+at fork d03226496d is `.tmp/ns1/c2-d032-dependencies/nonnegative-integer-quotient.proof-log`;
+`c2-d032-niq-tree.log` records the rejection. A repair must preserve local
+definition provenance and admission evidence while preserving the existing
+parametric statement boundary for encapsulated functions. `toWorld` already
+includes witness bodies in the canonical model (ratified R6); the protection
+is statement abstraction and the witness-dereference guard, not exclusion
+from that model. Some older source comments still describe the superseded
+exclusion mechanism.
+
+## BUG-040 — capture's source theorem census miscounts reader comments and redundant declarations
+Status: fixed
+Pinned-by: none (capture completeness metadata; exercised by actual arithmetic-3 sources)
+The line-based source census counts three commented-out DEFTHMs in
+arithmetic-3/bind-free/basic.lisp. In simplify.lisp, two explicitly written
+declarations redundantly repeat already included theorems; ACL2 emits their
+INCLUDE-BOOK records and starts no new proof. Comparing all source declarations
+to fresh LOCAL proofs rejects both complete runs.
+The NS1 fix uses one lexical census that respects comments, strings and escaped
+names. A local-count shortfall is accepted only when every explicit source
+name is present in the log; QED pairing, the scoped final theorem, failure and
+capture-end checks still apply. The actual captures and existing negative
+provenance tests pass. Redundant source declarations now receive a separate
+metadata event, with no invented QED or new theorem offer; its control preserves
+all 77 original events and adds exactly the declaration
+(`.tmp/ns1/c2-redundant-event-comparison-final.log`).
+
+Fixed 2026-09-06. Full checkpoint gate
+`.gate-runs/d676937-20260906T072938Z.log` records `TRUE_EXIT=0`: all 101
+permanent captures are stamped at d03226496d, the 116 unconditional baseline
+rows and coverage golden are preserved, and the 21 existing mirrors pass.
+This is a capture/consumer repair; the NS1 native mirrors remain open.
+
+## BUG-039 — silent hypothesis relief omits its type-set basis
+Status: fixed
+Pinned-by: none (proof-capture/replay provenance; no interpreter-value divergence)
+MOD-BOUND-LINEAR-ARG2 exposes two distinct missing records. The known-true
+marker for PREFER-POSITIVE-ADDENDS-<'s ACL2-NUMBERP arithmetic-result hypothesis
+omits the argument type-set and enabled recognizer tuple actually consulted.
+The type-alist lookup marker for ACL2-NUMBERP Y omits the matched Y entry and
+the requested numeric mask; its supporting clause literal is RATIONALP Y.
+A literal-equality lookup therefore cannot replay either step, and inferring
+new type facts in Lean would violate the emitted-data rule.
+Fork `d03226496d` records the consumed recognizer basis without rerunning
+its query, and the successful lookup's exact entry via its returned list tail.
+Consumers use those records to gate kernel-proved primitive closure and the
+existing type-set algebra. Clean MOD replay crosses both recorded steps;
+its composed bound is conditional only on MY-FLOOR-LOWER-BOUND-ALT
+(`.tmp/ns1/c2-d032-mod-dependency-closure-replay.log`). The hypothesis-basis
+control preserves all 2083 original events modulo the new fields
+(`.tmp/ns1/c2-hyp-basis-control-event-comparison.log`). This entry does not claim the bound or a native mirror complete.
+
+Fixed 2026-09-06. Full checkpoint gate
+`.gate-runs/d676937-20260906T072938Z.log` records `TRUE_EXIT=0`: all 101
+permanent captures are stamped at d03226496d, the 116 unconditional baseline
+rows and coverage golden are preserved, and the 21 existing mirrors pass.
+This is a capture/consumer repair; the NS1 native mirrors remain open.
+
+## BUG-038 — linear DP premises ignore the recorded clause rune set
+Status: fixed
+Pinned-by: none (actual BVCHOP upper-bound premise construction)
+The linear premise adapter scans all end-of-book snapshot offers using only
+max-term matching. BVCHOP-UPPER-BOUND's three linear leaves cite only
+MOD-BOUND-LINEAR-ARG2-STRONG, but widening the adapter to arbitrary stored
+hypotheses also supplied MOD-BOUND-LINEAR-ARG1 and MOD-BOUND-LINEAR-ARG2.
+The rule proofs would remain kernel obligations, but these extra premises
+are not justified by the recorded clause's cited rules. This is the earlier
+DP-scan defect documented in the 2026-08-10 restructure audit; admission
+bundle gating landed there, while ordinary clause replay remained ungated.
+
+C2 threads each clause node's recorded rune set through the replay
+context and gates linear injection on that set. Offers remain intact when
+descending so a child can use its own cited rules. The actual upper-bound row uses only the cited strong MOD linear rule;
+its composed row has no assumed DP condition. The clean scoped target tree
+is `.tmp/ns1/c2-d032-upper-current-tree.log`; ordinary dependency conditions
+remain visible until their own replays close.
+
+Fixed 2026-09-06. Full checkpoint gate
+`.gate-runs/d676937-20260906T072938Z.log` records `TRUE_EXIT=0`: all 101
+permanent captures are stamped at d03226496d, the 116 unconditional baseline
+rows and coverage golden are preserved, and the 21 existing mirrors pass.
+This is a capture/consumer repair; the NS1 native mirrors remain open.
+
 ## BUG-010 — mixed/partial escaping within a symbol token
 Status: fixed
 Pinned-by: none (parser guards and matching differential cases recorded below)

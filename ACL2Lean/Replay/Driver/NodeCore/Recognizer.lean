@@ -71,6 +71,8 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
           some (``Logic.trueListp, ``logic_trueListp_ne_nil_t)
         else if rs.name == "INTEGERP" then
           some (``Logic.integerp, ``logic_integerp_ne_nil_t)
+        else if rs.name == "ACL2-NUMBERP" then
+          some (``Logic.acl2Numberp, ``logic_acl2Numberp_ne_nil_t)
         else none
       let some (liftC, neLemma) := entry?
         | throwError "replayRecognizer: not-literal elimination has no \

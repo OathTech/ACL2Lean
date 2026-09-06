@@ -7,6 +7,8 @@
 -/
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericExponent
+import ACL2Lean.NumericOrder
+import ACL2Lean.NumericNegation
 
 namespace ACL2.Replay.Driver
 
@@ -224,9 +226,10 @@ partial def dpSpine : SExpr → List SExpr × SExpr
     (`toBool_eq_true/false`) fire instead, and concrete arguments still
     reduce through them. `trueListp_ne_nil_iff` is recognizer booleanness —
     what tau itself knows about every recognizer (truthiness IS `= t`). -/
-def dpLeafTactic : MetaM (TSyntax `tactic) :=
-  `(tactic| first
-      | (simp_all [-Logic.lt, -Logic.expt, Logic.zero_lt_expt_pos_int] <;> omega)
+def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := false)
+    (withComparison : Bool := false) :
+    MetaM (TSyntax `tactic) := do
+  let ordinary ← `(tactic| first
       | (simp_all [-Logic.toBool, -Logic.endp, Logic.zp, Logic.lt, Logic.plus, Logic.equal,
                    Logic.not, Logic.integerp, Logic.consp, Logic.toRat,
                    Logic.toInt, Logic.mkNumber, Logic.car, Logic.cdr,
@@ -257,6 +260,51 @@ def dpLeafTactic : MetaM (TSyntax `tactic) :=
           (try split_ifs at *) <;> intros <;>
           simp_all [Nat.div_self, Nat.pos_iff_ne_zero] <;> omega)
       | omega)
+  let ordinary ← if withNegation then `(tactic| first
+      | (simp_all [-Logic.toBool, Logic.neg_parts, Logic.numberParts_mkParts,
+          Logic.mkParts_numberParts, Logic.equal, Logic.toBool_eq_true, Logic.toBool_eq_false] <;> omega)
+      | $ordinary:tactic) else pure ordinary
+  let ordinary ← if withComparison then `(tactic| first
+      | (simp_all [-Logic.toBool, -Logic.lt, Logic.lt_parts, Logic.plus_parts,
+          Logic.numberParts_mkParts, Rat.add_lt_add_right, Rat.add_lt_add_left,
+          Logic.rat_add_right_eq, Logic.rat_add_left_eq, Logic.not, Logic.equal,
+          Logic.toBool_eq_true, Logic.toBool_eq_false] <;>
+          (try split_ifs at *) <;> simp_all [-Logic.toBool] <;>
+          -- The component branch closes rational/propositional residue.
+          -- Constructor matches remain the existing split fallback's job.
+          -- Lean 4.33's lazy matcher congruences otherwise export colliding
+          -- sparseCasesOn auxiliaries from separately compiled replays.
+          grind -matchEqs -splitMatch)
+      | $ordinary:tactic) else pure ordinary
+  if !withNumericOrder then return ordinary
+  `(tactic| first
+      -- Keep conditional linear premises available for implication
+      -- elimination. simp_all can consume one as a rewrite and clear it
+      -- before the order lemma needs it (the noninteger EXPT branch).
+      | (simp (disch := assumption) [-Logic.toBool, -Logic.lt, -Logic.expt, -Logic.integerp,
+          -Logic.toBool_integerp, logic_integerp_ne_nil_t, Logic.integerp_int,
+          Logic.lt_int_int, Logic.toBool_eq_true, Logic.toBool_eq_false, Bool.cond_eq_ite,
+          Logic.expt_of_not_integer, Logic.zero_lt_expt_pos_int,
+          Logic.integerp_expt_nonneg_int] at * <;> first
+          | exact ne_of_eq_of_ne
+              (Logic.lt_of_not_lt_sub_one _ _ (by solve_by_elim)) (by decide)
+          | exact ne_of_eq_of_ne
+              (Logic.lt_of_nonpos_of_pos _ _ (by solve_by_elim)
+                (by first | (apply Logic.zero_lt_expt_pos_int; decide) | decide)) (by decide)
+          | omega)
+      | (simp_all [-Logic.toBool, -Logic.lt, -Logic.expt, -Logic.integerp,
+          -Logic.toBool_integerp, logic_integerp_ne_nil_t, Logic.integerp_int,
+          Logic.lt_int_int,
+          Logic.toBool_eq_true, Logic.toBool_eq_false, Bool.cond_eq_ite,
+          Logic.expt_of_not_integer, Logic.zero_lt_expt_pos_int,
+          Logic.integerp_expt_nonneg_int] <;> first
+          | exact ne_of_eq_of_ne
+              (Logic.lt_of_not_lt_sub_one _ _ (by assumption)) (by decide)
+          | exact ne_of_eq_of_ne
+              (Logic.lt_of_nonpos_of_pos _ _ (by assumption)
+                (by first | (apply Logic.zero_lt_expt_pos_int; decide) | decide)) (by decide)
+          | omega)
+      | $ordinary:tactic)
 
 /-- Collect the argument pairs of saturated `lexorder` applications in `e`
     (the DP order-theory scan). Pairs under binders (loose bvars) are skipped —
@@ -713,7 +761,15 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- computation. Kernel decision also unfolds irreducible Rat arithmetic;
   -- symbolic leaves continue through the existing value-layer procedure.
   if total == 0 then return ← proveByDecide stmt "closed DP leaf"
-  let tac ← dpLeafTactic
+  -- Select the preserved-comparison route for exponent or strict unit-shift
+  -- obligations. Other leaves retain the ordinary arithmetic normalization.
+  let minusOne := reflectSExpr (.atom (.number (.int (-1))))
+  let withNumericOrder := (stmt.find? fun e =>
+    e.isConstOf ``Logic.expt ||
+      (e.isAppOfArity ``Logic.plus 2 && e.getAppArgs[0]! == minusOne)).isSome
+  let withNegation := (stmt.find? (fun e => e.isConstOf ``Logic.neg)).isSome
+  let withComparison := (stmt.find? (fun e => e.isConstOf ``Logic.lt)).isSome
+  let tac ← dpLeafTactic withNumericOrder withNegation withComparison
   -- Normalize equalities for the unsplit attempt. This closes structural
   -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
   -- leaf: 143k → 176 heartbeat units). Keep the constructor-split tactic's

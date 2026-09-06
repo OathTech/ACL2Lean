@@ -439,6 +439,10 @@ structure ReplayCtx where
       set by the discharge call sites from the verdict node; gates and
       widens `replayDischargeNode`'s rule-premise pass. -/
   tauBasis : Option SExpr := none
+  /-- The enclosing recorded clause node's rune set. Linear premise injection
+      must use a cited :LINEAR rule when this channel exists. None is reserved
+      for callers without a clause record; some [] permits no linear rules. -/
+  linearRunes : Option (List Rune) := none
   ifMarkers : List (SExpr × Bool × SExpr) := []  -- P3b: the literal's IF-test markers, `bridgeIfCollapseNorm`'s anchor
   /-- ENCLOSING UNRESOLVED-IF test facts (the if-finish branch context,
       ACL2's assume-true-false): the test term, its value expr, the branch

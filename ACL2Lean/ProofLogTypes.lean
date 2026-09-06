@@ -1,5 +1,6 @@
 import ACL2Lean.Syntax
 import ACL2Lean.Parser
+import ACL2Lean.GuardObligation
 
 /-! # Proof-log TYPES (split from ProofLog.lean, endgame-arc weight trim)
 
@@ -279,6 +280,51 @@ def parseIntField (v : Option SExpr) : Option Int :=
   | some (.atom (.number (.int n))) => some n
   | _ => none
 
+/-- The exact argument verdict and active tuple consumed by
+`type-set-recognizer` for a known-true hypothesis's root application. -/
+structure HypRecognizerBasis where
+  argTs : Int
+  trueTs : Int
+  falseTs : Int
+  strongp : Bool
+  rune : Rune
+  deriving Repr, BEq, Inhabited
+
+def parseHypRecognizerBasis (runeOf : SExpr → Option Rune)
+    (v : Option SExpr) : Except String (Option HypRecognizerBasis) := do
+  let some v := v | return none
+  if v == .nil then return none
+  let some [.atom (.number (.int argTs)), .atom (.number (.int trueTs)),
+      .atom (.number (.int falseTs)), strongpS, runeS] := v.toList?
+    | throw s!"HYP-RELIEF: malformed :RECOG-BASIS {repr v}"
+  let strongp ← if strongpS == SExpr.t then pure true
+    else if strongpS == .nil then pure false
+    else throw s!"HYP-RELIEF: malformed :RECOG-BASIS strongp {repr strongpS}"
+  let some rune := runeOf runeS
+    | throw s!"HYP-RELIEF: malformed :RECOG-BASIS rune {repr runeS}"
+  return some { argTs, trueTs, falseTs, strongp, rune }
+
+/-- A successful lookup's exact type-alist entry and requested mask. -/
+structure HypLookupBasis where
+  term : SExpr
+  entryTs : Int
+  targetTs : Int
+  rune : Option Rune
+  deriving Repr, BEq, Inhabited
+
+def parseHypLookupBasis (runeOf : SExpr → Option Rune)
+    (v : Option SExpr) : Except String (Option HypLookupBasis) := do
+  let some v := v | return none
+  if v == .nil then return none
+  let some [term, .atom (.number (.int entryTs)),
+      .atom (.number (.int targetTs)), runeS] := v.toList?
+    | throw s!"HYP-RELIEF: malformed :LOOKUP-BASIS {repr v}"
+  let rune ← if runeS == .nil then pure none else
+    match runeOf runeS with
+    | some r => pure (some r)
+    | none => throw s!"HYP-RELIEF: malformed :LOOKUP-BASIS rune {repr runeS}"
+  return some { term, entryTs, targetTs, rune }
+
 /-- Read an `:ARG-LEAVES` field (RT2): the recognizer argument's per-branch
     derivation, in the same emitted entry shape as a `:TYPE-PRESCRIPTION`
     event's `:LEAVES`. Absent (non-recognizer origins) and `NIL`
@@ -317,6 +363,8 @@ inductive TraceEvent where
       -- provenance rides the clause-level :FC-DERIVATIONS event, joined by
       -- :CONCL); kept for a future unexpunged path.
       (taDerivations : List SExpr := [])
+      (recogBasis : Option HypRecognizerBasis := none)
+      (lookupBasis : Option HypLookupBasis := none)
   /-- The clause's approved forward-chaining derivations, emitted where
       ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
       per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS
@@ -477,6 +525,7 @@ structure InductionStep where
 inductive TheoremSource where
   | local       -- proved in this file
   | includeBook -- imported from another book
+  | redundant   -- declaration already present; no new proof or QED
   | unknown     -- source not specified (old trace format)
   deriving Repr, BEq
 
@@ -730,6 +779,8 @@ inductive ProofEvent where
       GENERAL `by_` root. Names are pool-lsts, e.g. `[1, 1, 1]` = `*1.1.1`. -/
   | poolConsider (name : List Nat)
   | poolSubsumed (name : List Nat) (by_ : List Nat)
+  /-- Opens a separately scoped, currently unsupported guard proof. -/
+  | verifyGuards (obligation : GuardObligation)
   | step (s : ProofStep)
   | induction (i : InductionStep)
   | qed

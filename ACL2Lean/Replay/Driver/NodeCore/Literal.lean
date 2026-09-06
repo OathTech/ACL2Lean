@@ -370,6 +370,19 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
         | some (.cons (.atom (.symbol es)) (.cons a (.cons b .nil))) =>
           if es.name == "EQUAL" then [ContextDemand.equivClass a b] else []
         | _ => [])
+     else if rty == "type-set-equality" && prov.lhsTs.isSome && prov.rhsTs.isSome then
+       -- The recorded operand masks consume the same typing-test registry as
+       -- inTsFromCtx. ACL2 sees later literals too; make their falsity available
+       -- through the existing checked hoist before replaying this equality.
+       (match l with
+        | .cons (.atom (.symbol es)) (.cons a (.cons b .nil)) =>
+          if es.name == "EQUAL" then
+            ((tsCtxProbes a) ++ (tsCtxProbes b)).flatMap fun p =>
+              [true, false].filterMap fun pos =>
+                (tsFactOf p pos).map fun _ =>
+                  ContextDemand.term (if pos then notOf p else p)
+          else []
+        | _ => [])
      else if prov.origin == "recognizer/true" then
        -- a recognizer resolved TRUE from the clause context (a later
        -- literal is its negation — EQUAL-CONS Subgoal 4); hoisting is a

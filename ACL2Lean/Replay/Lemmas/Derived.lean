@@ -508,13 +508,6 @@ theorem logic_plus_int (a b : Int) :
     = .atom (.number (.int (a + b))) := by
   simp [Logic.plus, Logic.toRat, Logic.mkNumber]
 
-/-- `(+ 0 k) = k` for an integer `k` (the unicity-of-0 fact specialized to the
-    integer value `my-len` returns, via `type-prescription:my-len`). -/
-theorem logic_plus_zero_int (k : Int) :
-    Logic.plus (.atom (.number (.int 0))) (.atom (.number (.int k)))
-    = .atom (.number (.int k)) := by
-  rw [logic_plus_int, Int.zero_add]
-
 /-! ### Unconditional arithmetic for `Logic.plus`
 
 The stored ACL2 addition rules quantify over the complete value domain.
@@ -703,21 +696,6 @@ theorem re_car_cons (w : World) (env : Env) (a b av bv : SExpr)
       (conv_builtin2 w env { name := "CONS" } a b av bv (.cons av bv) (by decide) h_no_cons ha hb rfl)
       (by rw [callBuiltin_car, logic_car_cons]))
     ha rfl
-
-/-- RUNE `commutativity-of-+`: `(+ a b) ⇒ (+ b a)`. -/
-theorem re_plus_comm (w : World) (env : Env) (a b av bv : SExpr)
-    (h_no_plus : w.defs.get? ({ name := "BINARY-+" } : Symbol) = none)
-    (ha : ∃ N, ∀ f ≥ N, evalOpt f w env a = some av)
-    (hb : ∃ N, ∀ f ≥ N, evalOpt f w env b = some bv) :
-    ∃ N, ∀ f ≥ N,
-      evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons a (.cons b .nil)))
-      = evalOpt f w env (.cons (.atom (.symbol { name := "BINARY-+" })) (.cons b (.cons a .nil))) :=
-  fuel_eq_of_conv
-    (conv_builtin2 w env { name := "BINARY-+" } a b av bv (Logic.plus av bv)
-      (by decide) h_no_plus ha hb (callBuiltin_plus _ _))
-    (conv_builtin2 w env { name := "BINARY-+" } b a bv av (Logic.plus bv av)
-      (by decide) h_no_plus hb ha (callBuiltin_plus _ _))
-    (logic_plus_comm av bv)
 
 /-- RUNE `commutativity-2-of-+`: `(+ a (+ b c)) ⇒ (+ b (+ a c))`. Unconditional —
     faithful to ACL2's `(defthm commutativity-2-of-+ …)`, which has no type

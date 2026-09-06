@@ -62,6 +62,8 @@ unsafe def main (args : List String) : IO Unit := do
       match ACL2.ClauseTree.buildDevelopment log with
       | .error e => throw (IO.userError s!"deps {dp}: recon error: {e}")
       | .ok ddev =>
+        for (guard, _) in ddev.guardProofs do
+          IO.println s!"    [dependency {dp}: {guard.label} UNSUPPORTED; tree retained]"
         crossTrees := crossTrees ++ bookTrees ddev
         crossDevs := crossDevs ++ [(dp, ddev)]
         crossRules := crossRules ++ (allBookRules ddev).filter

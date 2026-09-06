@@ -662,6 +662,416 @@ explicit FORCING ROUND 1 frontier instead of failing on stray prose
 (`.tmp/ns1/c2-floor-clean-full-forcing-frontier.log`). BUG-036 is the prose
 bug and is fixed; forcing-round composition remains excluded and unimplemented.
 
+### C2 linear and case composition (2026-09-06, in progress)
+
+Checkpoint `d676937` records the validated reader/capture batch above. The next
+batch extracts `LinearPremises` from Totality: all stored hypotheses and any
+truthy conclusion are transported under the emitted max-term match, then
+booleanized for the existing DP premise interface. The first actual upper-bound
+run caught an application mismatch between `Logic.if_` and the lift's `cond`;
+the premise lemmas now state the lift's exact Boolean encoding. That corrected
+run retained two DP assumptions plus three linear-rule conditions
+(`.tmp/ns1/c2-upper-general-linear-cond-shape-replay.log`); it was not a result.
+
+The widening exposed BUG-038: the old snapshot scan offered ARG1 and ARG2 rules
+although these three clauses cite only MOD-BOUND-LINEAR-ARG2-STRONG. Clause
+replay now carries its own rune set and filters linear injection against it,
+refreshing the set on child entry without deleting their offers. The first
+filtered run retains all three DP assumptions and no extraneous linear rule
+conditions (`.tmp/ns1/c2-upper-cited-linear-first-replay.log`, 114220 ms).
+The existing 03-linear book remains 3/3 unconditional, three checked DP leaves
+(`.tmp/ns1/c2-cited-linear-baseline-replay.log`). Full regression validation of
+this batch remains open.
+
+The recorded `:cases` partition is now composed by a general adapter consuming
+all child proofs and checking their exact clauses. Actual MOD-BOUND-LINEAR-ARG2
+has one case/two children; `cov-cases-hint` has two cases/three children. The
+latter now reaches its three assumed arithmetic DP leaves rather than failing
+at the case node (`.tmp/ns1/c2-cases-pattern-first-replay.log`). Tautology-dropped,
+deduplicated or differently normalized case outputs remain explicit frontiers.
+
+MOD's bound next required its emitted disjoint type-set masks (zero versus
+positive rationals). The shared type-test registry now consumes RATIONALP as
+mask 63, intersects it with the sign test's mask, and requests later clause
+assumptions through the existing checked hoist. The actual theorem now passes
+that equality and stops at PREFER-POSITIVE-ADDENDS-<'s recorded known-true
+ACL2-NUMBERP hypothesis for an arithmetic result
+(`.tmp/ns1/c2-mod-bound-rational-hoist-replay.log`). No new native mirror is
+claimed. The three upper-bound leaves are being decomposed through generic
+primitive numeric-order/exponent facts, with the production limits unchanged.
+
+The numeric-order Boolean normalization closes actual Subgoal 6' in the
+composed upper-bound replay; two DP assumptions remain
+(`.tmp/ns1/c2-upper-boolean-full-replay.log`). A separate actual-node probe
+then closes Subgoal 2' through generic comparison transitivity and exponent
+positivity (`.tmp/ns1/c2-upper-linear-sg2-order-probe.log`). Subgoal 3 still
+needs the integer-exponent fact to survive the DP simplifier's normalization.
+These probes check their proof terms and axiom closure but are not a completed
+replayed theorem or a native product.
+
+BUG-039 records the two missing hypothesis-relief bases. The first fork image
+build caught the new raw instrumentation's missing registration for
+KNOWN-WHETHER-NIL and TYPE-SET-REC; registering those exact functions fixes the
+build (`.tmp/ns1/c2-known-basis-registered-image-build.log`). A diagnostic
+capture records the root query's actual argument mask and enabled tuple,
+without repeating the query. MOD replay now passes the arithmetic-result fact
+and stops at a distinct successful type-alist lookup for ACL2-NUMBERP Y
+(`.tmp/ns1/c2-mod-bound-known-basis-replay.log`). The next emitter records that
+lookup's matched entry and requested mask using the search's returned list
+tail; its diagnostic capture completes 58/58 scoped source events
+(`.tmp/ns1/c2-hyp-basis-diagnostic-capture.log`). These diagnostic logs explicitly
+carry dirty-fork provenance and are not corpus pins. Clean-fork recapture and
+the full gate remain necessary before any completion claim.
+
+The hypothesis-basis consumers now replay MOD-BOUND-LINEAR-ARG2's whole
+recorded tree, conditionally on eight explicit stored-rule dependencies and
+with its sole DP leaf checked
+(`.tmp/ns1/c2-mod-bound-numeric-product-replay.log`, 67252 ms). The dependencies
+are MY-FLOOR-LOWER-BOUND-ALT, NORMALIZE-ADDENDS, PREFER-POSITIVE-ADDENDS-<,
+|(+ 0 x)|, |(- (- x))|, |(* y x)|, |(+ x (- x))| and BUBBLE-DOWN-+-MATCH-1.
+Its STRONG successor retains those same conditions plus one actual arithmetic
+DP assumption (`.tmp/ns1/c2-mod-strong-directed-replay.log`). Neither bound is
+unconditional yet. The multiplication closure is a primitive numeric fact,
+consumed at the recorded known-true hypothesis for |(- (- x))|.
+
+A capture control rebuilds the old fork under the current certificates,
+recaptures the same MOD prefix, then restores the working fork and image
+(`.tmp/ns1/c2-hyp-basis-control-run.log`). All 2083 control/new events agree
+after erasing only the added hypothesis bases and lookup provenance
+(`.tmp/ns1/c2-hyp-basis-control-event-comparison.log`). The differences against
+the older diagnostic capture — certificate metadata and two duplicate TA-SUBST
+records — also occur with the old fork under the current certificates.
+
+The broad conditional-order simp rules caused a performance regression:
+03-linear remained 3/3 unconditional, but its separate LINEAR-CHAIN DP check
+hit the existing guard (`.tmp/ns1/c2-hyp-basis-linear-regression.log`, 205281 ms).
+A narrower, conclusion-directed branch restores all three DP checks
+(`.tmp/ns1/c2-directed-linear-regression.log`, 73380 ms), but is still too slow
+and loses one previously checked BVCHOP leaf. Primitive literal views and
+recognizer-preserving normalization are being tested before this batch can be
+validated. No resource limit has been raised.
+
+The next ordinary arithmetic dependency captures expose two distinct capture
+census frontiers: basic.lisp's three DEFTHMs inside block comments, and
+simplify.lisp's two redundant declarations of already included theorems.
+Both are complete ACL2 runs that the current source-vs-local-count guard
+rejects. Their unpromoted diagnostic outputs are retained; no count has been
+lowered or capture check disabled. Collect's prefix through
+BUBBLE-DOWN-+-MATCH-1 and normalize's prefix through NORMALIZE-ADDENDS captured
+successfully; tree reconstruction and replay remain to be measured.
+
+The capture-census fix (BUG-040) now promotes both actual outputs through
+normal capture checks: basic.lisp has 93 explicit, uncommented source
+theorems and 93 QEDs; simplify's selected prefix includes two redundant
+already-included declarations. All existing negative provenance controls
+still fail closed (`.tmp/ns1/c2-theorem-census-negative-gates.log`). The
+basic and collect trees reconstruct. Normalize refuses at VERIFY-GUARDS for
+FACTORS, simplify at VERIFY-GUARDS for ADDEND-VAL. Guard-obligation replay
+remains excluded; neither tree has been silently trimmed or promoted to a
+replay result. These are ingestion boundaries to resolve without claiming
+any guard proof.
+
+The exponent tactic is being isolated to obligations whose lifted statement
+actually contains Logic.expt. The ordinary DP engine is kept as its separate
+branch so unrelated numeric leaves do not pay for the new normalization.
+The first quotation of that branch failed to typecheck (tactic versus
+tacticSeq); the corrected quotation uses an explicit tactic category. Failed
+build/attempt receipts are retained. Full upper-bound and baseline replays
+remain pending on the final compiled version.
+
+### C2 continued: dependency closure and guard-tree retention
+
+The exponent-directed engine restores 03-linear's three unconditional rows and
+three checked DP probes in 10003 ms; adding the unit-shift selector retains that
+result in 10460 ms (`c2-exponent-gated-linear-final.log` and
+`c2-unit-shift-linear-regression.log`, under `.tmp/ns1/`). The full upper-bound
+row still carries one ASSUMED DP fact and its strong MOD-bound condition
+(`c2-upper-exponent-gated-full-replay.log`). Actual Subgoal 3 checks with exactly
+its recorded linear premise and emitted TP fact
+(`c2-upper-sg3-exponent-gated-probe.log`). Subgoal 6's focused probe hits the
+default 200k elaboration budget; this is unresolved, not a reason to raise it.
+
+Collect's prefix reconstructs and BUBBLE-DOWN-+-MATCH-1 replays unconditionally
+(`c2-arithmetic3-collect-bubble-replay.log`). The full basic-book sweep was
+stopped after several minutes to restrict the next replay to the cited prefix;
+`c2-arithmetic3-basic-full-replay.log` is not a completed validation receipt.
+
+Guard-proof replay remains excluded. The ingestion change under construction
+retains each VERIFY-GUARDS wrapper, its exact clause set, and its reconstructed
+waterfall as a separate WorldEvent. It enforces QED/block boundaries, never
+registers that event as a logical theorem, rule, or termination proof, and
+reports it as UNSUPPORTED in tree/replay output. This is reconstruction of
+unselected records, not a new proof mechanism: ACL2's total logical function
+semantics do not depend on executable guards. A selected logical proof needing
+a guard theorem would still have no registered evidence. No source, hint, or
+record is removed. The actual normalize/simplify trees and the existing
+cov-verify-guards capture are the validation inputs. Initial compilation failed
+on two unavailable convenience APIs; those calls were corrected, with the
+rebuild still pending. No new completeness claim follows from this change.
+
+The guard reconstruction and boundary validation now pass. The actual
+normalize capture retains 13 guard trees and simplify retains 15; their
+logical theorem trees reconstruct (`c2-guard-admission-{normalize,simplify}-tree.log`).
+The existing GSUM capture yields one separately reported unsupported guard tree
+and one unconditional GSUM-OF-NIL replay. `Tests/Ns1GuardTrees.lean` checks this,
+exclusion from logical theorem offers, and rejection after removing the guard
+QED in memory (`c2-guard-tree-pins-build.log`). The first arithmetic captures
+revealed the real admission → QED → guard → QED → DEFUN ordering. Preserving the
+pending admission tree across the guard block fixes that ordering without
+turning a guard tree into termination evidence.
+
+NORMALIZE-ADDENDS replays unconditionally with those guard records retained
+(`c2-normalize-retained-guards-replay.log`, 12475 ms). PREFER-POSITIVE-ADDENDS-<
+reconstructs but retains REWRITE-EQUAL-<-TO-IFF-< and two assumed DP facts
+(`c2-simplify-retained-guards-replay.log`, 256304 ms). No guard proof is used by
+either logical row. Other unselected rows retain their displayed frontiers.
+
+Primitive UNICITY-OF-0 replay now proves the recorded intermediate FIX term on
+arbitrary values, including complex numbers and nonnumbers, then follows every
+recorded child. It replaces the old pinned-integer-only implementation.
+ACL2-NUMBERP's two-valuedness is registered at the actual FIX expansion in the
+basic book. The primitive associative-addition and commutative-multiplication
+axioms (`acl2/axioms.lisp`, defaxioms at 4279/4302 before subsequent fork edits)
+now use the same equation/child-chain composition. The cited basic prefix
+replays 5/9 rows, 3 unconditional: (+ (+ x y) z), (+ 0 x), and (* y x)
+(`c2-basic-primitive-equations-replay.log`, 44944 ms). Double negation still
+requires its ordinary pass1/basic-arithmetic book proof; it is not a primitive
+axiom and has not been hand-proved.
+
+The actual Subgoal 6 and Subgoal 2' DP obligations check using a normalization
+pass that retains their conditional linear premises
+(`c2-upper-sg6-preserve-premise-once.log`, `c2-upper-sg2-preserve-premise.log`).
+The same pass does not close Subgoal 3, including a two-pass attempt; its earlier
+checked recognizer-preserving route is retained as the fixed fallback. The
+production engine contains both routes and keeps the ordinary DP branch for
+unrelated statements. 03-linear still passes all three unconditional rows and
+three probes in 11137 ms (`c2-preserved-premises-linear-regression.log`). The
+complete upper-bound run is pending, so no DP completion claim is made yet.
+
+Capturing pass1/basic-arithmetic through FUNCTIONAL-SELF-INVERSION-OF-MINUS
+exposes another BUG-040 case: its first COMMUTATIVITY-2-OF-+ declaration is
+redundant with the bootstrap world and emits neither a fresh proof nor an
+include-book declaration. The source-census check correctly rejects that
+missing record. Instrumentation now emits an explicit :SOURCE :REDUNDANT
+DEFTHM at ACL2's actual redundancy branch. Its formula/classes are retained in
+a separate declaration event, with no QED and no new theorem/rule offer. The
+image rebuild succeeds (`c2-redundant-declaration-image-build.log`); the fresh
+capture, metadata-only control, and parser/replay validation are pending.
+
+The complete upper-bound row now replays with only
+`linear:MOD-BOUND-LINEAR-ARG2-STRONG`, with no assumed DP fact on the composed
+row (`c2-upper-preserved-premises-full-replay.log`, 82483 ms). The standalone
+informational probes still lack the linear-rule premises and report three
+assumed leaves; that bracket is not the composed row's condition inventory.
+The strong MOD bound and the native bridge remain open.
+
+The redundant-declaration control preserves all 77 original events exactly,
+adding only the declaration (`c2-redundant-event-comparison-final.log`). An
+initial control exposed an extra cited-symbol snapshot introduced by printing
+metadata; dynamically isolating that printer's collector removed the side
+effect. The hypothesis-basis control separately preserves all 2083 original
+events modulo its new fields. Fork commit `d03226496d` checkpoints both capture
+changes under the fast gate. Its clean image was rebuilt before regenerating
+the corpus (`c2-d032-clean-image-build.log`, `c2-d032-recapture-all.log`).
+
+FUNCTIONAL-SELF-INVERSION-OF-MINUS now replays unconditionally from its ordinary
+pass1 book tree, including both recorded tau leaves
+(`c2-pass1-negation-components-replay.log`, 4062 ms). The DP normalization uses
+canonical negation components on arbitrary ACL2 values; it does not introduce
+a Lean proof of the book theorem. A clean scoped capture and source-formula /
+axiom pins are being added to the permanent NS1 regressions. The INVERSE-OF-+
+primitive handler builds, but its focused replay must be rerun: the first run
+overlapped corpus invalidation and could not load ClauseTree. No full-gate
+claim is made for this batch yet.
+
+The clean permanent pass1 pin now builds with the exact source formula and
+`{propext, Classical.choice, Quot.sound}` receipt
+(`c2-d032-pin-build.log`, `c2-add-order-primitive-build.log`). Its ordinary
+book proof transfers into basic and closes (- (- x)) unconditionally
+(`c2-basic-pass1-dependency-rerun.log`, 49280 ms for the prefix). Collect's
+(+ x (- x)) also replays unconditionally through the recorded primitive
+INVERSE-OF-+ step (`c2-collect-inverse-core-rerun.log`, 4433 ms for the prefix).
+The shared primitive equation/child-chain adapter has its own module; the
+superseded commutative-addition evaluator lemma is removed.
+
+The two PREFER-POSITIVE-ADDENDS-< leaves check through primitive component
+normalization and rational addition cancellation. Its complete row is now
+conditional only on REWRITE-EQUAL-<-TO-IFF-<; both standalone probes also check
+(`c2-add-order-simplify-replay.log`, 98784 ms). The comparison-Boolean rule's
+own recorded tau leaves remain under investigation. Fresh unchanged-source
+captures of basic, collect, normalize, simplify, MOD bound and FLOOR bound
+are under `.tmp/ns1/c2-d032-dependencies/`; their capture receipt is
+`c2-d032-dependency-captures.log`.
+
+The next quotient dependency captures through
+NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2, but reconstruction rejects a
+LOCAL helper emitted as a witness outside ENCAPSULATE. BUG-041 records this
+separately from BUG-030's inherited-local-include case. Its admission and
+local provenance must be preserved; no witness exclusion has been relaxed.
+Static checks pass after splitting the primitive adapter, including all 101
+permanent log sidecars at d03226496d (`c2-d032-static-rerun.log`). These are
+intermediate receipts; C2 and the native mirrors remain open.
+
+The final comparison component branch checks all four recorded tau leaves of
+REWRITE-EQUAL-<-TO-IFF-< and composes that theorem unconditionally. It uses
+kernel-checked rational/propositional normalization only at verdict-only
+leaves. PREFER-POSITIVE-ADDENDS-< and SIMPLIFY-SUMS-< then replay unconditionally
+as well (`c2-comparison-simplify-replay.log`: 5/14 unconditional rows,
+65849 ms; unselected frontiers remain displayed). 03-linear retains 3/3
+unconditional rows and three checked probes in 11180 ms
+(`c2-comparison-linear-regression.log`).
+
+With the clean pass1/basic/collect/normalize/simplify/floor dependency captures
+offered together, MOD-BOUND-LINEAR-ARG2's condition inventory contracts from
+eight rules to just MY-FLOOR-LOWER-BOUND-ALT. The strong bound retains that
+condition and one assumed DP fact (`c2-d032-mod-dependency-closure-replay.log`,
+207648 ms). Whole-world transfer refuses the dependencies because of missing
+helper names, with no differing shared definitions
+(`c2-dependency-world-differences.log`); the existing tree replay fallback
+closes the other dependencies without changing that policy.
+
+The strong bound's current value abstraction supplies only ACL2-NUMBERP for
+opaque MOD. Its exact extracted obligation has a kernel-checked countermodel
+X=0, Y=1, opaque MOD=1/2
+(`c2-strong-mod-abstraction-computed-countermodel.log`). This refutes that
+abstraction, not the ACL2 theorem. The log's ALL-TPS already contains the
+conditional INTEGERP-OF-MOD-TYPE prescription. Its actual three-step literal
+chain unfolds MOD, replays multiplication commutativity, and asks the
+recognizer for integer closure through addition/negation/multiplication with
+the emitted FLOOR type fact. That producer and its downstream DP fact remain
+open; no integer fact has been invented in Lean.
+
+The full gate started in `.gate-runs/d676937-20260906T064419Z.log` catches a
+stale fsq-unfolds condition pin: COMMUTATIVITY-OF-* is now discharged by its
+recorded primitive step, leaving DISTRIBUTIVITY and UNICITY-OF-1. The actual
+lambda/body tree was inspected (`c2-fsq-primitive-tree.log`). Both the exact
+condition inventory and the independent statement pin are updated to remove
+that hypothesis, preserving the source conclusion. The failed gate is still
+finishing dependent builds; the corrected pin and full rerun are pending.
+
+CI capture preparation now invokes the shared `just capture-ns1-logs` recipe,
+with just installed before capture. The prior workflow regenerated only repo
+and sorting captures, so a clean runner would lack the new include_str inputs.
+The workflow YAML and ordering parse/check locally; its invoked certification
+and four capture commands have already run locally. No remote CI execution or
+push has been attempted. Main remains clean at the approved docs commit.
+
+The corrected DriverTests source checks in a standalone Lean run
+(`c2-fsq-corrected-driver-pins.log`): fsq-unfolds has exactly the two expected
+conditions and the accepted axiom trio; the source-formula pin and the other
+driver regressions pass. This run writes no Lake build products, so it does
+not race the still-running failed gate. The next full gate must rebuild that
+test before any batch-green claim.
+
+The first capture/consumer full gate finished with `TRUE_EXIT=1`, solely at
+the stale DriverTests pin described above. The rerun is in
+`c2-capture-components-claim-rerun.log`; no passing receipt is claimed yet.
+
+Closer inspection of the strong-bound leaf identifies its cited prescription
+as **INTEGERP-MOD**, from arithmetic-3/floor-mod/floor-mod.lisp, rather than
+the Kestrel INTEGERP-OF-MOD-TYPE alias discussed above. Both formulas occur in
+the snapshot, but only the actual cited basis may license this leaf. A clean
+unchanged-source capture through INTEGERP-MOD reconstructs its owning tree
+(`c2-d032-integerp-mod-owner-capture.log`,
+`c2-d032-integerp-mod-owner-tree.log`). Its recorded MOD/FLOOR expansion and
+integer primitive closure remain to be replayed. The existing conditional
+stored-TP body walker is also being inspected; its emitted masks, leaves and
+hypotheses remain mandatory gates, with no new assumption or per-book proof.
+
+The corrected DriverTests target passes in the rerun, but its combined Tests
+import exposes a second failure (`.gate-runs/d676937-20260906T072357Z.log`,
+`TRUE_EXIT=1`): PatternPins and BSmsort independently export the same
+`Logic.consp.match_1.congr_eq_1._sparseCasesOn_2` auxiliary. Lean 4.33's grind
+matcher-congruence realization creates it while attempting the new arithmetic
+branch. That branch now limits grind to the rational/propositional residue
+(`-matchEqs -splitMatch`); the existing constructor split fallback remains.
+All six extracted actual comparison leaves still kernel-check with clean
+axioms (`c2-comparison-no-match-probes.log`), and the affected CLI builds
+(`c2-comparison-no-match-build.log`). Combined-module/full-gate validation is
+running again; neither failed gate is a passing checkpoint.
+
+The owning INTEGERP-MOD replay reaches the recorded RATIONALP recognizer for
+`(BINARY-* M (UNARY-/ N))` inside EQUAL-DENOMINATOR-1's child chain
+(`c2-integerp-mod-owner-first-replay.log`). Its fake-rune-for-type-set basis
+requires the primitive rational multiplication/reciprocal cells. No native
+proof or INTEGERP-MOD completion is claimed.
+
+BUG-041 design inspection corrects the earlier phrase "witness exclusion":
+`Development.toWorld` already includes witnesses as the canonical model.
+The ratified R6 design and the 2026-08-08 addendum to the equisort charter
+place BUG-019's protection at parametric statement abstraction and the
+witness-dereference guard. Several parser/type comments still describe the
+superseded mechanism. The local-helper repair must preserve those actual
+protections, admission evidence and local provenance; it does not require a
+new trust ruling. No implementation of that repair is present yet.
+
+The simplified arithmetic replay still reports 5/14 unconditional rows with
+the restricted comparison branch (`c2-comparison-no-match-simplify-replay.log`,
+68687 ms). The full gate is still running. Primitive rational type-cell
+prototypes check locally (`c2-rational-type-cells-probe-rerun.log`), but are
+not yet wired into the owning INTEGERP-MOD node and do not count as a replay
+result.
+
+The owning INTEGERP-MOD rational node's reconstructed provenance is now
+inspected directly: argument type-set 40, RATIONALP true mask 63, no IF leaves,
+and the recorded fake-rune-for-type-set basis
+(`c2-integerp-mod-rational-node-basis.log`). The pending primitive cells derive
+63 from the actual context; the recognizer will check that ACL2's 40 lies
+inside it. Their wiring patch is prepared under `.tmp/ns1/`, not applied while
+the regression build is reading these modules.
+
+The strong-bound leaf with its actual cited INTEGERP-MOD corollary also checks
+under a prototype integer-view decomposition
+(`c2-strong-mod-int-views2.log`). It extracts the integer atoms from the
+clause's two recorded INTEGERP hypotheses, normalizes the conditional TP
+premise, extracts the output integer, and closes the resulting Int arithmetic.
+No resource limit was raised. This remains a conditional leaf probe: the
+production cited-TP adapter and the owning prescription's proof are still
+open, so it is not a completed strong-bound replay.
+
+The conditional leaf's integer normalization is now exercised as a generic
+loop (`c2-strong-mod-int-view-loop-rerun.log`), preserving the existing
+nonnegative-integer view and removing one SExpr value binder per new round.
+Its standalone module draft checks (`c2-integer-views-draft-build.log`). The
+cited-type adapter draft also checks (`c2-cited-type-adapter-draft-rerun.log`):
+leaf-cited rune and index, exact source-formula/stored-corollary matching,
+stored TERM trigger, fully bound substitutions, and the existing checked
+whole-formula transport. Actual owner/stored formula matching is recorded in
+`c2-cited-type-owner-bindings-rerun.log`. These drafts remain outside Lake's
+source graph until the current gate finishes; they have not changed the
+production strong-bound row.
+
+PatternPins and BSmsort now import together in a standalone check
+(`c2-comparison-module-import-regression.log`), reproducing the previously
+failing module pair without the auxiliary-name collision. The full gate is
+still finishing the product build. A fresh d03226496d BVCHOP capture through
+BVCHOP-UPPER-BOUND completes 9/9 local QEDs, retaining whole-source provenance
+(`c2-d032-upper-current-capture-rerun.log`); its current tree/replay check is
+running alongside the final gate work.
+
+The capture/consumer batch now has a complete passing receipt:
+**`.gate-runs/d676937-20260906T072938Z.log`, `TRUE_EXIT=0`**. All 116 baseline
+theorem rows are unconditional, the live coverage assembly matches the golden,
+and the 21 existing native products pass the seam gate (59 seams in scope).
+The combined Tests import also builds, closing the auxiliary-declaration
+collision. The source/provenance gate validates all 101 permanent captures at
+fork d03226496d. BUG-038/039/040 are closed under these specific repairs and
+the actual capture/replay/control receipts above; BUG-041 remains open.
+
+This is an intermediate C2 checkpoint, not C2 exit: the first native BVCHOP
+proof and all three new mirror products remain open. The next code increment
+applies the prepared rational type-cell wiring and the cited-type/integer-view
+consumer, then continues the owning arithmetic proof and FLOOR/NIQ closure.
+
+The current scoped BVCHOP replay, supplied with the permanent times/FLOOR/MOD
+zero dependency chain, again has exactly
+`cond[linear:MOD-BOUND-LINEAR-ARG2-STRONG]` on BVCHOP-UPPER-BOUND, with no
+assumed DP condition on that composed row
+(`c2-d032-upper-current-with-deps-replay.log`, 85778 ms). The informational
+standalone bracket still reports the three linear leaves without their rule
+premise. Unselected prefix rows keep their reported frontiers; no whole-book
+claim is made.
+
 ## Resume record
 
 - Approved docs are committed on `main` at `b452b70`; implementation lives
@@ -670,7 +1080,7 @@ bug and is fixed; forcing-round composition remains excluded and unimplemented.
   the full gate receipt above.
 - C0's two review tasks are complete. The two C4 tasks remain authorized;
   no preflight questions are pending.
-- Next: extend the linear premise consumer for the actual multi-hypothesis bound rule,
-  close that dependency proof, and build the first native proof.
+- Next: validate the capture/consumer batch, close the actual arithmetic
+  dependencies, and build the first native proof.
 - C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
   there is no merge or push approval for the implementation.

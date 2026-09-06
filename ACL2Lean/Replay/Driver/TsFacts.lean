@@ -22,7 +22,7 @@
   `tsFactOf` moved here from Driver/TsConsumer unchanged (T1+2 sprint
   phase 1's definition) — a MOVE, not a clone.
 -/
-import ACL2Lean.Replay.Lemmas.TsAlgebra
+import ACL2Lean.Replay.Lemmas.TsNumericFacts
 import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.ProofLog
 
@@ -86,6 +86,8 @@ def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
   | .cons (.atom (.symbol r)) (.cons a .nil) =>
     if r.name == "INTEGERP" && pos then
       some (a, 23, ``ACL2.Replay.inTs_integerp_true)
+    else if r.name == "RATIONALP" && pos then
+      some (a, 63, ``ACL2.Replay.inTs_rationalp_true)
     else none
   | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
     if r.name == "<" && b == tsQuotedZero then
@@ -107,7 +109,8 @@ def tsCtxProbes (t : SExpr) : List SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a .nil)
   let app2 (f : String) (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a (.cons b .nil))
-  [app1 "INTEGERP" t, app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t]
+  [app1 "INTEGERP" t, app1 "RATIONALP" t,
+   app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t]
 
 /-- TEST-NIL registry — the `.isNil` direction of `tsFactOf`: a test
     term ↦ `(the term it types, the test's own TRUE type-set, the proved
@@ -132,7 +135,8 @@ def tsTestNilOf (t : SExpr) : Option (SExpr × Int × Lean.Name) :=
     number before the fact is used, so a drifted emission fails closed.
     Demand-driven: `CD2-BOUND`'s `(INTEGERP N) ⇒ 'T`. -/
 def tsRecogTrue : List (String × Int × Lean.Name) :=
-  [("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
+  [("ACL2-NUMBERP", 127, ``ACL2.Replay.logic_acl2Numberp_t_of_inTs),
+   ("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
    ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
    ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
 

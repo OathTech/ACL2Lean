@@ -179,6 +179,7 @@ def main (args : List String) : IO Unit := do
                 let srcStr := match source with
                   | .local => " [local]"
                   | .includeBook => " [include-book]"
+                  | .redundant => " [redundant; no new proof]"
                   | .unknown => ""
                 IO.println s!"\n  DEFTHM {name}{srcStr}: {formula}"
             | .typePrescription name corollary basicTs leaves allTps =>
@@ -218,6 +219,8 @@ def main (args : List String) : IO Unit := do
                   IO.println s!"    {r.name}: {r.hyps.length} hyps ⇒ {r.concl} (max-term {r.maxTerm})"
             | .induction i =>
                 IO.println s!"  INDUCTION {repr i.term} → {i.subgoalCount} subgoals"
+            | .verifyGuards guard =>
+              IO.println s!"{guard.label}: {guard.clauses.length} clause(s); replay unsupported"
             | .qed =>
                 IO.println "  QED"
       | .error e => IO.eprintln s!"Parse error: {e}"

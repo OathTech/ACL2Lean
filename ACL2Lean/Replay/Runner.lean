@@ -1000,6 +1000,9 @@ def runBook (name : String) (content : String) (upTo : Option String := none)
     | .ok dev =>
       let tRecon ← IO.monoMsNow
       if timings then IO.println s!"[t] recon: {tRecon - tParse1} ms"
+      for (guard, _) in dev.guardProofs do
+        let line := s!"    {guard.label} → UNSUPPORTED (guard-proof tree retained; no replay)"
+        res := { res with lines := res.lines.push line }
       let w := dev.toWorld
       -- the include-closure gate: every edge in this book's own log is in
       -- its transitive include set (nested includes fire during ld)

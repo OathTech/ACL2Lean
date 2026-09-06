@@ -66,11 +66,15 @@ jobs:
           make -C acl2 LISP=sbcl
           test -x acl2/saved_acl2
 
+      - name: Install just
+        uses: extractions/setup-just@v4
+
       - name: Capture proof-log corpus from ACL2
         run: |
           # The .proof-log corpus is gitignored and `include_str`'d at build
-          # time, so it MUST be regenerated on the runner. TWO derived demand
-          # sets, NO hardcoded lists (audit 2026-07-26 F0: the derivation
+          # time, so it MUST be regenerated on the runner. The existing corpus
+          # has TWO derived demand sets; NS1 adds the shared scoped-capture
+          # recipe below (audit 2026-07-26 F0: the derivation
           # below existed for sorting/ only — a clone hazard: pattern-tests
           # include_str refs landed 2026-07-25 and killed this step, and
           # check-pattern-map's logs-present check has needed the whole
@@ -128,6 +132,9 @@ jobs:
           echo "Sorting books to capture (derived from include_str refs):"
           printf '  %s\n' "${books[@]}"
           OUTDIR=acl2_samples/sorting ./scripts/capture-proof-log.sh "${books[@]}"
+          # NS1's unchanged community-book prefixes need certified system
+          # dependencies. Share the local capture recipe and its scope names.
+          just capture-ns1-logs
           echo "Captured logs:"
           find acl2_samples -name '*.proof-log' | sort
           # Fail HERE (not deep in the Lean build) if any include_str'd log is
@@ -171,9 +178,6 @@ jobs:
       # `just ci` = lake build + lake build Tests + lake build Tests.DriverCoverage.
       # The unit tests are compile-time `#guard`s, so building the Tests library IS
       # the test run; DriverCoverage is the replay-coverage scoreboard.
-      - name: Install just
-        uses: extractions/setup-just@v4
-
       # shellcheck lints the build scripts (`just lint-sh`, part of `just ci`).
       # ubuntu-latest ships it, but install explicitly so the gate never depends
       # on the runner image — and `just lint-sh` would silently skip if absent.

@@ -6,6 +6,10 @@
 -/
 import ACL2Lean.Replay.Driver.NodeCore.HypRelief
 import ACL2Lean.Replay.Driver.NodeCore.GroundFold
+import ACL2Lean.Replay.Driver.NodeCore.PrimitiveEquation
+import ACL2Lean.NumericCompletion
+import ACL2Lean.NumericMultiplication
+import ACL2Lean.NumericNegation
 
 namespace ACL2.Replay.Driver
 
@@ -257,67 +261,53 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
     | _ => throwError "car-cons: lhs not (car (cons a b)): {repr lhs}"
   | "rewrite", "UNICITY-OF-0" =>
-    -- `(binary-+ '0 z) ⇒ z` via the REAL intermediate `(fix z)` (the def:fix child
-    -- subtree is REPLAYED, not collapsed): (A) `(+ '0 z) ⇒ (fix z)` by both
-    -- converging to z's pinned int value; (B) the child `(fix z) ⇒ z`.
+    -- Replay the primitive equation to FIX on arbitrary values, followed
+    -- by exactly the recorded child chain (which can be empty).
     match lhs with
     | .cons (.atom (.symbol plusS)) (.cons q0 (.cons z .nil)) =>
-      unless plusS.name == "BINARY-+" && rhs == z do
-        throwError "unicity-of-0: unexpected shape {repr lhs} ⇒ {repr rhs}"
-      let pin? ← match ctx.val? z with
-        | some p => pure (some p)
-        | none => builtinIntVal? cfg ctx z   -- gz-builtin TP route (e.g. LEN)
-      let some (vz, pz) := pin?
-        | throwError "unicity-of-0: {repr z} has no pinned value (need the TP int fact)"
-      let k ← intValExpr? vz
-      let some fixChild := children.find? (fun c => (runeOf c).ty == "definition")
-        | throwError "unicity-of-0: missing the definition:fix child"
-      let (_fixLhs, fixRhs) := nodeLhsRhs fixChild
-      unless fixRhs == z do
-        throwError "unicity-of-0: fix child rhs {repr fixRhs} ≠ {repr z}"
-      let fixEq ← replayNodeWith rec cfg ctx fixChild
-      let fixConv ← mkAppM ``fuel_conv_of_eq #[fixEq, pz]
-      let hq0 ← ctxValProof cfg ctx q0
-      let vq0 ← ctxValExpr cfg ctx q0
-      let hNoPlus ← proveNoShadow cfg { name := "BINARY-+" }
-      let hNsPlus ← proveNotSpecial { name := "BINARY-+" }
-      let hr ← mkAppM ``callBuiltin_plus #[vq0, vz]
-      let plusConvRaw ← mkAppM ``conv_builtin2
-        #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "BINARY-+" },
-          reflectSExpr q0, reflectSExpr z, vq0, vz,
-          mkApp2 (mkConst ``Logic.plus) vq0 vz, hNsPlus, hNoPlus, hq0, pz, hr]
-      let hzero ← mkAppM ``logic_plus_zero_int #[k]
-      let plusConv ← mkAppM ``re_val_cast
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr lhs,
-          mkApp2 (mkConst ``Logic.plus) vq0 vz, vz, plusConvRaw, hzero]
-      let stepA ← mkAppM ``fuel_eq_of_conv #[plusConv, fixConv, ← mkEqRefl vz]
-      mkAppM ``fuel_chain_eq #[stepA, fixEq]
-    | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
-  | "rewrite", "COMMUTATIVITY-OF-+" =>
-    -- `(+ a b) ⇒ (+ b a)`, then the node's children chain on the rule's rhs
-    -- (their paths carry an `(RHS . …)` boundary frame) to the recorded rhs.
-    match lhs with
-    | .cons (.atom (.symbol plusS)) (.cons a (.cons b .nil)) =>
       unless plusS.name == "BINARY-+" do
-        throwError "commutativity-of-+: head {plusS.name}"
-      let ha ← ctxValProof cfg ctx a
-      let hb ← ctxValProof cfg ctx b
+        throwError "unicity-of-0: unexpected head {repr lhs}"
+      unless ← isDefEq (← ctxValExpr cfg ctx q0)
+          (reflectSExpr (.atom (.number (.int 0)))) do
+        throwError "unicity-of-0: first argument has no checked zero value"
+      let fixTerm := SExpr.ofList [.atom (.symbol { name := "FIX" }), z]
+      let hzero ← mkAppM ``Logic.plus_zero_fix #[← ctxValExpr cfg ctx z]
+      replayPrimitiveEquation rec cfg ctx lhs fixTerm rhs hzero children
+    | _ => throwError "unicity-of-0: lhs not (binary-+ '0 z): {repr lhs}"
+  | "rewrite", "INVERSE-OF-+" =>
+    match lhs.toList? with
+    | some [.atom (.symbol op), a, negA] =>
+      unless op.name == "BINARY-+" &&
+          negA == SExpr.ofList [.atom (.symbol { name := "UNARY--" }), a] do
+        throwError "inverse-of-+: expected (binary-+ a (unary-- a))"
+      let zero := SExpr.ofList [.atom (.symbol { name := "QUOTE" }),
+        .atom (.number (.int 0))]
+      let law ← mkAppM ``Logic.plus_neg_right #[← ctxValExpr cfg ctx a]
+      replayPrimitiveEquation rec cfg ctx lhs zero rhs law children
+    | _ => throwError "inverse-of-+: expected a binary application"
+  | "rewrite", "COMMUTATIVITY-OF-+" | "rewrite", "COMMUTATIVITY-OF-*" =>
+    let (fn, law) := if rname == "COMMUTATIVITY-OF-+" then
+      ("BINARY-+", ``Logic.plus_comm) else ("BINARY-*", ``Logic.times_comm)
+    match lhs with
+    | .cons (.atom (.symbol op)) (.cons a (.cons b .nil)) =>
+      unless op.name == fn do throwError "{rname}: unexpected head {op.name}"
       let va ← ctxValExpr cfg ctx a
       let vb ← ctxValExpr cfg ctx b
-      let hNoPlus ← proveNoShadow cfg { name := "BINARY-+" }
-      let ruleEq ← mkAppM ``re_plus_comm
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr b, va, vb, hNoPlus, ha, hb]
-      let swapped : SExpr :=
-        .cons (.atom (.symbol plusS)) (.cons b (.cons a .nil))
-      let (chainOpt, finalTerm) ← rec.rewrites cfg ctx swapped children
-      let chainOpt ← chainReqEq chainOpt
-      unless finalTerm == rhs do
-        throwError "commutativity-of-+: children chain reached {repr finalTerm}, \
-                    node rhs is {repr rhs}"
-      match chainOpt with
-      | none => return ruleEq
-      | some ch => mkAppM ``fuel_chain_eq #[ruleEq, ch]
-    | _ => throwError "commutativity-of-+: lhs not (binary-+ a b): {repr lhs}"
+      let swapped := SExpr.ofList [.atom (.symbol op), b, a]
+      replayPrimitiveEquation rec cfg ctx lhs swapped rhs (← mkAppM law #[va, vb]) children
+    | _ => throwError "{rname}: expected a binary application, got {repr lhs}"
+  | "rewrite", "ASSOCIATIVITY-OF-+" =>
+    match lhs.toList? with
+    | some [.atom (.symbol op), ab, c] =>
+      let some [.atom (.symbol op'), a, b] := ab.toList?
+        | throwError "associativity-of-+: inner application malformed"
+      unless op.name == "BINARY-+" && op'.name == "BINARY-+" do
+        throwError "associativity-of-+: unexpected operation"
+      let app := fun x y => SExpr.ofList [.atom (.symbol op), x, y]
+      let law ← mkAppM ``Logic.plus_assoc
+        #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, ← ctxValExpr cfg ctx c]
+      replayPrimitiveEquation rec cfg ctx lhs (app a (app b c)) rhs law children
+    | _ => throwError "associativity-of-+: expected a binary application"
   | "rewrite", "COMMUTATIVITY-2-OF-+" =>
     -- `(+ a (+ b c)) ⇒ (+ b (+ a c))`, then the children chain on the rule's rhs
     -- by the sub-walk to the recorded rhs.

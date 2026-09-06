@@ -67,10 +67,10 @@ not exist (unresolved include — fail-closed)" >&2
              | grep -oE '\(include-book "[^"]+"( +:dir +:system)?' || true)
 }
 
-# Uncommented defthm/defthmd count in a source file (a leading `;`
-# comments the form out — isort's perm-isort taught us this).
+# Explicit DEFTHM/DEFTHMD declarations, respecting reader comments and
+# escaped names. Macro-generated events remain the log pairing check's job.
 count_source_defthms() {
-  grep -cE '^[^;]*\(defthmd?\b' "$1" || true
+  python3 "$ROOT/scripts/acl2-theorem-census.py" "$1"
 }
 
 # Explicit prefix captures use ACL2's native LD name filter, preserving the
@@ -91,21 +91,7 @@ validate_capture_through() {
 count_source_defthms_through() {
   local src="$1" through="$2"
   validate_capture_through "$through" || return 1
-  awk -v through="$through" '
-    { line=toupper($0); sub(/;.*/, "", line)
-      if (line ~ /\(DEFTHMD?[[:space:]]/) {
-        count++
-        sub(/^.*\(DEFTHMD?[[:space:]]+/, "", line)
-        sub(/[[:space:]()].*$/, "", line)
-        if (line == through) { found++; stop=count }
-      }
-    }
-    END { if (found != 1) {
-        print "capture-through target must name exactly one source DEFTHM/DEFTHMD" > "/dev/stderr"
-        exit 1
-      }
-      print stop
-    }' "$src"
+  python3 "$ROOT/scripts/acl2-theorem-census.py" "$src" --through "$through"
 }
 
 # :SOURCE :LOCAL theorem events in a log (include-book'd theorems arrive
@@ -196,8 +182,17 @@ check_capture_complete() {
     return 1
   fi
   if [ "$got" -lt "$want" ]; then
-    echo "INCOMPLETE: $(basename "$log") — logged $got of $want source defthm proof(s): ACL2 halted before a later event ($qed :QED)"
-    return 1
+    # A source may redundantly redeclare an included theorem. ACL2 records
+    # that name as INCLUDE-BOOK and starts no new proof. Account for a
+    # shortfall only when EVERY explicit source declaration is present in
+    # the real log; missing later names still fail. The independent QED,
+    # final-prefix-name, EVENT-FAILED and CAPTURE-END checks remain below.
+    local census_args=("$src" --covered-by "$log")
+    if [ -n "$through" ]; then census_args+=(--through "$through"); fi
+    if ! python3 "$ROOT/scripts/acl2-theorem-census.py" "${census_args[@]}"; then
+      echo "INCOMPLETE: $(basename "$log") — logged $got of $want source defthm proof(s): source declarations are missing ($qed :QED)"
+      return 1
+    fi
   fi
   # The explicit END record (fork-batch item 8; UNCONDITIONAL since the
   # 2026-08-07 audit M1 — the conditional form was a no-op against the

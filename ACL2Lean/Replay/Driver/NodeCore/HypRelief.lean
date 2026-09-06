@@ -1,5 +1,5 @@
 import ACL2Lean.Replay.Driver.NodeCore.GroundFold
-import ACL2Lean.Replay.Driver.NodeCore.Recognizer
+import ACL2Lean.Replay.Driver.NodeCore.KnownTrue
 
 /-! Replay the recorded hypothesis relief of an ordinary stored rule.
 
@@ -179,6 +179,10 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
                   KNOWN-TRUE verdict's basis is absent (frontier)"
             let conv ← replayExecGround cfg hσ SExpr.t
             mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
+          else if let some p ← replayHypLookupFromBasis? cfg ctx hσ reliefMarkers then
+            pure p
+          else if let some p ← replayKnownTruePrimitive? cfg ctx hσ reliefMarkers then
+            pure p
           else do
           -- FC-DERIVED type-alist entry (emission arc 2026-07-21): the
           -- marker's :TA-RUNES name the forward-chaining rule that put the

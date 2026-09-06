@@ -330,7 +330,9 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
             match r.toList? with
             | none => throw s!"HYP-RELIEF: :TA-DERIVATIONS not a list: {repr r}"
             | some l => pure l
-        pure (.hypRelief hyp origin taRunes parents taDerivs)
+        let recogBasis ← parseHypRecognizerBasis parseRune? (lookupKeyword "RECOG-BASIS" rest)
+        let lookupBasis ← parseHypLookupBasis parseRune? (lookupKeyword "LOOKUP-BASIS" rest)
+        pure (.hypRelief hyp origin taRunes parents taDerivs recogBasis lookupBasis)
     | .atom (.keyword "FC-DERIVATIONS") :: rest =>
         -- cluster item 4: the clause's approved fc derivations, raw plists
         let derivs ← match lookupKeyword "DERIVATIONS" rest with
@@ -868,6 +870,7 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
         let source := match lookupKeyword "SOURCE" fields with
           | some (.atom (.keyword "INCLUDE-BOOK")) => TheoremSource.includeBook
           | some (.atom (.keyword "LOCAL")) => TheoremSource.local
+          | some (.atom (.keyword "REDUNDANT")) => TheoremSource.redundant
           | _ => TheoremSource.unknown
         -- :CLASSES (cluster item 5): raw rule-classes; none = absent
         -- (pre-cluster log), some .nil = declared :rule-classes nil
@@ -1144,12 +1147,10 @@ private def parseEvent (s : SExpr) : Except String ProofEvent := do
              book's event was rejected/failed and the log is incomplete; fix \
              the book (or the capture) and recapture"
   | .cons (.atom (.keyword "VERIFY-GUARDS")) rest =>
-    -- emit/verify-guards (S1.2, 2026-07-23): the guard-obligation waterfall's
-    -- wrapper (previously its :STEP/(:QED) events were ORPHANS). Replay of
-    -- guard obligations is a named frontier — fail the parse precisely.
-    let names := (lookupKeyword "NAMES" (rest.toList?.getD [])).getD .nil
-    throw s!"proof log contains a VERIFY-GUARDS obligation proof for \
-             {repr names} — guard-obligation replay is an unsupported frontier"
+    let some fields := rest.toList? | throw "VERIFY-GUARDS: improper fields"
+    let some names := lookupKeyword "NAMES" fields | throw "VERIFY-GUARDS: missing :NAMES"
+    let some clauses := lookupKeyword "CLAUSES" fields | throw "VERIFY-GUARDS: missing :CLAUSES"
+    return .verifyGuards (← GuardObligation.parse names clauses)
   | .cons (.atom (.keyword "FORCING-ROUND")) rest =>
     -- emit/forcing-round (S1, 2026-07-23): the structured forcing-round
     -- boundary (was untagged English prose that broke parsing —

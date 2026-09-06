@@ -8,6 +8,7 @@
   walks) moved to `Driver/Decrease.lean` at the 2026-08-14 ratchet split.
 -/
 import ACL2Lean.Replay.Driver.Decrease
+import ACL2Lean.Replay.Driver.LinearPremises
 
 namespace ACL2.Replay.Driver
 
@@ -625,39 +626,6 @@ def dpFactStmtOfClause (worldVal : World) (tpsAvail : List (String × SExpr))
       return some (ACL2.Replay.substTerm formals args cor)
   dpFactStmt tests last vars opaques tpCors
 
-/-- First-order ONE-WAY match: bind the pattern's VARIABLES (bare symbol
-    atoms — ACL2 constants are quoted, functions are application heads) to
-    subterms of `target`. Deterministic; fail-closed on conflicting
-    bindings. The replay's ONLY matcher, justified at the verdict-class
-    :LINEAR premise site alone (2b): ACL2 records no :SUBST for pot-setup
-    rule uses, and the pattern is the EMITTED max-term — nothing is
-    invented, and the instantiated premise is re-proved from the
-    hypothesis, kernel-checked. -/
-partial def oneWayMatch (pat target : SExpr)
-    (acc : List (Symbol × SExpr) := []) :
-    Option (List (Symbol × SExpr)) :=
-  match pat with
-  | .atom (.symbol s) =>
-    (match acc.find? (fun (v, _) => v == s) with
-     | some (_, t) => if t == target then some acc else none
-     | none => some ((s, target) :: acc))
-  | .cons (.atom (.symbol f)) pargs =>
-    if f.name == "QUOTE" then (if pat == target then some acc else none)
-    else
-      (match target with
-       | .cons (.atom (.symbol g)) targs =>
-         if f == g then goArgs pargs targs acc else none
-       | _ => none)
-  | _ => if pat == target then some acc else none
-where
-  goArgs (pargs targs : SExpr) (acc : List (Symbol × SExpr)) :
-      Option (List (Symbol × SExpr)) :=
-    match pargs, targs with
-    | .nil, .nil => some acc
-    | .cons p pr, .cons t tr =>
-      (oneWayMatch p t acc).bind fun acc' => goArgs pr tr acc'
-    | _, _ => none
-
 /-- TAU-ELIGIBILITY gate for the RULE-content premise pass (fold-back audit
     F1, dp-premises): ACL2's tau system consumes a stored rule only in the
     Signature Form 1 shape — recognizer hypotheses on DISTINCT VARIABLES and a
@@ -701,17 +669,10 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   let lits := tests ++ [last]
   let vars := (lits.flatMap ACL2.Replay.freeVars).eraseDups
   let opaques0 := (lits.flatMap collectOpaques).eraseDups
-  -- LINEAR-rule premises (2b-iv): each offered `linear:` hypothesis whose
-  -- EMITTED max-term one-way-matches an obligation opaque contributes the
-  -- instantiated `(IF hyp (EQUAL l r) 'T)` premise — cond-shaped exactly
-  -- like a TP corollary, so the INT-VIEW lift consumes it unchanged. The
-  -- concrete fact: the schematic hypothesis applied at
-  -- `bindArgsOver env σvars σvals` and transported to the substituted
-  -- terms along `evalOpt_substTerm_substN` (the with-lemma recipe's
-  -- substN scaffold — inline twin, extraction queued), then
-  -- `linear_premise_fact`. v1 gates, all fail-closed: exactly one stored
-  -- hyp; EQUAL-headed conclusion; well-scoped rule terms; every rule
-  -- variable bound by the match.
+  -- Every emitted linear-rule instance retains all stored hypotheses and
+  -- its complete conclusion. The world-parametric adapter constructs the
+  -- conditional DP premise from the offered checked rule, under the exact
+  -- max-term match; it does not prove the book rule itself.
   let mut linData : List (SExpr × Expr) := []
   let mut ctxL := ctx  -- BOUNDED FIXPOINT (3 rounds): an instantiated premise can introduce
   -- the opaque a further instance needs (STRONG *1/2.1.2': the first
@@ -719,75 +680,11 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
   -- second-round match unfolds again). Dedup makes rounds idempotent.
   let mut srcOps := opaques0
   for _round in List.range 3 do
-    let mut newOps : List SExpr := []
-    -- Match targets here are the OPAQUE set only — deliberately narrower
-    -- than the rule pass's ruleTargets (fold-back audit F2): a linear
-    -- max-term is the pot LABEL, and pot labels are the linear-arithmetic
-    -- ATOMS, which the DP lift represents exactly as opaques. A max-term
-    -- headed by a lift primitive has no corpus witness; widen only when a
-    -- real book demands it (deterministic gating, no speculative reach).
-    for (spec, hypV) in ctx.linearHyps do
-      for op in srcOps do
-        if let some σ := oneWayMatch spec.maxTerm op then
-          -- v1 consumed EQUAL-headed single-hyp fully-bound rules ONLY;
-          -- the equal-descent restructure arc (charter item 3) adds the
-          -- `<`-headed conclusions item 1's wider snapshot legitimately
-          -- carries (HOW-MANY-BAD-PAIRS-BNEXT's rule — the decrease
-          -- obligation of termination:BSORT consumes it). Any other
-          -- shape still SKIPS (contributes no premise — completeness,
-          -- never soundness: the DP prove fails loudly if a needed
-          -- premise is missing).
-          let some (headS, lT, rT) := (match spec.concl with
-            | .cons (.atom (.symbol eqS)) (.cons l (.cons r .nil)) =>
-              if eqS.name == "EQUAL" || eqS.name == "<" then
-                some (eqS.name, l, r)
-              else none
-            | _ => none)
-            | continue
-          let some hT := (match spec.hyps with
-            | [h] => some h
-            | _ => none)
-            | continue
-          let ruleFrees := (ACL2.Replay.freeVars hT ++
-            ACL2.Replay.freeVars spec.concl).eraseDups
-          if ruleFrees.any (fun v => !σ.any (fun (x, _) => x == v)) then
-            continue
-          let σvars := σ.map (·.1)
-          let σterms := σ.map (·.2)
-          let inst := ACL2.Replay.substTerm σvars σterms
-          let (hI, lI, rI) := (inst hT, inst lT, inst rT)
-          let eqI : SExpr := .cons (.atom (.symbol { name := headS }))
-            (.cons lI (.cons rI .nil))
-          let premise : SExpr := .cons (.atom (.symbol { name := "IF" }))
-            (.cons hI (.cons eqI (.cons quoteT .nil)))
-          unless linData.any (fun (t, _) => t == premise) do
-            ctxL ← pinTermOpaques cfg cfg.envExpr ctxL premise
-            -- shared substN bridge (fold-back extraction; pins σ terms — F3)
-            let sb ← mkSubstNBridge cfg ctxL σvars σterms
-              s!"linear {spec.name}"
-            ctxL := sb.ctx
-            let w := cfg.worldExpr
-            let env := cfg.envExpr
-            -- hypInst : EvTrue env (subst h) → EvTrue env (subst concl)
-            let evT : SExpr → MetaM Expr := fun t =>
-              pure (mkAppN (mkConst ``EvTrue) #[w, env, reflectSExpr t])
-            let hypInst ← withLocalDeclD `hh (← evT hI) fun hhV => do
-              let hEnv' ← mkAppM ``evtrue_of_fuel_eq
-                #[← mkAppM ``fuel_eq_symm #[← sb.bridge hT], hhV]
-              let cEnv' := mkAppN hypV #[sb.env', hEnv']
-              let cBack ← mkAppM ``evtrue_of_fuel_eq
-                #[← sb.bridge spec.concl, cEnv']
-              mkLambdaFVars #[hhV] cBack
-            -- the premise fact via linear_premise_fact (per concl head)
-            let hnd ← proveNoShadow cfg ({ name := headS } : Symbol)
-            let phC ← ctxValProof cfg ctxL hI
-            let plC ← ctxValProof cfg ctxL lI
-            let prC ← ctxValProof cfg ctxL rI
-            let factLem := if headS == "EQUAL" then ``linear_premise_fact
-                           else ``linear_premise_fact_lt
-            let fact ← mkAppM factLem #[hnd, hypInst, phC, plC, prC]
-            linData := linData ++ [(premise, fact)]
-            newOps := (newOps ++ collectOpaques premise).eraseDups
+    -- Match targets remain the opaque arithmetic atoms, as before.
+    let (data, ctx', freshOps) ← addLinearPremises cfg ctxL srcOps linData
+    linData := data
+    ctxL := ctx'
+    let mut newOps := freshOps
     -- RULE-content premises (2c): boolean-strengthened stored rules
     -- (equiv EQUAL, rhs 'T, one hyp — TRUE-LISTP-RM / ORDEREDP-RM's
     -- shape) whose LHS one-way-matches an obligation APPLICATION SUBTERM
