@@ -52,6 +52,13 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
               mkConst ``SExpr.t])
           (mkConst ``SExpr.nil)) then
       return some (← Lean.Meta.mkAppM ``logic_ne_nil_of_if_nil_t_nil #[hf])
+    if depth > 0 then
+      if let .cons (.atom (.symbol fn)) (.cons a .nil) := t then
+        if fn.name == "NOT" then
+          if let some ha ← typeSetWalk cfg ctx (.isNil a) (depth - 1) then
+            let ht ← mkAppM ``logic_not_t_of_nil #[ha]
+            let hn ← mkDecideProof (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil])
+            return some (← mkAppM ``ne_of_eq_of_ne #[ht, hn])
     return none
   | .isNil t =>
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx t
@@ -65,6 +72,10 @@ partial def typeSetWalk (cfg : ReplayConfig) (ctx : ReplayCtx)
       if ← Lean.Meta.isDefEq (← Lean.Meta.inferType h) expected then
         return some h
     if depth == 0 then return none
+    if let .cons (.atom (.symbol fn)) (.cons a .nil) := t then
+      if fn.name == "NOT" then
+        if let some ha ← typeSetWalk cfg ctx (.isTruthy a) (depth - 1) then
+          return some (← mkAppM ``not_nil_of_truthy #[ha])
     -- car/cdr of a NON-cons (the completion defaults)
     match t with
     | .cons (.atom (.symbol cs)) (.cons u .nil) =>
@@ -628,6 +639,10 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   let mut out : List (Int × Expr) := []
   -- (1) the caller's LOCAL branch hypotheses
   for (f, pos, hb) in localFacts do
+    if f == t then
+      let m := if pos then -129 else 128
+      let nm := if pos then ``ACL2.Replay.inTs_toBool_true else ``ACL2.Replay.inTs_toBool_false
+      out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb]) (← inTsTy m))]
     if let some (a, m, nm) := tsFactOf f pos then
       if a == t then
         out := out ++ [(m, ← mkExpectedTypeHint (← mkAppM nm #[hb])
@@ -842,6 +857,22 @@ partial def inTsFromArgLeaves (cfg : ReplayConfig) (ctx : ReplayCtx)
     | return none
   unless ACL2.Replay.tsSubsumedM leaf.ts target do
     return none
+  if leaf.ts == 0 then
+    -- Only an addressed zero verdict licenses the pruned-branch arm.
+    -- Compare the local ruling test with its opposite in the outer context;
+    -- this is value equality contradiction, with no hypothesis DP attempt.
+    for (test, sign, hb) in localFacts do
+      let ctxC ← pinTermOpaques cfg cfg.envExpr ctxT test
+      let vC ← ctxValExpr cfg ctxC test
+      let opposite? ← typeSetWalk cfg ctxC
+        (if sign then .isNil test else .isTruthy test)
+      if let some opposite := opposite? then
+        let hbOpp ← if sign then
+            mkAppM ``Iff.mpr #[← mkAppM ``Logic.toBool_eq_false #[vC], opposite]
+          else mkAppM ``toBool_true_of_ne_nil #[opposite]
+        let absurd ← mkAppM ``ACL2.Replay.bool_value_conflict
+          (if sign then #[hb, hbOpp] else #[hbOpp, hb])
+        return some (← mkFalseElim want absurd)
   match ← inTsFromCtx cfg ctxT localFacts citedCr t vT leaf.ts citedTp with
   | none => return none
   | some hLeaf =>

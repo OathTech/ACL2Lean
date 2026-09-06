@@ -39,6 +39,9 @@ theorem Logic.equal_ne_nil_iff (a b : SExpr) : Logic.equal a b ≠ .nil ↔ a = 
     rw [Logic.equal_self]
     decide
 
+theorem Logic.equal_nil_iff (a b : SExpr) : Logic.equal a b = .nil ↔ a ≠ b := by
+  simpa only [ne_eq, not_not] using not_congr (Logic.equal_ne_nil_iff a b)
+
 /-- Preserve a recorded implication premise during DP normalization. -/
 theorem Logic.implies_ne_nil_iff (a b : SExpr) :
     Logic.implies a b ≠ .nil ↔ (a ≠ .nil → b ≠ .nil) := by

@@ -304,6 +304,19 @@ def parseHypRecognizerBasis (runeOf : SExpr → Option Rune)
     | throw s!"HYP-RELIEF: malformed :RECOG-BASIS rune {repr runeS}"
   return some { argTs, trueTs, falseTs, strongp, rune }
 
+/-- A known-true root IF query, with its result mask and addressed leaves. -/
+structure HypIfBasis where
+  resultTs : Int
+  leaves : List TpLeaf
+  deriving Repr, BEq, Inhabited
+
+def parseHypIfBasis (v : Option SExpr) : Except String (Option HypIfBasis) := do
+  let some v := v | return none
+  if v == .nil then return none
+  let some [.atom (.number (.int resultTs)), leaves] := v.toList?
+    | throw s!"HYP-RELIEF: malformed :IF-BASIS {repr v}"
+  return some { resultTs, leaves := ← TpLeaf.parseList "hypothesis :IF-BASIS" leaves }
+
 /-- A successful lookup's exact type-alist entry and requested mask. -/
 structure HypLookupBasis where
   term : SExpr
@@ -365,6 +378,7 @@ inductive TraceEvent where
       (taDerivations : List SExpr := [])
       (recogBasis : Option HypRecognizerBasis := none)
       (lookupBasis : Option HypLookupBasis := none)
+      (ifBasis : Option HypIfBasis := none)
   /-- The clause's approved forward-chaining derivations, emitted where
       ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
       per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS

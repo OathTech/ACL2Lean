@@ -49,6 +49,8 @@ replayed_theorem additiveInverseReplayed :=
   driver_replayed% helperDev helperWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
 replayed_theorem multiplicationCongruenceReplayed :=
   driver_replayed% helperDev helperWorld "EQUIV-1-IMPLIES-EQUIV-*"
+replayed_theorem multiplicationCancellationReplayed :=
+  driver_replayed% helperDev helperWorld "RIGHT-CANCELLATION-FOR-*"
 replayed_theorem productNegationReplayed :=
   driver_replayed% helperDev helperWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
 
@@ -86,6 +88,16 @@ example (env : Env) : EvTrue helperWorld env
     (app "IMPLIES" [app "EQUAL" [sym "X1", sym "X2"],
       app "EQUAL" [app "BINARY-*" [sym "X1", sym "Y"],
         app "BINARY-*" [sym "X2", sym "Y"]]]) := multiplicationCongruenceReplayed env
+
+-- Unrestricted ACL2 completion is part of the source statement: FIX is
+-- retained, and the proof covers rational, complex and nonnumeric values.
+example (env : Env) : EvTrue helperWorld env
+    (app "EQUAL" [app "EQUAL" [app "BINARY-*" [sym "X", sym "Z"],
+        app "BINARY-*" [sym "Y", sym "Z"]],
+      app "IF" [app "EQUAL" [zero, app "FIX" [sym "Z"]],
+        app "EQUAL" [zero, app "FIX" [sym "Z"]],
+        app "EQUAL" [app "FIX" [sym "X"], app "FIX" [sym "Y"]]]]) :=
+  multiplicationCancellationReplayed env
 
 example (env : Env) : EvTrue pass1World env
     (app "EQUAL" [app "BINARY-*" [zero, sym "X"], zero]) := pass1TimesZeroReplayed env
@@ -221,5 +233,9 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.multiplicationCongruenceReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms multiplicationCongruenceReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.multiplicationCancellationReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms multiplicationCancellationReplayed
 
 end ACL2.Tests.Ns1Arithmetic

@@ -23,6 +23,7 @@
   phase 1's definition) — a MOVE, not a clone.
 -/
 import ACL2Lean.Replay.Lemmas.TsNumericFacts
+import ACL2Lean.Replay.Lemmas.TsBooleanFacts
 import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.ProofLog
 
@@ -183,6 +184,7 @@ def tsUnaryOf (op : String) : Option (Option Int × Int × Lean.Name) :=
   else if op == "UNARY--" then some (some 23, 23, ``ACL2.Replay.inTs_neg_int)
   else if op == "NUMERATOR" then some (none, 23, ``ACL2.Replay.inTs_numerator)
   else if op == "DENOMINATOR" then some (none, 6, ``ACL2.Replay.inTs_denominator)
+  else if op == "NOT" then some (none, 384, ``ACL2.Replay.inTs_not)
   else none
 
 /-- The QUOTED-CONSTANT reading of a term: `'k` ↦ `k`, for an INTEGER

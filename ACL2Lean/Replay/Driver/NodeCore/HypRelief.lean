@@ -181,6 +181,8 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
             mkAppM ``evtrue_of_conv_ne_nil #[conv, tNeNil]
           else if let some p ← replayHypLookupFromBasis? cfg ctx hσ reliefMarkers then
             pure p
+          else if let some p ← replayKnownTrueIf? cfg ctx hσ reliefMarkers then
+            pure p
           else if let some p ← replayKnownTruePrimitive? cfg ctx hσ reliefMarkers then
             pure p
           else do

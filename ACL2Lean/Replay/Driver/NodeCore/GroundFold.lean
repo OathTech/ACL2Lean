@@ -7,6 +7,23 @@ the closed value computation and the surrounding congruence chain. -/
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- ACL2's `ffnnamep-hide` IF test for ordinary clausification: quotes and
+HIDE are opaque, lambda bodies and actual arguments are traversed. The
+compiler emits CALL only when an argument contains an IF; otherwise it
+PUSHes the unchanged application, without call-stack's primitive folds. -/
+partial def clausifyContainsIf (t : SExpr) : Bool :=
+  match t with
+  | .cons (.atom (.symbol fn)) args =>
+    if fn.name == "QUOTE" || fn.name == "HIDE" then false
+    else fn.name == "IF" || argList args
+  | .cons (.cons (.atom (.symbol fn)) (.cons _ (.cons body .nil))) args =>
+    (fn.name == "LAMBDA" && clausifyContainsIf body) || argList args
+  | _ => false
+where
+  argList : SExpr → Bool
+    | .cons a rest => clausifyContainsIf a || argList rest
+    | _ => false
+
 /-- Find a concrete fuel/value for a closed computation. Shared by recorded
     executable counterparts and clausification's permitted ground folds.
     The existing fuel ceiling is unchanged; failure remains explicit. -/

@@ -156,4 +156,90 @@ elab "ns1_congruence_substitution_control%" : command => Elab.Command.liftTermEl
 
 ns1_congruence_substitution_control%
 
+private partial def ifBases : ProofNode → List ProofNode
+  | n@(.node _ _ _ kids prov) =>
+    (if prov.ifBasis.isSome then [n] else []) ++ kids.flatMap ifBases
+
+private partial def branchIfBases : List ClauseItem → List (SExpr × ProofNode)
+  | [] => []
+  | .branch segment items :: rest =>
+    (items.flatMap fun
+      | .literal lp => (lp.nodes.flatMap ifBases).map (segment, ·)
+      | _ => []) ++ branchIfBases items ++ branchIfBases rest
+  | _ :: rest => branchIfBases rest
+
+private partial def clauseIfBases (cn : ClauseNode) : List (SExpr × ProofNode) :=
+  cn.steps.flatMap (fun st => branchIfBases st.items) ++ cn.children.flatMap clauseIfBases
+
+-- This is the actual known-true hypothesis inside EQUAL-/'s singleton
+-- nonnumber branch. It pins one node and its missing-leaf rejection;
+-- the whole EQUAL-/ statement is not asserted by this control.
+elab "ns1_known_if_basis_control%" : command => Elab.Command.liftTermElabM do
+  let dev := Ns1Arithmetic.helperDev
+  let some cp := findThm dev "EQUAL-/" | throwError "IF basis control: theorem absent"
+  let some cn := cp.root | throwError "IF basis control: root absent"
+  let [(segment, marker)] := clauseIfBases cn | throwError "IF basis control: basis not unique"
+  let some [literal] := segment.toList? | throwError "IF basis control: nonsingleton branch"
+  let .node rune hyp rhs kids prov := marker
+  Meta.withLocalDeclD `env (mkConst ``Env) fun env => do
+    let w := mkConst ``Ns1Arithmetic.helperWorld
+    let cfg := Runner.mkBookConfig dev dev.toWorld w env []
+    let ctx ← pinTermOpaques cfg env {} hyp
+    let ctx ← pinTermOpaques cfg env ctx literal
+    Meta.withLocalDeclD `hBranch (← Meta.mkEq (← ctxValExpr cfg ctx literal)
+        (mkConst ``SExpr.nil)) fun h => do
+      let ctx := { ctx with segFacts := [(literal, h)] }
+      let some p ← replayKnownTrueIf? cfg ctx hyp [marker]
+        | throwError "IF basis control: actual hypothesis did not replay"
+      let some basis := prov.ifBasis | throwError "IF basis control: basis absent"
+      let bad := ProofNode.node rune hyp rhs kids
+        { prov with ifBasis := some { basis with leaves := basis.leaves.dropLast } }
+      unless (← replayKnownTrueIf? cfg ctx hyp [bad]).isNone do
+        throwError "IF basis control: missing addressed leaf accepted"
+      let ty ← Meta.mkAppM ``EvTrue #[w, env, reflectSExpr hyp]
+      unless ← Meta.isDefEq (← Meta.inferType p) ty do
+        throwError "IF basis control: actual hypothesis type mismatch"
+      let value ← Meta.mkLambdaFVars #[env,h] p
+      let type ← Meta.mkForallFVars #[env,h] ty
+      addDecl (.thmDecl {
+        name := `ACL2.Tests.Ns1Contexts.knownIfHypothesis, levelParams := [], type, value })
+      logInfo "actual IF hypothesis consumed; deleting its pruned leaf is rejected"
+
+ns1_known_if_basis_control%
+
+/-- info: 'ACL2.Tests.Ns1Contexts.knownIfHypothesis' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms knownIfHypothesis
+
+elab "ns1_cancellation_dedup_control%" : command => Elab.Command.liftTermElabM do
+  let .ok log := ProofLog.parse congruenceCapture | throwError "dedup control: parse failed"
+  let active ← IO.mkRef false
+  let changed ← IO.mkRef (0 : Nat)
+  let events ← log.events.mapM fun ev => do
+    match ev with
+    | .defthm name _ _ _ =>
+      active.set (name == "RIGHT-CANCELLATION-FOR-*")
+      pure ev
+    | .step s =>
+      unless (← active.get) do return ev
+      let traceEvents ← s.traceEvents.mapM fun ev => do
+        if let .dedupDrop _ := ev then
+          changed.modify (· + 1)
+          return .dedupDrop (app "NOT" [app "ACL2-NUMBERP" [sym "Y"]])
+        return ev
+      pure (.step { s with traceEvents })
+    | _ => pure ev
+  unless (← changed.get) == 1 do
+    throwError "dedup control: did not change exactly one actual duplicate record"
+  let .ok bad := ClauseTree.buildDevelopment { log with events }
+    | throwError "dedup control: reconstruction failed before consumption"
+  let some cp := findThm bad "RIGHT-CANCELLATION-FOR-*" | throwError "dedup control: target absent"
+  let (status, _) ← Runner.tryReplay bad bad.toWorld (mkConst ``Ns1Arithmetic.helperWorld)
+    cp (rulesBefore bad cp.name)
+  unless (status.splitOn "equal-self trailing dedup has no duplicate").length > 1 do
+    throwError "dedup control: unexpected result after changing duplicate: {status}"
+  logInfo "cancellation duplicate mutation rejected at its consuming check"
+
+ns1_cancellation_dedup_control%
+
 end ACL2.Tests.Ns1Contexts

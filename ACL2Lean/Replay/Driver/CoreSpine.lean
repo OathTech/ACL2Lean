@@ -6,6 +6,7 @@
   tied knot (replayClause/replayClauseSpine + clauseRec).
 -/
 import ACL2Lean.Replay.Driver.Waterfall.Compose
+import ACL2Lean.Replay.Driver.Waterfall.ClauseReflexivity
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
@@ -796,43 +797,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- reflexivity and closes the whole disjunction (comm-rm's *1/1.2 after
     -- its branch-substitution trivializes the conclusion)
     if (runeOf n).ty == "equal-self" then
-      -- this step CLOSES the clause; trailing spine items would be silently
-      -- unreplayed — fail closed (audit #3 hardening). (An S1.3 interim
-      -- verify-then-drop for a trailing discharge item was REMOVED, MDD
-      -- 2026-07-23: the item was the fc-contradiction emitter firing
-      -- degenerately on the settled-down pass's residual *true-clause* —
-      -- fixed at the EMITTER with a *true-clause* gate, no walker epicycle.)
-      unless rest.isEmpty do
-        throwError "replayClauseSpine: {rest.length} spine item(s) after a \
-                    closing clause-level equal-self at {idStr} (frontier); \
-                    first: {match rest.head? with
-                            | some (.step m) => s!"step {(runeOf m).ty}/{nodeOrigin m}"
-                            | some (.literal lp) => s!"literal {lp.index}"
-                            | some (.clausify _) => "clausify"
-                            | some (.useHint ..) => "use-hint"
-                            | some (.fcDerivations ..) => "fc-derivations"
-                            | some (.complementClose ..) => "complement-close"
-                            | some (.dedupDrop ..) => "dedup-drop"
-                            | some (.taSubst ..) => "ta-subst"
-                            | some (.branch ..) => "branch"
-                            | none => "none"}"
-      let (lhs, rhs) := nodeLhsRhs n
-      unless rhs == quoteT do
-        throwError "replayClauseSpine: clause-level equal-self with rhs \
-                    {repr rhs} at {idStr} (frontier)"
-      let some X := asEqualSelf lhs
-        | throwError "replayClauseSpine: clause-level equal-self lhs \
-                      {repr lhs} is not (equal X X) at {idStr}"
-      let some k := clauseLits.findIdx? (·.2 == lhs)
-        | throwError "replayClauseSpine: equal-self literal {repr lhs} not \
-                      in the clause at {idStr}"
-      let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-      let vX ← ctxValExpr cfg ctx X
-      let hEqT ← mkAppM ``Logic.equal_self #[vX]
-      let tNeNil ← proveByDecide
-        (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil]) "t ≠ nil"
-      let hne ← mkAppM ``ne_of_eq_of_ne #[hEqT, tNeNil]
-      return ← evtrueOfLitTrue cfg ctx (clauseLits.map (·.2)) k lhs hne
+      return ← replayClauseReflexivity cfg ctx idStr (clauseLits.map (·.2)) n rest
     -- a clause-level EXECUTABLE-COUNTERPART step: remove-trivial-equivalences'
     -- scan evaluates a GROUND application in the substituted clause literals
     -- (APP-NIL Subgoal *1/3: (APP 'NIL 'NIL) ⇒ 'NIL after X ⇒ 'NIL). Mirror:

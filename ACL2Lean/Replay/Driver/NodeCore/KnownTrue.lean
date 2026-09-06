@@ -4,6 +4,29 @@ import ACL2Lean.Replay.Lemmas.TpClosure
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- The actual root-IF basis follows the existing addressed leaf walk. Its
+recorded result must exclude NIL; an unsupported leaf remains a frontier. -/
+def replayKnownTrueIf? (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (hyp : SExpr) (markers : List ProofNode) : MetaM (Option Expr) := do
+  let some (.node _ _ _ _ prov) := markers.find? (fun n => (nodeLhsRhs n).1 == hyp)
+    | return none
+  unless prov.origin == "relieve-hyp/known-true" do return none
+  let some basis := prov.ifBasis | return none
+  let .cons (.atom (.symbol fn)) args := hyp | return none
+  unless fn.name == "IF" && args.toList?.map List.length == some 3 do return none
+  unless tsMember basis.resultTs 7 == false do return none
+  let citedCr := prov.taRunes.filterMap fun r =>
+    if r.ty == "compound-recognizer" then some r.name else none
+  let citedTp := prov.taRunes.filterMap fun r =>
+    if r.ty == "type-prescription" then some r.name else none
+  let some h ← inTsFromArgLeaves cfg ctx basis.leaves [] citedCr hyp basis.resultTs citedTp
+    | return none
+  let hMask ← mkDecideProof (← mkEq
+    (← mkAppM ``ACL2.Replay.tsMember #[Lean.toExpr basis.resultTs, Lean.toExpr (7 : Nat)])
+    (mkConst ``Bool.false))
+  let hNe ← mkAppM ``ACL2.Replay.ne_nil_of_inTs #[hMask, h]
+  return some (← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hyp, hNe])
+
 /-- A primitive value closure at an actually recorded known-true recognizer
 query. The marker supplies the exact argument type-set and enabled tuple;
 missing basis or an unregistered primitive remains a frontier. No type-set

@@ -7,6 +7,7 @@
 import ACL2Lean.Replay.Driver.NodeCore.HypRelief
 import ACL2Lean.Replay.Driver.NodeCore.GroundFold
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveEquation
+import ACL2Lean.Replay.Driver.NodeCore.PrimitiveInverse
 import ACL2Lean.NumericCompletion
 import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericNegation
@@ -288,6 +289,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let law ← mkAppM ``Logic.plus_neg_right #[← ctxValExpr cfg ctx a]
       replayPrimitiveEquation rec cfg ctx lhs zero rhs law children
     | _ => throwError "inverse-of-+: expected a binary application"
+  | "rewrite", "INVERSE-OF-*" => replayPrimitiveInverse rec cfg ctx n
   | "rewrite", "COMMUTATIVITY-OF-+" | "rewrite", "COMMUTATIVITY-OF-*" =>
     let (fn, law) := if rname == "COMMUTATIVITY-OF-+" then
       ("BINARY-+", ``Logic.plus_comm) else ("BINARY-*", ``Logic.times_comm)
@@ -299,18 +301,20 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let swapped := SExpr.ofList [.atom (.symbol op), b, a]
       replayPrimitiveEquation rec cfg ctx lhs swapped rhs (← mkAppM law #[va, vb]) children
     | _ => throwError "{rname}: expected a binary application, got {repr lhs}"
-  | "rewrite", "ASSOCIATIVITY-OF-+" =>
+  | "rewrite", "ASSOCIATIVITY-OF-+" | "rewrite", "ASSOCIATIVITY-OF-*" =>
+    let (fn, lemmaName) := if rname == "ASSOCIATIVITY-OF-+" then
+      ("BINARY-+", ``Logic.plus_assoc) else ("BINARY-*", ``Logic.times_assoc)
     match lhs.toList? with
     | some [.atom (.symbol op), ab, c] =>
       let some [.atom (.symbol op'), a, b] := ab.toList?
-        | throwError "associativity-of-+: inner application malformed"
-      unless op.name == "BINARY-+" && op'.name == "BINARY-+" do
-        throwError "associativity-of-+: unexpected operation"
+        | throwError "{rname}: inner application malformed"
+      unless op.name == fn && op'.name == fn do
+        throwError "{rname}: unexpected operation"
       let app := fun x y => SExpr.ofList [.atom (.symbol op), x, y]
-      let law ← mkAppM ``Logic.plus_assoc
+      let law ← mkAppM lemmaName
         #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, ← ctxValExpr cfg ctx c]
       replayPrimitiveEquation rec cfg ctx lhs (app a (app b c)) rhs law children
-    | _ => throwError "associativity-of-+: expected a binary application"
+    | _ => throwError "{rname}: expected a binary application"
   | "rewrite", "DISTRIBUTIVITY" =>
     match lhs.toList? with
     | some [.atom (.symbol mul), a, bc] =>
@@ -1271,6 +1275,9 @@ partial def collapseEval (cfg : ReplayConfig) (ctx : ReplayCtx)
         let _ := cur
         return (acc, .cons (.atom (.symbol fs)) ([c', a', b'].foldr .cons .nil))
     | _ => throwError "collapseEval: malformed if {repr t}"
+  -- if-compile PUSHes an IF-free application unchanged; only a CALL
+  -- rebuilds arguments and applies call-stack's head folds (BUG-032).
+  unless args.any clausifyContainsIf do return (none, t)
   -- generic application: collapse arguments left-to-right, then head folds
   let mut curArgs := args.toArray
   let mut acc : Option Expr := none

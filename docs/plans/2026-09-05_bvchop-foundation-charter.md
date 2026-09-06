@@ -1551,6 +1551,57 @@ error: `crunch-clause-segments` runs before BEGIN-BRANCH, so its substitution
 records occur outside the branch they simplify. The consumer must not infer
 their ownership from clause contents; the producer boundary needs repair.
 
+### C2 multiplication cancellation (2026-09-06)
+
+RIGHT-CANCELLATION-FOR-* now replays unconditionally from the unchanged
+arithmetic-3/pass1/basic-arithmetic-helper source. The executable takes
+6271 ms for the whole statement and closes all seven recorded tau leaves
+(`.tmp/ns1/c2-branch-context-cancellation-replay.log`). The prefix is 3/4
+unconditional: COMMUTATIVITY-2-OF-* still fails and is not claimed.
+`Tests.Ns1Arithmetic.multiplicationCancellationReplayed` independently pins
+the unrestricted translated formula, including FIX on nonnumbers, and its
+accepted axiom trio. The source and context controls build in 3123 jobs
+(`c2-cancellation-source-context-pins-build.log`).
+
+The clean production fork is now `f486834ebf9f`, branch
+`mdd/ns1-branch-context`. It includes the root-IF basis emission and moves
+BEGIN-BRANCH before `crunch-clause-segments`, preserving actual execution
+order. The fresh production image builds
+(`c2-branch-context-production-image-build.log`), recapture finishes
+(`c2-branch-context-recapture-all.log`), and provenance checks all 107
+permanent logs at that fork (`c2-branch-context-production-provenance.log`).
+The isolated source/image and diagnostic captures remain available.
+
+The cancellation composer consumes the branch's recorded substitutions,
+the actual primitive associativity/inverse rewrites with their hypothesis
+children, and the equal-self ending followed by its recorded duplicate
+removal. A negative control changes that actual duplicate to a term absent
+from the transformed clause; its consuming check rejects it. The seven
+verdict leaves use a shared field view of canonical numeric values, with
+explicit NUMBERP premises on equality transport and zero completion for
+nonnumbers. This route is confined to the existing bounded DP attempt;
+no resource limit rises. Initial isolated normalization probes failed;
+`c2-cancellation-complex-dp-rerun3.log` checks all seven leaves and their
+axiom sets. The whole proof is the evidence above.
+
+The actual EQUAL-/ root-IF hypothesis also checks, and deleting its pruned
+leaf is rejected. The permanent control records this single node under its
+actual branch, not the whole theorem. Its remaining proof crosses the
+clausifier's PUSH/CALL boundary and recorded final true-clause scans, but
+still fails at a nonconstant literal's type-set verdict
+(`c2-primitive-inverse-equal-frontier.log`). BUG-032/039/045 remain open
+pending whole-proof/regression validation. The isolated literal obligation
+is recorded in `c2-literal-typeset-obligation.log`; it is not a new
+hypothesis-relief DP allowance.
+
+The affected executable builds in 6208 jobs. CONS-NEQ-DETAIL's recaptured
+clausification proof remains unconditional in 759 ms
+(`c2-branch-context-clausify-replay.log`). Static checks pass
+(`c2-branch-context-static.log`). This is an intermediate **fast-gate**
+increment; the full regression checkpoint is next. No NS1 native product
+is claimed. The disk-space interruption left the worktree and receipts
+intact; no additional cleanup was performed on resumption.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

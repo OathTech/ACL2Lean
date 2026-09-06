@@ -23,9 +23,6 @@ private theorem rationalpFromRat (q : Rat) :
   unfold Number.fromRat
   split <;> rfl
 
-private theorem equalNil (a b : SExpr) : Logic.equal a b = .nil ↔ a ≠ b := by
-  simpa only [ne_eq, not_not] using not_congr (Logic.equal_ne_nil_iff a b)
-
 private theorem fromRatZero (q : Rat) :
     SExpr.atom (.number (Number.fromRat q)) = .atom (.number (.int (Int.ofNat 0))) ↔ q = 0 := by
   constructor
@@ -65,7 +62,7 @@ proveDpFact's existing bounded direct attempt. -/
 def dpRationalViewTactic : MetaM (TSyntax `tactic) :=
   `(tactic|
     (try simp_all only [rationalpFromRat, Logic.not, Logic.toBool, SExpr.t,
-      reduceCtorEq, Logic.equal_ne_nil_iff, logic_not_equal_nil_iff, equalNil, fromRatZero, fromRatNeZero]) <;>
+      reduceCtorEq, Logic.equal_ne_nil_iff, logic_not_equal_nil_iff, Logic.equal_nil_iff, fromRatZero, fromRatNeZero]) <;>
     (try simp_all only [Logic.lt_parts, Logic.times_parts,
       Logic.numberParts_mkParts, Logic.numberParts_fromRat]) <;>
     (simp_all only [show Logic.numberParts (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from (by decide),

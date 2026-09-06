@@ -37,7 +37,21 @@ def replayResidualPostpass (rec : ClauseRec) (cfg : ReplayConfig)
   let mut ctx := ctx
   let mut current := clause
   let mut chain : Option Expr := none
-  for item in items do
+  for (item, idx) in items.zipIdx do
+    if let .literal lp := item then
+      -- add-literal can rebuild the segment as *true-clause*. Crunch
+      -- then returns that singleton as its unrewritten side, and ACL2
+      -- records one final scan of 'T. First prove the same structural
+      -- constant/complement collapse, then consume that actual scan.
+      unless lp.literal == quoteT && idx + 1 == items.length do
+        throwError "residual postpass: non-final/non-'T literal continuation at {idStr} (frontier)"
+      let pCurrent ← match ← groundConstClose cfg ctx current [] [] with
+        | some p => pure p
+        | none => tautClauseClose cfg ctx current s!"residual postpass at {idStr}"
+      let collapse ← mkAppM ``evrel_siff_qt_of_evtrue #[pCurrent]
+      let pRecorded ← rec.clauseSpine cfg ctx idStr [(lp.index, lp.literal)] [item] [] []
+      let p ← mkAppM ``evtrue_of_evrel_siff #[collapse, pRecorded]
+      return ← evtrueWith chain p
     let .step n := item
       | throwError "residual postpass: non-step continuation at {idStr} (frontier)"
     let .node rune lhs rhs childNodes prov := n

@@ -304,7 +304,7 @@ Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
 
 ## BUG-032 — clausification folds evaluator builtins beyond ACL2's primitive domain
-Status: fixed
+Status: open
 Pinned-by: none (actual BVCHOP-UPPER-BOUND branch-collapse frontier)
 
 `collapseEval` uses absence from the Lean World as its ground primitive test.
@@ -323,6 +323,13 @@ BVCHOP mirror is claimed.
 
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
+Reopened 2026-09-06 for the compiler boundary of the same folding path.
+EQUAL-/ retains `(EQUAL (EQUAL Y '0) 'T)` as a leaf, while `collapseEval`
+reduces it to `(EQUAL Y '0)`. `if-compile` PUSHes an application unchanged
+when its arguments contain no IF; only CALL invokes the primitive folds in
+`call-stack`. The primitive-domain/guard repair above remains in place;
+the additional compiler-boundary repair is in progress.
 
 ## BUG-033 — snapshot collector treats quoted symbol data as function references
 Status: fixed
@@ -409,6 +416,23 @@ are needed; it removes no event from an existing log.
 
 Fixed 2026-09-06; full checkpoint gate
 `.gate-runs/aec7fcd-20260906T034924Z.log` records `TRUE_EXIT=0`.
+
+## BUG-045 — branch boundaries exclude the branch's initial simplification
+Status: open
+Pinned-by: none (proof-log structure; the value differential cannot observe branch ownership)
+`rewrite-clause-lst` invokes `crunch-clause-segments` before emitting its
+BEGIN-BRANCH marker. That invocation may emit branch substitutions and
+constant folds, which consequently reconstruct as steps of the enclosing
+branch. RIGHT-CANCELLATION-FOR-* in arithmetic-3/pass1/basic-arithmetic-helper
+exhibits Y := 0, X := 0 and Z := 0 outside their actual branch windows.
+Replay reaches an unmatched vacuous residual. Move the producer's opening
+marker before the crunch call, preserve the actual execution order, recapture,
+and consume those steps inside their branch. Do not infer ownership by
+matching substitution terms to later segments. Producer `f486834ebf` now
+opens the window before crunching. A fresh production image and all 107
+recaptures carry that fork identity; the actual cancellation proof crosses
+the residual branch through the recorded substitutions. Full regression
+validation remains pending.
 
 ## BUG-044 — induction retains clause facts from an outer environment
 Status: fixed
@@ -580,8 +604,13 @@ hypothesis. The earlier recognizer and lookup repairs remain intact, but
 has neither basis. The isolated producer at `268a219360` emits the actual
 root mask 256, its addressed reachable leaf, and the pruned leaf's mask 0
 (`.tmp/ns1/c2-known-if-clean-captures/basic-arithmetic-helper.proof-log`).
-This is diagnostic producer work; the production fork remains `2f0dd071ca`
-and the parser/consumer extension is pending. No hypothesis DP is authorized.
+Production fork `f486834ebf` now includes that emission. The parser retains
+the strict root/leaf structure; the consumer checks it using the existing
+type-set walker and the actual branch facts. The exact hypothesis node
+checks with the accepted axiom trio, and deleting its pruned leaf is rejected
+(`.tmp/ns1/c2-known-if-actual-node.log`). All 107 production captures are
+stamped at the new fork. Whole EQUAL-/ replay and full regression validation
+remain pending. This consumer does not invoke a hypothesis DP.
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set
 Status: fixed

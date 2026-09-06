@@ -69,6 +69,8 @@ structure StepProvenance where
   recogBasis : Option HypRecognizerBasis := none
   /-- Exact successful type-alist lookup, distinct from recognizer evaluation. -/
   lookupBasis : Option HypLookupBasis := none
+  /-- Root IF type-set query and its addressed branch verdicts. -/
+  ifBasis : Option HypIfBasis := none
   /-- For a `rewriting-equivalence` (solidify) node: the source of the
       equivalence hypothesis (see `EquivSource`). Set by the clause-tree
       builder by matching `equivTerm` to a sibling literal's result (up to the
@@ -433,7 +435,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
         (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes)
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes)
-  | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis :: rest =>
+  | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis ifBasis :: rest =>
       -- a silent hyp-relief marker (no rewrite events): recorded as a leaf
       -- node; the adopting rule step's recipe consumes it in place of a
       -- relief chain. It never adopts children.
@@ -442,7 +444,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
                  nodes: {repr hyp}"
       parseProofNodesAux rest []
         (.node ⟨"hyp-relief", "", none⟩ hyp hyp []
-          { origin, taRunes, parents, recogBasis, lookupBasis } :: nodes)
+          { origin, taRunes, parents, recogBasis, lookupBasis, ifBasis } :: nodes)
   | .ifTestTrue _ _ _ :: rest | .ifTestFalse _ _ _ :: rest | .ifTestUnknown _ _ _ :: rest =>
       -- IF-test markers delimit the if-rewrite block; not standalone nodes.
       parseProofNodesAux rest pendingChildren nodes

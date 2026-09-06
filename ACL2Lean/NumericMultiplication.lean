@@ -30,6 +30,14 @@ theorem times_parts (a b : SExpr) :
     rcases rationalValue_num_den b with ⟨hbn, hbd⟩
     rw [han, had, hbn, hbd]
 
+/-- The primitive multiplication associativity axiom, including completion.
+Required by the recorded preprocessing steps of RIGHT-CANCELLATION-FOR-*. -/
+theorem times_assoc (a b c : SExpr) : times (times a b) c = times a (times b c) := by
+  simp only [times_parts, numberParts_mkParts, Rat.sub_eq_add_neg,
+    Rat.mul_add, Rat.add_mul, Rat.neg_add, Rat.neg_mul, Rat.mul_neg,
+    Rat.mul_assoc]
+  congr 1 <;> ac_rfl
+
 /-- ACL2's multiplication always returns a number, including completed inputs. -/
 theorem acl2Numberp_times (a b : SExpr) : acl2Numberp (times a b) = .t := by
   rw [times_parts]

@@ -10,6 +10,37 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- Link an actual split leaf to its recorded branch window. Prefer its
+emitted segment; ACL2's subsumption pass can merge segments, in which case
+require a unique branch falsified by the same path facts. An open survivor
+is left out of those falsity obligations. -/
+private def selectSplitBranch (idStr : String)
+    (branches : List (SExpr × List ClauseItem)) (emittedSeg : Option (List SExpr))
+    (survivor : Option SExpr) (deriveFalsity : SExpr → MetaM (Option Expr)) :
+    MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
+  let select (exact : Bool) : MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
+    let mut selected := none
+    for (seg, cont) in branches do
+      let some segL := seg.toList?
+        | throwError "composeSplit: branch segment {repr seg} is not a list at {idStr}"
+      if exact then
+        unless emittedSeg == some segL do continue
+      if let some value := survivor then
+        unless segL.getLast? == some value do continue
+      let mut proofs : List Expr := []
+      let mut ok := true
+      for L in (if survivor.isSome then segL.dropLast else segL) do
+        match ← deriveFalsity L with
+        | some p => proofs := proofs ++ [p]
+        | none => ok := false
+      if ok then
+        unless selected.isNone do
+          throwError "composeSplit: ambiguous branch selection at {idStr}"
+        selected := some (segL, cont, proofs)
+    return selected
+  let first ← select emittedSeg.isSome
+  if first.isNone && emittedSeg.isSome then select false else pure first
+
 /-- The W3 branch-split COMPOSER: prove `EvTrue w env (disjoin (lit :: rest))`
     for a literal whose clausify SPLIT (docs/notes/2026-07-03_branch-split-
     spine.md, ratified partial logging). The byCases tree comes from the
@@ -231,6 +262,22 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       -- prove an empty disjunction). Peel the pushed sibling clause down to
       -- the surviving open-leaf literal and bridge it back — no value split.
       if outcome == "segment-false" then
+        -- crunch-clause-segments belongs to the BEGIN-BRANCH window.
+        -- Consume its actual postpass before handing the resulting clause
+        -- to a child; the path falsifies the original segment throughout.
+        if let some (segL, cont, proofs) ←
+            selectSplitBranch idStr branches emittedSeg none (segFactFalsity facts) then
+          if !cont.isEmpty then
+            let expected := accClause ++ segL.filter (!accClause.contains ·)
+            let segFactsHere := segL.zip proofs
+            let pChild ← replayResidualPostpass rec cfg
+              { ctx with segFacts := ctx.segFacts ++ segFactsHere }
+              idStr expected cont children
+            return ← vacuousResidualClose cfg ctx expected pChild clauseLit fun L => do
+              if let some hf := ctx.litFactByTerm? L then return hf
+              let some hf := (segFactsHere.find? (·.1 == L)).map (·.2)
+                | throwError "composeSplit: no falsity for postpass residual {repr L} at {idStr}"
+              return hf
         -- VACUOUS singleton path: the literal is 'nil here, and its EMITTED
         -- segment (with accClause) forms the pushed child clause — whose
         -- every literal has an in-scope falsity fact (ctx for accClause,
@@ -278,37 +325,8 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                     {idStr} (frontier)"
       let deriveFalsity (L : SExpr) : MetaM (Option Expr) :=
         segFactFalsity facts L
-      -- selection: EXACT emitted-segment match first (the leaf→branch link
-      -- ACL2's converter constructed); when no branch carries it (the
-      -- Satriani/subsumption post-pass MERGED segments — complementary-
-      -- literal consensus), fall back to derivable-falsity uniqueness (the
-      -- merged branch is falsified by either source leaf's facts).
-      let selectResidual (exact : Bool) :
-          MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
-        let mut selected : Option (List SExpr × List ClauseItem × List Expr) := none
-        for (seg, cont) in branches do
-          let some segL := seg.toList?
-            | throwError "composeSplit: branch segment {repr seg} is not a \
-                          list at {idStr}"
-          if exact then
-            unless emittedSeg == some segL do continue
-          unless segL.getLast? == some value do continue
-          let mut proofs : List Expr := []
-          let mut ok := true
-          for L in segL.dropLast do
-            match ← deriveFalsity L with
-            | some p => proofs := proofs ++ [p]
-            | none => ok := false
-          if ok then
-            unless selected.isNone do
-              throwError "composeSplit: ambiguous residual selection for the \
-                          open leaf {repr value} at {idStr}"
-            selected := some (segL, cont, proofs)
-        return selected
-      let mut selected ← selectResidual (exact := emittedSeg.isSome)
-      if selected.isNone && emittedSeg.isSome then
-        selected ← selectResidual (exact := false)
-      let some (segL, cont, segProofs) := selected
+      let some (segL, cont, segProofs) ←
+          selectSplitBranch idStr branches emittedSeg (some value) deriveFalsity
         | throwError "composeSplit: no residual branch matches the open leaf \
                       {repr value} at {idStr} (frontier)"
       let expected := accClause ++ segL.filter (!accClause.contains ·)
@@ -353,39 +371,8 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           if outcome == "segment-open" && L == value then
             return some hLeafNil
           segFactFalsity facts L
-        -- select the branch: EXACT emitted-segment match first (the
-        -- leaf→branch link ACL2's converter constructed); when no branch
-        -- carries it (the Satriani/subsumption post-pass MERGED segments —
-        -- complementary-literal consensus), fall back to the UNIQUE branch
-        -- whose segment is derivably all-false (the merged branch is
-        -- falsified by either source leaf's facts).
-        let selectBranch (exact : Bool) :
-            MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
-          let mut selected : Option (List SExpr × List ClauseItem × List Expr) := none
-          for (seg, cont) in branches do
-            let some segL := seg.toList?
-              | throwError "composeSplit: branch segment {repr seg} is not a \
-                            list at {idStr}"
-            if exact then
-              unless emittedSeg == some segL do continue
-            let mut proofs : List Expr := []
-            let mut ok := true
-            for L in segL do
-              match ← deriveFalsity L with
-              | some p => proofs := proofs ++ [p]
-              | none => ok := false
-            if ok then
-              if let some (prevSeg, _, _) := selected then
-                throwError "composeSplit: ambiguous branch selection for the \
-                            {outcome} leaf {repr value} at {idStr}: both \
-                            {repr prevSeg} and {repr segL} are derivably false \
-                            (facts: {repr (facts.map (fun (T, _, s, _) => (T, s)))})"
-              selected := some (segL, cont, proofs)
-          return selected
-        let mut selected? ← selectBranch (exact := emittedSeg.isSome)
-        if selected?.isNone && emittedSeg.isSome then
-          selected? ← selectBranch (exact := false)
-        let some (segL, cont, segProofs) := selected?
+        let some (segL, cont, segProofs) ←
+            selectSplitBranch idStr branches emittedSeg none deriveFalsity
           | throwError "composeSplit: no branch matches the {outcome} leaf \
                         {repr value} at {idStr} (frontier)"
         let effectiveCont := cont.dropWhile fun
