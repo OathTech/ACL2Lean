@@ -83,4 +83,42 @@ elab "ns1_context_controls%" : command => Elab.Command.liftTermElabM do
 
 ns1_context_controls%
 
+private def productCapture : String := include_str "../acl2_samples/ns1/basic.proof-log"
+
+elab "ns1_product_marker_control%" : command => Elab.Command.liftTermElabM do
+  let .ok log := ProofLog.parse productCapture | throwError "product marker: capture parse failed"
+  let active ← IO.mkRef false
+  let changed ← IO.mkRef (0 : Nat)
+  let events ← log.events.mapM fun ev => do
+    match ev with
+    | .defthm name _ _ _ =>
+      active.set (name == "(< (* x y) 0)")
+      pure ev
+    | .step s =>
+      unless (← active.get) do return ev
+      let traceEvents ← s.traceEvents.flatMapM fun ev => do
+        if let .ifTestTrue test _ _ := ev then
+          if test == app "<" [app "QUOTE" [.atom (.number (.int 0))], sym "X"] then
+            changed.modify (· + 1)
+            return []
+        return [ev]
+      pure (.step { s with traceEvents })
+    | _ => pure ev
+  unless (← changed.get) == 1 do
+    throwError "product marker: did not remove exactly one actual IF decision"
+  let .ok bad := ClauseTree.buildDevelopment { log with events }
+    | throwError "product marker: reconstruction failed before consumption"
+  let some cp := findThm bad "(< (* x y) 0)" | throwError "product marker: target missing"
+  let (status, _) ← Runner.tryReplay bad bad.toWorld (mkConst ``Ns1Arithmetic.bindBasicWorld)
+    cp (rulesBefore bad cp.name)
+    (crossTrees := Runner.bookTrees Ns1Arithmetic.pass1Dev ++
+      Runner.bookTrees Ns1Arithmetic.inequalitiesDev)
+    (crossRules := Runner.combineRules (Runner.allBookRules Ns1Arithmetic.pass1Dev)
+      (Runner.allBookRules Ns1Arithmetic.inequalitiesDev))
+  unless (status.splitOn "FAIL: replayClauseSpine: literal 3 chain reached").length > 1 do
+    throwError "product marker: unexpected result after removing the decision: {status}"
+  logInfo "product marker removal rejected at the literal-chain consumer"
+
+ns1_product_marker_control%
+
 end ACL2.Tests.Ns1Contexts

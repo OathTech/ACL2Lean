@@ -7,6 +7,7 @@
 -/
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.Replay.Driver.IntegerViews
+import ACL2Lean.Replay.Driver.RationalViews
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericNegation
 import ACL2Lean.NumericReciprocal
@@ -794,7 +795,14 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let g ← assertDpEqualNilComm g
         let intTac ← dpIntegerViewTactic
         let goals ← normalizeDpIntegerViews g (fun g => runDpTactic g intTac)
-        let remaining ← goals.flatMapM (fun g => runDpTactic g directTac)
+        let remaining ← goals.flatMapM fun g => do
+          if withComparison && !withReciprocal then
+            let rationalTac ← dpRationalViewTactic
+            let closed ← try
+              closeDpRationalValues g (fun g => runDpTactic g rationalTac)
+            catch _ => pure false
+            if closed then return []
+          runDpTactic g directTac
         if remaining.isEmpty then pure (some (← instantiateMVars mv)) else pure none
       catch _ => pure none)
       (fun _ => pure none)

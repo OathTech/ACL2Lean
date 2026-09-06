@@ -681,6 +681,50 @@ def spineLastNilDrop (cfg : ReplayConfig) (ctx2 : ReplayCtx)
         {repr curLL} ≠ the folded clause at {idStr}"
   pure (innerL, ctx2)
 
+/-- Replay add-literal's removal of quoted NIL literals after recorded
+constant folds. Both substitution composers use this same checked transport;
+the last-literal case retains its existing Boolean-predecessor requirement. -/
+def dropFoldedNilLiterals (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (idStr : String) (lits : List (Nat × SExpr)) :
+    MetaM (ReplayCtx × List (Nat × SExpr) × List Expr) := do
+  let mut ctx2 := ctx
+  let mut curLits := lits
+  let mut extraChains : List Expr := []
+  repeat
+    let some pos := (curLits.map (·.2)).idxOf? quoteNil | break
+    let before := curLits.take pos
+    let after := curLits.drop (pos + 1)
+    if after.isEmpty then
+      let (innerL, ctx2') ← spineLastNilDrop cfg ctx2 idStr
+        before curLits
+      ctx2 := ctx2'
+      extraChains := extraChains ++ [innerL]
+      curLits := before
+      continue
+    let afterT := disjoinTerm (after.map (·.2))
+    -- ctx2, not ctx1: the tail contains SUBSTITUTED opaques (the
+    -- stale-ctx class — ORDERED-PERMS *1/2.1.2's (RM A1 'NIL))
+    ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 afterT
+    let (dropEq, _) ← mkConstTestCollapse cfg ctx2 quoteNil SExpr.nil
+      quoteT afterT
+    let mut inner := dropEq
+    let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
+      (.cons quoteNil (.cons quoteT (.cons afterT .nil)))
+    let mut curR : SExpr := afterT
+    for l in (before.map (·.2)).reverse do
+      let stp : PathStep := { fn := { name := "IF" }, arity := 3,
+                              argIdx := 2, siblings := [l, quoteT] }
+      inner ← applyStep cfg.worldExpr cfg.envExpr stp curL curR inner
+      curL := rebuild stp curL
+      curR := rebuild stp curR
+    unless curL == disjoinTerm (curLits.map (·.2)) do
+      throwError "replayClauseSpine: nil-literal drop reconstructed \
+          {repr curL} ≠ the folded clause at {idStr}"
+    extraChains := extraChains ++ [inner]
+    -- renumber: deletion shifts the LATER literals' indices down
+    curLits := before ++ after.map (fun (i, l) => (i - 1, l))
+  return (ctx2, curLits, extraChains)
+
 /-- Append a fuel-eq BRIDGE step to a literal chain (the spine's
     thrice-repeated idiom, deduped at the final close-out): an eq
     chain extends by `fuel_chain_eq`; an IFF chain lifts the bridge

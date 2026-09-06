@@ -97,6 +97,12 @@ def seamReaches (env : Lean.Environment) (start seam : Lean.Name) : Bool :=
     `Harness.dischargeBudget` 3M/window; `Discharge.dpOnlyProverGuard`
     1M), each with its own measured margin at its own docstring.
 
+    `inline_deps` uses the existing conditional discharger to replay demanded
+    dependency trees in the consumer's telescope, without first preparing the
+    whole-book registry. The offered trees/rules and their checks are unchanged;
+    an unclosed dependency remains a visible condition. This decomposes imports
+    whose registry preparation exceeds the command budget without raising it.
+
     Units at every site are USER units (1 unit = 1000 heartbeats).
     Re-measure with `lake env lean -D trace.profiler=true -D
     trace.profiler.useHeartbeats=true <module>`; a number without a date
@@ -106,6 +112,7 @@ syntax depsClauseDR := &" deps " "[" ident,* "]"
 elab "driver_replayed%" devId:ident worldId:ident nm:str
     wt:(&" with_termination")?
     uf:(&" usefi")?
+    directDeps:(&" inline_deps")?
     deps:(depsClauseDR)? : term => do
   let devName ← Lean.resolveGlobalConstNoOverload devId
   let worldName ← Lean.resolveGlobalConstNoOverload worldId
@@ -340,7 +347,7 @@ elab "driver_replayed%" devId:ident worldId:ident nm:str
     -- replayed at THIS world (world-inclusion gated, `addDecl`'d once and
     -- cached by constant name across invocations in the same module).
     let (crossReg, crossTerm) ←
-      if crossDevs.isEmpty then
+      if crossDevs.isEmpty || directDeps.isSome then
         pure (([] : ACL2.Replay.Driver.ReplayedRegistry),
               ([] : List (String × Name × List String × List SExpr)))
       else

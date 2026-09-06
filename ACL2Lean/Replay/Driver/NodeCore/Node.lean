@@ -372,9 +372,13 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     if dname == "IMPLIES" && (cfg.worldVal.defs.get? { name := "IMPLIES" }).isNone then
       replayImpliesDef cfg ctx n
     else if dname == "IFF" && (cfg.worldVal.defs.get? { name := "IFF" }).isNone then
-      -- `iff` is likewise an evalOpt BUILTIN (the preprocess boot-strap
-      -- non-rec arm's body adoption, G1 iff rung)
-      replayIffDef cfg ctx n
+      let (body, unfold) ← replayIffDef cfg ctx lhs
+      let (tail, finalTerm) ← rec.rewrites cfg ctx body children
+      unless finalTerm == rhs do
+        throwError "definition:iff — children reached {repr finalTerm}, recorded rhs is {repr rhs}"
+      match ← chainReqEq tail with
+      | none => return unfold
+      | some ch => mkAppM ``fuel_chain_eq #[unfold, ch]
     else replayDefinition rec cfg ctx n
   | "lambda-body", _ => replayLambdaBody rec cfg ctx n
   | "fake-rune-for-anonymous-enabled-rule", _ =>

@@ -1457,6 +1457,45 @@ Superseded diagnostic dependency captures are losslessly archived in
 `.tmp/ns1/c2-superseded-dependency-captures.tar.gz`, with a verified SHA-256
 manifest beside it; this reclaimed 178 MiB without discarding evidence.
 
+
+The product-sign dependency now closes through the real whole proofs of
+`<-*-0` and `(< (* x y) 0)`. The core proof consumes TIMES-ZERO, its five
+recorded verdict leaves, and the recorded residual substitutions/folds.
+The wrapper consumes that core proof, the recorded IFF-definition children,
+its `< 0 X` IF decision, and two more verdict leaves. The shared residual
+composer now uses the existing checked NIL-literal removal transport;
+CoreSpine falls below the module norm at 1479 lines. Equality congruence lets
+the IF-marker consumer descend into either operand without relaxing the
+requirement for a recorded decision.
+
+Inside the existing bounded DP attempt, `RationalViews` replaces only values
+carrying actual RATIONALP premises by rational witnesses. A fresh goal
+contains the attempt; it assigns the original only after every obligation
+closes. This decomposition closes the seven actual sign leaves without a
+resource-limit increase. The macro's optional `inline_deps` route uses the
+existing conditional discharger directly, avoiding whole-book registry
+preparation while keeping the same offered trees and rules. Its default
+behavior is unchanged; unresolved imports remain visible conditions.
+
+Permanent captures extend basic-arithmetic through TIMES-ZERO and
+inequalities through `<-*-0`, from unchanged sources at clean fork `2f0dd071ca`.
+`Tests.Ns1Arithmetic` independently pins all three translated statements and
+their axiom trios; the wrapper's SYNP premise is retained. Removing its one
+actual `< 0 X` IF marker in memory is rejected by the literal-chain consumer.
+The pins and four context controls build in 3117 jobs
+(`c2-product-sign-source-pins-build.log`); the static suite passes
+(`c2-product-sign-static.log`). The CLI/coverage build passes 6216 jobs
+(`c2-product-sign-final-cli-build-rerun.log`), including the unchanged CD2
+coverage pin. Its first command named a nonexistent test module and failed;
+that failed invocation is preserved. The final CD2 executable replay is
+unconditional with all three discharge leaves in 15381 ms
+(`c2-product-sign-final-cd2-replay.log`).
+
+INTEGERP-MOD now retains only `rule:EQUAL-/-0`, down from two rule conditions
+(`c2-product-sign-closed-integer-mod-replay.log`, 102784 ms for the focused
+book run). This remains a conditional replayed statement, with no new native
+mirror yet. The full gate still requires a rerun; BUG-042/043/044 remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

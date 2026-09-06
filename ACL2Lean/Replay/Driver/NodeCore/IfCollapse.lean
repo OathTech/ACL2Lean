@@ -100,6 +100,15 @@ partial def bridgeIfCollapseFromRecords
   let rec go (ctx : ReplayCtx) (a b : SExpr) : MetaM (Option Expr) := do
     if a == b then
       return some (← mkEqRefl (← ctxValExpr cfg ctx a))
+    -- Equality compares two values; a recorded IF collapse can occur in
+    -- either operand. Transport those checked operand equalities without
+    -- changing the marker requirement for any nested conditional.
+    if let some (eqA, [p, q]) := asApp a then
+      if let some (eqB, [p', q']) := asApp b then
+        if eqA.name == "EQUAL" && eqA == eqB then
+          let some hp ← go ctx p p' | return none
+          let some hq ← go ctx q q' | return none
+          return some (← mkCongr (← mkCongrArg (mkConst ``Logic.equal) hp) hq)
     match a, b with
     | .cons (.atom (.symbol na)) (.cons xa .nil),
       .cons (.atom (.symbol nb)) (.cons xb .nil) =>

@@ -43,8 +43,8 @@ charter or the archive carry the record.
       strong MOD-bound dependency before the first native proof. Complete the
       first mirror through the remaining INTEGERP-MOD and FLOOR-bound proofs;
       the strong MOD leaf now composes with those two visible conditions.
-      Discharge INTEGERP-MOD's two remaining arithmetic-rule conditions:
-      EQUAL-/-0 and `(< (* x y) 0)`. Validate the USE substitution and
+      Discharge INTEGERP-MOD's remaining arithmetic-rule condition, EQUAL-/-0.
+      Validate the USE substitution and
       proof-log reporting and induction-context repairs (BUG-042/043/044) at the full checkpoint,
       then close the FLOOR/quotient bounds. Guard trees reconstruct separately with
       replay still excluded. Record:

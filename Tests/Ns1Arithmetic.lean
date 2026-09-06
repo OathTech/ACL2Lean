@@ -64,6 +64,14 @@ replayed_theorem modZeroReplayed :=
 replayed_theorem negateTwiceReplayed :=
   driver_replayed% pass1Dev pass1World "FUNCTIONAL-SELF-INVERSION-OF-MINUS"
 
+replayed_theorem pass1TimesZeroReplayed :=
+  driver_replayed% pass1Dev pass1World "TIMES-ZERO"
+replayed_theorem productSignReplayed :=
+  driver_replayed% inequalitiesDev inequalitiesWorld "<-*-0" inline_deps deps [pass1Dev]
+replayed_theorem bindProductSignReplayed :=
+  driver_replayed% bindBasicDev bindBasicWorld "(< (* x y) 0)"
+    inline_deps deps [pass1Dev, inequalitiesDev]
+
 -- Independent source-formula pin: ACL2 multiplication completes nonnumbers
 -- as well as rational/complex inputs. The actual proof is one recorded DP leaf.
 private def sym (s : String) : SExpr := .atom (.symbol { name := s })
@@ -71,6 +79,33 @@ private def app (s : String) (xs : List SExpr) : SExpr := .cons (sym s) (SExpr.o
 private def zero : SExpr := app "QUOTE" [.atom (.number (.int 0))]
 private def nilTerm : SExpr := app "QUOTE" [.nil]
 private def trueTerm : SExpr := app "QUOTE" [.t]
+
+example (env : Env) : EvTrue pass1World env
+    (app "EQUAL" [app "BINARY-*" [zero, sym "X"], zero]) := pass1TimesZeroReplayed env
+
+-- Both sign statements preserve the source's rational hypotheses. The core
+-- proof has five recorded verdict leaves; the wrapper uses that proof and
+-- two further leaves. Its syntactic premise stays in the statement as well.
+example (env : Env) : EvTrue inequalitiesWorld env
+    (app "IMPLIES" [app "IF" [app "RATIONALP" [sym "X"], app "RATIONALP" [sym "Y"], nilTerm],
+      app "EQUAL" [app "<" [app "BINARY-*" [sym "X", sym "Y"], zero],
+        app "IF" [app "NOT" [app "EQUAL" [sym "X", zero]],
+          app "IF" [app "NOT" [app "EQUAL" [sym "Y", zero]],
+            app "IFF" [app "<" [sym "X", zero], app "<" [zero, sym "Y"]], nilTerm],
+          nilTerm]]]) := productSignReplayed env
+
+example (env : Env) : EvTrue bindBasicWorld env
+    (app "IMPLIES" [app "IF" [app "SYNP" [nilTerm,
+      app "QUOTE" [app "SYNTAXP" [app "REWRITING-GOAL-LITERAL" [sym "X", sym "MFC", sym "STATE"]]],
+      app "QUOTE" [app "IF" [app "REWRITING-GOAL-LITERAL" [sym "X", sym "MFC", sym "STATE"],
+        trueTerm, nilTerm]]],
+      app "IF" [app "RATIONALP" [sym "X"], app "RATIONALP" [sym "Y"], nilTerm], nilTerm],
+      app "EQUAL" [app "<" [app "BINARY-*" [sym "X", sym "Y"], zero],
+        app "IF" [app "EQUAL" [sym "X", zero], nilTerm,
+          app "IF" [app "EQUAL" [sym "Y", zero], nilTerm,
+            app "IF" [app "<" [sym "X", zero], app "<" [zero, sym "Y"],
+              app "IF" [app "<" [zero, sym "X"], app "<" [sym "Y", zero], nilTerm]]]]]]) :=
+  bindProductSignReplayed env
 
 -- The unchanged source has no rationality or integrality premise.
 example (env : Env) : EvTrue numdenWorld env
@@ -163,5 +198,17 @@ example (env : Env) : EvTrue inequalitiesWorld env
 /-- info: 'ACL2.Tests.Ns1Arithmetic.denominatorOneReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
 #guard_msgs in
 #print axioms denominatorOneReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.pass1TimesZeroReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms pass1TimesZeroReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.productSignReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms productSignReplayed
+
+/-- info: 'ACL2.Tests.Ns1Arithmetic.bindProductSignReplayed' depends on axioms: [propext, Classical.choice, Quot.sound] -/
+#guard_msgs in
+#print axioms bindProductSignReplayed
 
 end ACL2.Tests.Ns1Arithmetic

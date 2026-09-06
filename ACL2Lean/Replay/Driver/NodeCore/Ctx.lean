@@ -1407,13 +1407,10 @@ def replayImpliesDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     non-rec arm's body adoption (`emit/expand-abbreviations/nonrec-body`,
     G1 iff rung), proved against the BUILTIN semantics (`Logic.iff` +
     `logic_iff_cond`) exactly as `replayImpliesDef` does for `implies`.
-    The recorded rhs must be EXACTLY the unfold body instance. -/
-def replayIffDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
-    MetaM Expr := do
-  let (lhs, rhs) := nodeLhsRhs n
-  let .node _ _ _ children _ := n
-  unless children.isEmpty do
-    throwError "definition:iff — children on the ground-zero unfold (frontier)"
+    Return the primitive body and its proof. The caller replays all recorded
+    children from that body and checks the final recorded rhs. -/
+def replayIffDef (cfg : ReplayConfig) (ctx : ReplayCtx) (lhs : SExpr) :
+    MetaM (SExpr × Expr) := do
   let .cons (.atom (.symbol iffS)) (.cons A (.cons B .nil)) := lhs
     | throwError "definition:iff — lhs is not (iff A B): {repr lhs}"
   unless iffS.name == "IFF" do
@@ -1424,8 +1421,6 @@ def replayIffDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
         (.cons B (.cons quoteT (.cons quoteNil .nil))))
         (.cons (.cons (.atom (.symbol { name := "IF" }))
           (.cons B (.cons quoteNil (.cons quoteT .nil)))) .nil)))
-  unless rhs == expectedRhs do
-    throwError "definition:iff — rhs {repr rhs} is not the unfold body instance"
   let vA ← ctxValExpr cfg ctx A
   let vB ← ctxValExpr cfg ctx B
   let pA ← ctxValProof cfg ctx A
@@ -1437,9 +1432,9 @@ def replayIffDef (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) :
     #[cfg.worldExpr, cfg.envExpr, reflectSymbol { name := "IFF" },
       reflectSExpr A, reflectSExpr B, vA, vB,
       mkApp2 (mkConst ``Logic.iff) vA vB, hNs, hNo, pA, pB, hr]
-  let pR ← ctxValProof cfg ctx rhs
+  let pR ← ctxValProof cfg ctx expectedRhs
   let valueEq ← mkAppM ``logic_iff_cond #[vA, vB]
-  mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq]
+  return (expectedRhs, ← mkAppM ``fuel_eq_of_conv #[pL, pR, valueEq])
 
 /-- The convergence statement `∃ N, ∀ f ≥ N, evalOpt f worldExpr envExpr t = some v`. -/
 def mkConvStmt (cfg : ReplayConfig) (t v : SExpr) : MetaM Expr := do

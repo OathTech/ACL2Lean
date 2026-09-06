@@ -572,39 +572,10 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
               restI := restT
             else break
           | _ => break
-        repeat
-          let some pos := (curLits.map (·.2)).idxOf? quoteNil | break
-          let before := curLits.take pos
-          let after := curLits.drop (pos + 1)
-          if after.isEmpty then
-            let (innerL, ctx2') ← spineLastNilDrop cfg ctx2 idStr
-              before curLits
-            ctx2 := ctx2'
-            extraChains := extraChains ++ [innerL]
-            curLits := before
-            continue
-          let afterT := disjoinTerm (after.map (·.2))
-          -- ctx2, not ctx1: the tail contains SUBSTITUTED opaques (the
-          -- stale-ctx class — ORDERED-PERMS *1/2.1.2's (RM A1 'NIL))
-          ctx2 ← pinTermOpaques cfg cfg.envExpr ctx2 afterT
-          let (dropEq, _) ← mkConstTestCollapse cfg ctx2 quoteNil SExpr.nil
-            quoteT afterT
-          let mut inner := dropEq
-          let mut curL : SExpr := .cons (.atom (.symbol { name := "IF" }))
-            (.cons quoteNil (.cons quoteT (.cons afterT .nil)))
-          let mut curR : SExpr := afterT
-          for l in (before.map (·.2)).reverse do
-            let stp : PathStep := { fn := { name := "IF" }, arity := 3,
-                                    argIdx := 2, siblings := [l, quoteT] }
-            inner ← applyStep cfg.worldExpr cfg.envExpr stp curL curR inner
-            curL := rebuild stp curL
-            curR := rebuild stp curR
-          unless curL == disjoinTerm (curLits.map (·.2)) do
-            throwError "replayClauseSpine: nil-literal drop reconstructed \
-                {repr curL} ≠ the folded clause at {idStr}"
-          extraChains := extraChains ++ [inner]
-          -- renumber: deletion shifts the LATER literals' indices down
-          curLits := before ++ after.map (fun (i, l) => (i - 1, l))
+        let (ctx2', curLits', nilChains) ← dropFoldedNilLiterals cfg ctx2 idStr curLits
+        ctx2 := ctx2'
+        curLits := curLits'
+        extraChains := extraChains ++ nilChains
         let chainAll ← extraChains.foldlM (init := chainOpt) fun acc c => do
           match acc with
           | none => pure (some c)

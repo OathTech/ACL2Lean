@@ -85,6 +85,14 @@ def replayResidualPostpass (rec : ClauseRec) (cfg : ReplayConfig)
       chain := some (← chainAfter chain lifted)
     current := next
     ctx ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm current)
+  -- subst-equiv-and-maybe-delete-lit rebuilds through add-literal-and-pt,
+  -- which removes quoted NIL after the recorded constant folds.
+  let (ctx', lits, drops) ← dropFoldedNilLiterals cfg ctx idStr
+    (current.zipIdx.map fun (l, i) => (i + 1, l))
+  ctx := ctx'
+  current := lits.map (·.2)
+  for drop in drops do
+    chain := some (← chainAfter chain drop)
   let [child] := children.filter (·.inputClause == current)
     | throwError "residual postpass: no unique pushed child matches {repr current} at {idStr}"
   let p ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
