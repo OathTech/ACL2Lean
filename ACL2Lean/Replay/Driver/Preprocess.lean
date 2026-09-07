@@ -638,6 +638,36 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
   let heq ← mkAppM ``And.right #[conj]
   return (t', some heq)
 
+/-- Maximal lambda applications that clausify leaves as atoms. Quoted data
+and opaque named calls stop the walk; no beta rewrite is performed here. -/
+private partial def clausifyLambdaAtoms (t : SExpr) : MetaM (List SExpr) := do
+  match t with
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ .nil))) _ =>
+    return if lam == { name := "LAMBDA" } then [t] else []
+  | .cons (.atom (.symbol fn)) args =>
+    if fn.name == "QUOTE" || !dpKnownHead fn.name then return []
+    let some args := args.toList?
+      | throwError "clausify value: malformed application spine {repr t}"
+    return (← args.mapM clausifyLambdaAtoms).flatten
+  | _ => return []
+
+/-- Shared clause-value bundle. Unopened lambda atoms use the existing
+checked value/convergence pair; opaque named calls still require their pins.
+This changes no clause term and consumes no recorded beta step. -/
+private def clausifyLiftBundle (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (input : SExpr) : MetaM (DpLiftBundle × List (SExpr × Expr)) := do
+  let vars := (ACL2.Replay.freeVars input).eraseDups
+  let lambdas := (← clausifyLambdaAtoms input).eraseDups
+  let opaques := (collectOpaques input ++ lambdas).eraseDups
+  let pinned ← opaques.mapM fun op => do
+    if let some (v, p) := ctx.val? op then return (op, v, p)
+    unless lambdas.contains op do
+      throwError "clausify value: opaque {repr op} has no pinned value (frontier)"
+    return (op, ← ctxValExpr cfg ctx op, ← ctxValProof cfg ctx op)
+  let opqMap := pinned.map fun (op, v, _) => (op, v)
+  let opqP := pinned.map fun (op, _, p) => (op, p)
+  return (← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP, opqMap)
+
 /-- Bridge a clausify record: prove `EvTrue w env info.input` from
     `pOut : EvTrue w env (disjoinTerm cl₀)` (the proved single output clause).
     Validates the WHOLE record against the pure recomputation; any divergence
@@ -646,16 +676,7 @@ def runCheckedExpand (b : DpLiftBundle) (hwf : Expr)
 def bridgeClausify (cfg : ReplayConfig) (ctx : ReplayCtx) (info : ClausifyInfo)
     (pOut? : Option Expr) (tautDropped : Bool := false) : MetaM Expr := do
   -- the lift bundle FIRST (the checked expansion walks need it)
-  let vars := (ACL2.Replay.freeVars info.input).eraseDups
-  let opaques := (collectOpaques info.input).eraseDups
-  let pinned ← opaques.mapM fun op => do
-    let some (v, p) := ctx.val? op
-      | throwError "bridgeClausify: opaque {repr op} has no pinned value \
-                    (frontier)"
-    pure (op, v, p)
-  let opqMap := pinned.map fun (op, v, _) => (op, v)
-  let opqP := pinned.map fun (op, _, p) => (op, p)
-  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let (b, opqMap) ← clausifyLiftBundle cfg ctx info.input
   let hwf ← mkDecideProof
     (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
   -- CHECKED recomputations (expand-and-or plan S3): consume the recorded
@@ -811,15 +832,7 @@ def bridgeClausifyMulti (cfg : ReplayConfig) (ctx : ReplayCtx)
                 split list (internal)"
   -- the shared lift bundle (over the input's vars/opaques — every literal is
   -- built from the input's subterms, negations included)
-  let vars := (ACL2.Replay.freeVars info.input).eraseDups
-  let opaques := (collectOpaques info.input).eraseDups
-  let pinned ← opaques.mapM fun op => do
-    let some (v, p) := ctx.val? op
-      | throwError "bridgeClausifyMulti: opaque {repr op} has no pinned value                     (frontier)"
-    pure (op, v, p)
-  let opqMap := pinned.map fun (op, v, _) => (op, v)
-  let opqP := pinned.map fun (op, _, p) => (op, p)
-  let b ← mkDpLiftBundle cfg cfg.envExpr vars opqMap opqP
+  let (b, opqMap) ← clausifyLiftBundle cfg ctx info.input
   let hwf ← mkDecideProof
     (← mkEq (mkApp (mkConst ``dpOpqWF) b.opqE) (mkConst ``Bool.true))
   let mkIsSome : SExpr → MetaM Expr := fun t => do

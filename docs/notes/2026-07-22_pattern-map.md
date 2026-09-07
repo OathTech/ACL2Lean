@@ -780,16 +780,13 @@ No pattern books exist yet — authoring them is the arc's work.
   and 9.17 under seven. Each restriction quartet checks with eight rejected
   controls. The component books exercise rational/zero/negative restrictions
   and preprocessing before ELIM (four rejected boundary mutations).
-  REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry;
-  its comparison Subgoal 2''' checks with a COMPLEX-0 condition and
-  two rejected duplicate-record mutations. The comparison's Subgoal 4 also
-  checks under COMPLEX-0 after the equality-NIL negation arm; the whole
-  theorem now passes its selected Boolean singleton lookups and mask-1
-  equality nodes using executed operand queries. Both complex/rational
-  comparison books' Subgoal 3' subtrees now replay unconditionally after
-  checking their actual type-derived zero rows. Whole comparison replay next
-  passes the explicit rewrite-equal NIL-to-IF steps and next stops at the
-  initial USE clause's surviving lambda in the clausify value adapter. The scoped bootstrap
+  REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry.
+  The four actual comparison insertion subtrees check their selected Boolean
+  singleton entries, executed equality queries and type-derived zero rows.
+  The explicit NIL-to-IF nodes and checked values for unopened lambda atoms
+  then close the initial USE/clausify composition. The whole diagnostic
+  less-than book replays **4/4 unconditionally** at the quotient consumer
+  world with the checked bootstrap registry. The scoped bootstrap
   diagnostic replays DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and COMPLEX-0
   unconditionally, consuming the actual USE-instance ground folds and the
   selected clausify NOT assumption lookup. All three declarations have

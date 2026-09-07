@@ -53,9 +53,8 @@ charter or the archive carry the record.
       and the imaginary product rule. Close the bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
       linear-insertion/substitution composition. Integrate the scoped six-theorem
       bootstrap capture's source/proof provenance. Capture and consume the
-      comparison book's surviving lambda in its initial USE/clausify value
-      adapter: type-derived zero rows, Subgoal 2'/3' subtrees and explicit
-      equality-to-NIL nodes now check. Close the
+      diagnostic comparison book's now-unconditional 4/4 declarations and
+      their capture route into the required dependency chain. Close the
       strict helper's derived linear row at Subgoal 9.12. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /

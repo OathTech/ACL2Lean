@@ -251,18 +251,20 @@ theorem dpLiftF_sound (w : World) (env : Env)
 /-! ## Lift-fact extraction (Fragment B's interface, D-B4)
 
 The clausify bridge recurses through `if`-structure and `not`-wraps; to
-thread the lift premise it needs (a) opaque keys to be genuine USER-FN
-applications — never special forms or table primitives (matching
-`collectOpaques`' construction; DECIDABLE, one check per leaf) — and
+thread the lift premise it needs (a) opaque keys to be user-function or
+lambda applications — never special forms or table primitives (each
+value carries its own convergence proof; one key check per leaf) — and
 (b) inversion/introduction lemmas for the `if` and `not` arms. -/
 
-/-- An opaque key must be an application whose head NAME is neither a
-    special form's nor a table primitive's (NAME-based, any package —
-    matching `collectOpaques`' name-based collection, D-B4 refined). -/
+/-- A named opaque head must not be a special form or table primitive.
+An unopened lambda can also carry a checked value: clausify treats this
+application as an atom, and the lift does not beta-reduce it. -/
 def dpOpqKeyOk : SExpr → Bool
   | .cons (.atom (.symbol fs)) _ =>
     !(fs.isNamed "QUOTE") && !(fs.isNamed "IF") &&
     !(dpLiftHeads.contains fs.name)
+  | .cons (.cons (.atom (.symbol lam)) (.cons _ (.cons _ .nil))) _ =>
+    lam == { name := "LAMBDA" }
   | _ => false
 
 /-- All opaque keys well-formed (decidable; the driver checks it once per

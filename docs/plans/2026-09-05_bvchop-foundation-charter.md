@@ -4081,3 +4081,42 @@ frontier check. No full comparison declaration is produced. The next repair
 must supply checked values for these untouched clausify atoms while preserving
 actual beta-rewrite records. This is another intermediate fast-gate increment;
 production promotion and all three native products remain open.
+
+
+### C2 complete comparison-book diagnostic replay (2026-09-07)
+
+The clausify adapter now supplies checked values for lambda applications
+which remain atomic in ACL2's clausification. The pure lift still performs
+no beta reduction: its existing opaque-value arm consumes a convergence
+proof for the unchanged application. The opaque-key condition admits such
+lambda atoms while continuing to exclude special forms and primitive heads.
+The single/multi clause adapters share their existing bundle construction;
+quoted data and opaque named calls stop lambda collection, and malformed
+application spines fail. The existing scoped lambda value proof discharges
+the new entries; no theorem-specific lemma or recorded beta-step shortcut
+was added. Core build passes **6276 jobs**
+(`c2-clausify-lambda-atoms-build.log`).
+
+Both initial lambda-bearing clausify records kernel-check relative to
+their actual output clauses. Six controls reject inconsistent lambda
+value/proof pins and changed input/output records
+(`c2-clausify-lambda-controls.log`). The original whole comparison attempts
+now replay **unconditionally**, with accepted axiom receipts
+(`c2-clausify-lambda-components.log`). Extending the same actual registry
+run to the whole captured less-than book gives **4/4 unconditional
+replayed statements** at the quotient consumer world:
+<-WHEN-COMPLEX-RATIONALP-AND-RATIONALP,
+<-WHEN-RATIONALP-AND-COMPLEX-RATIONALP,
+<-WHEN-COMPLEX-RATIONALP-AND-COMPLEX-RATIONALP, and NOT-<-SAME.
+All four declarations carry only the accepted classical trio
+(`c2-comparison-whole-book.log`). These are replayed dependencies from
+producer **7f94b3a874**, using the checked bootstrap registry. Production
+capture promotion remains open; none is a new native product.
+
+Affected targets pass **3160 jobs** (`c2-clausify-lambda-affected-build.log`).
+Static checks pass, the hints book replays **4/4**, and the existing lambda
+pattern replays **1/1** (`c2-clausify-lambda-static.log`,
+`c2-clausify-lambda-hints-replay.log`,
+`c2-clausify-lambda-pattern-replay.log`). This remains an intermediate
+fast-gate checkpoint, with no golden repin or new full-suite claim. C2 and
+all three native BVCHOP proofs remain open.
