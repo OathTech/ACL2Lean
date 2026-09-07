@@ -4647,3 +4647,51 @@ build (`c2-component-redef-leaves-affected-build.log`,
 `c2-component-redef-leaves-equality-replay.log`). This is a fast-gate
 checkpoint. C2, production bootstrap provenance and all three NS1 mirrors
 remain open; no new full-suite receipt is claimed.
+
+
+### C2 recorded IFF constant-test copy (2026-09-07)
+
+The two actual IFF constant-test nodes in IMAGPART-OF-*-OF-I now consume
+its already-recorded test-position rewrite at the repeated branch. The
+source is the constant-test OR optimization in `rewrite-if`, documented
+under BUG-022 site 2: under IFF, when the unrewritten test equals the left
+branch, ACL2 reuses the truthy rewritten test and returns 'T. The existing
+replay supported the later OR-shaped finish but rejected this constant form.
+
+Both actual production payloads and their relation-congruence lifts now
+kernel-check with accepted axioms; fourteen mutations reject
+(`c2-constant-iff-copy-production-controls-rerun.log`). The consumer checks
+the node shape, relation, origin, quoted nonnil test and RHS, re-roots only
+the recorded prefix at that exact test path, replays it, and checks its
+endpoint. It preserves SIff until the existing Boolean consumer turns it
+into equality. Missing evidence remains a frontier. The existing OR-shape
+handler and this variant share the lift in NodeCore/IfIff; Rewrites shrinks.
+The first standalone production probe used the negative literal wrapper
+instead of its `notFlg` atom; it failed path navigation. The corrected probe
+uses the same atom boundary as `replayLiteralChain` and is the receipt.
+
+Whole imaginary-product replay advances through those nodes and retained
+FERTILIZE to Goal'5', where ACL2 selects a HIDE removal after an unchanged
+rewrite pass. That edit is absent from the capture (BUG-057); its child
+Goal'6' has the unhidden literal. The whole theorem remains incomplete
+(`c2-component-product-imag-i-declarations.log`, including its failed final
+print). REALPART-REDEF and the preceding bootstrap/component declarations
+remain unconditional in the same run. Emit and replay the selected HIDE
+edit, rather than infer it from the child.
+
+Core build passes 3149 jobs and statics pass with 275 reachable sources
+(`c2-constant-iff-copy-build.log`, `c2-constant-iff-copy-static.log`). Affected
+targets and focused OR-shape regression follow before the fast-gate commit.
+No new mirror, producer promotion or full-suite claim is made.
+
+The focused OR-shape pattern book replays its one theorem unconditionally,
+with three standalone DP verdicts checked; their informational discharge
+brackets retain the existing totality/TP premises. Equality-reasoning also
+passes 3/3 unconditionally with both DP leaves checked. Executable build:
+6286 jobs. Receipts: `c2-constant-iff-copy-pattern-replay.log`,
+`c2-constant-iff-copy-equality-replay.log`.
+
+Final affected targets pass 3166 jobs
+(`c2-constant-iff-copy-affected-build.log`). This completes this increment's
+fast-gate checks; production capture gaps and all three NS1 mirrors remain
+open.

@@ -822,7 +822,10 @@ No pattern books exist yet — authoring them is the arc's work.
   (three actual USE premises, nine rejected mutations). REALPART-REDEF
   also replays wholly and unconditionally after checking its actual
   nonnumeric literal verdict and additive-inverse linear verdict. All
-  declarations carry accepted-axiom receipts.
+  declarations carry accepted-axiom receipts. The two recorded IFF
+  constant-test copies in IMAGPART-OF-*-OF-I now check through the shared
+  relation lift (14 rejected mutations); whole replay reaches unemitted
+  selected HIDE removal (BUG-057) and remains incomplete.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

@@ -4,7 +4,7 @@
   file's own def-before-use order, so the import chain IS the
   dependency order.
 -/
-import ACL2Lean.Replay.Driver.NodeCore.Congruence
+import ACL2Lean.Replay.Driver.NodeCore.IfIff
 
 namespace ACL2.Replay.Driver
 
@@ -748,55 +748,10 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
         let (restAll, finalT) ← replayRewritesWith rec cfg ctx start' (n :: rest) chainPrefix
         return (some (← chainWithR cfg ctx swapEq start' restAll), finalT)
       | none => pure ()
-    -- OR-SHAPE IFF node (G1 rung 1, inc-2): rewrite-if-finish's
-    -- `(if a a b) ⇒ (if a 't b)` collapse arrives `:EQUIV IFF` (the fork
-    -- labels it truthfully now — p3-conj-mid-literal). Its SIff payload is
-    -- lifted along the node's path by the R congruence table and MUST
-    -- collapse to an eval-equality at a boolean-consumer frame before the
-    -- literal root (if-test / implies positions); a root-iff literal chain
-    -- is a frontier.
+    -- Both IFF-only IF forms share the checked relation-congruence lift.
     if nodeEquiv n == "iff" && (runeOf n).ty == "if-simplification" then
       if let .node _ _ _ [] _ := n then
-        let .cons (.atom (.symbol ifS)) (.cons a (.cons a2 (.cons bT .nil))) := lhs
-          | throwError "replayRewrites: iff if-simplification lhs {repr lhs} is \
-              not an if application (frontier)"
-        unless ifS.name == "IF" && a == a2 do
-          throwError "replayRewrites: iff if-simplification {repr lhs} is not \
-              the or-shape (if a a b) (frontier)"
-        let expectedRhs : SExpr := .cons (.atom (.symbol ifS))
-          (.cons a (.cons quoteT (.cons bT .nil)))
-        unless rhs == expectedRhs do
-          throwError "replayRewrites: iff or-shape rhs {repr rhs} is not \
-              (if a 't b) (frontier)"
-        let rel := relativizeFrames (nodePath n)
-        let steps ← match pathStepsFromFrames start rel lhs with
-          | .ok s => pure s
-          | .error e => throwError "replayRewrites: iff or-shape :PATH does \
-              not navigate to the redex: {e}"
-        let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
-        let payload ← mkAppM ``evrel_siff_if_or_shape
-          #[cfg.worldExpr, cfg.envExpr, reflectSExpr a, reflectSExpr bT,
-            ← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx bT,
-            ← ctxValProof cfg ctx a, ← ctxValProof cfg ctx bT]
-        let mut inner := payload
-        let mut innerIff := true
-        let mut curL := lhs
-        let mut curR := rhs
-        for st in steps.reverse do
-          if innerIff then
-            let (p, still) ← applyStepSIff cfg ctx st inner
-            inner := p
-            innerIff := still
-          else
-            inner ← applyStep cfg.worldExpr cfg.envExpr st curL curR inner
-          curL := rebuild st curL
-          curR := rebuild st curR
-        unless curL == start do
-          throwError "replayRewrites: iff or-shape lift reconstructed \
-              {repr curL} ≠ running {repr start}"
-        if innerIff then
-          throwError "replayRewrites: or-shape iff chain still IFF at the \
-              literal root (frontier — R-parameterized literal chains)"
+        let (inner, curR) ← replayIfIff rec cfg ctx start n chainPrefix
         let (restProof, finalTerm) ← replayRewritesWith rec cfg ctx curR rest (chainPrefix ++ [n])
         return (some (← chainWithR cfg ctx inner curR restProof), finalTerm)
     -- A preserved window boundary scopes its actual child coordinates;

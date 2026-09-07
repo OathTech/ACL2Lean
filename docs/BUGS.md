@@ -30,6 +30,27 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-057 — simplify-clause omits its selected HIDE removal
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+After a rewrite pass makes no change, ACL2's `unhidden-lit-info` selects a
+previously fertilized equivalence inside NOT/HIDE. `simplify-clause1` removes
+that HIDE at the selected position and returns the modified clause, citing
+HIDE's definition. The capture does not record this selected transformation.
+
+The actual IMAGPART-OF-*-OF-I proof reaches Goal'5' after the retained-equality
+FERTILIZE step. Every literal chain there is unchanged; the child Goal'6'
+removes HIDE from its first negative equality. The consumer rejects the
+unmatched residual clause. HIDE already has checked identity semantics;
+what is missing is the recorded proof-search selection, not its model law.
+Emit the actual position, input and selected old/new literal at this source
+branch, then replay that exact edit and its child. Do not unwrap literals
+merely to match the desired child. Source: diagnostic
+`.tmp/ns1/acl2-ta-singleton/simplify.lisp:8681–8702,8989–9010`;
+actual tree: `.tmp/ns1/c2-imagpart-i-use-tree.log`; replay receipt:
+`.tmp/ns1/c2-component-product-imag-i-declarations.log`.
+
 ## BUG-056 — clausify NOT lookup omits the selected noncommutative assumption
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)
