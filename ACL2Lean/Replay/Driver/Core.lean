@@ -200,10 +200,9 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- variables; replayElim bridges it back through the emitted ELIMSEQUENCE
   if let some st := cn.steps.find? (fun s => s.processor.toLower == "eliminate-destructors-clause") then
     guardNoUseHint "eliminate-destructors"
-    unless clausifyInfos.isEmpty do
-      throwError "replayClause: elim step alongside an effective clausify \
-                  record at {cn.idStr} (frontier)"
-    return ← replayElim rec cfg ctx cn st
+    if clausifyInfos.isEmpty then return ← replayElim rec cfg ctx cn st
+    -- An earlier preprocessing pass on this same clause id is composed
+    -- by the clausify arm, which checks the emitted processor boundary.
   -- a FERTILIZE node (cross-fertilization): the emitted :FERTILIZE detail
   -- links the substitution to its justifying clause literal; replayFertilize
   -- byCases the literal, transports the disjunction onto the substituted
@@ -293,7 +292,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- DISCHARGE node on a singleton clause
     let mut usedChildren : List String := []
     let mut pOuts : List Expr := []
-    let mut spineConsumed := false
+    let mut childrenConsumed := false
     for cl in info.out do
       match cn.children.find? (·.inputClause == cl) with
       | some child =>
@@ -303,6 +302,14 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         -- child's numbering); term-keyed channels flow through
         pOuts := pOuts ++ [← replayClauseWith rec cfg { ctx with litFacts := [], dedupDrops := [] } child]
       | none =>
+        if cn.steps.any (fun s => s.processor.toLower == "eliminate-destructors-clause") then
+          unless info.out.length == 1 do
+            throwError "elim after clausify: multiple output clauses at {cn.idStr}"
+          let (suffix, st) ← elimAfterClausifyView cn cl
+          childrenConsumed := true
+          pOuts := pOuts ++ [← replayElim rec cfg
+            { ctx with litFacts := [], dedupDrops := [] } suffix st]
+        else
         -- (a) the out clause proved IN-NODE by a merged same-clause-id
         -- SIMPLIFY step's literal walk (preprocess split + simplify without
         -- an intervening push — CLASSIFY-POS shape): route the post-clausify
@@ -319,7 +326,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           | _ => false
         if hasWalk && info.out.length == 1 then
           let litsIdx := cl.zipIdx.map fun (l, i) => (i + 1, l)
-          spineConsumed := true
+          childrenConsumed := true
           pOuts := pOuts ++ [← replayClauseSpineWith rec cfg
             { ctx with litFacts := [], dedupDrops := [] } cn.idStr litsIdx postItems [] cn.children]
         else
@@ -357,14 +364,14 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
           { ctx with tauBasis := nodeTauBasis n } lit]
     -- when NOTHING consumed the literal items (the push-scan case), they
     -- must be identity displays — real rewriting there is a frontier
-    unless spineConsumed do
+    unless childrenConsumed do
       for (_, lp) in lits do
         unless identityLiteralItem lp do
           throwError "replayClause: non-identity literal item alongside a \
                       clausify record at {cn.idStr} (frontier): {repr lp.literal}"
-    -- the SPINE route consumes children itself (residual pushes,
-    -- fail-closed inside); the completeness check applies otherwise
-    unless spineConsumed do
+    -- In-node spine and ELIM consumers check their children themselves;
+    -- the direct clausify/child route needs this completeness check.
+    unless childrenConsumed do
       for child in cn.children do
         unless usedChildren.contains child.idStr do
           throwError "replayClause: child {child.idStr} matches no clausify \

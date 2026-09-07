@@ -3,6 +3,33 @@ import ACL2Lean.NumericEquality
 
 namespace ACL2.Logic
 
+/-- The completed primitive constructor always returns an ACL2 number. -/
+theorem acl2Numberp_complex (a b : SExpr) : acl2Numberp (complex a b) = .t := by
+  rfl
+
+/-- The two range conjuncts of the primitive COMPLEX-IMPLIES1 axiom. -/
+theorem rationalp_realpart (v : SExpr) : rationalp (realpart v) = .t := by
+  cases v with
+  | atom a => cases a with
+    | number n => cases n with
+      | complex r _ _ =>
+        simp only [realpart, Number.fromRat]
+        split <;> rfl
+      | _ => rfl
+    | _ => rfl
+  | _ => rfl
+
+theorem rationalp_imagpart (v : SExpr) : rationalp (imagpart v) = .t := by
+  cases v with
+  | atom a => cases a with
+    | number n => cases n with
+      | complex _ i _ =>
+        simp only [imagpart, Number.fromRat]
+        split <;> rfl
+      | _ => rfl
+    | _ => rfl
+  | _ => rfl
+
 /-- Projection into the rational components of the completed numeric value.
 Used to normalize recorded decision-procedure clauses about REALPART. -/
 theorem numberParts_realpart (v : SExpr) :

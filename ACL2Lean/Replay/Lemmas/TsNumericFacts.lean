@@ -2,6 +2,7 @@ import ACL2Lean.Replay.Lemmas.TsAlgebra
 import ACL2Lean.NumericReciprocal
 import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericOrder
+import ACL2Lean.NumericComponents
 
 namespace ACL2.Replay
 open ACL2
@@ -27,6 +28,16 @@ theorem inTs_acl2Numberp {v : SExpr} (h : Logic.acl2Numberp v = .t) : InTs 127 v
 TYPESET 126 and TRUETS 127. Its primitive numeric range suffices. -/
 theorem inTs_reciprocal_number (v : SExpr) : InTs 127 (Logic.reciprocal v) :=
   inTs_acl2Numberp (Logic.acl2Numberp_reciprocal v)
+
+/-- COMPLEX-OPENER records mask 65 for a product whose second operand is
+conditional. The primitive's full numeric range proves its number verdict. -/
+theorem inTs_times_number (a b : SExpr) : InTs 127 (Logic.times a b) :=
+  inTs_acl2Numberp (Logic.acl2Numberp_times a b)
+
+/-- The comparison book records the constructor's numeric recognizer
+verdict. Its full range also covers completed nonrational arguments. -/
+theorem inTs_complex_number (a b : SExpr) : InTs 127 (Logic.complex a b) :=
+  inTs_acl2Numberp (Logic.acl2Numberp_complex a b)
 
 /-- The sharp zero-product cell consumed by the reciprocal-zero theorem's
 recorded disjoint-type equality node. Both factors remain unrestricted. -/

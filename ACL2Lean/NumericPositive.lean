@@ -10,7 +10,7 @@ private theorem ltParts (a b : SExpr) : lt a b ≠ .nil ↔
   rw [lt_parts]
   split <;> simp_all [SExpr.t]
 
-private theorem rationalReal (v : SExpr) (h : rationalp v ≠ .nil) : isComplex v = false := by
+theorem isComplex_false_of_rationalp (v : SExpr) (h : rationalp v ≠ .nil) : isComplex v = false := by
   cases v with
   | nil | cons _ _ => rfl
   | atom a => cases a with
@@ -43,8 +43,8 @@ theorem positiveTimes (a b : SExpr)
     (ha : lt (.atom (.number (.int 0))) a ≠ .nil)
     (hb : lt (.atom (.number (.int 0))) b ≠ .nil) :
     lt (.atom (.number (.int 0))) (times a b) ≠ .nil := by
-  have hpa := numberParts_of_not_complex a (rationalReal a hra)
-  have hpb := numberParts_of_not_complex b (rationalReal b hrb)
+  have hpa := numberParts_of_not_complex a (isComplex_false_of_rationalp a hra)
+  have hpb := numberParts_of_not_complex b (isComplex_false_of_rationalp b hrb)
   rw [ltParts] at ha hb ⊢
   rw [times_parts, numberParts_mkParts, hpa, hpb]
   rw [hpa] at ha

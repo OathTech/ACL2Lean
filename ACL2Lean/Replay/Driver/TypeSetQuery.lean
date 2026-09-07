@@ -101,12 +101,21 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
   let some (fn, args) := asApp q.term | throwFrontier m!"type-set query: unsupported non-application"
   unless cs.map (fun (c, _) => c.term) == args do
     throwError "type-set query: executed children do not match the primitive arguments"
-  if fn.name == "IMAGPART" then
-    let [(c, p)] := cs | throwError "type-set query: IMAGPART arity"
-    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
-        c.result == 64 && q.result == 62 do
-      throwFrontier m!"type-set query: unsupported IMAGPART masks {c.result} → {q.result}"
-    return ← finish (← mkAppM ``inTs_imagpart_complex #[p])
+  if fn.name == "REALPART" || fn.name == "IMAGPART" then
+    let [(c, p)] := cs | throwError "type-set query: component projection arity"
+    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
+      throwError "type-set query: component projection has an unexpected route"
+    let some (input, _, ruleName) := (tsUnaryOf fn.name).find? fun (input, out, _) =>
+        out == q.result && (input.isNone || input == some c.result)
+      | throwFrontier m!"type-set query: unsupported {fn.name} masks {c.result} → {q.result}"
+    match input with
+    | some _ => return ← finish (← mkAppM ruleName #[p])
+    | none =>
+      let result ← finish (← mkAppM ruleName #[← ctxValExpr cfg ctx c.term])
+      -- The projection's unconditional range does not need a child premise,
+      -- but the actual executed query still carries that checked child.
+      return ← withLetDecl `hProjectionArgument (← inferType p) p fun hp =>
+        mkLetFVars #[hp] result (usedLetOnly := false)
   if fn.name == "UNARY-/" then
     let [(c, p)] := cs | throwError "type-set query: reciprocal arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
@@ -115,10 +124,12 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     return ← finish (← mkAppM ``inTs_reciprocal_nonneg_int #[p])
   if fn.name == "BINARY-+" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: addition arity"
-    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
-        l.result == 14 && r.result == 14 && q.result == 14 do
-      throwFrontier m!"type-set query: unsupported addition masks {l.result}/{r.result} → {q.result}"
-    return ← finish (← mkAppM ``inTs_plus_positive_rat #[pl, pr])
+    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
+      throwError "type-set query: addition has an unexpected route"
+    let some (_, _, _, ruleName) := (tsBinaryOf fn.name).find? fun (lm, rm, out, _) =>
+        lm == l.result && rm == r.result && out == q.result
+      | throwFrontier m!"type-set query: unsupported addition masks {l.result}/{r.result} → {q.result}"
+    return ← finish (← mkAppM ruleName #[pl, pr])
   if fn.name == "<" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: comparison arity"
     if let some [.atom (.keyword "CONSTANT-BOUND"), .atom (.keyword "RESULT"), result,

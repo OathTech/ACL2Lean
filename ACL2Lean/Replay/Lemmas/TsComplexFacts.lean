@@ -24,27 +24,13 @@ theorem logic_complexRationalp_t_of_inTs {m : Int} {v : SExpr}
 The strict multiplication helper records both recognizer queries. -/
 theorem inTs_realpart (v : SExpr) : InTs 63 (Logic.realpart v) := by
   apply inTs_rationalp_true
-  cases v with
-  | atom a => cases a with
-    | number n => cases n with
-      | complex r _ _ =>
-        simp only [Logic.realpart, Number.fromRat]
-        split <;> rfl
-      | _ => rfl
-    | _ => rfl
-  | _ => rfl
+  rw [Logic.rationalp_realpart]
+  rfl
 
 theorem inTs_imagpart (v : SExpr) : InTs 63 (Logic.imagpart v) := by
   apply inTs_rationalp_true
-  cases v with
-  | atom a => cases a with
-    | number n => cases n with
-      | complex _ i _ =>
-        simp only [Logic.imagpart, Number.fromRat]
-        split <;> rfl
-      | _ => rfl
-    | _ => rfl
-  | _ => rfl
+  rw [Logic.rationalp_imagpart]
+  rfl
 
 /-- A proved complex mask exposes the nonzero imaginary component. -/
 theorem imag_num_ne_zero_of_inTs_complex {v : SExpr} (hv : InTs 64 v) :
@@ -70,6 +56,20 @@ theorem inTs_imagpart_complex {v : SExpr} (hv : InTs 64 v) :
   have he := (Logic.equal_nil_iff _ _).mpr hn
   exact inTs_inter2 (by decide : tsInter2Subsumed 63 (-2) 62 = true)
     (inTs_imagpart v) (inTs_not_zero ((Logic.toBool_eq_false _).mpr he))
+
+/-- The executed IMAGPART query of a rational argument returns the
+singleton zero cell in REALPART-WHEN-RATIONALP's elimination record. -/
+theorem inTs_imagpart_rational {v : SExpr} (h : InTs 63 v) :
+    InTs 1 (Logic.imagpart v) := by
+  have hc := not_complex_of_inTs_rational h
+  have hz : InTs 1 (.atom (.number (.int 0))) := by unfold InTs; decide
+  cases v with
+  | nil | cons _ _ => exact hz
+  | atom a => cases a with
+    | number n => cases n with
+      | complex _ _ _ => simp [Logic.isComplex] at hc
+      | _ => exact hz
+    | _ => exact hz
 
 theorem inTs_mkParts_complex (r i : Rat) (hi : i.num ≠ 0) :
     InTs 64 (Logic.mkParts r i) := by

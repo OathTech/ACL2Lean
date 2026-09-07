@@ -1,6 +1,7 @@
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericRational
 import ACL2Lean.NumericPositive
+import ACL2Lean.NumericComplexAxioms
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -11,6 +12,25 @@ private theorem rationalReconstructionTrue (v : SExpr) :
         SExpr.nil :=
   (Logic.implies_ne_nil_iff _ _).mpr fun h =>
     (Logic.equal_ne_nil_iff _ _).mpr (Logic.rational_reconstruct v h)
+
+private theorem complexDefinitionTrue (x y : SExpr) :
+    Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
+      (Logic.equal (Logic.complex x y)
+        (Logic.plus x (Logic.times (.atom (.number (.complex 0 1 (by decide)))) y))) ≠ .nil :=
+  (Logic.implies_ne_nil_iff _ _).mpr fun h =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.complex_definition x y
+      (cond_tnil_ne_nil_test h) (cond_tnil_ne_nil_then h))
+
+private theorem completionOrderLaw (x y : SExpr) : Logic.lt x y =
+    (bif Logic.toBool (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
+      then Logic.lt x y else
+      let x1 := bif Logic.toBool (Logic.acl2Numberp x) then x else .atom (.number (.int 0))
+      let y1 := bif Logic.toBool (Logic.acl2Numberp y) then y else .atom (.number (.int 0))
+      bif Logic.toBool (Logic.lt (Logic.realpart x1) (Logic.realpart y1)) then
+        Logic.lt (Logic.realpart x1) (Logic.realpart y1) else
+        (bif Logic.toBool (Logic.equal (Logic.realpart x1) (Logic.realpart y1)) then
+          Logic.lt (Logic.imagpart x1) (Logic.imagpart y1) else .nil)) := by
+  simpa only [gz_def_fix] using Logic.lt_completion x y
 
 open Logic in
 private theorem positiveSchema (a b : SExpr) :
@@ -65,6 +85,20 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     (app "IMPLIES" [positiveXY, app "<" [zero, app "BINARY-+" [x, y]]])
     (app "IMPLIES" [both (app "RATIONALP" [x]) (both (app "RATIONALP" [y]) positiveXY),
       app "<" [zero, app "BINARY-*" [x, y]]])
+  let complexSchema := app "IMPLIES" [both (app "RATIONALP" [x]) (app "RATIONALP" [y]),
+    app "EQUAL" [app "COMPLEX" [x, y], app "BINARY-+" [x,
+      app "BINARY-*" [app "QUOTE" [.atom (.number (.complex 0 1 (by decide)))], y]]]]
+  let x1 := sym "X1"
+  let y1 := sym "Y1"
+  let realLt := app "<" [app "REALPART" [x1], app "REALPART" [y1]]
+  let componentBody := app "IF" [realLt, realLt,
+    both (app "EQUAL" [app "REALPART" [x1], app "REALPART" [y1]])
+      (app "<" [app "IMAGPART" [x1], app "IMAGPART" [y1]])]
+  let completed := fun t => app "IF" [app "ACL2-NUMBERP" [t], t, zero]
+  let orderLhs := app "<" [x, y]
+  let orderRhs := app "IF" [both (app "RATIONALP" [x]) (app "RATIONALP" [y]), orderLhs,
+    .cons (app "LAMBDA" [SExpr.ofList [x1, y1], componentBody])
+      (SExpr.ofList [completed x, completed y])]
   let schema? := match name with
     | "POSITIVE" => some positive
     | "DISTRIBUTIVITY" => some (app "EQUAL" [distLhs, distRhs])
@@ -72,6 +106,8 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     | "RATIONAL-IMPLIES2" => some (app "IMPLIES" [app "RATIONALP" [x],
         app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
     | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
+    | "COMPLEX-DEFINITION" => some complexSchema
+    | "COMPLETION-OF-<" => some (app "EQUAL" [orderLhs, orderRhs])
     | _ => none
   let some schema := schema? | return none
   let instantiate := substTerm (subst.map (·.1)) (subst.map (·.2))
@@ -92,6 +128,11 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate assocLhs))
         (← ctxValExpr cfg ctx (instantiate assocRhs)) law
     | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
+    | "COMPLEX-DEFINITION" => mkAppM ``complexDefinitionTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+    | "COMPLETION-OF-<" => do
+      let law ← mkAppM ``completionOrderLaw #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate orderLhs))
+        (← ctxValExpr cfg ctx (instantiate orderRhs)) law
     | "COMPLETION-OF-DENOMINATOR" => do
       let law ← mkAppM ``Logic.denominator_completion #[vx]
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate den))

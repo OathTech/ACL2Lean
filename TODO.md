@@ -49,8 +49,12 @@ charter or the archive carry the record.
       close the five explicit rule conditions of strict-helper Subgoal 9.18'
       (REALPART-+, complex/rational comparison, rational realpart, realpart of
       a product, COMPLEX-OPENER). Its actual ELIM subtree kernel-checks;
-      the full helper next reaches an emitted addition query with masks
-      14/15 → 14. Preserve the actual guard child and restriction queries; then
+      Subgoal 9.17 also checks under seven conditions, adding IMAGPART-+
+      and the imaginary product rule. Close DEFAULT-COMPLEX-1/2 and the
+      bootstrap component-addition proof route. Finish the comparison book's
+      Boolean-equality clausifier conversion and multi-round ELIM, and the
+      strict helper's derived linear row at Subgoal 9.12. Preserve the
+      actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.
       Integrate the linear equation producer/consumer (BUG-049) after msort's

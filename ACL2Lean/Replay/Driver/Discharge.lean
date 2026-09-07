@@ -259,7 +259,7 @@ def dpLeafTactic (withNumericOrder : Bool := false) (withNegation : Bool := fals
           -- hypothesis shape), and goal-only splitting leaves omega
           -- without the arithmetic fact
           (try split_ifs at *) <;> simp_all [-Logic.toBool] <;> try omega)
-      | (simp_all [Logic.times, Logic.numberParts, Logic.rationalValue,
+      | (simp_all [Logic.complex, Logic.times, Logic.numberParts, Logic.rationalValue,
                    Logic.mkParts, Number.fromParts, Number.fromRat,
                    Logic.mkNumber, Logic.toRat, Logic.equal, Logic.toBool] <;>
           (try split_ifs at *) <;> intros <;>
@@ -760,6 +760,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   let withComparison := (stmt.find? (fun e => e.isConstOf ``Logic.lt)).isSome
   let withReciprocal := (stmt.find? (fun e => e.isConstOf ``Logic.reciprocal)).isSome
   let withImplication := (stmt.find? (fun e => e.isConstOf ``Logic.implies)).isSome
+  let withComplexConstructor := (stmt.find? (·.isConstOf ``Logic.complex)).isSome
   let tac ← dpLeafTactic withNumericOrder withNegation withComparison withReciprocal withImplication
   -- Normalize equalities for the unsplit attempt. This closes structural
   -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
@@ -774,8 +775,20 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- Subgoal 1), eliminating the need to split its numeric domain.
   let normalizeTac ← `(tactic|
     (try simp_all only [logic_not_equal_nil_iff, ACL2.lexorder_refl,
+      Logic.rationalp_realpart, Logic.rationalp_imagpart,
       SExpr.t, reduceCtorEq]) <;> subst_vars)
-  let directTac ← if withImplication then pure tac else
+  -- Complete complex constructors before an equality premise can replace
+  -- them with a larger arithmetic term. This closes the recorded opener's
+  -- tau leaf from its nonrational argument, before field-view expansion.
+  let normalizeTac ← if withComplexConstructor then
+    `(tactic|
+      (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>
+      (try simp_all only [Logic.complex, Logic.rationalValue_zero_of_nonrational,
+        show Logic.rationalValue (.atom (.number (.int (Int.ofNat 0)))) = (0 : Rat) from rfl,
+        show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
+        Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> $normalizeTac:tactic)
+    else pure normalizeTac
+  let directTac ← if withImplication || withComplexConstructor then pure tac else
     `(tactic| $normalizeTac:tactic <;> $tac:tactic)
   -- Full numeric products admit a field representation, including the
   -- complex-rational values. This remains inside the existing bounded
@@ -825,7 +838,8 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let g ← assertDpOrderFacts g
         let g ← assertDpEqualNilComm g
         let intTac ← dpIntegerViewTactic
-        let normalized ← if withImplication then runDpTactic g normalizeTac else pure [g]
+        let normalized ← if withImplication || withComplexConstructor then
+          runDpTactic g normalizeTac else pure [g]
         let goals ← normalized.flatMapM fun g =>
           normalizeDpIntegerViews g (fun g => runDpTactic g intTac)
         let remaining ← goals.flatMapM fun g => do

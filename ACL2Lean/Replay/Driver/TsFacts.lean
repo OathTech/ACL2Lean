@@ -24,6 +24,7 @@
 -/
 import ACL2Lean.Replay.Lemmas.TsComplexFacts
 import ACL2Lean.Replay.Lemmas.TsBooleanFacts
+import ACL2Lean.Replay.Lemmas.TsQueryCells
 import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.ProofLog
 
@@ -178,6 +179,13 @@ def tsBooleanBinaryRangeOf (op : String) : Option Lean.Name :=
   else if op == "<" then some ``ACL2.Replay.logic_lt_range
   else none
 
+/-- A primitive range that needs no operand type premises. The emitted
+recognizer masks still select and check the resulting verdict. -/
+def tsNumericBinaryRangeOf (op : String) : Option (Int × Lean.Name) :=
+  if op == "BINARY-*" then some (127, ``ACL2.Replay.inTs_times_number)
+  else if op == "COMPLEX" then some (127, ``ACL2.Replay.inTs_complex_number)
+  else none
+
 /-- ARITHMETIC-PRIMITIVE ts registry: a 2-ary primitive ↦ (the two input masks
     the proved fact demands, the out-mask it
     establishes, the fact). ACL2's `type-set-binary-+` mirrored one cell
@@ -190,7 +198,9 @@ def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
   if op == "BINARY-+" then
     [(23, 23, 23, ``ACL2.Replay.inTs_plus_int), (63, 63, 63, ``ACL2.Replay.inTs_plus_rat),
      (64, 63, 64, ``ACL2.Replay.inTs_plus_complex_rat),
-     (63, 64, 64, ``ACL2.Replay.inTs_plus_rat_complex)]
+     (63, 64, 64, ``ACL2.Replay.inTs_plus_rat_complex),
+     (14, 14, 14, ``ACL2.Replay.inTs_plus_positive_rat),
+     (14, 15, 14, ``ACL2.Replay.inTs_plus_positive_nonneg_rat)]
   else if op == "BINARY-*" then
     [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
      (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]
@@ -206,7 +216,10 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
      (some 63, 63, ``ACL2.Replay.inTs_neg_rat)]
   else if op == "REALPART" then [(none, 63, ``ACL2.Replay.inTs_realpart)]
-  else if op == "IMAGPART" then [(none, 63, ``ACL2.Replay.inTs_imagpart)]
+  else if op == "IMAGPART" then
+    [(none, 63, ``ACL2.Replay.inTs_imagpart),
+     (some 63, 1, ``ACL2.Replay.inTs_imagpart_rational),
+     (some 64, 62, ``ACL2.Replay.inTs_imagpart_complex)]
   else if op == "NUMERATOR" then [(none, 23, ``ACL2.Replay.inTs_numerator)]
   else if op == "DENOMINATOR" then [(none, 6, ``ACL2.Replay.inTs_denominator)]
   else if op == "NOT" then [(none, 384, ``ACL2.Replay.inTs_not)]

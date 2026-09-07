@@ -766,15 +766,28 @@ No pattern books exist yet — authoring them is the arc's work.
   `other-processes.lisp`'s `type-restriction-segment` before generalization.
 - axes: record count; fresh vs occurring elim vars; guard-literal
   position; per-level pinning; primitive constructor/destructor family;
-  recorded type query, conversion, and restriction-clause prefix.
+  recorded type query, conversion, and restriction-clause prefix; an
+  earlier preprocessing pass sharing the same clause id; an actual
+  ADD-LITERAL duplicate removal when the restriction overlaps the old clause;
+  the two guard-union duplicates and split-on-assumptions complement close.
 - anchor: msort rows; NS1's unchanged Kestrel
   `<-OF-*-AND-*-SAME-HELPER`, Subgoal 9.18'.
 - books: none yet. CAR/CDR recipe landed. Shared REALPART/IMAGPART
-  recipe and executed restriction queries are in progress: the untouched
-  Subgoal 9.18' subtree kernel-checks under five explicit rule conditions;
-  all four restriction literals check and eight controls reject. Whole-helper
-  replay remains incomplete. The isolated observer
-  retains all prior events modulo its new metadata; see the
+  recipe and executed restriction queries are in progress: sorting's actual
+  two-record guard subtree checks unconditionally, with all six removed-edit
+  mutations rejected. The untouched
+  Subgoal 9.18' subtree kernel-checks under five explicit rule conditions,
+  and 9.17 under seven. Each restriction quartet checks with eight rejected
+  controls. The component books exercise rational/zero/negative restrictions
+  and preprocessing before ELIM (four rejected boundary mutations).
+  REALPART-WHEN-RATIONALP replays with the two DEFAULT-COMPLEX conditions;
+  its comparison Subgoal 2''' checks with a COMPLEX-0 condition and
+  two rejected duplicate-record mutations. The whole comparison next needs
+  its Boolean-equality clausifier conversion and multiple ELIM rounds.
+  Whole-helper replay remains incomplete. Prior times/quotient captures
+  compare modulo the new ELIM metadata; the newer less-than capture also
+  has an earlier producer's TYPESET addition, so its ELIM-only comparison
+  fails. See the
   [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
 
 ### P8 — strip-branches conjunction split

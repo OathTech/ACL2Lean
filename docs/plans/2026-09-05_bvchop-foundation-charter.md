@@ -3149,3 +3149,242 @@ rows (434311 ms). Its informational DP bracket still has 7 proved and
 2 assumed probes, unchanged from the earlier checkpoint. The next
 positive/nonnegative query extension is separate WIP. This is not a full
 gate or golden re-pin; the last full receipt remains the earlier one.
+
+The next executed addition query is `(BINARY-+ Y (REALPART X1))` in
+strict-helper Subgoal 9.17, with masks **14/15 → 14**. The positive/zero
+cell reuses the existing positive-addition model law and canonical zero
+completion. Its first query-consumer build failed on the reserved Lean
+identifier `lemma` (`c2-positive-nonnegative-query-build.log`); the corrected
+build passes **3136 jobs** (`c2-positive-nonnegative-query-build-rerun.log`).
+The actual subtree then stops at restriction mask 15
+(`c2-strict-helper-positive-nonnegative-subtree.log`).
+
+The mask-15 conversion consumes the recorded rationality and nonnegative
+comparison tests. Its build passes **3136 jobs**
+(`c2-nonnegative-elim-restriction-build.log`). The next actual lookup needs
+IMAGPART(X1) at mask 14 (`c2-strict-helper-nonnegative-restriction-subtree.log`):
+the already-checked complex → nonzero-imaginary cell must also participate
+in the shared context lookup registry, combining with the recorded sign
+test. That build passes **3136 jobs** (`c2-imagpart-nonzero-lookup-build.log`).
+The untouched Subgoal 9.17 subtree now kernel-checks under **seven rule
+conditions**, the prior five plus IMAGPART-+ and
+IMAGPART-OF-*-WHEN-RATIONALP-ARG2
+(`c2-strict-helper-imagpart-lookup-subtree.log`). The full original helper
+has not yet been rerun after these changes.
+
+The new `NumericComplexAxioms` model proofs supply only the primitive
+COMPLEX-DEFINITION and COMPLETION-OF-< `:USE` schemas. Their exact
+translated instances are retained in `c2-component-use-inputs-filepath.log`,
+including the comparison axiom's two-argument lambda. Initial builds failed
+on Boolean-conditional reduction in the completion proof; the corrected
+consumer build passes **3137 jobs** (`c2-complex-primitive-use-build-cond.log`;
+earlier `c2-complex-primitive-use-build{,-bool,-reduced}.log` failures retained).
+Both actual instantiated premises kernel-check with accepted axioms, and
+**six** mutations reject (changed hypothesis, changed substitution,
+unregistered axiom for each; `c2-complex-primitive-use-controls-rerun.log`).
+The initial control script had a pattern-let parsing error
+(`c2-complex-primitive-use-controls.log`). Ordinary book proofs remain
+separate dependencies.
+
+The component probes then need primitive numeric range facts: the product
+in COMPLEX-OPENER is numeric even with an IF operand; the comparison book's
+emitted range verdict needs rationality of REALPART. These now reuse the
+model's product range and component-range axioms through the shared type
+registry and DP normalization (`c2-component-range-consumer-build.log`,
+**3137 jobs**). The resulting probes (`c2-component-dependencies-ranges.log`)
+leave COMPLEX-OPENER with DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and an
+**ASSUMED DP fact**; REALPART-WHEN-RATIONALP still needs preprocessing/ELIM
+composition; and the older comparison capture lacks ELIM restriction
+metadata. None of those ordinary dependencies is closed.
+
+Subgoal 9.17's four actual restriction literals also kernel-check with
+**eight** rejected controls (`c2-nonnegative-elim-restriction-controls-lookups.log`).
+The first adapted control mistakenly deleted children from an actual
+childless LOOKUP, leaving the record unchanged; the check correctly failed
+that supposed mutation (`c2-nonnegative-elim-restriction-controls.log`).
+The corrected control deletes the actual IMAGPART query. The full strict
+helper now reaches **Subgoal 9.12**, where a linear equation row is not
+derived from one direct parent (`c2-strict-helper-nonnegative-whole.log`,
+`c2-strict-helper-linear-frontier-trace.log`). The trace traverses the earlier
+branches, including the 9.18/9.17/9.13 elimination subtrees, before this stop.
+Only 9.18 and 9.17 have the separate subtree kernel receipts above; the
+whole helper remains unproved.
+
+Fresh captures from the clean isolated observer are in
+`c2-component-followup-capture/`: less-than **4/4** QED/defthm (12219 lines)
+and imagpart **9/9** (2244 lines). Source hashes and producer sidecars are
+retained (`c2-component-{less-than,imagpart}-capture.log`). The production
+fork and permanent proof logs remain unchanged.
+
+The clause-tree module was split into construction/tests and printing under
+the same public import. Bodies were preserved, with one relative test-log
+path adjusted. The build passes **3168 jobs** (`c2-clause-tree-split-build.log`),
+and the actual realpart tree printer output is byte-identical to its prior
+receipt (`c2-realpart-tree-after-split.log`). Statics pass before the next
+processor-boundary change (`c2-component-queries-static.log`). That next
+change retains each parsed STEP input in the reconstructed processor and
+composes a checked preprocessing output with the actual ELIM input; its
+build and real-book validation are pending.
+
+The processor-boundary build passes **3139 jobs**
+(`c2-preprocess-elim-boundary-build.log`). The fresh realpart and comparison
+dependency probes now reach recorded restriction mask 63
+(`c2-component-dependencies-processor-boundary.log`). The restriction
+consumer is being extended to the actual rational and singleton-zero
+conversions, and the component query registry to their executed child
+queries. An unconditional projection range retains its checked child in
+the proof term even though the range theorem needs no premise. The initial
+zero-cell proof failed to reduce mask membership with `rfl`; the explicit
+kernel-decided zero cell fixes it (`c2-rational-elim-restriction-build.log`,
+then **3139 jobs** in `c2-rational-elim-restriction-build-zero.log`).
+
+The old/fresh less-than raw comparison does **not** pass the earlier
+ELIM-only normalization (`c2-component-less-than-comparison.log`). Its
+first difference is an additional emitted `:TYPESET 256` on an existing
+REWRITE-STEP, predating the ELIM observer in the newer producer lineage.
+No all-record identity claim is made from that failed comparison; both
+original captures and the differing event records are retained.
+
+
+### C2 component completion and restriction overlap (2026-09-07, WIP)
+
+Recorded rational/zero conversions build (**3139 jobs**), followed by the
+negative-rational mask-48 conversion (**3139 jobs**,
+`c2-negative-elim-restriction-build.log`). The comparison then stops where
+its restriction prefix overlaps the original clause
+(`c2-component-dependencies-negative-restrictions.log`). REALPART-WHEN-RATIONALP
+at that point replays with one explicit COMPLEX-OPENER condition.
+
+COMPLEX-OPENER's Subgoal 1/preprocess/tau-contradiction is a genuine emitted
+verdict leaf. A diagnostic completion normalization closes exactly that
+obligation in **539 heartbeat units**, kernel checked with accepted axioms
+(`c2-complex-opener-completion-normalization-rerun.log`). Its inherited
+printed label says “wired DP”; that label is inaccurate for this diagnostic.
+The first production wiring builds (**3139 jobs**,
+`c2-complex-completion-leaf-build.log`) but fails the actual DP check
+(`c2-complex-opener-completion-wired.log`). Reproducing the exact normalization
+shows that the equality-premise rewrite hides the constructor before its
+nonrational argument completes to zero (`c2-complex-opener-exact-normalization.log`).
+
+The ordered production normalization builds (**3139 jobs**,
+`c2-complex-completion-order-build.log`). `proveDpFact` now kernel-checks the
+actual leaf with accepted axioms in **991 heartbeat units**
+(`c2-complex-opener-completion-ordered-wired.log`), below the existing 15000
+probe budget. All **12** actual type-partition leaves still check
+(`c2-type-partition-completion-order.log`), and the earlier ELIM guard
+checks in **675** (`c2-elim-guard-completion-order.log`). The resulting whole
+COMPLEX-OPENER and REALPART-WHEN-RATIONALP rows have exactly the two explicit
+DEFAULT-COMPLEX-1/2 conditions, with no ASSUMED DP fact. The realpart product
+ARG2 row retains its actual USE of the ARG1 theorem
+(`c2-component-dependencies-recorded-union.log`). These are conditional
+replays, not completed dependencies.
+
+The comparison's Subgoal 2''' carries an actual `dedup-drop` for
+`(NOT (< (IMAGPART X) '0))`; the constructor prefix retains this literal
+and `disjoin-clauses` / `add-literal` removes its later occurrence from the
+original clause (`c2-component-elim-nodes-items.log`; isolated producer
+`simplify.lisp:669–692`, `other-processes.lisp:743–773`). The consumer now
+requires that exact drop in order, recomputes the recorded child, and uses
+the shared clause-inclusion proof before stripping the checked restriction
+prefix. Its build passes **3139 jobs** (`c2-elim-recorded-union-build.log`).
+Missing and changed drop records reject, but the initial positive subtree
+probe stops at a later emitted constructor-range DP leaf, so it has no
+kernel receipt yet (`c2-component-elim-union-controls.log`). The whole
+comparison reaches an ACL2-NUMBERP verdict on `(COMPLEX I S)` requiring the
+same primitive range. The constructor-range extension is being checked.
+
+The actual REALPART-WHEN-RATIONALP preprocessing/ELIM boundary is accepted
+and **four** mutations reject: missing/changed ELIM input, changed
+preprocessing output, and missing preprocessing clausifier
+(`c2-elim-processor-boundary-controls.log`). Statics pass at the recorded-union
+increment (`c2-component-union-static.log`), before the constructor-range
+extension. Full validation and the next intermediate checkpoint remain open.
+
+
+The constructor-range build passes **3139 jobs**
+(`c2-complex-constructor-range-build.log`). The actual comparison Subgoal
+2''' now kernel-checks with accepted axioms under one explicit COMPLEX-0
+condition; both missing/changed duplicate records reject
+(`c2-component-elim-union-range-controls.log`). The whole comparison reaches
+a later clausifier mismatch: `(NOT (EQUAL (< X Y) 'NIL))` remains in the
+recomputed split where ACL2 records `(< X Y)`
+(`c2-component-dependencies-constructor-range.log`). It remains unproved.
+
+The strict helper's actual Subgoal 9.12 insertion is retained separately in
+`c2-strict-helper-derived-linear-record.log`: both selected unit rows for
+`(* X2 Y) = 0` have parents `(7 6 4 3)` and PT `(3 4 6 7)`; the numeric
+query itself records product mask 1 from nonnumber X2 and positive Y.
+That is a type-derived row class, not the supported direct comparison
+parent. Its genealogy must be consumed from actual emission, never inferred
+from the desired equation.
+
+
+The first four-target regression build fails in the previously passing
+EQUAL-/ replay (`c2-component-union-affected-build.log`): moving normalization
+ahead of every numeric view left two ASSUMED DP facts. The scope repair
+preserves the old ordering for obligations without a complex constructor;
+early completion is selected by the actual constructor in the obligation
+(`c2-complex-normalization-scope-build.log`, **3139 jobs**).
+The actual EQUAL-/ row again replays under its expected inverse-uniqueness
+USE condition (**2002 ms**, `c2-reciprocal-normalization-regression.log`);
+the staged regression target must still discharge that dependency.
+COMPLEX-OPENER's actual leaf still kernel-checks with accepted axioms in
+**1019 heartbeat units** (`c2-complex-opener-scoped-normalization.log`),
+all **12** type-partition leaves pass (`c2-type-partition-scoped-normalization.log`),
+and the comparison subtree plus its two negative controls still pass
+(`c2-component-union-scoped-normalization.log`). The affected-target rerun
+is in progress. The failed build is retained; no checkpoint was committed
+against it.
+
+
+The scoped-normalization regression rerun passes all four affected NS1
+targets and the replay CLI (**6281 jobs**,
+`c2-component-union-affected-build-rerun.log`; Arithmetic 96 s, Positive
+11 s, Contexts 23 s, MOD 257 s). The first sorting check then catches a
+separate regression: **3/7 unconditional**, four ELIM failures from the
+new blanket unconsumed-duplicate check (**189196 ms**,
+`c2-component-union-msort-fast-gate.log`). This failed receipt is not a
+sorting preservation claim.
+
+The actual sorting ELIM records show two guard duplicates followed by one
+guard complement close for each elimination
+(`c2-msort-elim-duplicate-records.log`). The source explains the sequence:
+`apply-instantiated-elim-rule` calls `disjoin-clauses negated-hyps cl`
+twice, first for fresh-variable selection, then for GENERALIZE1's input
+(`other-processes.lisp:991,1015`); `split-on-assumptions` then adds the
+positive guard and closes its tautological clause (`simplify.lisp:722–733`).
+The existing guard branch proof already accounts for the clause transport
+and omitted child. The consumer now checks those exact three records in
+order around restriction merging, instead of classifying every duplicate
+as a restriction drop. Build: **3139 jobs**
+(`c2-elim-guard-edits-build.log`); focused kernel and full sorting reruns
+are pending. No checkpoint has yet been committed.
+
+The comparison clausifier's exact checkpoint is **Subgoal 4/preprocess-clause**
+(`c2-component-clausifier-frontier-record.log`). Its actual NOT expansion
+produces `IF (EQUAL (< X Y) 'NIL) 'NIL 'T`; ACL2's `dumb-negate-lit` then
+strips equality with NIL at the negative branch. The next proof work is
+that missing primitive arm, preserving its recorded split validation.
+
+
+The actual sorting Subgoal *1/2.3'5' now replays **unconditionally** with
+accepted axioms. Deleting any of its **six** guard edits rejects at the
+consuming check (`c2-msort-elim-guard-edit-controls.log`). The comparison
+prefix-duplicate subtree still checks under COMPLEX-0 with both mutations
+rejected (`c2-component-union-guard-edits.log`), and strict-helper 9.18'
+still checks under its five explicit conditions with accepted axioms
+(`c2-strict-helper-guard-edits-subtree.log`). The four-target build and
+whole sorting rerun remain the checkpoint gate.
+
+
+The final guard-edit affected build passes all four NS1 targets and the
+replay CLI (**6281 jobs**, MOD 258 s;
+`c2-component-guard-edits-affected-build.log`). All listed statics pass
+(`c2-component-guard-edits-static.log`). The focused sorting replay retains
+**7/7 unconditional theorem rows** in **337286 ms**
+(`c2-component-guard-edits-msort-fast-gate.log`; previous 2022c57 receipt:
+434311 ms). This is an observed run comparison, not a causal performance
+claim. Its separate informational DP probe still has two assumed leaves;
+those are not row conditions. This intermediate checkpoint is **fast-gate**
+only. No full gate, golden repin, phase completion, or native-product claim
+is made. C2 and all three BVCHOP mirrors remain open.

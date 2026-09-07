@@ -46,16 +46,23 @@ def readElimRestrictions (raw : SExpr) : MetaM (List ElimRestriction) := do
 private def restrictionApp (name : String) (args : List SExpr) : SExpr :=
   SExpr.ofList (.atom (.symbol { name }) :: args)
 
-/-- The two primitive mask conversions executed at the current ELIM node.
+/-- The primitive mask conversions executed at the current ELIM nodes.
 Both formula and clausified segment must match the actual observer record. -/
 def elimRestrictionSegment (r : ElimRestriction) : MetaM (List SExpr) := do
   let rational := restrictionApp "RATIONALP" [r.term]
-  let test ← match r.mask with
-    | 14 => pure (restrictionApp "<" [tsQuotedZero, r.term])
-    | 62 => pure (restrictionApp "NOT" [restrictionApp "EQUAL" [r.term, tsQuotedZero]])
-    | m => throwFrontier m!"elim restrictions: unsupported recorded mask conversion {m}"
-  let formula := restrictionApp "IF" [rational, test, quoteNil]
-  let segment := [restrictionApp "NOT" [rational], restrictionApp "NOT" [test]]
+  let zeroEq := restrictionApp "EQUAL" [r.term, tsQuotedZero]
+  let (formula, truths) ← match r.mask with
+    | 1 => pure (zeroEq, [zeroEq])
+    | 63 => pure (rational, [rational])
+    | m => do
+      let test ← match m with
+        | 14 => pure (restrictionApp "<" [tsQuotedZero, r.term])
+        | 15 => pure (restrictionApp "NOT" [restrictionApp "<" [r.term, tsQuotedZero]])
+        | 48 => pure (restrictionApp "<" [r.term, tsQuotedZero])
+        | 62 => pure (restrictionApp "NOT" [zeroEq])
+        | _ => throwFrontier m!"elim restrictions: unsupported recorded mask conversion {m}"
+      pure (restrictionApp "IF" [rational, test, quoteNil], [rational, test])
+  let segment := truths.map (fun t => restrictionApp "NOT" [t])
   unless r.formula == formula && r.clauses == [segment] do
     throwError "elim restrictions: recorded conversion formula or clause segment differs"
   return segment
@@ -67,16 +74,26 @@ def replayElimRestriction (cfg : ReplayConfig) (ctx : ReplayCtx)
     (r : ElimRestriction) : MetaM (List (SExpr × Expr)) := do
   let segment ← elimRestrictionSegment r
   let p ← replayTsQuery cfg ctx r.query
-  let rat ← mkAppM ``logic_rationalp_t_of_inTs #[← tsSubsumedProofM r.mask 63, p]
-  let second ← match r.mask with
-    | 14 => mkAppM ``zero_lt_of_inTs #[← tsSubsumedProofM r.mask 14, p]
-    | 62 => do
-      let zeroNil ← mkAppM ``equal_zero_nil_of_inTs
-        #[← mkDecideProof (← mkEq (← mkAppM ``tsDisjointM #[toExpr r.mask, toExpr (1 : Int)]) (toExpr true)), p]
-      mkAppM ``logic_not_t_of_nil #[zeroNil]
-    | m => throwFrontier m!"elim restrictions: unsupported mask {m}"
+  let trueProofs ← if r.mask == 1 then do
+      pure [← mkAppM ``equal_zero_t_of_inTs #[p]]
+    else do
+      let rat ← mkAppM ``logic_rationalp_t_of_inTs #[← tsSubsumedProofM r.mask 63, p]
+      if r.mask == 63 then pure [rat] else do
+        let second ← match r.mask with
+          | 14 => mkAppM ``zero_lt_of_inTs #[← tsSubsumedProofM r.mask 14, p]
+          | 48 => mkAppM ``lt_zero_of_inTs #[p]
+          | 15 => do
+            let ltNil ← mkAppM ``logic_lt_zero_nil_of_ts_disjoint
+              #[← mkDecideProof (← mkEq (← mkAppM ``tsDisjointM #[toExpr r.mask, toExpr (112 : Int)]) (toExpr true)), p]
+            mkAppM ``logic_not_t_of_nil #[ltNil]
+          | 62 => do
+            let zeroNil ← mkAppM ``equal_zero_nil_of_inTs
+              #[← mkDecideProof (← mkEq (← mkAppM ``tsDisjointM #[toExpr r.mask, toExpr (1 : Int)]) (toExpr true)), p]
+            mkAppM ``logic_not_t_of_nil #[zeroNil]
+          | m => throwFrontier m!"elim restrictions: unsupported mask {m}"
+        pure [rat, second]
   let tNeNil ← mkDecideProof (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil])
-  (segment.zip [rat, second]).mapM fun (lit, trueProof) => do
+  (segment.zip trueProofs).mapM fun (lit, trueProof) => do
     let falseProof ← mkAppM ``not_nil_of_truthy #[← mkAppM ``ne_of_eq_of_ne #[trueProof, tNeNil]]
     let expected ← mkEq (← ctxValExpr cfg ctx lit) (mkConst ``SExpr.nil)
     return (lit, ← mkExpectedTypeHint falseProof expected)

@@ -2,6 +2,18 @@ import ACL2Lean.Logic
 
 namespace ACL2.Logic
 
+/-- Rational completion discards genuine complexes as well as nonnumbers.
+This is used to normalize the recorded complex-constructor verdict leaf. -/
+theorem rationalValue_zero_of_nonrational {v : SExpr}
+    (h : rationalp v = .nil) : rationalValue v = 0 := by
+  cases v with
+  | nil | cons _ _ => rfl
+  | atom a => cases a with
+    | number n => cases n with
+      | int _ | rational _ _ _ => simp [rationalp, SExpr.t] at h
+      | complex _ _ _ => rfl
+    | _ => rfl
+
 /-- The recorded ELIM guard leaf compares a nonnumber with zero.
 ACL2's numeric completion makes that strict comparison false. -/
 theorem lt_zero_nil_of_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :

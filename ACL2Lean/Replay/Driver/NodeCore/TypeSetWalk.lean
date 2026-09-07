@@ -641,6 +641,9 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- when rewrite-equal removes equality with T. The caller still checks
   -- the emitted operand mask (and each addressed IF leaf).
   if let some (f, [a, b]) := asApp t then
+    if let some (m, range) := tsNumericBinaryRangeOf f.name then
+      let h ← mkAppM range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
+      out := out ++ [(m, ← mkExpectedTypeHint h (← inTsTy m))]
     if let some range := tsBooleanBinaryRangeOf f.name then
       let h ← mkAppM range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
       out := out ++ [(384, ← mkExpectedTypeHint

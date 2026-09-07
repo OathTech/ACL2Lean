@@ -14,6 +14,7 @@
 -/
 import ACL2Lean.Replay.Driver.Waterfall.ClauseFalsity
 import ACL2Lean.Replay.Driver.Waterfall.ElimRestrictions
+import ACL2Lean.Replay.Driver.Waterfall.ClauseSubset
 import ACL2Lean.NumericComponents
 
 namespace ACL2.Replay.Driver
@@ -52,6 +53,7 @@ private structure ElimRecord where
   second : Symbol
   restricted : List Symbol
   restrictions : Option (List ElimRestriction) := none
+  restrictionDrops : List SExpr := []
 
 /-- Parse + validate one primitive constructor/destructor record
     `((:ELIM CAR-CDR-ELIM) v (CONS v1 v2) (((CAR v) . v1) ((CDR v) . v2))
@@ -107,8 +109,9 @@ private def parseElimRecord (idStr : String) (recS : SExpr) :
   return { recipe, var := v, first := v1, second := v2, restricted }
 
 /-- Reproduce the type-restriction prefix before destructor substitution.
-The current recorded fragment has distinct literals. A clause-union
-simplification needs its own recorded route and remains a frontier. -/
+Segments already included in the original clause do not restrict a variable.
+Duplicate removal from the original clause is checked separately against
+the ELIM step's actual ADD-LITERAL records. -/
 private def elimRecordPrefix (er : ElimRecord) (clause : List SExpr) : MetaM (List SExpr) := do
   let some restrictions := er.restrictions | return []
   let mut addedLits := []
@@ -118,13 +121,39 @@ private def elimRecordPrefix (er : ElimRecord) (clause : List SExpr) : MetaM (Li
       throwError "replayElim: restriction query input differs from this record's guarded clause"
     let segment ← elimRestrictionSegment r
     unless segment.all clause.contains do
-      unless segment.all (fun lit => !clause.contains lit && !addedLits.contains lit) do
-        throwFrontier m!"replayElim: restriction clause-union simplification needs replay"
+      unless segment.all (fun lit => !addedLits.contains lit) do
+        throwFrontier m!"replayElim: duplicate between restriction segments needs replay"
       addedLits := addedLits ++ segment
       restricted := restricted ++ [r.var]
   unless restricted == er.restricted do
     throwError "replayElim: type queries differ from the record's restricted variables"
   return addedLits
+
+/-- Select the emitted ELIM suffix after an in-node preprocessing pass.
+The clause at the boundary comes from both the actual STEP input and the
+preceding processor's output. This is a view of those records, not a new
+clause-tree event. The caller consumes the preprocessing chain/clausifier. -/
+def elimAfterClausifyView (cn : ClauseNode) (cl : List SExpr) :
+    MetaM (ClauseNode × WaterfallStep) := do
+  let idx := cn.steps.findIdx (fun s => s.processor.toLower == "eliminate-destructors-clause")
+  let some st := cn.steps[idx]? | throwError "elim after clausify: no recorded ELIM step"
+  unless st.inputClause? == some cl do
+    throwError "elim after clausify: recorded input differs from clausify output"
+  let before := cn.steps.take idx
+  let [pre] := before.filter (fun s => s.processor.toLower == "preprocess-clause")
+    | throwError "elim after clausify: expected one preceding preprocessing pass"
+  unless pre.inputClause? == some cn.inputClause && pre.newClauses == [SExpr.ofList cl] do
+    throwError "elim after clausify: preprocessing STEP boundaries differ"
+  let .clausify _ :: reversedSteps := pre.items.reverse
+    | throwError "elim after clausify: preprocessing does not end at its clausifier"
+  unless reversedSteps.all (fun | .step _ => true | _ => false) do
+    throwError "elim after clausify: preprocessing carries unconsumed non-chain items"
+  for s in before do
+    unless s.processor.toLower == "preprocess-clause" do
+      unless s.processor.toLower == "settled-down-clause" && s.items.isEmpty &&
+          s.inputClause? == some cl && s.newClauses == [SExpr.ofList cl] do
+        throwError "elim after clausify: preceding processor is not an inert settling pass"
+  return ({ cn with inputClause := cl, steps := cn.steps.drop idx }, st)
 
 /-- Replay a DESTRUCTOR-ELIMINATION node (`eliminate-destructors-clause`,
     a registered primitive rune, one round of ≥1 records — see the module doc):
@@ -198,6 +227,18 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
   let mut computed : List (List SExpr) := []
   let mut guards : Nat := 0
   let mut curC := cn.inputClause
+  let mut remainingEdits := st.items.filterMap fun
+    | .dedupDrop lit => some ("DEDUP-DROP", lit)
+    | .complementClose lit => some ("COMPLEMENT-CLOSE", lit)
+    | _ => none
+  let consumeEdit (tag : String) (lit : SExpr)
+      (edits : List (String × SExpr)) : MetaM (List (String × SExpr)) := do
+    let (actualTag, actualLit) :: rest := edits
+      | throwError "replayElim: {tag} has no recorded clause edit at {cn.idStr}"
+    unless actualTag == tag && actualLit == lit do
+      throwError "replayElim: expected {tag} {repr lit}, recorded {actualTag} {repr actualLit} at {cn.idStr}"
+    pure rest
+  let mut checkedRecords := []
   for er in records do
     let recipe := er.recipe
     let (v, v1, v2) := (er.var, er.first, er.second)
@@ -211,16 +252,40 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
     -- later record's fresh var), prepend its σ-image, σ the rest
     let litV : SExpr := .cons (.atom (.symbol { name := "NOT" }))
       (.cons (.cons (.atom (.symbol { name := recipe.guardName })) (.cons vT .nil)) .nil)
-    unless curC.contains litV do
+    let guardPresent := curC.contains litV
+    unless guardPresent do
       computed := computed ++
         [(SExpr.cons (.atom (.symbol { name := recipe.guardName })) (.cons vT .nil)) :: curC]
       guards := guards + 1
+    -- APPLY-INSTANTIATED-ELIM-RULE disjoins the guard twice: first for
+    -- fresh-variable selection, then for GENERALIZE1's actual input.
+    -- Both calls record the duplicate when this guard is already present.
+    if guardPresent then
+      remainingEdits ← consumeEdit "DEDUP-DROP" litV remainingEdits
+      remainingEdits ← consumeEdit "DEDUP-DROP" litV remainingEdits
     let curRest := match curC.idxOf? litV with
       | some i => curC.eraseIdx i
       | none => curC
     let effClause := litV :: curRest
     let addedLits ← elimRecordPrefix er effClause
-    curC := (addedLits ++ effClause).map (elimReplace carT cdrT vT uT v1 v2)
+    -- DISJOIN-CLAUSES starts with the restriction prefix, then ADD-LITERAL
+    -- visits the original clause from left to right. A repeated literal
+    -- keeps its prefix occurrence and drops this later occurrence.
+    let drops := effClause.filter addedLits.contains
+    for lit in drops do
+      remainingEdits ← consumeEdit "DEDUP-DROP" lit remainingEdits
+    checkedRecords := checkedRecords ++ [{er with restrictionDrops := drops}]
+    curC := (addedLits ++ effClause.filter (fun lit => !drops.contains lit)).map
+      (elimReplace carT cdrT vT uT v1 v2)
+    -- SPLIT-ON-ASSUMPTIONS adds the positive guard to the original
+    -- clause. Its recorded complement close accounts for the absent
+    -- guard child; the proof below closes this same branch by the guard.
+    if guardPresent then
+      remainingEdits ← consumeEdit "COMPLEMENT-CLOSE"
+        (.cons (.atom (.symbol {name := recipe.guardName})) (.cons vT .nil)) remainingEdits
+  unless remainingEdits.isEmpty do
+    throwError "replayElim: unconsumed clause edit at {cn.idStr}"
+  let records := checkedRecords
   computed := computed ++ [curC]
   -- children: the fully-eliminated clause + the recomputed guard clauses
   unless cn.children.length == 1 + guards do
@@ -343,7 +408,8 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
           | none => curClause
         let effClause := notConspLit :: restClause
         let addedLits ← elimRecordPrefix er effClause
-        let restrictionClause := addedLits ++ effClause
+        let restrictionClause := addedLits ++ effClause.filter
+          (fun lit => !er.restrictionDrops.contains lit)
         let nextClause := restrictionClause.map (elimReplace carT cdrT vT uT v1 v2)
         let w := cfg.worldExpr
         let env := cfgK.envExpr
@@ -444,6 +510,8 @@ partial def replayElim (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) 
             (disjoinTerm restrictionClause) sTermS
           let pAll ← chainAfter chainOpt pBridge
           let mut pEff ← mkAppM ``evtrue_of_fuel_eq #[pAll, pInner]
+          if !er.restrictionDrops.isEmpty then
+            pEff ← liftClauseSubset cfgK queryCtx (addedLits ++ effClause) restrictionClause pEff
           for (lit, hNil) in restrictionProofs do
             let pNil ← mkAppM ``re_val_cast
               #[w, env, reflectSExpr lit, ← ctxValExpr cfgK queryCtx lit, nilC,

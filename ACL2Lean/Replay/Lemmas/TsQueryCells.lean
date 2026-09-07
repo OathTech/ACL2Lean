@@ -1,9 +1,24 @@
 import ACL2Lean.Replay.Lemmas.TsNumericFacts
 import ACL2Lean.Replay.Lemmas.TsBooleanFacts
 import ACL2Lean.NumericPositive
+import ACL2Lean.NumericEquality
 
 namespace ACL2.Replay
 open ACL2
+
+theorem equal_zero_t_of_inTs {v : SExpr} (h : InTs 1 v) :
+    Logic.equal v (.atom (.number (.int 0))) = .t := by
+  rw [zero_of_inTs1 h]
+  rfl
+
+/-- The negative-rational restriction excludes the false comparison cell. -/
+theorem lt_zero_of_inTs {v : SExpr} (h : InTs 48 v) :
+    Logic.lt v (.atom (.number (.int 0))) = .t := by
+  rcases logic_lt_range v (.atom (.number (.int 0))) with ht | hf
+  · exact ht
+  · exact False.elim (inTs_disjoint_absurd
+      (by decide : tsDisjointM 48 (-49) = true) h
+      (inTs_lt_zero_false ((Logic.toBool_eq_false _).mpr hf)))
 
 /-- Excluding the singleton zero bit proves the recorded nonzero
 restriction; the emitted mask selects this primitive conversion. -/
@@ -30,6 +45,21 @@ theorem inTs_plus_positive_rat {a b : SExpr} (ha : InTs 14 a) (hb : InTs 14 b) :
   have hsign := inTs_zero_lt_true ((Logic.toBool_eq_true _).mpr
     (Logic.positiveAdd a b (positive ha) (positive hb)))
   exact inTs_inter2 (by decide : tsInter2Subsumed 63 78 14 = true) hrat hsign
+
+/-- The next executed addition query in the strict helper permits zero in
+the right operand. Split that primitive cell and reuse positive addition. -/
+theorem inTs_plus_positive_nonneg_rat {a b : SExpr}
+    (ha : InTs 14 a) (hb : InTs 15 b) : InTs 14 (Logic.plus a b) := by
+  by_cases hz : b = .atom (.number (.int 0))
+  · subst b
+    rw [Logic.plus_comm, Logic.plus_zero_fix, Logic.fix_of_number a]
+    · exact ha
+    · rw [logic_acl2Numberp_t_of_inTs (by decide : tsSubsumedM 14 127 = true) ha]
+      decide
+  · have hne := (Logic.equal_nil_iff _ _).mpr hz
+    have hb14 := inTs_inter2 (by decide : tsInter2Subsumed 15 (-2) 14 = true)
+      hb (inTs_not_zero ((Logic.toBool_eq_false _).mpr hne))
+    exact inTs_plus_positive_rat ha hb14
 
 /-- The singleton NIL type cell, consumed by an emitted NOT query. -/
 theorem nil_of_inTs128 {v : SExpr} (h : InTs 128 v) : v = .nil := by
