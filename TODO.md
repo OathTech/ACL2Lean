@@ -39,8 +39,17 @@ charter or the archive carry the record.
       branch `mdd/ns1-bvchop`, from approved docs `b452b70`. C0/C1 checked;
       all three native proofs remain open. Close the actual FLOOR/quotient
       dependency trees, then carry the selected BVCHOP statements through the
-      shared native correspondence/decode kit. Capture and consume the quotient's
-      selected FC suffix at the context contradiction (BUG-051); replay its ordinary plus /
+      shared native correspondence/decode kit. Complete and integrate the quotient's
+      selected FC suffix and ordinary FC-rule proofs (BUG-051); retain the actual
+      reciprocal IF-test query basis in Subgoal *1/1' (BUG-052). Close the
+      helpers after their CASES/conjunction and numeric-context repairs; validate
+      closed-branch discharge inventory (BUG-053), numeric solidification
+      (BUG-054), and the recorded comparison-bound query before proceeding.
+      Consume the combined linear capture's numeric queries and direct zero rows;
+      generalize destructor elimination for the actual REALPART-IMAGPART-ELIM
+      record at strict-helper Subgoal 9.18', preserving its guard child and
+      component restrictions; then
+      replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.
       Integrate the linear equation producer/consumer (BUG-049) after msort's
       count/rewritten-linear-rule classes replay; cancellation is unconditional

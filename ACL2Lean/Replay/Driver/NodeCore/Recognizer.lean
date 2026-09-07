@@ -150,7 +150,8 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         | some p => pure (some p)
         | none => builtinIntVal? cfg ctx z   -- gz-builtin TP route (e.g. LEN)
       let some (vz, pz) := pin?
-        | throwError "replayRecognizer: acl2-numberp argument {repr z} has no pinned value"
+        | throwError "replayRecognizer: acl2-numberp argument {repr z} has no pinned value \
+            (verdict {repr verdict}, typeset {stepTs}, true-typeset {stepTrueTs})"
       let k ← intValExpr? vz
       unless verdict == SExpr.t do
         throwError "replayRecognizer: acl2-numberp of a pinned int must have verdict t"

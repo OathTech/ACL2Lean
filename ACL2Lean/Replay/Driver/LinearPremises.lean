@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Driver.NodeCore.TypeSetWalk
+import ACL2Lean.Replay.Driver.StoredImplication
 
 namespace ACL2.Replay
 open ACL2
@@ -92,18 +92,8 @@ open ACL2 Lean Lean.Meta
 
 /-- Re-express the stored curried rule under its recorded max-term match. -/
 def instantiateLinearRule (cfg : ReplayConfig) (sb : SubstNBridge)
-    (spec : LinearRuleSpec) (inst : SExpr → SExpr) (hypV : Expr) : MetaM Expr := do
-  let decls := spec.hyps.zipIdx.toArray.map fun (h, i) =>
-    (Name.mkSimple s!"hLinear{i}", BinderInfo.default,
-      fun (_ : Array Expr) => pure (mkAppN (mkConst ``EvTrue)
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr (inst h)]))
-  withLocalDecls decls fun hs => do
-    let sourceHyps ← spec.hyps.zipIdx.toArray.mapM fun (h, i) => do
-      mkAppM ``evtrue_of_fuel_eq
-        #[← mkAppM ``fuel_eq_symm #[← sb.bridge h], hs[i]!]
-    let cSource := mkAppN hypV (#[sb.env'] ++ sourceHyps)
-    let cBack ← mkAppM ``evtrue_of_fuel_eq #[← sb.bridge spec.concl, cSource]
-    mkLambdaFVars hs cBack
+    (spec : LinearRuleSpec) (inst : SExpr → SExpr) (hypV : Expr) : MetaM Expr :=
+  instantiateStoredImplication cfg sb spec.hyps spec.concl inst hypV
 
 /-- The emitted max-term gates applicability. All hypotheses and the complete
 conclusion are transported and checked; no rule-shape restriction substitutes

@@ -155,15 +155,8 @@ def mkRuleHypType (cfg : ReplayConfig) (spec : RuleSpec) : MetaM Expr := do
     Imported-side (the per-book exec-correspondence kits) or kept as an
     honest D6 condition. (Was "the acl2CountExec-class kits" — that kit
     was deleted 2026-08-16 as dead code, A4 #8.) -/
-def mkLinearHypType (cfg : ReplayConfig) (spec : LinearRuleSpec) :
-    MetaM Expr := do
-  withLocalDeclD `env' (mkConst ``ACL2.Env) fun envV => do
-    let concl := mkAppN (mkConst ``EvTrue)
-      #[cfg.worldExpr, envV, reflectSExpr spec.concl]
-    let body ← spec.hyps.foldrM (fun h acc => do
-      mkArrow (mkAppN (mkConst ``EvTrue)
-        #[cfg.worldExpr, envV, reflectSExpr h]) acc) concl
-    mkForallFVars #[envV] body
+def mkLinearHypType (cfg : ReplayConfig) (spec : LinearRuleSpec) : MetaM Expr :=
+  mkStoredImplicationType cfg spec.hyps spec.concl
 
 /-- The `cong:<thm>` hypothesis TYPE for a congruence-shaped defthm (G2
     rung 2): the WHOLE formula's replayed statement, `∀ env', EvTrue w env' formula` —

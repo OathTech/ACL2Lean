@@ -583,6 +583,9 @@ partial def replayInduction (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Replay
                   ++ (ctx.linearHyps.filter
                         (fun (r, _) => allowRune "linear" r.name)).map
                       (fun (r, e) => (s!"linear:{r.name}", e))
+                  ++ (ctx.fcHyps.filter
+                        (fun (r, _) => allowRune "forward-chaining" r.name)).map
+                      (fun (r, e) => (s!"fc:{r.name}", e))
                 let tpCors := ctx.tpHyps.map (fun (n, c, _) => (n, c))
                 let info ← mkRecTermInfo cfg' [] hypFVars tpCors just
                   mc conds goalLits

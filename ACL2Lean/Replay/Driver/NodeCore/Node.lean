@@ -9,6 +9,7 @@ import ACL2Lean.Replay.Driver.NodeCore.GroundFold
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveEquation
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveInverse
 import ACL2Lean.Replay.Driver.NodeCore.EqualBoolean
+import ACL2Lean.Replay.Driver.NodeCore.Solidify
 import ACL2Lean.NumericCompletion
 import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericNegation
@@ -735,8 +736,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let pl ← ctxValProof cfg ctx lhs
       let pr ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr cv]
       mkAppM ``fuel_eq_of_conv #[pl, pr, hT]
-    else
-      throwError "type-alist: verdict {repr rhs} is neither nil nor t (frontier)"
+    else replaySolidifyConstant cfg ctx n
   | "executable-counterpart", _ =>
     -- a GROUND computation step within a rewrite chain (e.g. `(consp 'nil) ⇒ 'nil`):
     -- ACL2 ran the executable counterpart; re-run the SAME closed computation and
@@ -909,6 +909,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       match ← bridgeEqualNilNormDeep cfg ctx rhsσ rhs with
       | some br => return ← mkAppM ``fuel_chain_eq #[pCore, br]
       | none =>
+        if let some br ← bridgeIfCollapseNorm cfg ctx ctx.ifMarkers rhsσ rhs then
+          return ← mkAppM ``fuel_chain_eq #[pCore, br]
         throwError "rule {rname}: node rhs {repr rhs} ≠ substTerm(:SUBST, \
                     rule rhs {repr spec.rhs}) and no RHS chain recorded \
                     (emission gap)"

@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Driver.NodeCore.TypeSetWalk
+import ACL2Lean.Replay.Driver.TypeSetQuery
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -37,6 +37,7 @@ partial def bridgeIfCollapseFromRecords
       return some (← mkEqRefl (mkConst ``SExpr.t))
     if let some just := ifMarkers.findSome?
         (fun (mt, sense, j) => if sense && mt == t then some j else none) then
+      if let some p ← replayIfTypeQuery? cfg ctx t true just then return some p
       let pT ← try some <$> recognize cfg ctx t SExpr.t
         catch _ => pure none
       match pT with
@@ -76,6 +77,7 @@ partial def bridgeIfCollapseFromRecords
     let some just := ifMarkers.findSome?
         (fun (mt, sense, j) => if !sense && mt == t then some j else none)
       | return none
+    if let some p ← replayIfTypeQuery? cfg ctx t false just then return some p
     let citedCr ← ofExcept (ifMarkerCitedCr just)
     let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
     match ← typeSetWalk cfg ctxT (.isNil t) with

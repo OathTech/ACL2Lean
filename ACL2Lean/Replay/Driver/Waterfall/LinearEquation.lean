@@ -1,4 +1,5 @@
 import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.LinearNumeric
 import ACL2Lean.NumericLinear
 
 namespace ACL2.Replay.Driver
@@ -19,7 +20,7 @@ private structure DirectLinearRow where
   parent : Nat
   tips : List Nat
 
-private def readUnitLinearRow (p a b : SExpr) (positive : Bool) :
+private def readUnitLinearRow (p a b : SExpr) (positive hasNumericBasis : Bool) :
     Except String DirectLinearRow := do
   -- LINEAR-A.LISP's DEFREC POLY: outer singleton, then metadata and
   -- constant/relation/rational/derived-from-not-equality fields.
@@ -27,13 +28,14 @@ private def readUnitLinearRow (p a b : SExpr) (positive : Bool) :
   let some [source, c, rel, rat] := fields.toList?
     | throw "linear equation: unsupported poly fields"
   unless c == .atom (.number (.int 0)) &&
-      rel == .atom (.symbol { name := "<=" }) && rat == .t do
+      rel == .atom (.symbol { name := "<=" }) && (rat == .t || (hasNumericBasis && rat == .nil)) do
     throw "linear equation: expected a rational weak zero row"
   let some (alist :: parents :: tags) := source.toList?
     | throw "linear equation: unsupported polynomial derivation tags"
   let n : Int := if positive then 1 else -1
-  let expected := [SExpr.cons a (.atom (.number (.int n))),
-    SExpr.cons b (.atom (.number (.int (-n))))]
+  let expected := ([a, b].zip [n, -n]).filterMap fun (term, coefficient) =>
+    if quotedInt? term == some 0 then none
+    else some (SExpr.cons term (.atom (.number (.int coefficient))))
   unless alist.toList? == some expected do
     throw "linear equation: coefficients do not isolate the recorded unit equation"
   let some [parent] := parents.toList?
@@ -88,7 +90,8 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
     throwError "linear equation: input/output/parent clause mismatch"
   unless info.numericFlags == ["KNOWN-TRUE", "KNOWN-TRUE"] && info.assumptions.isEmpty do
     throwError "linear equation: numeric completion or forcing requires another consumer"
-  unless info.runes == [⟨"fake-rune-for-type-set", "NIL", none⟩] do
+  unless info.runes == [⟨"fake-rune-for-type-set", "NIL", none⟩] ||
+      (info.numericBasis.isSome && info.runes.isEmpty) do
     throwError "linear equation: insertion cites an unsupported derivation"
   let some (notS, [eqTerm]) := asApp info.newLiteral
     | throwError "linear equation: inserted literal is not a negation"
@@ -99,7 +102,7 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
   let [.cons p1 p2] := info.polyPairs
     | throwError "linear equation: expected one selected polynomial pair"
   let readRow (p : SExpr) (positive : Bool) : MetaM DirectLinearRow :=
-    match readUnitLinearRow p a b positive with
+    match readUnitLinearRow p a b positive info.numericBasis.isSome with
     | .ok r => pure r
     | .error msg => throwError msg
   let r1 ← readRow p1 true
@@ -121,13 +124,14 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
       let contra ← withLocalDeclD `hParentTrue (← mkAppM ``Not #[eqNil]) fun ht => do
         mkLambdaFVars #[ht] (mkApp hFalse (← evtrueOfLitTrue cfg ctx clause index lit ht))
       pure (lit, ← mkAppM ``Classical.byContradiction #[contra])
+    let numeric ← replayLinearNumericBasis cfg ctx info a b parentFalse
     let checkRow (row : DirectLinearRow) (x y : SExpr) : MetaM (Expr × Expr × Expr) := do
       let (lit, hLit) ← parentFalse row.parent
       let some (ltS, [lhs, rhs]) := asApp lit
         | throwError "linear equation: direct parent is not a comparison"
       unless ltS.name == "<" do throwError "linear equation: unsupported direct parent"
-      let mut ha : Option Expr := none
-      let mut hb : Option Expr := none
+      let mut ha : Option Expr := numeric.map (·.1)
+      let mut hb : Option Expr := numeric.map (·.2)
       for tip in row.tips do
         if tip == row.parent then continue
         let (typeLit, hType) ← parentFalse tip

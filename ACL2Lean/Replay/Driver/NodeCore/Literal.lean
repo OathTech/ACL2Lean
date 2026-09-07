@@ -58,7 +58,10 @@ def replayLiteralChain (cfg : ReplayConfig) (ctx : ReplayCtx) (lp : LiteralProof
     unless notS.name == "NOT" do
       throwError "replayLiteralChain: notFlg literal head {notS.name} ≠ not"
     let (chainOpt, finalAtom) ← replayRewrites cfg ctx atm lp.nodes
-    let chainOpt ← chainReqEq chainOpt
+    -- NOT-FLG atoms can contain recorded IFF-only IF simplifications.
+    -- The existing Boolean refinement preserves that chain before the
+    -- equality-only unary lift; non-Boolean endpoints remain a frontier.
+    let chainOpt ← chainReqEqOfBoolean cfg ctx atm finalAtom chainOpt
     -- HIDDEN definitional `implies` unfold: rewrite-atm expands an implies
     -- atom with NO emitted node (only the literal's :RESULT shows it) —
     -- mirror it via the same ground-zero recipe as the preprocess step,
@@ -290,9 +293,10 @@ unregistered functions supply no recursive demands. The spine still hoists
 only exact literals of the actual clause, and the type-set walker checks them. -/
 partial def typeSetContextDemands (t : SExpr) : List ContextDemand :=
   let direct := (tsCtxProbes t).flatMap fun p =>
-    [true, false].filterMap fun pos =>
-      (tsFactOf p pos).map fun _ => ContextDemand.term
-        (if pos then .cons (.atom (.symbol { name := "NOT" })) (.cons p .nil) else p)
+    [true, false].flatMap fun pos =>
+      if (tsFactOf p pos).isSome then
+        ifTestDemandsOf (if pos then .cons (.atom (.symbol { name := "NOT" })) (.cons p .nil) else p)
+      else []
   let operands := match t with
     | .cons (.atom (.symbol f)) (.cons a .nil) =>
       if (tsUnaryOf f.name).any (fun (m, _, _) => m.isSome) then [a] else []
@@ -300,6 +304,21 @@ partial def typeSetContextDemands (t : SExpr) : List ContextDemand :=
       if !(tsBinaryOf f.name).isEmpty then [a, b] else []
     | _ => []
   direct ++ operands.flatMap typeSetContextDemands
+
+/-- An executed lookup demands its context ingredients. These are only
+requests to split actual clause literals; every entry still requires proof
+in `replayTsQuery`, and the recorded snapshot supplies no assumptions. -/
+partial def ifQueryContextDemands (marker : SExpr × Bool × SExpr) : MetaM (List ContextDemand) := do
+  let (_, _, just) := marker
+  let some fields := just.toList? | return []
+  let some basis := ProofLog.lookupKeyword "TYPE-SET-BASIS" fields | return []
+  let fs ← tsQueryRead (TsQueryCapture.fields basis ["TYPE-ALIST", "QUERIES"])
+  let qs ← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "QUERIES")))
+  let rec queryDemands (raw : SExpr) : MetaM (List ContextDemand) := do
+    let q ← tsQueryRead (TsQueryCapture.query raw)
+    let own := if q.route == .atom (.keyword "LOOKUP") then typeSetContextDemands q.term else []
+    return own ++ (← q.children.mapM queryDemands).flatten
+  return (← qs.mapM queryDemands).flatten
 
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
@@ -320,13 +339,22 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
       .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
     let ifTestDemands : List ContextDemand :=
       (ifTestsOf l ++ ifTestsOf rh).flatMap ifTestDemandsOf
-    let typeDemands :=
+    let typeDemands := (
       if (prov.origin == "recognizer/true" || prov.origin == "recognizer/false") &&
           prov.typeSet.isSome && prov.trueTs.isSome then
         match l with
         | .cons (.atom (.symbol _)) (.cons arg .nil) => typeSetContextDemands arg
         | _ => []
-      else []
+      else []) ++
+      -- A successful hypothesis lookup consumes the entry's recorded
+      -- argument mask too. Its contributing tests can be later literals,
+      -- just as at an explicit recognizer step.
+      (prov.lookupBasis.toList.flatMap fun b => typeSetContextDemands b.term) ++
+      (if prov.recogBasis.isSome then
+        match asApp l with
+        | some (_, [arg]) => typeSetContextDemands arg
+        | _ => []
+       else [])
     (if rty == "hyp-relief" then
        [ContextDemand.term (notOf l)] ++
        -- a (NOT atom) hyp's clause-context source is the ATOM literal — its

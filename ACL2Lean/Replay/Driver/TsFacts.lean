@@ -22,7 +22,7 @@
   `tsFactOf` moved here from Driver/TsConsumer unchanged (T1+2 sprint
   phase 1's definition) — a MOVE, not a clone.
 -/
-import ACL2Lean.Replay.Lemmas.TsNumericFacts
+import ACL2Lean.Replay.Lemmas.TsComplexFacts
 import ACL2Lean.Replay.Lemmas.TsBooleanFacts
 import ACL2Lean.Replay.Driver.BranchFacts
 import ACL2Lean.ProofLog
@@ -85,18 +85,24 @@ def tsQuotedZero : SExpr :=
 def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
   match f with
   | .cons (.atom (.symbol r)) (.cons a .nil) =>
-    if r.name == "INTEGERP" && pos then
+    if r.name == "ACL2-NUMBERP" && pos then
+      some (a, 127, ``ACL2.Replay.inTs_acl2Numberp_true)
+    else if r.name == "INTEGERP" && pos then
       some (a, 23, ``ACL2.Replay.inTs_integerp_true)
-    else if r.name == "RATIONALP" && pos then
-      some (a, 63, ``ACL2.Replay.inTs_rationalp_true)
+    else if r.name == "RATIONALP" then
+      if pos then some (a, 63, ``ACL2.Replay.inTs_rationalp_true)
+      else some (a, -64, ``ACL2.Replay.inTs_rationalp_false)
+    else if r.name == "COMPLEX-RATIONALP" then
+      if pos then some (a, 64, ``ACL2.Replay.inTs_complexRationalp_true)
+      else some (a, -65, ``ACL2.Replay.inTs_complexRationalp_false)
     else none
   | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
     if r.name == "<" && b == tsQuotedZero then
       if pos then some (a, 112, ``ACL2.Replay.inTs_lt_zero_true)
       else some (a, -49, ``ACL2.Replay.inTs_lt_zero_false)
-    else if r.name == "<" && a == tsQuotedZero && pos then
-      -- the constant on the LEFT (`CLASSIFY-POS`'s `(< '0 N)` hypothesis)
-      some (b, 78, ``ACL2.Replay.inTs_zero_lt_true)
+    else if r.name == "<" && a == tsQuotedZero then
+      if pos then some (b, 78, ``ACL2.Replay.inTs_zero_lt_true)
+      else some (b, -15, ``ACL2.Replay.inTs_zero_lt_false)
     else if r.name == "EQUAL" && b == tsQuotedZero && !pos then
       some (a, -2, ``ACL2.Replay.inTs_not_zero)
     else none
@@ -112,7 +118,7 @@ def tsCtxProbes (t : SExpr) : List SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a .nil)
   let app2 (f : String) (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a (.cons b .nil))
-  [app1 "INTEGERP" t, app1 "RATIONALP" t,
+  [app1 "ACL2-NUMBERP" t, app1 "INTEGERP" t, app1 "RATIONALP" t, app1 "COMPLEX-RATIONALP" t,
    app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t,
    app2 "EQUAL" t tsQuotedZero]
 
@@ -152,6 +158,7 @@ def tsRecogTrue : List (String × Int × Lean.Name) :=
   [("ACL2-NUMBERP", 127, ``ACL2.Replay.logic_acl2Numberp_t_of_inTs),
    ("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
    ("RATIONALP", 63, ``ACL2.Replay.logic_rationalp_t_of_inTs),
+   ("COMPLEX-RATIONALP", 64, ``ACL2.Replay.logic_complexRationalp_t_of_inTs),
    ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
    ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
 
@@ -160,7 +167,8 @@ def tsRecogTrue : List (String × Int × Lean.Name) :=
     `tsDisjointM m <trueTs> = true → InTs m v → <recog> v = 'NIL`).
     Demand-driven: the trio's `(CONSP (IF …)) ⇒ 'NIL`. -/
 def tsRecogNil : List (String × Int × Lean.Name) :=
-  [("CONSP", 3072, ``ACL2.Replay.logic_consp_nil_of_ts_disjoint),
+  [("ACL2-NUMBERP", 127, ``ACL2.Replay.logic_acl2Numberp_nil_of_ts_disjoint),
+   ("CONSP", 3072, ``ACL2.Replay.logic_consp_nil_of_ts_disjoint),
    ("ZP", -7, ``ACL2.Replay.logic_zp_nil_of_ts_disjoint)]
 
 /-- Primitive binary Boolean ranges at an emitted type-set query. -/
@@ -169,19 +177,21 @@ def tsBooleanBinaryRangeOf (op : String) : Option Lean.Name :=
   else if op == "<" then some ``ACL2.Replay.logic_lt_range
   else none
 
-/-- ARITHMETIC-PRIMITIVE ts registry: a 2-ary primitive ↦ (the in-mask
-    the proved fact demands of BOTH arguments, the out-mask it
+/-- ARITHMETIC-PRIMITIVE ts registry: a 2-ary primitive ↦ (the two input masks
+    the proved fact demands, the out-mask it
     establishes, the fact). ACL2's `type-set-binary-+` mirrored one cell
     at a time — ACL2 stores no rule for the primitives, so its only
     statement about such an occurrence is the emitted verdict and the
     implication is ours to prove. Demand-driven: the
     arithmetic-countdown trio's `(BINARY-+ '-1 N)` / `(BINARY-+ '-2 N)`
     arguments. -/
-def tsBinaryOf (op : String) : List (Int × Int × Lean.Name) :=
+def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
   if op == "BINARY-+" then
-    [(23, 23, ``ACL2.Replay.inTs_plus_int), (63, 63, ``ACL2.Replay.inTs_plus_rat)]
+    [(23, 23, 23, ``ACL2.Replay.inTs_plus_int), (63, 63, 63, ``ACL2.Replay.inTs_plus_rat),
+     (64, 63, 64, ``ACL2.Replay.inTs_plus_complex_rat)]
   else if op == "BINARY-*" then
-    [(23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, ``ACL2.Replay.inTs_times_rat)]
+    [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
+     (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]
   else []
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is
@@ -193,6 +203,8 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
   else if op == "UNARY--" then
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
      (some 63, 63, ``ACL2.Replay.inTs_neg_rat)]
+  else if op == "REALPART" then [(none, 63, ``ACL2.Replay.inTs_realpart)]
+  else if op == "IMAGPART" then [(none, 63, ``ACL2.Replay.inTs_imagpart)]
   else if op == "NUMERATOR" then [(none, 23, ``ACL2.Replay.inTs_numerator)]
   else if op == "DENOMINATOR" then [(none, 6, ``ACL2.Replay.inTs_denominator)]
   else if op == "NOT" then [(none, 384, ``ACL2.Replay.inTs_not)]

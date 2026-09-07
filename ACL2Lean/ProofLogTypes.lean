@@ -226,6 +226,8 @@ structure RewriteStep where
       slice's rules' instances as premises (read-off, not matcher
       selection). `none` on every other origin and on pre-batch logs. -/
   tauBasis : Option SExpr := none
+  /-- The actual accumulator, tail and selected FC sources at a context close. -/
+  clauseContextBasis : Option SExpr := none
   /-- The AMBIENT geneqv's relation symbols at this step's redex
       (`:GENEQV`, the R-lane prerequisite — `emit/with-lemma`,
       acl2/rewrite.lisp): the relation the rewriter was ALLOWED to
@@ -377,6 +379,7 @@ structure LinearEquationInsertion where
   newLiteral : SExpr
   outputClause : List SExpr
   numericFlags : List String
+  numericBasis : Option SExpr := none
   polyPairs : List SExpr
   assumptions : List SExpr
   runes : List Rune

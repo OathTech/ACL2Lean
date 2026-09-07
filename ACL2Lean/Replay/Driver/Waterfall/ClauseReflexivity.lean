@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.ClauseSubset
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -37,25 +37,7 @@ def replayClauseReflexivity (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : Stri
   for (full, reduced) in removed do
     -- The checked removal is transported through the existing disjunction
     -- membership lemma; the result consumes the actual duplicate record.
-    let convP ← withLocalDeclD `u (mkConst ``SExpr) fun u => do
-      let pred ← withLocalDeclD `v (mkConst ``SExpr) fun v => do
-        mkLambdaFVars #[v] (← mkValConvPropEx cfg.worldExpr cfg.envExpr u v)
-      mkLambdaFVars #[u] (← mkAppM ``Exists #[pred])
-    let entries ← full.mapM fun t => do
-      let pred ← withLocalDeclD `v (mkConst ``SExpr) fun v => do
-        mkLambdaFVars #[v] (← mkValConvPropEx cfg.worldExpr cfg.envExpr (reflectSExpr t) v)
-      let proof := mkAppN (mkConst ``Exists.intro [1])
-        #[mkConst ``SExpr, pred, ← ctxValExpr cfg ctx t, ← ctxValProof cfg ctx t]
-      pure (reflectSExpr t, proof)
-    let (fullE, hconv) ← mkForallMemProof (mkConst ``SExpr) convP entries
-    let memP ← withLocalDeclD `u (mkConst ``SExpr) fun u => do
-      mkLambdaFVars #[u] (← mkAppM ``Membership.mem #[fullE, u])
-    let subEntries ← reduced.mapM fun t => do
-      let te := reflectSExpr t
-      pure (te, ← mkDecideProof (mkApp memP te).headBeta)
-    let (reducedE, hsub) ← mkForallMemProof (mkConst ``SExpr) memP subEntries
-    p ← mkAppM ``evtrue_disjoin_of_sublist
-      #[cfg.worldExpr, cfg.envExpr, reducedE, fullE, hconv, hsub, p]
+    p ← liftClauseSubset cfg ctx full reduced p
   return p
 
 end ACL2.Replay.Driver

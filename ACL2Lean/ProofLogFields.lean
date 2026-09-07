@@ -123,7 +123,7 @@ def parseLinearEquation (rest : List SExpr) : Except String TraceEvent := do
   unless origin == .atom (.symbol { name := "PROCESS-EQUATIONAL-POLYS/INSERT" }) do
     throw "LINEAR-EQUATION: unsupported origin"
   unless (plistExtras ["origin", "parent-clause", "input-clause", "new-literal", "output-clause",
-      "numeric-flags", "poly-pairs", "assumptions", "runes"] rest).isEmpty do
+      "numeric-flags", "numeric-basis", "poly-pairs", "assumptions", "runes"] rest).isEmpty do
     throw "LINEAR-EQUATION: unrecognized fields"
   let flags ← (← readList "NUMERIC-FLAGS").mapM fun flag => do
     let .atom (.keyword key) := flag | throw "LINEAR-EQUATION: numeric flag is not a keyword"
@@ -135,6 +135,7 @@ def parseLinearEquation (rest : List SExpr) : Except String TraceEvent := do
     parentClause := ← readList "PARENT-CLAUSE",
     inputClause := ← readList "INPUT-CLAUSE", newLiteral := ← required "NEW-LITERAL",
     outputClause := ← readList "OUTPUT-CLAUSE", numericFlags := flags,
+    numericBasis := lookupKeyword "NUMERIC-BASIS" rest,
     polyPairs := ← readList "POLY-PAIRS", assumptions := ← readList "ASSUMPTIONS",
     runes := ← parseRunes (← required "RUNES") })
 

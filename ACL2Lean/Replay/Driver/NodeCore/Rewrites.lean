@@ -1308,6 +1308,14 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
                           found ← tryVariant (eqOf p v) (← mkAppM ``Eq.symm #[vEq])
                       pure found
                     | _ => pure none
+                let hNil? ← match hNil? with
+                  | some h => pure (some h)
+                  | none => do
+                    match ← bridgeIfCollapseNorm cfg ctx ctx.ifMarkers T quoteNil with
+                    | none => pure none
+                    | some p => do
+                      let h ← mkAppM ``val_eq_of_eval_eq #[p, ← ctxValProof cfg ctx T, ← ctxValProof cfg ctx quoteNil]
+                      pure (some h)
                 let some hNil := hNil?
                   | throwError "replayRewrites: unemitted test resolution — no \
                                 in-scope nil fact for the if-test {repr T} \

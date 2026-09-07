@@ -30,6 +30,60 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-054 — numeric solidification omits the selected type mask
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+In the weak multiplication helper's Subgoal 8', `solidify/type-alist`
+replaces Y by quoted zero inside the multiplication comparison rule's RHS.
+The actual record has no TYPESET or entry basis. `rewrite-solidify-rec`
+obtains `ts` before calling `obj-table`, but its observer emits only the
+replacement, parents, and runes. The replay supports only Boolean
+solidification and refuses this node. Retain the actual selected mask before
+adding the singleton consumer; do not infer the replacement from arithmetic.
+Receipts: `.tmp/ns1/c2-fc-helper-bound-subst-whole.log` and
+`.tmp/ns1/c2-helper-type-zero-rerun.log`.
+
+## BUG-053 — verdict inventory omits closed branches in nonterminal clause nodes
+Status: open
+Pinned-by: none (proof-tree inventory, not interpreter values)
+
+The weak multiplication helper's Subgoal 9' contains closed type-set branch
+windows alongside three pushed children. `theoremDischargeLeaves` collected
+verdicts only from clause nodes with no children/induction, so the harness
+offered no visible DP condition when one of these actual branch leaves
+failed to replay. The corresponding standalone probe also found no leaf.
+The inventory now visits every clause node's actual branch items; validation
+and full regression remain pending. No previously completed proof is
+weakened. Receipts: `.tmp/ns1/c2-fc-helper-rational-boolean-whole.log` and
+the NS1 charter's C2 record.
+
+## BUG-052 — IF-test verdicts omit executed type-set query evidence
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+The quotient upper bound's Subgoal *1/1' simplifies the RHS of
+`<-OF-*-AND-0` using a false IF test `(< (/ J) 0)`. The original marker
+retains only runes/parents, while the child chain stops at the conditional.
+Its primitive reciprocal masks cannot be supplied by hypothesis automation.
+
+Isolated fork `93c65df94d` records the actual `assume-true-false` query
+before branch rewriting. The selected call has `J : 7`, `(/ J) : 11`,
+and the comparison table `(11, 1) → 128`. The shared type-set query consumer
+checks its recorded lookup snapshot and recursive children, then supplies
+the IF collapse's falsity proof. The actual marker passes kernel/axiom
+checks and rejects changed results, deleted children and a missing lookup
+snapshot (`.tmp/ns1/c2-if-query-controls.log`). Whole quotient replay
+crosses this node but remains ASSUMED on other dependencies and two DP
+facts (`.tmp/ns1/c2-quotient-shared-if-whole.log`). Production integration,
+other emitted query routes and full regression remain open.
+
+The strict multiplication helper also exercises `:CONSTANT-BOUND`, whose
+returned derivation omitted the selected type-alist entry. Isolated producer
+`d592add7be` records that entry from the actual successful scan arm; its new
+capture and consumer validation are pending. The argument-mask table route
+is not a substitute for replaying that recorded bound.
+
 ## BUG-051 — context contradiction does not retain its selected FC suffix
 Status: open
 Pinned-by: none (clause-boundary proof evidence, not interpreter values)
@@ -53,6 +107,20 @@ before peeling the extra disjuncts; do not widen the DP obligation or
 assume the FC conclusions. Receipt:
 `.tmp/ns1/c2-quotient-known-comparison-tp-whole.log`. No completed quotient
 statement or native BVCHOP product is claimed.
+
+Diagnostic buildout, 2026-09-07: isolated fork `5e1f29dd05` now retains
+the selected sources, stored implications, executed hypothesis reliefs and
+recursive type-set query trees. The consumer checks their substitutions,
+hypothesis order, query children, lookup snapshots and exact selected suffix.
+All nine selected queries and all three source fragments pass kernel/axiom
+checks; the source fragments remain conditional on ordinary FC-rule proofs.
+The first whole quotient probe advances to Subgoal *1/1', where the later
+reciprocal IF collapse exposes BUG-052. Its isolated repair now crosses that
+node, but the quotient retains other conditions and assumed DP facts. The
+producer is not promoted, FC dependencies are incomplete, and this bug remains
+open through integration.
+Receipts: `c2-fc-source-controls-rerun.log`, `c2-fc-context-events-comparison.log`
+and `c2-quotient-not-iff-whole.log` under `.tmp/ns1/`.
 
 ## BUG-050 — hypothesis instantiation folds are absent from relief records
 Status: fixed
@@ -109,6 +177,14 @@ this nonconstant substitution (`c2-positive-boundary-whole-replay.log`).
 Capture the actual insertion and its justification, including numeric
 completion/forcing distinctions; do not infer an equation from the desired
 child clause or loosen the old quoted-substitution guard.
+
+The combined helper capture additionally exposes direct zero rows whose
+numericity is established by separate `add-linear-assumption` queries,
+with no numeric PT tips in the polynomial itself. Isolated producer
+`db2547b38d` records those actual queries, original operands, and their
+type-alist snapshot. The first instance queries ACL2-NUMBERP(X1) from mask
+64 / PTs 0, 1, 4 and a quoted T for zero. The image and capture pass;
+the query consumer and promotion remain open (NS1 charter).
 
 The isolated producer now records the insertion and the original clause
 whose literal indices label the polynomial parents (aaaaaea5c4, following

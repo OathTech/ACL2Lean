@@ -9,6 +9,7 @@ import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.Replay.Driver.IntegerViews
 import ACL2Lean.Replay.Driver.RationalViews
 import ACL2Lean.Replay.Driver.ComplexViews
+import ACL2Lean.Replay.Driver.RecognizerViews
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericNegation
 import ACL2Lean.NumericReciprocal
@@ -171,16 +172,14 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .linearEquation _ => [] -- insertion is not a verdict-only closing leaf
   | .branch _ items => items.flatMap itemDischargeOrigins
 
-/-- Per-theorem: the discharge nodes on PROVED leaves — `(clauseId, origin,
-    the discharged clause)`. These leaves are emission-complete; their replay
-    is the DP lift, or (unprovable) the harness's ASSUMED:dp-fact condition. -/
+/-- Per-theorem verdict-only leaves — `(clauseId, origin, discharged clause)`.
+Include closed branch windows inside a clause node that also has pushed
+children: those branches are leaves of the recorded proof too. The replay
+is the DP lift, or the harness's visible ASSUMED:dp-fact condition. -/
 partial def theoremDischargeLeaves (cp : ClauseProof) : List (String × String × SExpr) :=
   let rec go (n : ClauseNode) : List (String × String × SExpr) :=
-    let here :=
-      if n.children.isEmpty && n.induction.isNone then
-        (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map
-          (fun (o, lhs) => (n.idStr, o, lhs))
-      else []
+    let here := (n.steps.flatMap (·.items.flatMap itemDischargeOrigins)).map
+      (fun (o, lhs) => (n.idStr, o, lhs))
     here ++ n.children.flatMap go
   (cp.root.map go).getD []
 
@@ -770,9 +769,14 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- an equality can identify an order's arguments, exposing t = nil.
   -- Without them simp_all can propagate that impossible equation through
   -- the context before the ordinary order/arithmetic tactic sees it.
-  let directTac ← `(tactic|
+  -- Run this before introducing numeric representations as well: an
+  -- emitted equality can already fix a multiplier to zero (the FC rule's
+  -- Subgoal 1), eliminating the need to split its numeric domain.
+  let normalizeTac ← `(tactic|
     (try simp_all only [logic_not_equal_nil_iff, ACL2.lexorder_refl,
-      SExpr.t, reduceCtorEq]) <;> subst_vars <;> $tac)
+      SExpr.t, reduceCtorEq]) <;> subst_vars)
+  let directTac ← if withImplication then pure tac else
+    `(tactic| $normalizeTac:tactic <;> $tac:tactic)
   -- Full numeric products admit a field representation, including the
   -- complex-rational values. This remains inside the existing bounded
   -- verdict-leaf attempt and falls back unless every goal is discharged.
@@ -787,6 +791,12 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   let directTac ← if withComparison then do
     let primitiveTac ← dpPrimitivePositiveTactic
     `(tactic| solve | $primitiveTac:tactic | $directTac:tactic)
+    else pure directTac
+  -- Decode implication structure before selecting numeric views. Its
+  -- ordinary tactic already handles primitive completion; field views
+  -- first can spend the whole budget on a premise that fixes Y to zero.
+  let directTac ← if withImplication then
+    `(tactic| solve | $tac:tactic | $directTac:tactic)
     else pure directTac
   -- BOUNDED-DIRECT-FIRST (perf profile P5 + the 08-equality trade): the
   -- whole-goal simp_all is the fastest path when it works (sub-second on
@@ -808,10 +818,16 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
       (try
         let mv ← mkFreshExprMVar stmt
         let (_, g) ← mv.mvarId!.intros
+        if (stmt.find? (·.isConstOf ``Logic.complexRationalp)).isSome &&
+            (stmt.find? (·.isConstOf ``Logic.acl2Numberp)).isSome then
+          let goals ← runDpTactic g (← dpRecognizerViewTactic)
+          if goals.isEmpty then return some (← instantiateMVars mv)
         let g ← assertDpOrderFacts g
         let g ← assertDpEqualNilComm g
         let intTac ← dpIntegerViewTactic
-        let goals ← normalizeDpIntegerViews g (fun g => runDpTactic g intTac)
+        let normalized ← if withImplication then runDpTactic g normalizeTac else pure [g]
+        let goals ← normalized.flatMapM fun g =>
+          normalizeDpIntegerViews g (fun g => runDpTactic g intTac)
         let remaining ← goals.flatMapM fun g => do
           if withComparison && !withReciprocal then
             let rationalTac ← dpRationalViewTactic

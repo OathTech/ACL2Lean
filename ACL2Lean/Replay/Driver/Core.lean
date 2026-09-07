@@ -16,6 +16,8 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+initialize registerTraceClass `ACL2.replayClause
+
 /-- D3 (final close-out item 4) — the useHint+clausify COMPOSITION: an FI
     `:USE-HINT` whose NON-trivial constraint chain leaves a residual that
     ACL2 clausifies and closes by verdict leaves IN-NODE (BSORT-IS-ISORT:
@@ -137,7 +139,8 @@ def replayUseHintClausify (cfg : ReplayConfig) (ctx : ReplayCtx)
     (for a single-literal clause this IS the literal/formula statement).
     Induction nodes hard-fail (the scaffold lands next); a pushed clause delegates
     to its pool-root child when the clauses coincide. -/
-partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr := do
+partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (cn : ClauseNode) : MetaM Expr :=
+    withTraceNode `ACL2.replayClause (fun _ => pure m!"{cn.idStr}") do
   -- Refresh at every clause entry: filtering the offers themselves here would
   -- incorrectly lose rules cited only by a child. Admission bundles already
   -- have their own recorded-rune gate at their construction site.
@@ -536,7 +539,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       unless appCl.take negs.length == negs do
         throwError "use-hint: application clause has a different negated-premise prefix"
     let caseClauses := appClauses.map (·.drop negs.length)
-    let cases ← if caseClauses == [cn.inputClause] then pure [] else do
+    let partition ← if caseClauses == [cn.inputClause] then
+      pure ({ cases := [], negativePositions := [] } : RecordedCasePartition) else do
       let outputs ← (cn.steps.flatMap (·.newClauses)).mapM fun x =>
         match x.toList? with
         | some cl => pure cl
@@ -544,6 +548,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       unless outputs == appClauses do
         throwError "use-hint: applications differ from processor outputs at {cn.idStr}"
       ofExcept (recordedCasePartition cn.inputClause caseClauses)
+    let cases := partition.cases
     let peel (pApp : Expr) : MetaM Expr := do
       let mut p := pApp
       let mut ctxP := ctxU
@@ -562,7 +567,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let proofs ← cn.children.mapM fun child => do
       peel (← replayClauseWith rec cfg childCtx child)
     let pos :: negativeCases := proofs | throwError "use-hint: missing application proofs"
-    let p ← composeRecordedCases cfg ctxU cases cn.inputClause pos negativeCases
+    let p ← composeRecordedCases cfg ctxU cases cn.inputClause pos
+      (← alignRecordedCaseProofs partition negativeCases)
     return ← mkExpectedTypeHint p (← mkAppM ``EvTrue
       #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm cn.inputClause)])
   if cn.steps.any (fun st => st.processor.toLower == "apply-top-hints-clause") then

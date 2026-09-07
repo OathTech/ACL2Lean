@@ -10,6 +10,11 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+initialize registerTraceClass `ACL2.composeSplit
+
+private def traceSplitPhase {α : Type} (phase : String) (build : MetaM α) : MetaM α :=
+  withTraceNode `ACL2.composeSplit (fun _ => pure m!"{phase}") build
+
 /-- Link an actual split leaf to its recorded branch window. Prefer its
 emitted segment; ACL2's subsumption pass can merge segments, in which case
 require a unique branch falsified by the same path facts. An open survivor
@@ -17,7 +22,7 @@ is left out of those falsity obligations. -/
 private def selectSplitBranch (idStr : String)
     (branches : List (SExpr × List ClauseItem)) (emittedSeg : Option (List SExpr))
     (survivor : Option SExpr) (deriveFalsity : SExpr → MetaM (Option Expr)) :
-    MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
+    MetaM (Option (List SExpr × List ClauseItem × List Expr)) := traceSplitPhase "select branch" do
   let select (exact : Bool) : MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
     let mut selected := none
     for (seg, cont) in branches do
@@ -58,7 +63,12 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     (restLits : List (Nat × SExpr)) (branches : List (SExpr × List ClauseItem))
     (accClause : List SExpr) (children : List ClauseNode)
     (facts : List (SExpr × Expr × Bool × Expr)) (tree : TraceTree) :
-    MetaM Expr := do
+    MetaM Expr := withTraceNode `ACL2.composeSplit (fun _ => do
+      let kind := match tree with
+        | .split _ _ _ => "split"
+        | .resolved _ verdict how _ => s!"resolved {how} {verdict}"
+        | .leaf _ outcome _ => s!"leaf {outcome}"
+      return m!"{idStr} literal {lp.index} {kind}, {facts.length} path facts") do
   let w := cfg.worldExpr
   let e := cfg.envExpr
   let nilC := mkConst ``SExpr.nil
@@ -74,7 +84,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let p ← composeSplit rec cfg ctx idStr lp chainOpt clauseLit restLits branches
         accClause children (facts ++ [(T, vT, true, hNe)]) tSide
       mkLambdaFVars #[hNe] p
-    mkAppM ``Classical.byCases #[negL, posL]
+    traceSplitPhase "compose byCases" <| mkAppM ``Classical.byCases #[negL, posL]
   | .resolved T verdict how sub =>
     -- a CONSTANT-resolved test: the test collapsed to a quoted constant under
     -- earlier splits before if-interp saw it — the verdict is ground, so
@@ -179,15 +189,16 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
   | .leaf value outcome emittedSeg =>
     -- re-derive the literal's collapse along the path facts
-    let (collapseOpt, collapsed) ← collapseEval cfg ctx facts lp.result
+    let (collapseOpt, collapsed) ← traceSplitPhase "collapse literal" <|
+      collapseEval cfg ctx facts lp.result
     unless collapsed == value do
       throwError "composeSplit: collapse of literal {lp.index} reached \
                   {repr collapsed}, trace leaf is {repr value} at {idStr}"
-    let fullChain ← match chainOpt, collapseOpt with
+    let fullChain ← traceSplitPhase "compose full chain" <| match chainOpt, collapseOpt with
       | none, none => pure none
       | some c, none => pure (some c)
       | none, some c => pure (some ((c, false) : Expr × Bool))
-      | some (c1, false), some c2 =>
+      | some (c1, false), some c2 => do
         pure (some (← mkAppM ``fuel_chain_eq #[c1, c2], false))
       | some (c1, true), some c2 => do
         -- append the eq collapse to an IFF literal chain (inject via the
@@ -336,7 +347,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let pChild ← replayResidualPostpass rec cfg
         { ctx with segFacts := ctx.segFacts ++ segFactsHere }
         idStr expected cont children
-      let p ← peelToLast cfg ctx expected pChild fun L => do
+      let p ← traceSplitPhase "peel singleton child" <| peelToLast cfg ctx expected pChild fun L => do
         match ctx.litFactByTerm? L,
               (segFactsHere.find? (·.1 == L)).map (·.2) with
         | some hf, _ => pure hf
@@ -345,7 +356,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           throwError "composeSplit: no falsity fact for the residual \
                       literal {repr L} at {idStr}"
       -- p : EvTrue(value); bridge back to the literal
-      evtrueWithR fullChain p
+      traceSplitPhase "transport singleton child" <| evtrueWithR fullChain p
     else
       -- SEGMENT leaf: split on the literal's value
       let vLit ← ctxValExpr cfg ctx clauseLit
@@ -356,7 +367,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         mkLambdaFVars #[h] p
       let helse ← withLocalDeclD `h (← mkEq vLit nilC) fun h => do
         -- the leaf value's falsity, bridged along the full chain
-        let hLeafNil ← match fullChain with
+        let hLeafNil ← traceSplitPhase "leaf falsity" <| match fullChain with
           | none => pure h
           | some (ch, false) => do
             let pLeaf ← ctxValProof cfg ctx value
@@ -391,7 +402,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let pChild ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
             -- peel every literal but the survivor
             let segFactsHere := segL.zip segProofs
-            let p ← peelToLast cfg ctx expected pChild fun L => do
+            let p ← traceSplitPhase "peel residual child" <| peelToLast cfg ctx expected pChild fun L => do
               match ctx.litFactByTerm? L,
                     (segFactsHere.find? (·.1 == L)).map (·.2) with
               | some hf, _ => pure hf
@@ -400,7 +411,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                 throwError "composeSplit: no falsity fact for the residual \
                             literal {repr L} at {idStr}"
             -- p : EvTrue(value); bridge to the literal and refute h
-            let pLitTrue ← evtrueWithR fullChain p
+            let pLitTrue ← traceSplitPhase "transport residual child" <| evtrueWithR fullChain p
             let hNe ← mkAppM ``ne_nil_of_evtrue_conv #[pLitTrue, pLit]
             let goalTy ← mkAppM ``EvTrue #[w, e, reflectSExpr restTerm]
             mkAppOptM ``absurd #[none, some goalTy, some h, some hNe]
@@ -411,7 +422,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             -- (what the tree linker matched `.literal`-sourced solidify
             -- nodes against), bridged along the literal chain — joins
             -- litFacts under its index, exactly as on the non-split path
-            let hResultNil ← match chainOpt with
+            let hResultNil ← traceSplitPhase "result falsity" <| match chainOpt with
               | none => pure h
               | some (ch, false) => do
                 let pLit' ← ctxValProof cfg ctx lp.result
@@ -426,7 +437,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             let accClause' := accClause ++ segL.filter (!accClause.contains ·)
             rec.clauseSpine cfg ctx' idStr restLits cont accClause' children
         mkLambdaFVars #[h] p
-      (try
+      traceSplitPhase "compose value split" (try
         mkAppM ``evtrue_dp_if_split
           #[w, e, reflectSExpr clauseLit, reflectSExpr quoteT, reflectSExpr restTerm,
             vLit, pLit, hthen, helse]

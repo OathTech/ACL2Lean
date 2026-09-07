@@ -113,6 +113,7 @@ structure StepProvenance where
       verbatim from the emitted step; the DP consumer gates its rule
       premises on the slice. -/
   tauBasis : Option SExpr := none
+  clauseContextBasis : Option SExpr := none
   /-- The AMBIENT geneqv's relation symbols at this node's redex
       (`:GENEQV`) — the relation the rewriter was allowed to preserve
       there, and so the honest NET-step relation when the node's rhs
@@ -197,6 +198,9 @@ structure LiteralProof where
   result : SExpr
   /-- The literal's clausify decision trace (see `SplitDecision`), log order. -/
   splitTrace : List SplitDecision := []
+  /-- Actual strip-branches conjunction calls in this literal's clausify
+      window, in execution order. Their leaves remain in `splitTrace`. -/
+  conjunctions : List (SExpr × SExpr) := []
   /-- Fired-markers: a clausify post-pass (Satriani / subsumption loop)
       RESHAPED the segment set — a replay consuming the decision trace must
       hard-fail when this is non-empty. -/
@@ -350,6 +354,7 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
       taEntry := step.taEntry, tauBasis := step.tauBasis,
+      clauseContextBasis := step.clauseContextBasis,
       falseTs := step.falseTs, geneqv := step.geneqv,
       lhsTs := step.lhsTs, rhsTs := step.rhsTs,
       argLeaves := step.argLeaves,
@@ -662,15 +667,15 @@ partial def parseClauseItems (events : List TraceEvent)
       let splitTrace := litEvents.filterMap fun
         | .clausifyTest t v h p => some (SplitDecision.test t v h p)
         | .clausifyLeaf v o p seg => some (SplitDecision.leaf v o p seg)
-        -- conjunction markers (S1.2): ADDITIONAL provenance for the
-        -- and-shape union — flattened out of the decision stream here, which
-        -- reproduces the pre-marker trace exactly (the composer links leaves
-        -- by their emitted :SEGMENT); the ORDEREDP-ISORT spine consumer that
-        -- READS the marker is the tracked follow-up (map P8)
+        -- Conjunction calls are retained separately: unlike an if-interp
+        -- test, strip-branches unions two independent clause sets.
         | .clausifyConjunction .. => none
         | _ => none
       let splitReshaped := litEvents.filterMap fun
         | .clausifySetReshaped w => some w
+        | _ => none
+      let conjunctions := litEvents.filterMap fun
+        | .clausifyConjunction l r => some (l, r)
         | _ => none
       -- fcDerivations inside a LITERAL window: no corpus occurrence (all
       -- 375 are clause-level — audit 2026-08-03 F7 probe); the earlier
@@ -710,7 +715,7 @@ partial def parseClauseItems (events : List TraceEvent)
       let litResult := findLiteralResult chainEvents literal
       let (more, rest'') ← parseClauseItems rest'
       return (.literal { index, literal, notFlg, nodes, result := litResult,
-                         splitTrace, splitReshaped,
+                         splitTrace, conjunctions, splitReshaped,
                          complementCloses := compCloses,
                          dedupDrops := dedupDropsL,
                          boundaryVerdicts, taSubsts, ifMarkers } :: more, rest'')

@@ -914,6 +914,14 @@ theorem tp_cond_boolean_t (v : SExpr) {X : SExpr}
 /-! Two-valuedness DISJUNCTION sources (G1 rung 1, inc-2 — the IF-headed
     `if1/boolean` test derives booleanness structurally from its branches). -/
 
+theorem logic_rationalp_t_or_nil (v : SExpr) :
+    Logic.rationalp v = .t ∨ Logic.rationalp v = .nil := by
+  cases v with
+  | atom a => cases a with
+    | number n => cases n <;> simp [Logic.rationalp]
+    | _ => simp [Logic.rationalp]
+  | _ => simp [Logic.rationalp]
+
 theorem logic_integerp_t_or_nil (v : SExpr) :
     Logic.integerp v = SExpr.t ∨ Logic.integerp v = SExpr.nil := by
   by_cases h : Logic.integerp v = SExpr.nil

@@ -105,15 +105,27 @@ def replayHypLookupFromBasis? (cfg : ReplayConfig) (ctx : ReplayCtx)
     | return none
   unless prov.origin == "relieve-hyp/type-alist" do return none
   let some basis := prov.lookupBasis | return none
-  let .cons (.atom (.symbol recog)) (.cons arg .nil) := hyp | return none
+  let (test, positive) := match asApp hyp with
+    | some (f, [a]) => if f.name == "NOT" then (a, false) else (hyp, true)
+    | _ => (hyp, true)
+  let .cons (.atom (.symbol recog)) (.cons arg .nil) := test | return none
   unless basis.term == arg && basis.rune.isSome do return none
-  let some (_, trueTs, _) := tsRecogTrue.find? (fun (n, _, _) => n == recog.name)
+  let registry := if positive then tsRecogTrue else tsRecogNil
+  let some (_, trueTs, _) := registry.find? (fun (n, _, _) => n == recog.name)
     | return none
-  unless basis.targetTs == trueTs && tsSubsumedM basis.entryTs trueTs do return none
+  -- A negated recognizer requests the complement of the true mask.
+  -- Both masks are checked against the actual successful lookup; the
+  -- same primitive verdict consumer proves the unnegated test false.
+  let target := if positive then trueTs else -trueTs - 1
+  unless basis.targetTs == target && tsSubsumedM basis.entryTs target do return none
+  if !positive then
+    unless basis.rune == some ⟨"fake-rune-for-anonymous-enabled-rule", "NIL", none⟩ do
+      throwFrontier m!"hyp lookup: negated recognizer uses an unsupported cited rune"
   let citedCr := prov.taRunes.filterMap fun r =>
     if r.ty == "compound-recognizer" then some r.name else none
-  let some fact ← recogVerdictFromTs cfg ctx recog.name arg .t
-      (some basis.entryTs) (some basis.targetTs) [] citedCr | return none
+  let some fact ← recogVerdictFromTs cfg ctx recog.name arg (if positive then .t else .nil)
+      (some basis.entryTs) (some trueTs) [] citedCr | return none
+  let fact ← if positive then pure fact else mkAppM ``logic_not_t_of_nil #[fact]
   let conv ← mkAppM ``re_val_cast
     #[cfg.worldExpr, cfg.envExpr, reflectSExpr hyp, ← ctxValExpr cfg ctx hyp,
       mkConst ``SExpr.t, ← ctxValProof cfg ctx hyp, fact]

@@ -1298,8 +1298,10 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       else
         IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
         printProofNodes lp.nodes rwIndent
-    | .step (.node rune lhs rhs children _) =>
+    | .step (.node rune lhs rhs children prov) =>
       IO.println s!"{pad}  │    {rune.ty}: {lhs} ⇒ {rhs}"
+      if prov.clauseContextBasis.isSome then
+        IO.println s!"{pad}  │      recorded clause-context/FC basis"
       -- A clause-level step (e.g. a termination conjecture's bare rewrite chain)
       -- can have adopted inner-rewrite children; render them too.
       if !children.isEmpty then printProofNodes children rwIndent

@@ -2384,6 +2384,487 @@ followed by NOT's `128 → 256`. Receipt:
 proof receipts. Production remains `fd27e59021`; the FC producer, consumer
 and ordinary FC-rule dependency proofs are not integrated or complete.
 
+### C2 selected FC consumer — diagnostic receipts (2026-09-07)
+
+The parser and reconstructed nodes retain `:CLAUSE-CONTEXT-BASIS`.
+The new consumer checks the exact accumulator/tail/selected suffix and
+replays the selected sources and their earlier-round supports. Stored FC
+implications use an explicit `fc:` hypothesis channel, discharged against
+their actual named theorem trees. LINEAR and FC share the existing
+implication instantiation/projection machinery; no LINEAR or USE record
+is fabricated for an FC source. The dependency dischargers move out of
+Harness into `Driver/Dependency.lean` to keep the module-size limit.
+
+The actual query consumer replays children in execution order and checks
+the recorded lookup, comparison and recognizer data. Its reciprocal cell
+is the primitive `InTs 7 → InTs 11` law, used at the captured call.
+The source consumer also checks hypothesis order and substitutions, the
+recorded lookup entry against its type-alist, and the matched free-variable
+hypothesis. A type-alist snapshot never becomes a set of assumed facts.
+Other query routes remain explicit frontiers.
+
+Focused receipts under `.tmp/ns1/`:
+
+- `c2-fc-lookup-controls.log`: all **nine** selected queries pass explicit
+  kernel/axiom checks; changed results, removed context and deleted
+  children are rejected.
+- `c2-fc-source-controls-rerun.log`: all **three** selected source fragments
+  pass kernel/axiom checks, **conditional on the ordinary FC implications**.
+  Changed source conclusions, deleted relief histories and changed stored
+  conclusions are rejected. The first test elaboration failed on an
+  incorrectly inferred monad for its local declarations; the rerun fixes it.
+- `c2-fc-context-evidence-build.log`: affected runner build passes
+  **3124 jobs**. `c2-fc-consumer-static.log`: static recipes pass.
+- `c2-fc-context-events-comparison.log`: all **462** original parsed NIQ
+  events are preserved against production, excluding exactly the added
+  FC source fields and clause-context basis. Projections never enter replay.
+
+Whole quotient replay crosses the selected FC leaf, then encounters an
+IFF/equality join in Subgoal *1/1' at its first negated literal. Both endpoints
+are Boolean. The NOT-FLG composer now uses the existing checked Boolean
+refinement before its unary equality lift. The actual literal passes
+`Meta.checkWithKernel` and the accepted-axiom scan
+(`c2-not-iff-control.log`). Whole replay then stops at the later
+`<-OF-*-AND-0` RHS: its recorded IF-test-false marker for `(< (/ J) 0)`
+has only runes/parents, while the retained child chain stops at
+`(IF (< (/ J) 0) (< 0 I) NIL)` (`c2-quotient-not-iff-whole.log`).
+The missing query basis must be observed at that actual call.
+
+The first whole FC-1 dependency probe reaches the existing 3,000,000
+heartbeat limit (`c2-fc-rule-one-whole.log`), leaving no theorem or axiom
+receipt. Its actual Subgoal 1 is a verdict leaf whose explicit equality
+fixes Y to zero. Applying the existing equality normalization before
+arithmetic closes that leaf within **15,000** heartbeats and passes the
+kernel/axiom checks (`c2-fc-rule-dp-normalization-rerun.log`). The first
+diagnostic referenced a private helper and failed to elaborate; the rerun
+uses the same tactic runner directly. The shared ordering repair and
+whole dependency replay are still being validated; no budget was raised.
+
+The first shared equality-order repair alone does not close the wired DP
+leaf (`c2-fc-rule-dp-wired.log`, 15,000-heartbeat timeout). Its whole probe
+was stopped with SIGINT after 6m21s when the next repair superseded it
+(`c2-fc-rule-one-equality-first-whole.log`, exit 130). Decoding the
+implication with the existing ordinary tactic before the other numeric
+attempts closes the actual wired leaf in **8,765** heartbeat units, with
+explicit kernel/axiom checks (`c2-fc-rule-dp-wired-implication-first.log`).
+
+The IF-query producer first lands in isolated `78d8d31c9e`; `93c65df94d`
+then ends collection before branch rewriting so nested hypothesis observers
+retain their own cells. Its image/tag checks pass
+(`c2-if-type-queries-scope-image-build-rerun.log`,
+`c2-if-type-queries-scope-tags.log`); the first scope-repair image build
+failed on a missing closing parenthesis, corrected before that rerun.
+Fresh unchanged prefixes at this clean fork give NIQ **14/12** QED/DEFTHM
+events and `times` **38/38**, in `c2-if-type-queries-scope-capture/`.
+The first capture invocation failed because its output directory did not
+exist; it was created before the successful rerun. All **462** original
+parsed NIQ events are preserved modulo added FC/context/IF-query fields
+(`c2-if-type-queries-scope-event-comparison.log`).
+
+FC and IF now share `Driver/TypeSetQuery.lean` and its strict basis parser;
+the duplicate FC-only query module is removed. The selected reciprocal
+IF query passes kernel/axiom checks and three mutation controls
+(`c2-if-query-controls.log`). The FC source controls also pass after the
+extraction (`c2-shared-query-fc-source-controls.log`). The runner build
+passes **3125 jobs** (`c2-shared-if-query-build.log`), and static recipes
+pass (`c2-shared-if-query-static.log`). Positive IF verdicts and other
+unsupported query paths remain explicit frontiers.
+
+FC-1 now yields a **conditional**, kernel-checked statement with exactly
+`rule:<=-OF-*-AND-*-SAME-HELPER` remaining; its axiom list is the accepted
+trio (`c2-fc-rule-one-shared-if-whole.log`). This is not an unconditional
+dependency proof. Whole quotient replay crosses the IF node and retains
+`tp:=`, five ordinary arithmetic/helper rules, FC-2, and **two assumed DP
+facts** (`c2-quotient-shared-if-whole.log`). That ASSUMED result is not
+registered as a theorem; the trailing unknown-constant axiom query fails.
+
+The helper's actual CASES partition has eight unique cases after a
+duplicate source hint. Its negative children correspond to the positive
+prefix in order **[0, 1, 4, 2, 3, 5, 6, 7]**. The composer now validates
+that exact clause correspondence, replays every child in emitted order,
+and aligns their proofs for composition. Missing/extra children are refused;
+the actual conditional case composition passes kernel/axiom checks
+(`c2-case-alignment-controls.log`). Whole helper replay then reaches a
+distinct conjunction with no rewrite nodes, an unchanged literal whose
+clausify split still has two recorded continuations
+(`c2-fc-helper-aligned-whole.log`). Its identity transport repair and the
+affected regression build were then tested. The first regression run was
+RED: moving equality normalization ahead of numeric views on every DP leaf
+made `Tests.Ns1Arithmetic.reciprocalEqualityReplayed` retain a DP assumption
+(`c2-fc-consumer-regression-build.log`). Restricting that earlier ordering to
+implication-shaped emitted leaves preserves the prior order elsewhere.
+`c2-fc-consumer-regression-build-rerun.log` passes all 3140 build jobs,
+including `Tests.Ns1Positive`, `Tests.Ns1Contexts`, and `Tests.Ns1Mod`.
+The actual FC-1 leaf still kernel-checks with accepted axioms at 8765
+heartbeat units under the unchanged 15000 bound
+(`c2-fc-rule-dp-wired-scoped.log`). This is a focused regression receipt,
+not a full-gate result.
+
+The unchanged-conjunction identity transport reaches the next actual
+helper node (`c2-fc-helper-conjunction-whole.log`): literal 3 in Subgoal 9'
+has a `segment-false` leaf for the already-false `(RATIONALP X1)` and an
+open `(COMPLEX-RATIONALP X2)` leaf. ACL2's recorded subsumption loop leaves
+one empty segment. The old two-conjunct consumer requires two distinct
+open branches; this composition remains open. The times observer check
+also passes: all 498 original parsed events are unchanged modulo added
+FC source/context and IF query fields
+(`c2-if-type-queries-scope-times-event-comparison.log`).
+
+The new subsumed-conjunction check retains `LiteralProof.conjunctions`,
+validates the actual strip-branches call, both leaf values/segments and the
+subsumption marker, and requires an existing checked falsity for the false
+conjunct. It then replays the one recorded continuation. Five mutation
+controls pass (`c2-subsumed-conjunction-controls.log`); runner build and
+statics pass (`c2-subsumed-conjunction-build.log`,
+`c2-subsumed-conjunction-static.log`). Both helper probes advance to an
+ACL2-NUMBERP recognizer with emitted mask **64**, true mask **127**
+(`c2-fc-helper-subsumed-conjunction-whole.log`,
+`c2-strict-fc-helper-whole.log`). Neither helper registers a theorem yet.
+
+The actual recognizer records and clause-context diagnostic are retained in
+`c2-helper-recognizer-records.log` and
+`c2-fc-helper-recognizer-context-whole.log`. The conjunction composer's
+right-conjunct branch had lost its positive left-conjunct case hypothesis;
+that proof is now preserved in the checked branch-fact channel. The
+typing-test registry also lacked the primitive COMPLEX-RATIONALP true
+mask **64**. Its model law and registry entry are wired into the same
+recorded recognizer consumer. The actual node passes kernel/axiom checks
+and rejects a missing case fact or either changed type mask
+(`c2-complex-recognizer-context-controls.log`). Whole replay advances to
+the negative ACL2-NUMBERP node, mask **-128**
+(`c2-fc-helper-complex-type-whole.log`). The strict helper reaches the same
+mask in a `relieve-hyp/type-alist` lookup for DEFAULT-<-2
+(`c2-strict-fc-helper-complex-type-whole.log`,
+`c2-strict-helper-lookups.log`).
+
+The two existing negative context tests contribute masks **-64** and
+**-65**; their intersection is the emitted **-128**. The recognizer consumer
+now reuses `inTsFromCtx` when a single candidate mask cannot establish its
+recorded verdict. The primitive negative-recognizer cells and negative
+lookup orientation are wired at those actual nodes. The first two builds
+failed because kernel `decide` needed the `InTs`/index definitions unfolded
+in the closed finite cases; the second rerun passes all 3126 jobs
+(`c2-negative-type-intersection-build-rerun2.log`). Whole-helper validation
+is pending; no arithmetic hypothesis decision procedure or new proof budget
+is introduced.
+
+The actual negative recognizer and negative hypothesis lookup both pass
+kernel/axiom checks and reject deletion of either exclusion premise, missing
+lookup basis, and changed target mask
+(`c2-negative-numeric-context-controls-rerun.log`; the initial diagnostic
+script had elaboration errors). The hypothesis-demand collector now includes
+actual lookup and recognizer bases, so later clause exclusions are hoisted
+through the existing checked context split. The weak helper subsequently
+reaches the Boolean RATIONALP range query; its primitive two-valued law is
+wired into the ordinary IF consumer (`c2-rational-boolean-range-build.log`).
+It then reaches an unclosed decision-procedure branch in Subgoal 9'
+(`c2-fc-helper-rational-boolean-whole.log`).
+
+The strict helper's recorded COMPLEX-RATIONALP(* X1 Y) query requires the
+primitive complex-by-nonzero-rational cell (64 × 62 → 64). The binary cell
+registry now carries separate input masks, and `TsComplexFacts` supplies
+the kernel-checked component multiplication law. The second build rerun
+passes (`c2-complex-product-type-build-rerun2.log`; earlier attempts had
+Lean syntax/simplification errors). Whole replay crosses that node and
+reaches the recorded RATIONALP(REALPART X1) query
+(`c2-strict-fc-helper-complex-product-whole.log`). The actual adjacent
+IMAGPART query is also retained in `c2-strict-helper-rational-basis.log`.
+
+**BUG-053:** the weak helper's Subgoal 9' contains a closed branch alongside
+three pushed children. The discharge inventory previously examined only
+childless clause nodes, so it omitted that actual verdict and could not even
+offer its unresolved obligation. The collector now visits each node's own
+recorded items before its children; the runner build passes
+(`c2-internal-verdict-inventory-build.log`). The selected-leaf diagnostic
+asserts exactly one matching actual leaf and now reaches the existing
+15000-heartbeat limit (`c2-fc-helper-zero-dp-inventory.log`). Its first
+version selected zero leaves and produced no receipt; that run is not a
+proof. The arithmetic leaf and integrated inventory validation remain open.
+
+The concurrent regression build failed while the runner rebuild was
+replacing shared `.olean` files (`c2-helper-context-regression-build.log`:
+missing `Waterfall.olean` in the three test imports). This run is RED;
+subsequent builds are serialized before repeating those regression targets.
+
+Both component range cells compile (`c2-component-range-build.log`). The
+strict whole helper now reaches a `rewrite-if/constant-test` step whose
+original test is `(IF (< Y '0) (< '0 (REALPART X1)) 'NIL)`; the chain lacks
+a checked resolution of that test at this point
+(`c2-strict-fc-helper-component-range-whole.log`). The actual step has an
+RHS/IF boundary and no recognizer/query basis on the step itself
+(`c2-strict-helper-nested-if-rerun.log`); its preceding test chain is under
+investigation. No test verdict is accepted without proof.
+
+The weak helper's selected leaf normalizes in **1492** heartbeat units
+(`c2-fc-helper-zero-normalize-rerun.log`), leaving opposite sign constraints
+on the rational multiplier and unrelated conditional hypotheses. Moving
+`grind` or propositional `nlinarith` earlier did not close it; those failed
+probes are retained. A deterministic opposite-bound substitution, using
+ordered antisymmetry to remove the fixed value binder before products and
+Boolean splits, checks the actual leaf in **2248** units with accepted
+axioms (`c2-fc-helper-zero-bound-subst.log`). This is a diagnostic proof;
+the same normalization is now being validated in the wired DP procedure
+under its unchanged budget.
+
+The wired DP passes that exact Subgoal 9' leaf in **2803** units
+(`c2-fc-helper-zero-dp-wired-bound-subst.log`). Whole weak-helper replay
+advances to `solidify/type-alist` replacing Y by quoted zero, with no emitted
+type mask (**BUG-054**, `c2-fc-helper-bound-subst-whole.log`,
+`c2-helper-type-zero-rerun.log`). The REALPART and IMAGPART recorded markers
+both pass kernel/axiom checks and reject missing markers/bases and changed
+masks (`c2-component-range-controls.log`).
+
+The strict nested test has an actual inner IF marker for `(< Y '0)` with a
+`:CONSTANT-BOUND` query route (`c2-strict-helper-inner-test-markers.log`).
+The existing marker-collapse consumer is now called at that intermediate
+constant-test composition point. Its first build failed due to a nested
+monadic return type (`c2-helper-context-serialized-regression-build.log`);
+the correction uses explicit branch values, and the serialized regression
+rerun is in progress. ACL2's `type-set-<-1` selects a comparison entry in the
+type-alist independently of its argument type masks: substituting a table
+proof there would change the recorded route. That selected entry was not
+emitted, so the observer now records the successful scan arm's actual entry.
+The same isolated round retains `solidify/type-alist`'s actual `obj-table`
+input mask. No observer re-runs a query or changes a logical return.
+
+This isolated producer checkpoint is **d592add7be**, based on **93c65df94d**.
+The first image build failed ACL2's raw-code coverage check because the
+newly observed `type-set-<-1` was absent from its declared raw program-function
+table (`c2-bound-entry-image-build.log`,
+`c2-bound-entry-image-make-failed.log`). Its tagged registration repairs the
+check; the rebuilt saved image and tags pass
+(`c2-bound-entry-image-build-rerun.log`,
+`c2-bound-entry-producer-tags-rerun.log`). Recapture, event parity, and
+consumer validation remain pending. Current static checks pass
+(`c2-helper-bounds-static.log`).
+
+The serialized regression rerun passes **3142 jobs**, including
+`Tests.Ns1Arithmetic` (94 s), `Tests.Ns1Positive`, `Tests.Ns1Contexts`, and
+`Tests.Ns1Mod` (246 s)
+(`c2-helper-context-serialized-regression-build-rerun.log`). It is an affected
+target receipt, not a full gate. The new clean-producer captures are in
+`c2-bound-entry-capture/`: times **123476 lines, 38/38 QED/DEFTHM** and NIQ
+**97889 lines, 14/12** for their unchanged source prefixes. The raw-event
+comparison preserves prior query records and removes only the newly added
+fields; all **498 times** and **462 NIQ** original events match
+(`c2-bound-entry-times-event-comparison.log`,
+`c2-bound-entry-niq-event-comparison.log`).
+
+The fresh weak-helper record emits **TYPESET 1** on Y → '0
+(`c2-helper-type-zero-bound.log`). The strict inner IF query now identifies
+its actual bound entry as **((< '0 Y) 256)**
+(`c2-strict-helper-bound-markers.log`). The singleton consumer is being wired
+to the exact emitted mask using the checked rational/nonnegative/nonpositive
+context facts. The constant-bound consumer must prove the selected reverse
+comparison from its context entry. Both whole helpers remain open.
+
+The singleton and selected-bound consumers compile together
+(`c2-bound-and-solidify-consumer-build.log`). Both actual-node controls
+kernel-check with accepted axioms and reject deleted premises, missing
+basis, and changed masks/entries (`c2-zero-solidification-controls-rerun.log`,
+`c2-bound-query-controls.log`). The first zero-control script incorrectly
+treated `replayNode`'s pair result as an `Expr`; it was corrected. The first
+whole zero replay also exposed a wrong origin reference in the new guard;
+the guard now explicitly reads `prov.origin`.
+
+Whole weak-helper replay crosses zero solidification and reaches the
+**linear equation X2 = X1 in Subgoal 7''**
+(`c2-fc-helper-solidify-zero-whole-rerun.log`). This is the existing BUG-049
+insertion class; the FC/query capture did not yet include its observer.
+The earlier isolated insertion and parent-scope commits were cherry-picked
+onto d592 without conflicts: **81b85497a0**, then **6202b7800b**. The combined
+producer's tags pass (`c2-combined-linear-producer-tags.log`), and its image
+build is in progress. The msort row classes in
+`linear-msort-basis-next.md` still gate production promotion.
+
+The strict whole helper crossed the selected-bound query but found a
+MetaM type mismatch in the new intermediate IF composition
+(`c2-strict-helper-bound-consumer-whole.log`): `conv_val_eq` takes two
+convergence proofs, while the marker bridge returns eventual equality.
+The composition now uses the existing `val_eq_of_eval_eq` with both term
+convergences. The first correction had a Lean layout error
+(`c2-if-test-value-transport-build.log`), and the whole probe run against
+that missing `.olean` is not a receipt
+(`c2-strict-helper-value-transport-whole.log`). The corrected build rerun
+is in progress. Neither helper has registered a whole theorem yet.
+
+The IF value-transport build rerun passes all **3127 jobs**
+(`c2-if-test-value-transport-build-rerun.log`). The combined producer image
+also passes (`c2-combined-linear-image-build.log`). Its **6202b7800b**
+captures are in `c2-combined-linear-capture/`: times **123476 lines, 38/38
+QED/DEFTHM, 22 linear insertions**; NIQ **98013 lines, 14/12**. All **498**
+original times events are unchanged after removing the new insertion records
+(`c2-combined-linear-times-comparison.log`). The initial NIQ comparison fails
+at event 457 (`c2-combined-linear-niq-comparison.log`): polynomial serialization
+adds the stored ground-zero rule **DEFAULT-UNARY-/** to that snapshot.
+The extended comparison confirms all **462** original events and stored
+rules are preserved, with this additional rule explicitly reported
+(`c2-combined-linear-niq-snapshot-comparison.log`). The first failure is
+retained; this is not a claim of byte-identical snapshots.
+
+The combined weak-helper replay reaches an earlier insertion at **Subgoal
+9.3'**, X1 = 0: direct complementary unit rows, rational flags NIL, no
+numeric PT tips, and an empty rune list (`c2-fc-helper-combined-whole.log`,
+`c2-helper-linear-insertions.log`). The existing consumer requires rational
+two-variable rows and numeric PT tips. ACL2's actual numeric-assumption
+queries are now being observed in the isolated producer before extending
+that consumer; flags alone do not prove numericity.
+
+The strict helper reaches a marker-only RHS collapse of
+**<-WHEN-RATIONALP-AND-COMPLEX-RATIONALP** at **Subgoal 9.24**, with a true
+comparison query and a compound REALPART lookup
+(`c2-strict-helper-combined-whole.log`,
+`c2-strict-rational-complex-rhs-rerun.log`). This record already contains
+the IF evidence despite the old consumer's “no RHS chain” error. The consumer
+now accepts the recorded singleton T query, exact compound lookup entry,
+and positive rational comparison cell at that composition point. Its build
+passes **3127 jobs** (`c2-positive-compound-query-build.log`); whole-helper
+validation is in progress.
+
+The actual positive query checks with accepted axioms and rejects missing
+sign/nonzero premises, missing basis/entry, and a changed verdict
+(`c2-positive-compound-query-controls.log`). Whole replay still fails because
+those two checked premises sit later in Subgoal 9.24's input clause
+(`c2-strict-helper-positive-query-whole.log`). Recorded lookup terms now
+contribute demands to the existing clause split, including the equality's
+commuted orientation; the consumer still proves every lookup mask.
+
+The isolated numeric observer is **db2547b38d**. Its image and tags pass
+(`c2-linear-numeric-query-image-build.log`,
+`c2-linear-numeric-query-producer-tags.log`). Fresh captures in
+`c2-linear-numeric-query-capture/` contain times **123476 lines, 38/38**
+and NIQ **98154 lines, 14/12**. The first weak insertion now records
+ACL2-NUMBERP(X1)'s actual recognizer query, child lookup mask **64** with
+PTs **0/1/4**, and the quoted-T query for the zero operand. Its child lookup
+also retains the recognizer-tuple DWP input; no additional computation
+occurs on that lookup route. Event preservation and query consumer work
+are pending. No production capture or submodule pin has changed.
+
+The context-demand/parser build first failed because the recursive query
+visitor lacked its partial annotation
+(`c2-query-context-and-linear-parser-build.log`). The rerun passes **3127
+jobs** (`c2-query-context-and-linear-parser-build-rerun.log`). The strict
+whole helper now reaches the existing **3000000-heartbeat** limit during
+`isDefEq` (`c2-strict-helper-query-context-whole.log`); no theorem is registered.
+This requires profiling/decomposition, not a budget increase.
+
+The numeric observer preserves all **498 times** and **462 NIQ** raw events
+modulo only its new NUMERIC-BASIS field
+(`c2-linear-numeric-query-times-comparison.log`,
+`c2-linear-numeric-query-niq-comparison.log`). The consumer now replays the
+two queries against their recorded PT facts and checks the selected
+recognizer-tuple lookup input before accepting direct zero rows. Its first
+build is in progress; this is not yet a proof receipt.
+
+The initial static run fails the grandfathered Node module cap
+(`c2-positive-query-static.log`, **1472 > 1466**). The singleton-value
+consumer was extracted into `NodeCore/Solidify.lean`, reducing Node to
+**1463** lines. The complete static rerun passes
+(`c2-positive-query-static-rerun.log`). The extraction's build and the
+affected regression rerun remain pending.
+
+The numeric consumer's first build fails on the reserved Lean identifier
+`lemma` (`c2-linear-numeric-consumer-build.log`); the renamed local fixes
+the error. The rerun passes **3129 jobs**
+(`c2-linear-numeric-consumer-build-rerun.log`), including the extracted
+singleton consumer. All static checks pass at this state
+(`c2-linear-numeric-static.log`). Three actual zero-insertion subtrees and
+their negative controls are now being replayed. An optional clause trace
+was added to locate the strict helper's performance frontier under the
+unchanged budget; it does not change replay behavior when disabled.
+
+All three actual zero-insertion subtrees (**9.3', 9.2', 9.1'**) now replay
+unconditionally with the accepted axiom trio. Missing numeric basis,
+missing numeric parent, changed DWP input, missing polynomial pair, and
+forcing flags reject at their consuming checks
+(`c2-linear-numeric-insertion-controls.log`). The extracted singleton
+consumer also passes its actual-node kernel/axiom and negative controls
+(`c2-solidify-extracted-controls.log`). Complete weak-helper replay and
+the strict-helper profile are running; neither is a completed theorem.
+
+The weak whole helper passes its numeric query boundary and stops at the
+**non-adjacent duplicate removal in Subgoal 7''**
+(`c2-fc-helper-linear-numeric-whole.log`). ACL2's actual substitution creates
+two copies of (< X1 X1), separated by the type literals; its recorded
+ADD-LITERAL-AND-PT drop removes the earlier copy. The old consumer handled
+adjacent copies only. The consumer now checks each recorded removal and
+uses the existing clause-inclusion transport, shared with clause-level
+reflexivity in `ClauseSubset.lean`. CoreSpine's former adjacent-only block
+was replaced by `SubstitutionDuplicates.lean`.
+
+That build passes **3131 jobs** (`c2-nonadjacent-duplicate-build.log`). All
+**six** selected actual insertion subtrees replay unconditionally: 9.3',
+9.2', 9.1', 7'', 6'', 5''
+(`c2-linear-numeric-six-insertions.log`). Removing/changing the non-adjacent
+drop or deleting its continuation child rejects
+(`c2-linear-numeric-six-dedup-controls.log`). The six prior cancellation
+subtrees and their nine controls also pass
+(`c2-linear-cancel-dedup-regression.log`). Whole weak-helper replay remains
+in progress.
+
+The strict profile still times out under the unchanged budget
+(`c2-strict-helper-clause-profile.log`). The recorded clause scopes locate
+the cost: 9.24 and 9.22 take about **0.08 s** each, while 9.23 takes
+**27.44 s** and the timeout occurs in 9.21. The standalone 9.24 replay
+costs **8277 heartbeat units**, conditional on DEFAULT-UNARY-MINUS and
+<-WHEN-RATIONALP-AND-COMPLEX-RATIONALP; its diagnostic assertion of an
+unconditional result fails, so this is only a conditional receipt
+(`c2-strict-helper-clause924.log`). The exact emitted 9.23 DP obligation
+times out at its **15000-heartbeat** test budget
+(`c2-strict-helper-clause923-dp.log`). Primitive REALPART/IMAGPART projection
+normalization is being wired into the existing rational-component leaf
+procedure, without increasing a budget.
+
+The unprofiled weak-helper run after duplicate support was interrupted
+after over five minutes without a result (exit **143**,
+`c2-fc-helper-nonadjacent-duplicate-whole.log`). It supplies no theorem
+receipt. The next helper runs will use clause profiling after the pending
+component-projection build. Static checks for the duplicate increment pass
+(`c2-nonadjacent-duplicate-static.log`); the ordinary affected-target
+regression is still pending.
+
+The component projection build passes **3132 jobs**
+(`c2-component-projection-dp-build.log`). The exact 9.23 emitted DP leaf
+now kernel-checks with accepted axioms in **3470 heartbeat units**, within
+the unchanged 15000 limit (`c2-strict-helper-clause923-component-dp.log`).
+The two primitive projection equations normalize the completed numeric
+components; no book inequality or hypothesis-relief solver was added.
+Both complete helper replays are being retried with profiling.
+
+The complete strict helper still times out, but its profile confirms the
+leaf improvement: **9.23: 1.04 s**, **9.21: 0.31 s**, and 9.19 also completes
+(`c2-strict-helper-component-profile.log`). Almost all of the enclosing
+9' scope's **174.52 s** lies outside those fast child clause scopes, and
+the failure remains `isDefEq`. Explicit clause-result type annotations
+(`id` at the existing `EvTrue` judgment) are being tested to avoid repeatedly
+inferring types through assembled proof terms. They do not replace any
+proof argument; completed declarations still require kernel checking.
+
+The concurrent weak profile was interrupted after over six minutes without
+a result (exit **143**, `c2-fc-helper-component-profile.log`). It supplies no
+receipt. Work now concentrates on the strict helper's assembly cost before
+retrying the weak dependency sweep.
+
+The explicit-result-type build passes **3132 jobs**
+(`c2-clause-proof-hint-build.log`). All six insertion subtrees and their
+numeric/duplicate/child mutation controls still pass
+(`c2-clause-hint-linear-controls.log`). Strict-helper performance validation
+is running. The affected arithmetic regression targets are building against
+these already-built shared replay dependencies
+(`c2-helper-query-linear-regression-build.log`); no runner rebuild overlaps
+those test imports.
+
+The result-type annotation experiment does **not** improve the strict
+helper: the run reaches the same six child clauses and times out at the
+same point (`c2-strict-helper-clause-hint-profile.log`). Those annotations
+will be removed after the current regression build. The next profile will
+separate split-leaf collapse, branch selection, and proof assembly; adding
+more speculative type annotations is not justified by this measurement.
+
+These are diagnostic receipts, not an integrated FC feature or a completed
+quotient theorem. Production remains `fd27e59021`; the last full gate is
+the P6 recovery above. All three new native BVCHOP proofs remain open.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries
@@ -2394,3 +2875,125 @@ and ordinary FC-rule dependency proofs are not integrated or complete.
   dependencies, and build the first native proof.
 - C2–C4 and all three new mirror proofs remain open. NS1 is in progress;
   there is no merge or push approval for the implementation.
+
+The four affected regression targets passed in
+`c2-helper-query-linear-regression-build.log` (3147 jobs, including
+`Tests.Ns1Mod` at 259 seconds). The ineffective result-type hint experiment
+was then removed; optional split-phase traces now distinguish collapse,
+chain assembly, branch selection, and child transport under the same replay
+budget. No complete helper or new mirror is claimed.
+
+Split tracing initially needed an explicit `do` in a newly wrapped match
+arm (`c2-split-composition-profile-build.log`, retained compile failure).
+The correction built all 3132 Runner jobs in
+`c2-split-composition-profile-build-rerun.log`;
+`c2-split-composition-static.log` passed the static checks.
+
+`c2-strict-helper-split-profile.log` retained the ordinary 3M timeout.
+Its split/collapse/chain/selection/transport phases are individually small;
+the first literal's segment-false path spends 158 seconds outside those
+operations and its six child-clause replays. The next trace therefore
+separates the actual spine entries, context checks, and rewrite chains.
+
+The finer profile (`c2-strict-helper-spine-profile.log`) identifies the
+recorded type-set contradiction steps, not context checks or rewrite
+chains: three completed step scopes cost 36.7–38.9 seconds each; all
+1188 context checks total 0.071 seconds and 44 rewrite chains total 1.064
+seconds. The first actual branch leaf has three quantified values and
+contradictory numeric-recognizer premises; its direct 15000-heartbeat
+probe times out before the change (`c2-strict-helper-type-partition-before.log`).
+The current repair normalizes the primitive rational/complex/nonnumber
+partition before arithmetic, inside the existing emitted-DP-leaf attempt.
+It adds no assumption or budget and changes no recorded clause.
+
+The initial recognizer-normalization check still timed out
+(`c2-strict-helper-type-partition-controls.log`): inspection retained
+`if True ∧ True then ... else ...` in its normalized hypotheses.
+`c2-type-partition-normalization-goal.log` records that residual; adding
+only propositional/conditional reductions closes the first normalization
+goal (`c2-type-partition-normalization-booleans.log`). The revised wired
+checker uses this restricted simplification without a `grind` step; the
+full twelve-leaf kernel/axiom check is still required.
+
+The revised checker builds (`c2-recognizer-partition-boolean-build.log`,
+3134 jobs), and **all twelve actual Subgoal 9' branch verdicts** now pass
+the wired `proveDpFact`, kernel check, and accepted-axiom filter at the
+unchanged 15000-heartbeat probe limit. Each costs 973–1051 heartbeat units
+(`c2-strict-helper-type-partition-boolean-controls.log`). The subsequent
+whole strict-helper retry uses its unchanged 3M budget.
+
+The whole retry now passes the timeout site and reaches Subgoal 9.18
+(`c2-strict-helper-partition-whole.log`), where the actual known-true
+COMPLEX-RATIONALP(X1 + Y) marker has argument/true masks 64 and false
+mask -65. The next primitive cell is complex + rational → complex; its
+nonzero-imaginary-component proof is shared with the existing multiplication
+cell. The exact capture inspection is `c2-strict-complex-sum-relief.log`.
+No whole-helper or mirror completion is claimed.
+
+The complex-sum cell builds in `c2-complex-sum-cell-build.log` (3134
+jobs). Its actual Subgoal 9.18 query kernel-checks with accepted axioms
+using three literals from that clause; deleting each premise in turn,
+deleting the marker/basis, or changing its argument mask is rejected
+(`c2-complex-sum-query-controls.log`, six controls). The whole strict
+helper and four affected regression targets are being rerun.
+
+The next whole-helper result (`c2-strict-helper-complex-sum-whole.log`)
+reaches an executed BINARY-+ query. The tree inspection
+`c2-strict-sum-type-query.log` locates it in Subgoal 9.18 literal 1:
+`(< 0 (+ Y (REALPART X1)))` has a positive IF verdict; the sum call
+consumes two actual LOOKUP children with masks 14/14 and returns 14,
+with NIL computation/recognizer/bound routes and only fake type-set evidence.
+This is a positive-rational sum cell, distinct from the complex-sum query.
+
+Before the next query-cell edit, all four affected targets pass in
+`c2-partition-complex-sum-regression-build.log` (3149 jobs; arithmetic
+114s, positive 13s, contexts 26s, MOD 265s). Statics passed in
+`c2-complex-sum-static.log`. The positive-sum query consumer now reuses
+the existing primitive POSITIVE addition law and rational closure, retaining
+both executed child queries and the exact 14/14 → 14 record.
+
+The positive-sum query consumer builds (`c2-positive-sum-query-build.log`,
+3134 jobs). The complete actual IF query kernel-checks with accepted
+axioms; all nine negative controls reject, including each of the four
+actual premises, a missing child, and a changed sum result
+(`c2-positive-sum-query-controls.log`). A new whole-helper retry is running
+at the unchanged budget.
+
+Positive-sum statics pass (`c2-positive-sum-query-static.log`); the
+previous compound-lookup controls and six linear-insertion subtrees plus
+eight mutations pass again (`c2-positive-sum-compound-regression.log`,
+`c2-positive-sum-linear-regression.log`). The whole helper now reaches
+**REALPART-IMAGPART-ELIM at Subgoal 9.18'**
+(`c2-strict-helper-positive-sum-whole.log`). The current elimination walker
+accepts only CAR-CDR-ELIM. Its actual complex record replaces X1 with
+(COMPLEX R S), binds REALPART/IMAGPART to R/S, names both restricted vars,
+and emits a nonnumber guard child plus a component child with rationality,
+positive-real, and nonzero-imaginary restrictions. The source rule is the
+primitive `defaxiom` in `acl2/axioms.lisp:4403`; this is within the agreed
+complex migration and requires shared elimination support, not a hand proof
+of the multiplication helper. NS1 remains C2, 0/3 new mirrors.
+
+The focused `just replay-book sorting/msort` check passes all seven
+unconditional theorem rows (`c2-query-partition-msort-fast-gate.log`).
+Its informational standalone DP probes still print two assumed leaves;
+those brackets are not row conditions (see the lexicon). The final static
+batch passes (`c2-query-partition-final-static.log`). A regression invocation
+with incorrect `ACL2Lean.Tests.*` target names failed before compilation
+(`c2-query-partition-final-regression.log`); the corrected `Tests.*` build
+is recorded separately in `c2-query-partition-final-regression-rerun.log`.
+
+The next ELIM increment requires additional observation rather than
+Lean-side reconstruction of missing type history. In the actual ACL2
+`type-restriction-segment` call, each destructor is queried, its mask is
+converted to a formula, and the negated formula is clausified. The existing
+ELIM record retains only the fresh variable names and aggregate ttree.
+An isolated observer now retains the executed query, input type-alist,
+converted formula, and clause segment as STEP metadata, leaving the actual
+clause/ttree values unchanged. Its image and capture comparison are pending.
+
+The corrected final regression build passes **3149 jobs**: arithmetic 94s,
+positive 11s, contexts 22s, MOD 257s. Together with the static batch,
+focused msort replay, and the actual query/linear subtree kernel controls
+above, this supports an **intermediate fast-gate checkpoint only**. No full
+claim-gate or golden re-pin was performed for this increment; the strict
+helper remains at its recorded ELIM frontier and NS1 remains 0/3.

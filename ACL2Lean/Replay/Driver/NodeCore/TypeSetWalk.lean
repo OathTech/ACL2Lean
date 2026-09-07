@@ -715,13 +715,13 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
       if quotedInt? b == some 0 then
         out := out ++ [(1, ← mkExpectedTypeHint
           (← mkAppM ``inTs_times_zero_right #[← ctxValExpr cfg ctx a]) (← inTsTy 1))]
-    for (inMask, outMask, nm) in tsBinaryOf op.name do
+    for (leftMask, rightMask, outMask, nm) in tsBinaryOf op.name do
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
       let ctxB ← pinTermOpaques cfg cfg.envExpr ctxA b
       let vb ← ctxValExpr cfg ctxB b
-      match ← inTsFromCtx cfg ctxB localFacts citedCr a va inMask citedTp,
-            ← inTsFromCtx cfg ctxB localFacts citedCr b vb inMask citedTp with
+      match ← inTsFromCtx cfg ctxB localFacts citedCr a va leftMask citedTp,
+            ← inTsFromCtx cfg ctxB localFacts citedCr b vb rightMask citedTp with
       | some ha, some hb =>
         out := out ++ [(outMask, ← mkExpectedTypeHint
           (← mkAppM nm #[ha, hb]) (← inTsTy outMask))]
@@ -951,6 +951,22 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
           #[Lean.toExpr m, Lean.toExpr regTrueTs])
         (mkConst ``Bool.true))
       return some (← mkAppM lem #[hd, hv])
+  -- A verdict may need the intersection of several already checked
+  -- context facts. Reuse the mask-directed consumer: the helper's
+  -- non-rational and non-complex tests jointly establish mask -128.
+  -- The target remains ACL2's emitted mask; no new type is selected.
+  if argLeaves.isEmpty then
+    if let some ts := stepTs then
+      if (verdict == SExpr.t && tsSubsumedM ts regTrueTs) ||
+          (verdict == SExpr.nil && tsDisjointM ts regTrueTs) then
+        if let some hv ← inTsFromCtx cfg ctxA [] citedCr arg va ts citedTp then
+          if verdict == SExpr.t then
+            return some (← mkAppM lem #[← tsSubsumedProofM ts regTrueTs, hv])
+          else
+            let hd ← mkDecideProof (← mkEq
+              (← mkAppM ``tsDisjointM #[Lean.toExpr ts, Lean.toExpr regTrueTs])
+              (mkConst ``Bool.true))
+            return some (← mkAppM lem #[hd, hv])
   return none
 
 /-- The `(TRUE-LISTP …)` term and its CONS-peels, outermost first:

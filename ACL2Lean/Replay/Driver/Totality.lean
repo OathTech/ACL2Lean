@@ -9,6 +9,7 @@
 -/
 import ACL2Lean.Replay.Driver.Decrease
 import ACL2Lean.Replay.Driver.CitedTypePremises
+import ACL2Lean.Replay.Driver.ForwardChain.Context
 
 namespace ACL2.Replay.Driver
 
@@ -976,6 +977,17 @@ def replaySpineDischarge (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
   unless atEnd do
     throwError "replayClauseSpine: items remain after a whole-clause discharge at {idStr}"
   let ctx := { ctx with tauBasis := nodeTauBasis node }
+  let .node _ _ _ _ prov := node
+  if let some raw := prov.clauseContextBasis then
+    unless nodeOrigin node == "rewrite-clause/type-alist-contradiction" do
+      throwError "context basis on a different discharge origin"
+    let basis ← tsQueryRead (FcCapture.context raw)
+    unless basis.accumulator == accClause && basis.tail == allL &&
+        disjoinTerm (accClause ++ allL.drop 1 ++ basis.literals) == lhs do
+      throwError "context basis does not match the actual branch obligation"
+    if !basis.literals.isEmpty then
+      return ← replayFcContext cfg ctx accClause allL lhs raw (replayDischargeNode cfg)
+    unless basis.selected.isEmpty do throwError "empty FC suffix has selected sources"
   if lhs == disjoinTerm allL then return ← replayDischargeNode cfg ctx lhs
   if nodeOrigin node == "rewrite-clause/type-alist-contradiction" then
     if let some p ← contextDischargeExtend? cfg ctx idStr accClause allL lhs then return p

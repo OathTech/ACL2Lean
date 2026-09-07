@@ -6,9 +6,11 @@
   tied knot (replayClause/replayClauseSpine + clauseRec).
 -/
 import ACL2Lean.Replay.Driver.Waterfall.Compose
+import ACL2Lean.Replay.Driver.Waterfall.Conjunction
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReflexivity
 import ACL2Lean.Replay.Driver.Waterfall.LiteralVerdict
 import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
+import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
@@ -19,6 +21,11 @@ import ACL2Lean.Replay.Driver.Waterfall.Induction
 namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
+
+initialize registerTraceClass `ACL2.replaySpine
+
+private def traceSpinePhase {α : Type} (phase : String) (build : MetaM α) : MetaM α :=
+  withTraceNode `ACL2.replaySpine (fun _ => pure m!"{phase}") build
 
 /-- Replay a clause as its LITERAL SPINE: prove `EvTrue w env (disjoinTerm
     clauseLits)`. Items are walked STRUCTURALLY: each non-closing literal is
@@ -34,7 +41,13 @@ open ACL2 ACL2.Replay Lean Lean.Meta
 partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx) (idStr : String)
     (clauseLits : List (Nat × SExpr)) (items : List ClauseItem)
     (accClause : List SExpr) (children : List ClauseNode) :
-    MetaM Expr := do
+    MetaM Expr := withTraceNode `ACL2.replaySpine (fun _ => do
+      let item := match items.head? with
+        | some (.literal lp) => s!"literal {lp.index}"
+        | some (.step n) => s!"step {(runeOf n).ty}"
+        | some _ => "structural item"
+        | none => "end"
+      return m!"{idStr} {item}, {ctx.litFacts.length} literal facts") do
   match items with
   | .linearEquation info :: rest =>
     unless accClause.isEmpty do throwError "linear equation: insertion after partial literal scan at {idStr}"
@@ -742,60 +755,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           throwError "replayClauseSpine: branch-substitution shortening lift \
                       reconstructed {repr curL} / {repr curR} at {idStr}"
         let chainAll ← chainAfter chainOpt inner
-        -- DEDUP: the substitution can make literals identical to their
-        -- neighbors (remove-trivial-equivalences' add-literal dedup —
-        -- ORDERED-PERMS Subgoal 2's B ⇒ A); collapse each ADJACENT
-        -- duplicate frame (`re_if_dup_adjacent`), lifted through the
-        -- preceding else-descents. A non-adjacent duplicate is not
-        -- collapsed here — any residual mismatch still fails closed at the
-        -- consumer.
-        let mut dedupLits := shortened
-        let mut chainAll := chainAll
-        let mut remainingItems := rest
-        repeat
-          let adjacent := (List.range (dedupLits.length - 1)).filter fun i =>
-            i + 2 < dedupLits.length &&
-            (dedupLits[i]!).2 == (dedupLits[i+1]!).2
-          if adjacent.isEmpty then break
-          let .dedupDrop recorded :: nextItems := remainingItems
-            | throwError "replayClauseSpine: adjacent duplicate has no recorded removal at {idStr}"
-          let some i := adjacent.find? (fun i => (dedupLits[i]!).2 == recorded)
-            | throwError "replayClauseSpine: adjacent duplicate differs from recorded removal at {idStr}"
-          do
-            let l := (dedupLits[i]!).2
-            remainingItems := nextItems
-            let tailT := disjoinTerm ((dedupLits.drop (i+2)).map (·.2))
-            let ctxD ← pinTermOpaques cfg cfg.envExpr ctx
-              (disjoinTerm (dedupLits.map (·.2)))
-            let vl ← ctxValExpr cfg ctxD l
-            let hlp ← ctxValProof cfg ctxD l
-            let vr ← ctxValExpr cfg ctxD tailT
-            let hrp ← ctxValProof cfg ctxD tailT
-            let _ := vl; let _ := vr
-            let mut innerD ← mkAppM ``re_if_dup_adjacent
-              #[cfg.worldExpr, cfg.envExpr, reflectSExpr l, reflectSExpr quoteT,
-                reflectSExpr tailT, vl, hlp, vr, hrp]
-            let mut dupL : SExpr := .cons (.atom (.symbol { name := "IF" }))
-              (.cons l (.cons quoteT (.cons (SExpr.cons
-                (.atom (.symbol { name := "IF" }))
-                (.cons l (.cons quoteT (.cons tailT .nil)))) .nil)))
-            let mut dupR : SExpr := .cons (.atom (.symbol { name := "IF" }))
-              (.cons l (.cons quoteT (.cons tailT .nil)))
-            for (_, pl) in (dedupLits.take i).reverse do
-              let st : PathStep := { fn := { name := "IF" }, arity := 3,
-                                     argIdx := 2, siblings := [pl, quoteT] }
-              innerD ← applyStep cfg.worldExpr cfg.envExpr st dupL dupR innerD
-              dupL := rebuild st dupL
-              dupR := rebuild st dupR
-            let nextLits := (dedupLits.eraseIdx (i+1)).zipIdx.map
-              fun ((_, pl), j) => (j + 1, pl)
-            unless dupL == disjoinTerm (dedupLits.map (·.2)) &&
-                   dupR == disjoinTerm (nextLits.map (·.2)) do
-              throwError "replayClauseSpine: adjacent-dup collapse \
-                  reconstructed {repr dupL} / {repr dupR} at {idStr}"
-            chainAll ← mkAppM ``fuel_chain_eq #[chainAll, innerD]
-            dedupLits := nextLits
-        let pRest ←
+        let pRest ← replaySubstitutionDuplicates cfg ctx idStr (shortened.map (·.2)) rest fun reduced remainingItems => do
+          let dedupLits := reduced.zipIdx.map fun (l, i) => (i + 1, l)
           match children with
           | [child] =>
             if remainingItems.isEmpty && accClause.isEmpty &&
@@ -954,14 +915,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- litFacts and the walk re-enters (one fewer demand each time).
     let demanded := (lp.nodes.flatMap (collectContextDemands ctx.fcDerivs) ++
       lp.nodes.flatMap (collectDefBodyDemands cfg) ++
-      lp.ifMarkers.flatMap ifMarkerDemands).eraseDups
+      lp.ifMarkers.flatMap ifMarkerDemands ++ (← lp.ifMarkers.mapM ifQueryContextDemands).flatten).eraseDups
     -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
     -- class A: an env-crossed segFact leaked from a parent elim walk
     -- satisfies the UNCHECKED lookup, suppressing the hoist — and then the
     -- consumer's CHECKED lookup rightly refuses the same entry, stranding
     -- the replay. The unchecked/checked asymmetry is the same class the
     -- perm-lane audit's F8 fixed at the eqSources loop.)
-    let inScopeChecked : SExpr → MetaM Bool := fun t => do
+    let inScopeChecked : SExpr → MetaM Bool := fun t => traceSpinePhase "check context fact" do
       let ctxT ← pinTermOpaques cfg cfg.envExpr ctx t
       let vT ← ctxValExpr cfg ctxT t
       pure (← ctxT.litFactByTermChecked? t
@@ -1056,11 +1017,11 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       unless branchSegs.isEmpty do
         throwError "replayClauseSpine: branches after the closing literal \
                     {idx} at {idStr} (frontier)"
-      let pclose ← replayLiteral cfg ctx lp
+      let pclose ← traceSpinePhase "closing rewrite chain" <| replayLiteral cfg ctx lp
       closeOnTrueLit cfg lp.literal (restLits.map (·.2)) pclose
     else
       -- the literal's rewrite chain: literal ⇒ result
-      let (chainOpt, finalT) ←
+      let (chainOpt, finalT) ← traceSpinePhase "rewrite chain" <|
         if !lp.boundaryVerdicts.isEmpty && lp.notFlg && lp.result == quoteNil then do
           let (p, t) ← replayNegatedAtomBoundary cfg ctx lp
           pure (some (p, false), t)
@@ -1215,8 +1176,9 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                           ({outcome}, {repr lv}) at {idStr}"
           | [] => pure ()  -- no trace (synthetic/legacy log): tolerated
           | leaves =>
-            throwError "replayClauseSpine: literal {idx} has {leaves.length} \
-                        trace leaves but no split test at {idStr}"
+            unless leaves.length == 2 && !lp.conjunctions.isEmpty do
+              throwError "replayClauseSpine: literal {idx} has {leaves.length} trace leaves but no split test at {idStr}"
+            checkSubsumedConjunction cfg ctx lp seg
           pure (cont, segL)
         | [] =>
           throwError "replayClauseSpine: non-closing literal {idx} with no \
@@ -1270,6 +1232,14 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           let ctx ← pinTermOpaques cfg cfg.envExpr ctx lp.result
           let vLit ← ctxValExpr cfg ctx lp.literal
           let pLit ← ctxValProof cfg ctx lp.literal
+          let (ch, chIff) ← match chainOpt with
+            | some ch => pure ch
+            | none => do
+              unless lp.literal == lp.result do
+                throwError "replayClauseSpine: changed conjunction without a rewrite chain at {idStr}"
+              -- An unchanged recorded literal still has a clausify split.
+              -- Its transport is identity; both child paths remain below.
+              pure (← mkIdFuelEq cfg lp.literal, false)
           -- LAST-literal conjunction: both conjunct clauses were PUSHED as
           -- children — peel each to its conjunct's truth; both truthy makes
           -- the literal's AND-value truthy, closing the singleton spine.
@@ -1296,9 +1266,6 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             let hCond ← mkAppM ``cond_true_val
               #[vR, mkConst ``SExpr.nil, hbT]
             let pRes ← ctxValProof cfg ctx lp.result
-            let some (ch, chIff) := chainOpt
-              | throwError "replayClauseSpine: conjunction literal without a \
-                  rewrite chain at {idStr} (internal)"
             let hNe ←
               if chIff then do
                 -- IFF chain: the result's truthy AND-value transports back
@@ -1318,9 +1285,6 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             mkLambdaFVars #[h] p
           let eqTy ← mkEq vLit (mkConst ``SExpr.nil)
           let mkElseBodyC (h : Expr) : MetaM Expr := do
-            let some (ch, chIff) := chainOpt
-              | throwError "replayClauseSpine: conjunction literal without \
-                  a rewrite chain at {idStr} (internal)"
             let vRes ← ctxValExpr cfg ctx lp.result
             let pRes ← ctxValProof cfg ctx lp.result
             -- hRes : v(IF L R 'NIL) = nil, i.e. cond (toBool vL) vR nil = nil
@@ -1331,7 +1295,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                 let vEq ← mkAppM ``val_eq_of_eval_eq #[ch, pLit, pRes]
                 mkAppM ``Eq.trans #[← mkAppM ``Eq.symm #[vEq], h]
             let vL ← ctxValExpr cfg ctx L
-            let branch (conjTerm : SExpr) (conjNil : Expr)
+            let branch (ctx : ReplayCtx) (conjTerm : SExpr) (conjNil : Expr)
                 (cont : List ClauseItem) (segL : List SExpr) : MetaM Expr := do
               let ctx' := { ctx with
                 litFacts := ctx.litFacts ++ [(idx, conjTerm, conjNil)] }
@@ -1340,12 +1304,15 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
                 accClause' children
             let nilTyL ← mkEq vL (mkConst ``SExpr.nil)
             let negL ← withLocalDeclD `hL nilTyL fun hL => do
-              mkLambdaFVars #[hL] (← branch L hL contL segLLits)
+              mkLambdaFVars #[hL] (← branch ctx L hL contL segLLits)
             let posL ← withLocalDeclD `hL (← mkAppM ``Ne
                 #[vL, mkConst ``SExpr.nil]) fun hL => do
               let hbTrue ← mkAppM ``toBool_true_of_ne_nil #[hL]
               let hRnil ← mkAppM ``cond_true_nil_forces_r #[hRes, hbTrue]
-              mkLambdaFVars #[hL] (← branch R hRnil contR segRLits)
+              -- Preserve the case hypothesis used to reach the right
+              -- conjunct; later recorded type-set steps may need it.
+              let ctxL := { ctx with branchFacts := ctx.branchFacts ++ [(L, vL, true, hL)] }
+              mkLambdaFVars #[hL] (← branch ctxL R hRnil contR segRLits)
             (try mkAppM ``Classical.byCases #[negL, posL]
               catch e => throwError "byCases compose failed at {idStr}:\nnegL : {← Lean.Meta.inferType negL}\nposL : {← Lean.Meta.inferType posL}\n{e.toMessageData}")
           -- SINGLETON spine (G1 inc-2c): the goal is the BARE literal —

@@ -502,6 +502,8 @@ structure ReplayCtx where
       DP-obligation premise (max-term-matched instantiation); kept as an
       honest D6 condition until an Imported-side discharger proves it. -/
   linearHyps : List (LinearRuleSpec × Expr) := []
+  /-- Ordinary stored FC implications, discharged from the source book's proof. -/
+  fcHyps : List (FcRuleSpec × Expr) := []
   /-- Congruence-rule hypotheses (`cong:<thm>`, G2 rung 2): per
       congruence-shaped in-scope defthm, the spec and the bound hypothesis
       stating its whole-formula replayed statement (`mkCongHypType`). Consumed by the
@@ -1290,6 +1292,8 @@ partial def boolDisj? (cfg : ReplayConfig) (ctx : ReplayCtx) (t : SExpr) :
     return some (← mkAppM ``logic_lt_t_or_nil #[v.appFn!.appArg!, v.appArg!])
   if v.isAppOfArity ``Logic.integerp 1 then
     return some (← mkAppM ``logic_integerp_t_or_nil #[v.appArg!])
+  if v.isAppOfArity ``Logic.rationalp 1 then
+    return some (← mkAppM ``logic_rationalp_t_or_nil #[v.appArg!])
   if v.isAppOfArity ``Logic.not 1 then
     return some (← mkAppM ``logic_not_range #[v.appArg!])
   match t with

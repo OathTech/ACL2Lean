@@ -381,9 +381,10 @@ authoritative.
   `RuleSpec.backchainLimit` (gz snapshots: tracked follow-up).
 - **conjunction split**: `(:CLAUSIFY-CONJUNCTION :LEFT p :RIGHT q)` at
   strip-branches' and-shape (the ORDEREDP-ISORT pin). Parsed;
-  flattened out of the decision stream (documented — reproduces the
-  pre-marker trace exactly, zero corpus drift); the spine consumer
-  that READS it is the tracked follow-up (P8). Build note: the
+  retained separately from the decision stream in `LiteralProof.conjunctions`.
+  NS1's diagnostic subsumed-union consumer reads the call and both leaves;
+  the older two-open-leaf arm still uses its leaf checks. Nested conjunction
+  calls remain a follow-up (P8). Build note: the
   raw-code coverage check required registering strip-branches in
   *initial-program-fns-with-raw-code*.
 - Also: the S1.1/S1.2 events (:EVENT-FAILED, :FORCING-ROUND,
@@ -731,6 +732,21 @@ No pattern books exist yet — authoring them is the arc's work.
 
 ## Clause/waterfall patterns
 
+### P12 — recorded duplicate removal after substitution
+- source: `acl2/simplify.lisp`, `add-literal-and-pt`'s `member-term`
+  branch, called while `subst-equiv-and-maybe-delete-lit` rebuilds the tail.
+- axes: adjacent or separated occurrences; multiple recorded drops;
+  remaining inline continuation or pushed child. The earlier occurrence
+  is removed, retaining the occurrence already in the rebuilt tail.
+- anchors: HOW-MANY-SMALLER-BNEXT *1/4.5; NS1's unchanged Kestrel
+  `<=-OF-*-AND-*-SAME-HELPER`, Subgoal 7'' (X2 := X1 makes two
+  separated copies of `(< X1 X1)`).
+- status: actual NS1 insertion subtrees kernel-check with the ordered
+  `DEDUP-DROP` consumer and clause-membership transport. Missing or changed
+  drops and a deleted continuation child are rejected; the whole helper
+  remains incomplete. Receipts are in the
+  [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
+
 ### P6 — induction clean-up (trivial-clause drops)
 - source: `acl2/induct.lisp:7047` → `trivial-clause-p`
   (simplify.lisp:6808) → `tautologyp`/`if-tautologyp`
@@ -756,10 +772,15 @@ No pattern books exist yet — authoring them is the arc's work.
 - source: `acl2/rewrite.lisp:4318` (`(IF p q 'NIL)` unions the two
   sides' clause sets — NO if-interp test event).
 - axes: and-shape at literal root; nested and-shapes; and-shape whose
-  p side itself splits.
-- anchor: ORDEREDP-ISORT (Subgoal *1.1/3').
-- books: none yet. status: EMISSION-PENDING (fork queue: emit a
-  conjunction-split event), then a spine-walker arm.
+  p side itself splits; a false conjunct whose empty segment subsumes its
+  sibling's open segment.
+- anchor: ORDEREDP-ISORT (Subgoal *1.1/3'); NS1's unchanged Kestrel
+  `<=-OF-*-AND-*-SAME-HELPER` (Subgoal 9').
+- books: the existing `p3-conj-mid-literal` pin below. Status: emitted;
+  two open leaves compose. The NS1 subsumed-union consumer checks its actual
+  conjunction call, both leaves, subsumption marker, and existing falsity;
+  focused controls pass, whole helper replay remains incomplete. See the
+  [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
 
 ### P9 — FC-derived type-alist facts
 - source: forward-chaining rules feeding the type-alist

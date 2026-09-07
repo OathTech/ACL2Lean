@@ -1,6 +1,7 @@
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericMultiplication
+import ACL2Lean.NumericComponents
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -56,6 +57,35 @@ partial def introDpRationalValues (g : MVarId) : MetaM (MVarId × Bool) := do
   let (g, _) ← introDpRationalValues (← Lean.Meta.subst sub.mvarId sub.fields[1]!.fvarId!)
   return (g, true)
 
+/-- Substitute a value fixed by two opposite bounds before multiplying or
+splitting unrelated Boolean premises. This is deterministic linear
+normalization inside an emitted DP leaf: each iteration removes one value
+binder, and every equality is constructed by ordered antisymmetry. -/
+private partial def substOppositeBounds (g : MVarId) : MetaM MVarId := g.withContext do
+  let mut bounds : List (Expr × Expr × Expr) := []
+  for d in ← getLCtx do
+    if d.isImplementationDetail then continue
+    let ty ← instantiateMVars d.type
+    if ty.isAppOfArity ``Not 1 && ty.appArg!.isAppOfArity ``LT.lt 4 then
+      let args := ty.appArg!.getAppArgs
+      let p ← mkAppM ``le_of_not_gt #[mkFVar d.fvarId]
+      bounds := (args[3]!, args[2]!, p) :: bounds
+    else if ty.isAppOfArity ``LE.le 4 then
+      let args := ty.getAppArgs
+      bounds := (args[2]!, args[3]!, mkFVar d.fvarId) :: bounds
+  for (a, b, hab) in bounds do
+    unless a.isFVar && !(b.containsFVar a.fvarId!) do continue
+    for (c, d, hba) in bounds do
+      unless a == d && b == c do continue
+      let p ← mkAppM ``le_antisymm #[hab, hba]
+      let g ← g.assert `hOppositeBounds (← inferType p) p
+      let (fv, g) ← g.intro1P
+      return ← substOppositeBounds (← Lean.Meta.subst g fv)
+  return g
+
+elab "subst_dp_rational_bounds" : tactic =>
+  Lean.Elab.Tactic.liftMetaTactic fun g => do return [← substOppositeBounds g]
+
 /-- Primitive rational comparison normalization for recorded verdict leaves.
 Sums and negations normalize through numberParts. Boolean comparisons
 are simplified propositionally before splitting to avoid enumerating
@@ -67,13 +97,17 @@ def dpRationalViewTactic : MetaM (TSyntax `tactic) :=
       Logic.toBool_eq_false, SExpr.t, reduceCtorEq, Logic.equal_ne_nil_iff,
       logic_not_equal_nil_iff, Logic.equal_nil_iff, fromRatZero, fromRatNeZero]) <;>
     (try simp_all only [Logic.lt_parts, Logic.times_parts, Logic.plus_parts, Logic.neg_parts,
-      Logic.numberParts_mkParts, Logic.numberParts_fromRat]) <;>
+      Logic.numberParts_mkParts, Logic.numberParts_fromRat,
+      Logic.numberParts_realpart, Logic.numberParts_imagpart]) <;>
     (simp_all only [show Logic.numberParts (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from (by decide),
       Prod.fst, Prod.snd, Rat.mul_zero, Rat.zero_mul, Rat.add_zero, Rat.sub_eq_add_neg, Rat.neg_zero,
       Rat.lt_irrefl, and_false, or_false]) <;>
     (simp_all only [ne_eq, Logic.not_nil_iff, Logic.toBool_eq_true,
       ite_eq_left_iff, ite_eq_right_iff, SExpr.t, reduceCtorEq,
       imp_false, not_false_eq_true, not_true_eq_false, not_not]) <;>
+    subst_dp_rational_bounds <;>
+    (try simp_all only [Rat.mul_zero, Rat.zero_mul, Rat.add_zero, Rat.zero_add,
+      Rat.lt_irrefl, and_false, or_false, not_false_eq_true]) <;>
     (try split_ifs at *) <;>
     (try simp_all only [Logic.toBool, Logic.not, SExpr.t, reduceCtorEq,
       ite_true, ite_false, not_false_eq_true, fromRatNeZero]) <;>
@@ -87,7 +121,8 @@ def closeDpRationalValues (g : MVarId)
     (close : MVarId → MetaM (List MVarId)) : MetaM Bool := g.withContext do
   let mv ← mkFreshExprMVar (← g.getType)
   let (view, changed) ← introDpRationalValues mv.mvarId!
-  unless changed do return false
+  unless changed || ((← g.getType).find? (fun e =>
+      e.isConstOf ``Logic.realpart || e.isConstOf ``Logic.imagpart)).isSome do return false
   let remaining ← close view
   unless remaining.isEmpty do return false
   g.assign (← instantiateMVars mv)
