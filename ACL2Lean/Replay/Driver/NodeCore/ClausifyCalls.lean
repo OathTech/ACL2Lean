@@ -71,12 +71,13 @@ def replayClausifyCall (cfg : ReplayConfig) (ctx : ReplayCtx)
   mkAppM ``fuel_eq_of_conv #[inputConv, outputConv, valueProof]
 
 /-- Consume every recorded call in order during the literal's actual bottom-up
-CALL traversal. This lane disables legacy assumption reconstruction: the selected
-record is the only source of each assumption fold. Unused records fail. -/
+CALL traversal. A present record, including an empty one, disables legacy
+assumption reconstruction: the selected record is the only source of each
+assumption fold. Unused records fail. -/
 def collapseWithCallAssumptions (cfg : ReplayConfig) (ctx : ReplayCtx)
     (facts : List (SExpr × Expr × Bool × Expr)) (term : SExpr)
-    (calls : List ClausifyCallAssumption) : MetaM (Option Expr × SExpr) := do
-  if calls.isEmpty then return ← collapseEval cfg ctx facts term
+    (calls : Option (List ClausifyCallAssumption)) : MetaM (Option Expr × SExpr) := do
+  let some calls := calls | return ← collapseEval cfg ctx facts term
   let pending ← IO.mkRef calls
   let consume := fun input => do
     let call :: rest ← pending.get | return none

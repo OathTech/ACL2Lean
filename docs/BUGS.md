@@ -30,6 +30,28 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-059 — empty clausify call records activate legacy assumption folds
+Status: open
+Pinned-by: none (actual minus-book replay mismatch)
+
+The parser represents both an absent CALL-ASSUMPTIONS field and an emitted
+empty list as `[]`. The consumer therefore activates legacy context
+reconstruction for a recorded traversal with no successful assumption calls.
+In INTEGERP-OF-- and RATIONALP-OF--, Subgoal 2's second literal, it replaces
+the nested recognizer of X with NIL; ACL2's leaf retains that recognizer.
+The exact leaf check rejects (`c2-minus-negation-frontiers.log`).
+
+Diagnostic source `rewrite.lisp` distinguishes unchanged PUSH terms in
+`if-compile` (3336–3433) from CALL rebuilding in `call-stack` (3973 onward).
+The leaf observer records the actual call list, including NIL. Preserve its
+presence through parsing and tree reconstruction, and select the recorded
+consumer even for the empty list. Only genuinely absent legacy fields may
+use the pre-existing fallback. Both actual composer chains now kernel-check
+with accepted axioms; deleting the field reproduces their mismatches
+(`c2-clausify-empty-call-controls.log`). The 24 bootstrap/component dependency
+replays and affected builds pass. Full integration remains open; the whole
+minus proofs now reach their separate verdict-leaf frontiers.
+
 ## BUG-058 — clausify cleanup omits its selected clause reductions
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)

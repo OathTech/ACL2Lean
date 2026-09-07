@@ -5225,3 +5225,61 @@ two checked verdicts**, replay-executable build **6288 jobs**)
 `c2-primitive-ranges-affected-build.log`, `c2-primitive-ranges-static.log`,
 `c2-primitive-ranges-equality-replay.log`). This is an intermediate
 **fast-gate** increment; no new full gate or native mirror is claimed.
+
+
+### C2 empty clausify call records and minus dependencies (2026-09-07)
+
+The unchanged minus prefix now captures **6/6** selected theorem events at
+clean diagnostic producer `df7a28e38c`. Artifact
+`.tmp/ns1/c2-minus-dependency-capture/minus.proof-log`, SHA-256
+`149eedd2dc2b8efd8361a567c09d43ce409b7478e9393f847d4e703aae5f03ff`;
+source SHA remains the value recorded above. Runner rebuild after capture
+passes **3150 jobs** (`c2-minus-dependency-runner-build.log`). The actual
+reconstructed trees are in `c2-minus-dependency-trees.log`.
+
+INTEGERP-OF-- and RATIONALP-OF-- initially fail at Subgoal 2's second
+literal: the consumer replaces its nested recognizer of X with NIL, while
+ACL2's leaf retains it. The parser discarded the distinction between an
+absent CALL-ASSUMPTIONS field and a present empty list. The latter then
+activated legacy assumption reconstruction. This is BUG-059. Retain the
+optional list through the event, split decision and trace tree; a present
+empty list now selects the same recorded-call consumer as a nonempty list,
+with no licensed assumption folds. Genuinely absent legacy records keep
+the existing fallback. No producer or generated artifact is changed.
+
+Both actual composer chains kernel-check with accepted axioms, and deleting
+their emitted empty-list field reproduces the exact leaf mismatch
+(`c2-clausify-empty-call-controls.log`). The previous **six actual
+assumption calls / 48 mutations** and **five malformed parser controls**
+remain checked (`c2-clausify-empty-calls-exact-controls.log`,
+`c2-clausify-empty-calls-parser-controls.log`). All **24 prerequisite
+replays remain unconditional** (`c2-clausify-empty-calls-component-regression.log`).
+Whole minus replay crosses the repaired composer, then reaches one
+unhandled RATIONALP-OF-- verdict and five equality-of-negation verdicts
+(`c2-minus-negation-empty-calls.log`). No complete minus result is claimed
+except the independently checked --OF-- declaration, **2665 ms** in that run.
+The INTEGERP companion also retains its ordinary self-named rule condition;
+it is not required by the two selected component dependencies.
+
+A further diagnostic uses full `initialize-acl2 nil` with only the
+DEFAULT-UNARY-MINUS output window selected, preserving the original event,
+proof settings and hints. Initialization succeeds and the producer remains
+clean (`c2-bootstrap-minus-default-capture.log`). The raw/transcoded archives,
+source hashes and initializer receipt live in
+`.tmp/ns1/c2-bootstrap-minus-default-capture/`; the decompressed log SHA-256
+is `1b7e83e7a486b27a2741ef7e11c3d503cb6ce0338ee6d15c0e5a4672b92e7a3b`.
+Its actual tree consists of a recorded preprocess/type-set verdict; replay
+currently leaves that verdict open (`c2-minus-default-tree.log`,
+`c2-minus-default-negation.log`). Ordinary bootstrap content must still
+enter by replay. Subsequent numeric normalization prototypes are diagnostics,
+not registered dependency declarations.
+
+Core build passes **3150 jobs** after two compile repairs for consumers of
+the changed optional-list type (`c2-clausify-empty-calls-build-final.log`).
+Affected builds pass **3167 jobs**, statics cover **276 sources**, and
+focused equality remains **3/3 unconditional plus two checked verdicts**
+(`c2-clausify-empty-calls-affected-build.log`,
+`c2-clausify-empty-calls-static.log`,
+`c2-clausify-empty-calls-equality-replay.log`). These are intermediate
+**fast-gate** receipts. BUG-059's full integration check, all three new
+mirrors, and a fresh full gate remain open.

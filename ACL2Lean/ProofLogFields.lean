@@ -90,12 +90,13 @@ def parseClausifyPath (s : SExpr) : Except String (List (Bool × SExpr)) := do
     | .cons (.atom (.keyword "F")) test => pure (false, test)
     | e => throw s!"clausify :PATH entry is not (:t/:f . test): {repr e}"
 
-/-- Parse each recorded NOT call without accepting malformed or partial plists. -/
+/-- Parse each recorded NOT call without accepting malformed or partial plists.
+An emitted empty list excludes assumption folds; it is not legacy missing data. -/
 def parseClausifyCalls (value : Option SExpr) :
-    Except String (List ClausifyCallAssumption) := do
-  let some value := value | return []
+    Except String (Option (List ClausifyCallAssumption)) := do
+  let some value := value | return none
   let some rows := value.toList? | throw "CLAUSIFY-LEAF: CALL-ASSUMPTIONS is not a list"
-  rows.mapM fun row => do
+  let calls ← rows.mapM fun row => do
     let some fields := row.toList? | throw "clausify call: record is not a plist"
     let rec validate : List SExpr → List String → Except String Unit
       | [], seen => unless seen.length == 6 do throw "clausify call: missing field"
@@ -121,6 +122,7 @@ def parseClausifyCalls (value : Option SExpr) :
       value
       basis := ← get "BASIS"
       path := ← parseClausifyPath (← get "PATH") }
+  return some calls
 
 /-- Parse the selected reductions attached to one cleanup marker. Missing
 fields identify legacy captures; present records must be complete. -/

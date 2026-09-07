@@ -1071,7 +1071,8 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"
         | _ => false
-      if hasSplit || lp.splitTrace.any (fun | .leaf _ _ _ _ cs _ => !cs.isEmpty | _ => false) then
+      if hasSplit || lp.splitTrace.any (fun
+          | .leaf _ _ _ _ cs _ => !(cs.getD []).isEmpty | _ => false) then
         -- W3: the assume-true-false composer. Post-pass reshaping (the
         -- Satriani REPLACEMENT, the subsumption loop) is transparent to the
         -- LEAF-driven composer: branch selection is by derivable segment

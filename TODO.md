@@ -47,7 +47,8 @@ charter or the archive carry the record.
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Integrate the selected Satriani/subsumption reductions (BUG-058). Close
       the ordinary negation, product-sign, and cancellation dependencies of
-      7'/6': replay minus.lisp's RATIONALP-OF-- and
+      7'/6': integrate empty clausify call records (BUG-059); close the
+      recorded verdicts in DEFAULT-UNARY-MINUS, RATIONALP-OF-- and
       EQUAL-OF---WHEN-VARIABLE, then stage IMAGPART-OF-- before REALPART-OF--.
       Consume the BOOLEANP comparison/IF queries and the recorded deletion
       in cancellation's linear-substitution continuation. Decompose the whole

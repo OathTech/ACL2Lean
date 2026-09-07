@@ -537,7 +537,7 @@ inductive TraceEvent where
       the converter drops literals subsumed by an assumed constant equality). -/
   | clausifyLeaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
       (segment : Option (List SExpr))
-      (calls : List ClausifyCallAssumption := [])
+      (calls : Option (List ClausifyCallAssumption) := none)
   /-- Fired-marker (emit/if-interp/satriani-fired,
       emit/clausify/subsumption-loop-fired): a post-pass RESHAPED the segment
       set beyond the decision trace. New captures retain the selected

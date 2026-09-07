@@ -334,7 +334,7 @@ partial def collectOperandQueryDemands (node : ProofNode) : MetaM (List ContextD
 
 /-- Demand exactly the selected source of each emitted clausify call. -/
 def clausifyCallDemands (lp : LiteralProof) : MetaM (List ContextDemand) := do
-  let calls := lp.splitTrace.flatMap fun | .leaf _ _ _ _ cs => cs | _ => []
+  let calls := lp.splitTrace.flatMap fun | .leaf _ _ _ _ cs => cs.getD [] | _ => []
   if !calls.isEmpty && (lp.result == quoteT || lp.literal == quoteT ||
       lp.nodes.any (fun n => (runeOf n).ty == "type-set")) then
     throwError "clausify call: record after a literal closer (frontier)"

@@ -189,7 +189,7 @@ inductive SplitDecision where
       constructed for this leaf — the exact leaf→child-clause link. -/
   | leaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
       (segment : Option (List SExpr))
-      (calls : List ClausifyCallAssumption := [])
+      (calls : Option (List ClausifyCallAssumption) := none)
       (reductions : Option (List ClausifyReduction) := none)
   deriving Repr, Inhabited, BEq
 

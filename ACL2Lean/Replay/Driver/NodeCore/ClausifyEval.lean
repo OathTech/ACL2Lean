@@ -13,7 +13,7 @@ inductive TraceTree where
   /-- `segment` (segment-* outcomes): the EMITTED clause segment for this
       leaf — the exact leaf→branch link the composer selects by. -/
   | leaf (value : SExpr) (outcome : String) (segment : Option (List SExpr))
-      (calls : List ClausifyCallAssumption := [])
+      (calls : Option (List ClausifyCallAssumption) := none)
       (reductions : Option (List ClausifyReduction) := none)
   | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
   /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
@@ -39,7 +39,7 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
     unless p == path do
       throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
                {repr path}"
-    for call in calls do
+    for call in calls.getD [] do
       unless call.path == path do
         throw "parseTraceTree: call assumption path differs from its leaf (frontier)"
     -- ∧-DECOMPOSITION (observed: ALL-REL-FILTER-1 literal 2): on a term
@@ -57,10 +57,10 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
       | .leaf _ _ p' _ _ _ :: _ => p' == path
       | [] => false
     if o == "segment-open" && nextSamePath then
-      unless calls.isEmpty do
+      unless (calls.getD []).isEmpty do
         throw "parseTraceTree: call assumptions before conjunction continuation (frontier)"
       let (k, rest') ← parseTraceTree path rest
-      return (.split v (.leaf quoteNil "segment-false" seg [] reductions) k, rest')
+      return (.split v (.leaf quoteNil "segment-false" seg calls reductions) k, rest')
     return (.leaf v o seg calls reductions, rest)
 
 /-- Follow the actual later reductions of this generated segment, in emitted

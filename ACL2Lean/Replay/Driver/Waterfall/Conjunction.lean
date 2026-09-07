@@ -27,7 +27,8 @@ def checkSubsumedConjunction (cfg : ReplayConfig) (ctx : ReplayCtx)
   for (term, decision) in [(left, a), (right, b)] do
     let .leaf value outcome path emittedSegment calls _ := decision
       | throwError "conjunction union: conjunct has an unhandled decision tree"
-    unless calls.isEmpty do throwError "conjunction: call assumptions require the split composer"
+    unless (calls.getD []).isEmpty do
+      throwError "conjunction: call assumptions require the split composer"
     unless value == term && path.isEmpty do
       throwError "conjunction union: conjunct value or path changed"
     if outcome == "segment-open" then

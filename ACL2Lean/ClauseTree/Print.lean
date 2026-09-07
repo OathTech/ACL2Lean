@@ -66,7 +66,7 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
         printProofNodes lp.nodes rwIndent
       for decision in lp.splitTrace do
         if let .leaf _ _ _ _ calls := decision then
-          for call in calls do
+          for call in calls.getD [] do
             IO.println s!"{pad}  │      clausify call: {call.input} ⇒ {call.output}"
             IO.println s!"{pad}  │        query {call.query}, value {call.value}, path {repr call.path}"
             IO.println s!"{pad}  │        selected assumption: {call.basis}"
