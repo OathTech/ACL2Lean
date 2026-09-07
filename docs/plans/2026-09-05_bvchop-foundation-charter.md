@@ -4829,3 +4829,65 @@ brackets remain (`c2-unhide-selection-equality-replay.log`,
 `c2-unhide-selection-rev-replay.log`). Executable build: **6288 jobs**.
 This is an intermediate **fast-gate** checkpoint; the last full-suite and
 21-product receipts are unchanged.
+
+
+### C2 complete component-product diagnostic dependencies (2026-09-07)
+
+All six selected component-product declarations now replay unconditionally
+at the quotient consumer world: IMAGPART-OF-*-OF-I, both imaginary rational
+argument rules, REALPART-OF-*-OF-I, and both real rational argument rules.
+Their registered declarations carry accepted axiom receipts, alongside the
+six bootstrap declarations and supporting component/SPLIT/commutativity
+proofs (`c2-component-products-completed-final.log`). The source trees,
+statements and hints are unchanged. Production provenance/promotion and
+all three BVCHOP mirrors remain open.
+
+The last imaginary ARG1 obstruction was its actual Goal'' branch verdict,
+`rewrite-clause/type-alist-contradiction`: when Y is not a number,
+`IMAGPART(X * Y) = X * IMAGPART(Y)`. The emitted obligation quantifies two
+values and needs no rational-X premise. Existing primitive multiplication
+and component completion close its prototype in **6 ms**, with accepted
+axioms (`c2-imagpart-product-completion-leaf-final.log`). The production
+normalizer now applies that existing multiplication completion law before
+component/sum expansion. Its reflexive zero residue closes before a later
+`simp_all` that otherwise reports no progress. The production proof checks
+in **308 ms** (`c2-component-product-completion-production-final.log`).
+No primitive semantics or resource limits changed.
+
+The initial prototype left `IMAGPART(0) = 0` until its final reflexive proof
+was added. The first production attempt applied multiplication completion
+but still failed at the later no-progress simplification; its whole-product
+probe retained the previous conditions. Those are failed/conditional
+receipts (`c2-imagpart-product-completion-leaf.log`,
+`c2-component-product-zero-normalizer.log`,
+`c2-component-products-completed.log`). The final checked route restores the
+ordinary proof chain through the actual component dependencies, without a
+hand proof of any ordinary product theorem. Core build passes **3150 jobs**
+(`c2-component-product-completion-residue-build.log`). Affected builds,
+focused replay and the strict-helper measurement follow before this
+intermediate fast-gate commit.
+
+Strict-helper Subgoals **9.12, 9.18' and 9.17** now replay unconditionally,
+with accepted axiom receipts (`c2-strict-with-complete-components.log`). The
+whole helper remains incomplete: the recorded known-true recognizer query
+`COMPLEX-RATIONALP(X1 + -X2)` cannot yet be discharged from rational X1 and
+complex X2. The same capture contains this marker in Subgoals 7' and 6',
+with argument/true mask **64** and false mask **-65**
+(`c2-strict-complex-difference-relief.log`). The existing binary primitive
+registry covers rational-plus-complex; the unary registry lacks complex
+negation. ACL2's `type-set-unary--` explicitly maps the complex-rational bit
+to itself (`type-set-b.lisp:2771–2791`). That recorded primitive cell, not a
+new hypothesis-proving mechanism, is the next measured frontier. The probe
+prints the whole-helper failure and only prints axiom receipts for the
+three successful subtree declarations.
+
+Affected targets pass **3167 jobs**, and statics pass with **276 reachable
+sources** (`c2-component-product-completion-affected-build.log`,
+`c2-component-product-completion-static.log`). Focused equality replay follows
+before this increment's fast-gate commit. No new full-suite or mirror claim.
+
+Focused equality-reasoning replay passes **3/3 unconditionally**, with both
+DP leaves checked, after the **6288-job** executable build
+(`c2-component-product-completion-equality-replay.log`). This is a fast-gate
+checkpoint; all three BVCHOP mirrors and production capture integration
+remain open.

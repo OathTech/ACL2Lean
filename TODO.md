@@ -45,19 +45,16 @@ charter or the archive carry the record.
       helpers after their CASES/conjunction and numeric-context repairs; validate
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
-      Consume the combined linear capture's numeric queries and direct zero rows;
-      close the remaining real-product rule condition of strict-helper Subgoals
-      9.12 and 9.18', and the two component-product rule conditions of 9.17.
+      Finish the strict helper's recorded complex-difference queries at Subgoals
+      7' and 6': the unary type-set registry lacks negation's 64-to-64 cell.
+      Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer
       (BUG-056) with its verified source route. Integrate the scoped six-theorem
       bootstrap capture's source/proof provenance. Capture and consume the
       diagnostic comparison book's now-unconditional 4/4 declarations and
-      their capture route into the required dependency chain. Close the
-      strict helper's remaining component rules. Promote the recorded
-      literal-retention route (BUG-055). Use the now-unconditional six bootstrap
-      declarations and three supporting
-      declarations to close the remaining ordinary component-product dependencies
-      (ARG1 follows the now-unconditional IMAGPART-OF-*-OF-I). Promote the
+      their capture route into the required dependency chain. Integrate the
+      complete bootstrap and six component-product diagnostic proofs. Promote
+      the recorded literal-retention route (BUG-055) and the
       selected HIDE observer and capture (BUG-057). Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
