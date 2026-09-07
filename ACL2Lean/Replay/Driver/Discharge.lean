@@ -802,6 +802,13 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
           show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
           Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> (try rfl) <;> $normalizeTac:tactic)
     else pure normalizeTac
+  -- A component-negation equality can normalize directly from its numeric
+  -- guards. Try that conclusion before recursive equality premises reach
+  -- the context-wide component attempts (IMAGPART-OF--'s linear verdict).
+  let normalizeTac ← if withComplexValues && withNegation then do
+    let goalTac ← dpComponentGoalTactic
+    `(tactic| first | (solve | $goalTac:tactic) | $normalizeTac:tactic)
+    else pure normalizeTac
   -- The strict helper's component-sign contradiction must close before
   -- representation changes or the other component normalization attempts.
   let normalizeTac ← if withComplexValues && withComparison && withNegation then do

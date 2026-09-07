@@ -3,6 +3,7 @@ import ACL2Lean.NumericReciprocal
 import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericComponents
+import ACL2Lean.NumericNegation
 
 namespace ACL2.Replay
 open ACL2
@@ -28,6 +29,20 @@ theorem inTs_acl2Numberp {v : SExpr} (h : Logic.acl2Numberp v = .t) : InTs 127 v
 TYPESET 126 and TRUETS 127. Its primitive numeric range suffices. -/
 theorem inTs_reciprocal_number (v : SExpr) : InTs 127 (Logic.reciprocal v) :=
   inTs_acl2Numberp (Logic.acl2Numberp_reciprocal v)
+
+/-- The component-negation proofs record ACL2-NUMBERP(-X), mask 127,
+without restricting X. Primitive negation completes nonnumbers to zero. -/
+theorem inTs_neg_number (v : SExpr) : InTs 127 (Logic.neg v) := by
+  apply inTs_acl2Numberp
+  rw [Logic.neg_parts]
+  rfl
+
+/-- IMAGPART-OF-- next records the numeric range of its component sum.
+Both operands stay unrestricted, as in the primitive's completion rule. -/
+theorem inTs_plus_number (a b : SExpr) : InTs 127 (Logic.plus a b) := by
+  apply inTs_acl2Numberp
+  rw [Logic.plus_parts]
+  rfl
 
 /-- COMPLEX-OPENER records mask 65 for a product whose second operand is
 conditional. The primitive's full numeric range proves its number verdict. -/

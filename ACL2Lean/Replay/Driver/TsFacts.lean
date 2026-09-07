@@ -183,7 +183,8 @@ def tsBooleanBinaryRangeOf (op : String) : Option Lean.Name :=
 /-- A primitive range that needs no operand type premises. The emitted
 recognizer masks still select and check the resulting verdict. -/
 def tsNumericBinaryRangeOf (op : String) : Option (Int × Lean.Name) :=
-  if op == "BINARY-*" then some (127, ``ACL2.Replay.inTs_times_number)
+  if op == "BINARY-+" then some (127, ``ACL2.Replay.inTs_plus_number)
+  else if op == "BINARY-*" then some (127, ``ACL2.Replay.inTs_times_number)
   else if op == "COMPLEX" then some (127, ``ACL2.Replay.inTs_complex_number)
   else none
 
@@ -219,7 +220,8 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
   else if op == "UNARY--" then
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
      (some 63, 63, ``ACL2.Replay.inTs_neg_rat),
-     (some 64, 64, ``ACL2.Replay.inTs_neg_complex)]
+     (some 64, 64, ``ACL2.Replay.inTs_neg_complex),
+     (none, 127, ``ACL2.Replay.inTs_neg_number)]
   else if op == "REALPART" then
     [(none, 63, ``ACL2.Replay.inTs_realpart),
      (some (-128), 1, ``ACL2.Replay.inTs_realpart_nonnumber)]

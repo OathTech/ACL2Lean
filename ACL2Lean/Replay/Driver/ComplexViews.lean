@@ -31,6 +31,23 @@ def dpComponentSignTactic : MetaM (TSyntax `tactic) :=
       ne_eq, ite_eq_right_iff, SExpr.t, reduceCtorEq, imp_false, not_not] <;>
     linarith)
 
+/-- Normalize a numeric equality conclusion at an emitted verdict before
+context-wide rewriting. IMAGPART-OF--'s final linear leaf otherwise loops
+through its recursive sum equalities. Both numeric guards remain checked. -/
+def dpComponentGoalTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp only [dpHideValue, logic_not_equal_nil_iff, Logic.equal_ne_nil_iff] at * <;>
+    apply (Logic.number_eq_iff _ _ ?_ ?_).mpr <;>
+    first
+    | assumption
+    | exact plusNumber _ _
+    | (simp only [Logic.neg_parts]; change SExpr.t ≠ SExpr.nil; decide)
+    | (simp only [ne_eq, Logic.acl2Numberp_nil_iff, Logic.rationalp_realpart,
+        Logic.rationalp_imagpart, SExpr.t, reduceCtorEq, false_and, not_false_eq_true])
+    | (simp only [Logic.neg_parts, Logic.plus_parts, Logic.numberParts_mkParts,
+        Logic.numberParts_realpart, Logic.numberParts_imagpart,
+        Prod.fst, Prod.snd, Rat.neg_zero, Rat.neg_neg, Rat.zero_add, Rat.add_zero]))
+
 /-- Preserve the numeric guard when a verdict's equality identifies a sum
     or component with an arbitrary value. Then compare canonical components,
     keeping products abstract. The first witness is IMAGPART-OF-*-OF-I's

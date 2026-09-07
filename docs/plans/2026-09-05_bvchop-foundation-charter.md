@@ -5062,3 +5062,75 @@ unconditionally**, with both DP leaves checked after the **6288-job**
 executable build (`c2-component-sign-equality-replay.log`). This is a
 **fast-gate** checkpoint. The whole helper, all three BVCHOP mirrors and
 production capture promotion remain open; no new full-gate claim is made.
+
+### C2 component-negation numeric ranges (2026-09-07, in progress)
+
+The actual REALPART-OF-- and IMAGPART-OF-- trees query the unrestricted
+numeric range of UNARY--. After that cell is registered, IMAGPART-OF--
+reaches the same mask-127 query for its component sum
+(`c2-component-negation-with-numeric-range.log`). Both primitives now have
+their checked full numeric ranges in the existing type-set tables. This
+uses ACL2's `numeric-type-set`, `type-set-unary--` and `type-set-binary-+`
+completion route in `type-set-b.lisp`; nonnumeric inputs complete to zero.
+No operand-type hypothesis is introduced for these full-range cells.
+
+All **three actual recognizer nodes** kernel-check at the quotient world
+with accepted axioms. **Fifteen mutations** reject: each node's missing
+mask, nonnumeric mask, wrong true-mask, changed verdict, and replacement
+of the numeric operation by its free variable
+(`c2-component-numeric-range-node-controls-rerun.log`). The first combined
+control failed to compile because its free variable is a Symbol rather
+than an SExpr; wrapping it as a symbol atom corrected the negative input.
+
+The actual IMAGPART-OF-- `Goal'''` linear-contradiction verdict has one
+quantified value and no opaque terms. Normalizing negation before the
+existing context-wide component-equality tactic hits the recursion limit
+(`c2-imagpart-negation-linear.log`). A conclusion-only numeric equality
+view, checking both numeric guards and normalizing existing component
+equations, kernel-checks that exact leaf in **15 ms**, with accepted axioms
+(`c2-imagpart-negation-linear-generic.log`). It is used only within the
+recorded verdict's decision-procedure allowance; the ordinary negation
+theorems still require their whole recorded chains.
+
+The first production placement was too late: earlier context simplifiers
+reached the recursion limit in **32 ms** before the new check
+(`c2-component-negation-production-leaves-rerun.log`). Its core build
+passed **3150 jobs** (`c2-component-equality-goal-build.log`), and the prior
+**24 bootstrap/component declarations** still replay unconditionally with
+accepted axioms (`c2-component-equality-staged-components.log`). The
+conclusion check is now placed ahead of those context simplifiers, while
+preserving the early component-sign route. Validation of this ordering
+and whole negation proofs is pending. No budget was raised.
+
+The diagnostic dependency declarations are compiled separately for reuse
+in subsequent probes (`.tmp/ns1/NS1Probe/Components.lean` and its `.olean`).
+The earlier combined whole probe was stopped before producing output
+(`c2-component-negation-with-numeric-ranges.log`); that cancelled run is
+neither a proof nor a failure receipt. No production capture, golden or
+native proposition changed; no new mirror is claimed.
+
+The corrected ordering passes the core build (**3150 jobs**) and all
+**eight actual verdict leaves**: three from IMAGPART-OF-- and five from
+REALPART-OF--. Each is kernel-checked with accepted axioms, taking
+**11–140 ms** under the production path; the previously failing imaginary
+linear verdict takes **127 ms**
+(`c2-component-equality-goal-order-build.log`,
+`c2-component-negation-production-leaves-ordered.log`).
+
+Whole staged replay still does not close IMAGPART-OF--: it reaches the
+unchanged **3M-heartbeat limit at `isDefEq`** after the two ordinary setup
+theorems replay unconditionally with accepted axioms
+(`c2-component-negation-staged-whole-rerun.log`). That staged command stops
+there, so it does not test the whole REALPART-OF-- theorem. The first
+staged command had a record-layout syntax error; the corrected run above
+is the timeout receipt. Next: profile actual clause/spine composition and
+decompose the expensive work, keeping the same budget.
+
+Affected builds pass **3167 jobs**, statics cover **276 sources**, and
+focused equality replay remains **3/3 unconditional plus two checked DP
+leaves**, after the **6288-job** replay-executable build
+(`c2-component-equality-goal-order-affected-build.log`,
+`c2-component-equality-goal-order-static.log`,
+`c2-component-equality-goal-order-equality-replay.log`). These are
+**fast-gate** receipts for an intermediate increment. No whole negation
+theorem, helper, native mirror or fresh full-gate result is claimed.

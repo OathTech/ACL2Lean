@@ -47,8 +47,9 @@ charter or the archive carry the record.
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Integrate the selected Satriani/subsumption reductions (BUG-058). Close
       the ordinary negation, product-sign, and cancellation dependencies of
-      7'/6'. Add the recorded full numeric range of UNARY-- at the component
-      negation recognizers; their mask-127 queries currently miss the registry.
+      7'/6'. Decompose IMAGPART-OF-- after its current 3M-heartbeat
+      timeout in isDefEq; its three verdict leaves now check, as do the
+      five REALPART-OF-- verdicts. Preserve the existing limits.
       Decompose the whole helper's
       replay after its current heartbeat timeout; preserve the existing limit.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
