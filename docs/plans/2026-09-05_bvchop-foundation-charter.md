@@ -4050,3 +4050,34 @@ insertion subtrees across the two comparison books. The affected build passes
 replays **3/3** (`c2-poly-type-affected-build.log`, `c2-poly-type-static.log`,
 `c2-poly-type-equality-replay.log`). This is a fast-gate checkpoint; no golden,
 production producer, whole-comparison or mirror-completion claim is made.
+
+
+### C2 explicit equality-to-NIL normalization (2026-09-07)
+
+Producer **7f94b3a874** observes rewrite-equal's two actual NIL arms,
+retaining their original input, addressed path and returned mcons-term IF.
+The image and tagging pass (`c2-equal-nil-image.log`, `c2-equal-nil-tags.log`).
+The fresh ordinary less-than capture completes **4/4** and adds six steps
+(four NIL-left, two NIL-right); removing only these new steps in memory
+leaves all **149** old events identical (`c2-equal-nil-event-comparison.log`).
+The tree shows the step following the selected Boolean singleton lookup
+(`c2-equal-nil-tree.log`).
+
+The consumer applies the existing world-parametric primitive normalization
+lemmas to the exact recorded IF and no other result. It checks origin,
+orientation, relation and empty child list. All **six actual nodes**
+kernel-check, and **36 mutations** reject changed origin/side/input/output,
+extra child and wrong relation (`c2-equal-nil-controls.log`). Core and affected
+builds pass **6276** and **3160** jobs (`c2-equal-nil-consumer-build.log`,
+`c2-equal-nil-affected-build.log`); static checks pass and equality-reasoning
+replays **3/3** (`c2-equal-nil-static.log`, `c2-equal-nil-equality-replay.log`).
+
+Whole comparison replay now reaches the initial USE clause's surviving
+two-argument lambda and stops at bridgeClausify's function/walker divergence
+check (`c2-equal-nil-components.log`). DpLift.lean already documents the
+asymmetry: the meta value walker beta-reduces lambdas, while the structural
+pure lift has no lambda arm. The clause bridge lacks the DP leaf's named
+frontier check. No full comparison declaration is produced. The next repair
+must supply checked values for these untouched clausify atoms while preserving
+actual beta-rewrite records. This is another intermediate fast-gate increment;
+production promotion and all three native products remain open.

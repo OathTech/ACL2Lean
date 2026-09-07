@@ -788,7 +788,8 @@ No pattern books exist yet — authoring them is the arc's work.
   equality nodes using executed operand queries. Both complex/rational
   comparison books' Subgoal 3' subtrees now replay unconditionally after
   checking their actual type-derived zero rows. Whole comparison replay next
-  stops at the silent rewrite-equal NIL-to-IF normalization in Subgoal 3. The scoped bootstrap
+  passes the explicit rewrite-equal NIL-to-IF steps and next stops at the
+  initial USE clause's surviving lambda in the clausify value adapter. The scoped bootstrap
   diagnostic replays DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and COMPLEX-0
   unconditionally, consuming the actual USE-instance ground folds and the
   selected clausify NOT assumption lookup. All three declarations have

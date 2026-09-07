@@ -44,6 +44,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                 {prov.equiv} — R-parameterized recipe pending (G1 frontier)"
   match rty, rname with
   | "equal-boolean", _ => replayEqualBoolean cfg ctx n
+  | "equal-nil", _ => replayEqualNil cfg ctx n
   | "rewriting-equivalence", _ =>
     -- SOLIDIFY: the rewrite `lhs ⇒ rhs` is justified by a clause hypothesis — the
     -- (post-rewrite) literal named by `equivSource`, whose falsity in the spine

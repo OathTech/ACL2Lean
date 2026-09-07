@@ -3,6 +3,23 @@ import ACL2Lean.Replay.Driver.NodeCore.TypeSetWalk
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- Consume the executed NIL-left/right arm of rewrite-equal. The existing
+primitive normalization lemma checks its exact IF result. -/
+def replayEqualNil (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Expr := do
+  let .node r lhs rhs kids p := n
+  let some (f, [a, b]) := asApp lhs | throwError "NIL equality: malformed lhs"
+  unless r.ty == "equal-nil" && f.name == "EQUAL" && kids.isEmpty && p.equiv == "equal" do
+    throwError "NIL equality: node shape/equivalence mismatch"
+  let (term, law) ←
+    if p.origin == "equal/nil-lhs" && a == quoteNil then pure (b, ``re_equal_nil_norm_l)
+    else if p.origin == "equal/nil-rhs" && b == quoteNil then pure (a, ``re_equal_nil_norm_r)
+    else throwError "NIL equality: origin/operands mismatch"
+  unless rhs == SExpr.ofList [.atom (.symbol { name := "IF" }), term, quoteNil, quoteT] do
+    throwError "NIL equality: result differs from the recorded IF normalization"
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx term
+  mkAppM law #[cfg.worldExpr, cfg.envExpr, reflectSExpr term,
+    ← proveNoShadow cfg f, ← proveConv cfg cfg.envExpr ctx term]
+
 /-- rewrite-equal's recorded Boolean equality normalization. The mask and
 addressed IF leaves select the primitive type-set proof; no DP is used. -/
 def replayEqualBoolean (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode) : MetaM Expr := do
