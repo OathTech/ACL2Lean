@@ -797,6 +797,11 @@ No pattern books exist yet — authoring them is the arc's work.
   decisions then close its postpass, with the whole subtree checking under
   the same two conditions as 9.18'. The actual bootstrap and strict postpasses
   reject 26 mutations (BUG-055); production promotion remains open.
+  Bootstrap ADD-DEF-COMPLEX Subgoal 2.2 now replays unconditionally after
+  component-zero queries and the primitive REALPART-IMAGPART-ELIM rewrite;
+  both actual rewrite nodes reject 14 mutations, and seven construction
+  queries reject 42. Whole addition still times out in isDefEq; four of its
+  seven full row checks expose unsupported propagated recognizer tuples.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

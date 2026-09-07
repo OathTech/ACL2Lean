@@ -206,7 +206,8 @@ def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
     [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
      (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]
   else if op == "COMPLEX" then
-    [(127, 1, 63, ``ACL2.Replay.inTs_complex_number_zero)]
+    [(127, 1, 63, ``ACL2.Replay.inTs_complex_number_zero),
+     (1, 1, 1, ``ACL2.Replay.inTs_complex_zero_zero)]
   else []
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is
@@ -218,9 +219,12 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
   else if op == "UNARY--" then
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
      (some 63, 63, ``ACL2.Replay.inTs_neg_rat)]
-  else if op == "REALPART" then [(none, 63, ``ACL2.Replay.inTs_realpart)]
+  else if op == "REALPART" then
+    [(none, 63, ``ACL2.Replay.inTs_realpart),
+     (some (-128), 1, ``ACL2.Replay.inTs_realpart_nonnumber)]
   else if op == "IMAGPART" then
     [(none, 63, ``ACL2.Replay.inTs_imagpart),
+     (some (-128), 1, ``ACL2.Replay.inTs_imagpart_nonnumber),
      (some 63, 1, ``ACL2.Replay.inTs_imagpart_rational),
      (some 64, 62, ``ACL2.Replay.inTs_imagpart_complex)]
   else if op == "NUMERATOR" then [(none, 23, ``ACL2.Replay.inTs_numerator)]

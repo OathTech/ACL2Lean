@@ -9,6 +9,7 @@ import ACL2Lean.Replay.Driver.NodeCore.ClausifyCalls
 import ACL2Lean.Replay.Driver.NodeCore.GroundFold
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveEquation
 import ACL2Lean.Replay.Driver.NodeCore.PrimitiveInverse
+import ACL2Lean.Replay.Driver.NodeCore.PrimitiveComponents
 import ACL2Lean.Replay.Driver.NodeCore.EqualBoolean
 import ACL2Lean.Replay.Driver.NodeCore.Solidify
 import ACL2Lean.NumericCompletion
@@ -296,6 +297,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     | _ => throwError "inverse-of-+: expected a binary application"
   | "rewrite", "INVERSE-OF-*" => replayPrimitiveInverse rec cfg ctx n
   | "rewrite", "DEFAULT-UNARY-/" => replayPrimitiveReciprocalDefault rec cfg ctx n
+  | "rewrite", "REALPART-IMAGPART-ELIM" => replayPrimitiveComponentReconstruction rec cfg ctx n
   | "rewrite", "COMMUTATIVITY-OF-+" | "rewrite", "COMMUTATIVITY-OF-*" =>
     let (fn, law) := if rname == "COMMUTATIVITY-OF-+" then
       ("BINARY-+", ``Logic.plus_comm) else ("BINARY-*", ``Logic.times_comm)

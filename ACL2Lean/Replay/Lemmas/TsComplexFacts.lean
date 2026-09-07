@@ -71,6 +71,32 @@ theorem inTs_imagpart_rational {v : SExpr} (h : InTs 63 v) :
       | _ => exact hz
     | _ => exact hz
 
+/-- Both component queries in the bootstrap addition proof complete a
+nonnumeric value to singleton zero. -/
+private theorem inTs_components_nonnumber {v : SExpr} (h : InTs (-128) v) :
+    InTs 1 (Logic.realpart v) ∧ InTs 1 (Logic.imagpart v) := by
+  have hn := logic_acl2Numberp_nil_of_ts_disjoint
+    (by decide : tsDisjointM (-128) 127 = true) h
+  have hz : InTs 1 (.atom (.number (.int 0))) := by unfold InTs; decide
+  cases v with
+  | nil | cons _ _ => exact ⟨hz, hz⟩
+  | atom a => cases a with
+    | number _ => simp [Logic.acl2Numberp] at hn
+    | _ => exact ⟨hz, hz⟩
+
+theorem inTs_realpart_nonnumber {v : SExpr} (h : InTs (-128) v) :
+    InTs 1 (Logic.realpart v) := (inTs_components_nonnumber h).1
+
+theorem inTs_imagpart_nonnumber {v : SExpr} (h : InTs (-128) v) :
+    InTs 1 (Logic.imagpart v) := (inTs_components_nonnumber h).2
+
+/-- The bootstrap's executed COMPLEX query has two singleton-zero children. -/
+theorem inTs_complex_zero_zero {a b : SExpr} (ha : InTs 1 a) (hb : InTs 1 b) :
+    InTs 1 (Logic.complex a b) := by
+  rw [zero_of_inTs1 ha, zero_of_inTs1 hb]
+  unfold InTs
+  decide
+
 theorem inTs_mkParts_complex (r i : Rat) (hi : i.num ≠ 0) :
     InTs 64 (Logic.mkParts r i) := by
   simp only [Logic.mkParts, Number.fromParts, hi, ↓reduceDIte, InTs, tsIndex_complex]

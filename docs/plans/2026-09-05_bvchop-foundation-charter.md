@@ -4237,3 +4237,54 @@ checkpoint also preserves all four unconditional comparison declarations
 (`c2-product-query-comparison-regression.log`). This is an intermediate
 fast-gate checkpoint; no full-suite, production promotion or mirror exit is
 claimed.
+
+
+### C2 primitive component reconstruction and zero queries (2026-09-07)
+
+ADD-DEF-COMPLEX's actual Subgoal 2.2 now replays **unconditionally**,
+with accepted axioms (`c2-bootstrap-zero-query-cells-subtree.log`). Its two
+REALPART-IMAGPART-ELIM rewrites consume their recorded numeric HYP relief
+and RHS chains through the existing primitive model law. This is a
+`defaxiom` at `acl2/axioms.lisp:4403`, also used by the existing destructor
+elimination processor; no ordinary book theorem was hand-proved. Both
+actual rewrite nodes kernel-check, and **14 mutations** reject changed
+operands/substitution, missing hypotheses and malformed child blocks
+(`c2-primitive-component-controls.log`). The conditional primitive's HYP/RHS
+walker is extracted from the two existing reciprocal handlers and shared
+with this third caller.
+
+The executed query consumer now checks nonnumeric REALPART/IMAGPART
+completion, COMPLEX of two singleton-zero children, and multiplication with
+a singleton-zero right child. All executed children remain checked even
+where the primitive law requires only one. The whole addition tree's
+**seven actual construction queries** kernel-check under their recorded
+nonnumeric parent literals; **42 mutations** reject changed queries,
+missing children/snapshot/source falsity and unexpected recognizer tuples
+(`c2-bootstrap-zero-query-cells-controls-rerun.log`). The earlier IMAGPART
+node has nine additional rejected controls, and the strict product-query
+regression retains its eight (`c2-bootstrap-imagpart-nonnumber-controls.log`,
+`c2-bootstrap-zero-query-product-regression.log`). These are query and
+subtree receipts, not a complete ADD-DEF-COMPLEX declaration.
+
+Core build passes **3147 jobs**
+(`c2-bootstrap-zero-query-cells-build-rerun.log`). Initial helper builds
+needed the hypothesis walker's actual Array return type and a missing `do`;
+both were corrected before this receipt. The first whole-tree query-control
+script expected four insertions; measurement found seven, and the corrected
+run checks all seven. Affected targets pass **3164 jobs**, including the
+reciprocal/inverse consumers, DriverTests and TamperTests
+(`c2-bootstrap-component-cells-affected-build.log`). Static checks pass
+with **273** reachable sources (`c2-bootstrap-component-cells-static.log`).
+
+Checking complete insertions relative to their recorded continuations
+accepts three of seven. Four still stop at a propagated recognizer tuple
+in the numeric assumption queries (`c2-bootstrap-zero-row-frontier.log`).
+The evidence is present in the capture; this is a consumer frontier.
+Whole ADD-DEF-COMPLEX replay hits the existing 3,000,000-heartbeat limit
+inside `isDefEq`; the three defaults still have unconditional accepted-axiom
+receipts (`c2-bootstrap-zero-query-cells-declarations.log`). Localize and
+decompose that expensive comparison without raising the budget. The
+existing equality-reasoning book replays **3/3** after the **6282-job**
+executable build (`c2-bootstrap-component-cells-equality-replay.log`).
+This is an intermediate fast-gate checkpoint. The isolated producer and
+production pointer are unchanged. All three BVCHOP mirrors remain open.

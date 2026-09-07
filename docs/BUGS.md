@@ -61,8 +61,9 @@ literal and retention flag, applies each recorded substitution/ground fold,
 and replays exactly one matching child. Both actual postpasses kernel-check
 relative to their recorded children; 26 mutations reject. Whole strict
 Subgoal 9.12 now checks under two ordinary component-rule conditions, with
-accepted axioms. Bootstrap ADD-DEF-COMPLEX instead reaches an unsupported
-IMAGPART nonnumeric zero query. Production promotion and the general
+accepted axioms. Bootstrap ADD-DEF-COMPLEX Subgoal 2.2 now also replays
+unconditionally after its component queries and primitive reconstruction
+rewrites. Whole addition replay remains incomplete. Production promotion and the general
 retention/deletion coverage remain open; this bug is not closed.
 
 ## BUG-054 — numeric solidification omits the selected type mask

@@ -16,13 +16,17 @@ theorem equal_zero_t_of_inTs {v : SExpr} (h : InTs 1 v) :
 left operand. ACL2's primitive completion makes the product zero. -/
 theorem inTs_times_nonnumber_left {a : SExpr} (b : SExpr) (ha : InTs (-128) a) :
     InTs 1 (Logic.times a b) := by
-  have hn : Logic.acl2Numberp a = .nil := by
-    by_contra hn
-    exact inTs_disjoint_absurd (by decide : tsDisjointM (-128) 127 = true) ha
-      (inTs_acl2Numberp (logic_acl2Numberp_ne_nil_t a hn))
+  have hn := logic_acl2Numberp_nil_of_ts_disjoint
+    (by decide : tsDisjointM (-128) 127 = true) ha
   rw [Logic.times_comm, Logic.times_nonnumber_right b a hn]
   unfold InTs
   decide
+
+/-- The other executed product query has a singleton-zero right child. -/
+theorem inTs_times_singleton_zero_right (a : SExpr) {b : SExpr} (hb : InTs 1 b) :
+    InTs 1 (Logic.times a b) := by
+  rw [zero_of_inTs1 hb]
+  exact inTs_times_zero_right a
 
 /-- The negative-rational restriction excludes the false comparison cell. -/
 theorem lt_zero_of_inTs {v : SExpr} (h : InTs 48 v) :

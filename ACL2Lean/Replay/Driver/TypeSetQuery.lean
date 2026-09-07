@@ -32,6 +32,12 @@ private def queryType (cfg : ReplayConfig) (ctx : ReplayCtx)
     (q : TsQueryCapture.Query) : MetaM Expr := do
   mkAppM ``InTs #[toExpr q.result, ← ctxValExpr cfg ctx q.term]
 
+/-- Retain an executed query even when the primitive cell needs only its
+sibling premise or has an unconditional range. -/
+private def retainQueryChild (child result : Expr) : MetaM Expr := do
+  withLetDecl `hQueryArgument (← inferType child) child fun h =>
+    mkLetFVars #[h] result (usedLetOnly := false)
+
 /-- Ordinary rule or FC evidence requires its own proof channel. The present
 primitive query fragment consumes only parent facts and ACL2's fake type-set
 runes, preserving a frontier for every other ttree tag or cited rule. -/
@@ -128,15 +134,14 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       let result ← finish (← mkAppM ruleName #[← ctxValExpr cfg ctx c.term])
       -- The projection's unconditional range does not need a child premise,
       -- but the actual executed query still carries that checked child.
-      return ← withLetDecl `hProjectionArgument (← inferType p) p fun hp =>
-        mkLetFVars #[hp] result (usedLetOnly := false)
+      return ← retainQueryChild p result
   if fn.name == "UNARY-/" then
     let [(c, p)] := cs | throwError "type-set query: reciprocal arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
         c.result == 7 && q.result == 11 do
       throwFrontier m!"type-set query: unsupported reciprocal masks {c.result} → {q.result}"
     return ← finish (← mkAppM ``inTs_reciprocal_nonneg_int #[p])
-  if fn.name == "BINARY-+" || fn.name == "BINARY-*" then
+  if fn.name == "BINARY-+" || fn.name == "BINARY-*" || fn.name == "COMPLEX" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: binary arithmetic arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
       throwError "type-set query: binary arithmetic has an unexpected route"
@@ -145,8 +150,11 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
         #[← ctxValExpr cfg ctx r.term, pl])
       -- Completion needs only the nonnumber premise, but retain the other
       -- executed operand query as a checked child of this proof.
-      return ← withLetDecl `hProductRight (← inferType pr) pr fun hp =>
-        mkLetFVars #[hp] result (usedLetOnly := false)
+      return ← retainQueryChild pr result
+    if fn.name == "BINARY-*" && r.result == 1 && q.result == 1 then
+      let result ← finish (← mkAppM ``inTs_times_singleton_zero_right
+        #[← ctxValExpr cfg ctx l.term, pr])
+      return ← retainQueryChild pl result
     let some (_, _, _, ruleName) := (tsBinaryOf fn.name).find? fun (lm, rm, out, _) =>
         lm == l.result && rm == r.result && out == q.result
       | throwFrontier m!"type-set query: unsupported {fn.name} masks {l.result}/{r.result} → {q.result}"
