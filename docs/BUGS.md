@@ -61,7 +61,10 @@ leaves in 7'/6'; fourteen used-edge removal controls lose that final branch
 (`c2-clausify-reduction-structure-controls.log`). Subgoal 6' now has a checked
 conditional proof with five ordinary rules remaining and accepted axioms;
 seven replay mutations reject (`c2-clausify-reduction-replay-controls.log`).
-Subgoal 7' crosses branch selection but retains an assumed verdict leaf.
+Subgoal 7' initially crossed branch selection but retained an assumed verdict
+leaf. The subsequent component-sign normalization closes that leaf, yielding
+a checked conditional 7' declaration with five ordinary rules still needed
+(`c2-component-sign-subtrees-ordered.log`).
 Production promotion remains open; no unconditional helper result is claimed.
 
 ## BUG-057 — simplify-clause omits its selected HIDE removal

@@ -46,8 +46,10 @@ charter or the archive carry the record.
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Integrate the selected Satriani/subsumption reductions (BUG-058). Close
-      7's remaining component-sign verdict and the ordinary negation, product-sign,
-      and cancellation dependencies of 7'/6'. Decompose the whole helper's
+      the ordinary negation, product-sign, and cancellation dependencies of
+      7'/6'. Add the recorded full numeric range of UNARY-- at the component
+      negation recognizers; their mask-127 queries currently miss the registry.
+      Decompose the whole helper's
       replay after its current heartbeat timeout; preserve the existing limit.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer

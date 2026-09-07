@@ -5005,3 +5005,60 @@ their five DP leaves checked after the **6288-job** executable build
 (`c2-clausify-reductions-equality-replay.log`,
 `c2-clausify-reductions-rev-replay.log`). These are **fast-gate** receipts.
 No full-suite, production-promotion, whole-helper or new-mirror claim is made.
+
+### C2 component-sign verdict (2026-09-07)
+
+The second actual Subgoal 7' branch verdict now checks without an assumed
+DP fact. Its clause-falsity premises include positivity of both IMAGPART(X2)
+and its negation. A component/sign normalization uses the existing primitive
+representation laws to expose that contradiction, while products remain
+abstract. The check stays inside the existing recorded-verdict decision
+procedure and its unchanged budget. No ordinary book theorem is hand-proved.
+
+The bounded prototype checks in **32 ms** with accepted axioms
+(`c2-strict-seven-component-sign-final.log`). Its copied final label says
+linear leaf; the actual recorded origin, also printed, is
+`rewrite-clause/type-alist-contradiction`. An initial unrestricted simp
+prototype hit the recursion limit; the restricted version initially left
+`toBool = true` predicates until the existing Boolean bridge was added.
+Neither limit was raised.
+
+The first production placement ran after earlier representation changes
+and did not close the leaf: the two standalone results were **364 ms**
+checked and **45,855 ms** failed
+(`c2-component-sign-production-leaves.log`). Its five-subtree probe retained
+the old assumed 7' result and failed the absent-declaration axiom query
+(`c2-component-sign-subtrees.log`). Moving the same sign check ahead of the
+other component normalizers, only for component/comparison/negation leaves,
+fixes the ordering. The actual two branch facts check in **256/260 ms**,
+with accepted axioms (`c2-component-sign-production-leaves-ordered.log`).
+Core build passes **3150 jobs** (`c2-component-sign-order-build.log`).
+
+Both **7' and 6'** now register conditional declarations with accepted
+axioms and **five ordinary rule conditions each**. The 9.12, 9.18' and 9.17
+declarations remain unconditional, as do the supporting bootstrap/component
+dependencies (`c2-component-sign-subtrees-ordered.log`). The whole helper
+was not re-run after its prior 3M-heartbeat timeout: the next work is to
+stage its actual missing dependencies and decompose the repeated work before
+another whole-helper measurement.
+
+The unchanged component-negation captures already replay the ordinary
+--BECOMES-*-OF--1 and *-OF---ARG2 declarations unconditionally at the quotient
+world, with accepted axioms (`c2-component-negation-dependencies.log`).
+REALPART-OF-- and IMAGPART-OF-- both stop at the actual
+`ACL2-NUMBERP(UNARY-- X)` recognizer, TYPESET/TRUETS **127/127**. The shared
+type-set consumer has negation's integer, rational and complex cells, but
+lacks its full numeric range. The legacy integer-pin error is downstream of
+that missing cell, not a reason to weaken the pin check. The actual trees
+are in `c2-component-negation-trees.log`; ACL2's `numeric-type-set` and
+`type-set-unary--` supply the source route. Imaginary negation precedes real
+negation in the dependency order. Affected builds, statics and focused
+replay follow before this intermediate fast-gate commit.
+
+Affected targets pass **3167 jobs** and statics pass with **276 reachable
+sources** (`c2-component-sign-affected-build.log`,
+`c2-component-sign-static.log`). Focused equality reasoning passes **3/3
+unconditionally**, with both DP leaves checked after the **6288-job**
+executable build (`c2-component-sign-equality-replay.log`). This is a
+**fast-gate** checkpoint. The whole helper, all three BVCHOP mirrors and
+production capture promotion remain open; no new full-gate claim is made.

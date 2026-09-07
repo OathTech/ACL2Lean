@@ -19,6 +19,18 @@ private theorem plusNumber (a b : SExpr) : Logic.acl2Numberp (Logic.plus a b) â‰
   change SExpr.t â‰  SExpr.nil
   decide
 
+/-- Expose component and negation signs in an emitted verdict while keeping
+products abstract. The strict helper's 7' verdict contains opposite positive
+signs for the same imaginary component; linear arithmetic closes its context. -/
+def dpComponentSignTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp_all only [Logic.not_nil_iff, Logic.toBool_eq_true, Logic.lt_parts, Logic.neg_parts,
+      Logic.numberParts_mkParts, Logic.numberParts_realpart, Logic.numberParts_imagpart,
+      show Logic.numberParts (.atom (.number (.int (Int.ofNat 0)))) = ((0 : Rat), (0 : Rat)) from rfl,
+      Prod.fst, Prod.snd, Rat.neg_zero, Rat.lt_irrefl, and_false, or_false,
+      ne_eq, ite_eq_right_iff, SExpr.t, reduceCtorEq, imp_false, not_not] <;>
+    linarith)
+
 /-- Preserve the numeric guard when a verdict's equality identifies a sum
     or component with an arbitrary value. Then compare canonical components,
     keeping products abstract. The first witness is IMAGPART-OF-*-OF-I's

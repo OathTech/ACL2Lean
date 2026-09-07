@@ -802,6 +802,12 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
           show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
           Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> (try rfl) <;> $normalizeTac:tactic)
     else pure normalizeTac
+  -- The strict helper's component-sign contradiction must close before
+  -- representation changes or the other component normalization attempts.
+  let normalizeTac ← if withComplexValues && withComparison && withNegation then do
+    let signTac ← dpComponentSignTactic
+    `(tactic| first | (solve | $signTac:tactic) | $normalizeTac:tactic)
+    else pure normalizeTac
   let directTac ← if withImplication || withComplexValues then pure tac else
     `(tactic| $normalizeTac:tactic <;> $tac:tactic)
   -- Full numeric products admit a field representation, including the
