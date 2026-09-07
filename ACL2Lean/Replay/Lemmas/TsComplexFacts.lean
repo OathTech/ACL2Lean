@@ -1,6 +1,7 @@
 import ACL2Lean.Replay.Lemmas.TsNumericFacts
 import ACL2Lean.NumericEquality
 import ACL2Lean.NumericComponents
+import ACL2Lean.NumericNegation
 
 namespace ACL2.Replay
 open ACL2
@@ -98,6 +99,17 @@ theorem inTs_mkParts_complex (r i : Rat) (hi : i.num ≠ 0) :
     InTs 64 (Logic.mkParts r i) := by
   simp only [Logic.mkParts, Number.fromParts, hi, ↓reduceDIte, InTs, tsIndex_complex]
   decide
+
+/-- ACL2's type-set-unary-- preserves the complex-rational bit. The strict
+helper's Subgoal 7' needs this cell inside its complex-difference query. -/
+theorem inTs_neg_complex {v : SExpr} (h : InTs 64 v) : InTs 64 (Logic.neg v) := by
+  rw [Logic.neg_parts]
+  apply inTs_mkParts_complex
+  intro hz
+  have hzero : (Logic.numberParts v).2 = 0 := by
+    have hn := congrArg (fun q : Rat => -q) (Rat.num_eq_zero.mp hz)
+    simpa only [Rat.neg_neg, Rat.neg_zero] using hn
+  exact imag_num_ne_zero_of_inTs_complex h (congrArg Rat.num hzero)
 
 /-- The strict helper's Subgoal 9.18 records COMPLEX-RATIONALP(X1 + Y).
 Adding a rational leaves a complex value's imaginary component unchanged. -/

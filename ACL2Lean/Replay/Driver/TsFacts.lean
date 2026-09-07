@@ -218,7 +218,8 @@ def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
      (none, 127, ``ACL2.Replay.inTs_reciprocal_number)]
   else if op == "UNARY--" then
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
-     (some 63, 63, ``ACL2.Replay.inTs_neg_rat)]
+     (some 63, 63, ``ACL2.Replay.inTs_neg_rat),
+     (some 64, 64, ``ACL2.Replay.inTs_neg_complex)]
   else if op == "REALPART" then
     [(none, 63, ``ACL2.Replay.inTs_realpart),
      (some (-128), 1, ``ACL2.Replay.inTs_realpart_nonnumber)]

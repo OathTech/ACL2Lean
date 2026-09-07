@@ -30,6 +30,26 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-058 — clausify cleanup omits its selected clause reductions
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+Literal-clausify records fired flags for the Satriani replacement pass and
+the general subsumption loop, but omits which clause was deleted or reduced
+to which result. In strict-helper Subgoals 7' and 6', six false leaves become
+six final branch windows; four raw segments have no exact final match, and
+several final branches are falsified by the same path. The existing unique
+branch selector correctly refuses the ambiguous link.
+
+Emit the selected clause reductions where ACL2 performs them, including
+discarded-new-clause cases and recursive-pass ordering. Follow that recorded
+mapping and kernel-check the final segment's literal facts. Do not pick an
+arbitrary matching branch or reconstruct the missing search. Source:
+diagnostic `rewrite.lisp`, `quick-and-dirty-subsumption-replacement-step`,
+`if-interp-add-clause`, and `subsumption-replacement-loop`. Actual tree/link
+receipt: `.tmp/ns1/c2-strict-split-link.log`; whole replay fails in
+`.tmp/ns1/c2-strict-with-complex-negation.log`.
+
 ## BUG-057 — simplify-clause omits its selected HIDE removal
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)

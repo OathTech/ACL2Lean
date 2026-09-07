@@ -45,8 +45,8 @@ charter or the archive carry the record.
       helpers after their CASES/conjunction and numeric-context repairs; validate
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
-      Finish the strict helper's recorded complex-difference queries at Subgoals
-      7' and 6': the unary type-set registry lacks negation's 64-to-64 cell.
+      Emit and consume the strict helper's actual Satriani/subsumption clause
+      reductions at Subgoals 7' and 6'; their split-branch selection is ambiguous.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer
       (BUG-056) with its verified source route. Integrate the scoped six-theorem

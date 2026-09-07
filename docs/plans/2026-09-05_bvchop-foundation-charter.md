@@ -4891,3 +4891,40 @@ DP leaves checked, after the **6288-job** executable build
 (`c2-component-product-completion-equality-replay.log`). This is a fast-gate
 checkpoint; all three BVCHOP mirrors and production capture integration
 remain open.
+
+### C2 complex-negation query cell and clause-cleanup frontier (2026-09-07)
+
+The unary type-set registry now includes ACL2's complex-rational negation
+cell, **64 → 64**, backed by the model's existing negation/component laws.
+The actual Subgoal 7' complex-difference query checks with accepted axioms;
+Subgoal 6' also checks as a sibling regression control, using the existing
+rational-negation cell. Its context has complex X1 and rational X2, whereas
+7' has rational X1 and complex X2. Both actual queries and twelve mutations
+are checked in `c2-complex-negation-query-controls.log`: missing basis,
+changed origin, changed argument/true masks, and either missing source fact
+are refused. No hypothesis decision procedure or new semantic law is added.
+
+Core build passes **3150 jobs** (`c2-complex-negation-cell-build.log`).
+Whole 7' and 6' replay advances to **ambiguous split-branch selection**;
+9.12, 9.18' and 9.17 remain unconditional with accepted axioms
+(`c2-strict-with-complex-negation.log`). The whole-helper probe fails and its
+axiom queries for absent 7'/6' declarations fail too. No whole-helper result
+is claimed.
+
+The actual link inventory (`c2-strict-split-link.log`) contains six branch
+windows and six false leaves in each subtree. Only two raw segments exactly
+match a final branch. Two Satriani replacement markers and a general
+subsumption marker explain the reshaping, but carry no selected reduction
+edges. ACL2's `rewrite.lisp` records only those fired flags. The next step is
+to emit the actual clause reductions and follow their selected mapping,
+checking each used literal against its path fact; choosing an arbitrary
+falsified branch would leave the attribution gap unresolved.
+
+Affected targets pass **3167 jobs**, statics pass with **276 reachable
+sources**, and focused equality-reasoning replay passes **3/3
+unconditionally**, with both DP leaves checked after the **6288-job**
+executable build (`c2-complex-negation-cell-affected-build.log`,
+`c2-complex-negation-cell-static.log`,
+`c2-complex-negation-cell-equality-replay.log`). The missing cleanup evidence
+is indexed as BUG-058. This is an intermediate **fast-gate** checkpoint;
+all three BVCHOP mirrors remain open and no new full gate is claimed.
