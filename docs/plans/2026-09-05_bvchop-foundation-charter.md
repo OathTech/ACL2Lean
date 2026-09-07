@@ -3988,3 +3988,65 @@ changed propagated tuple, missing child and missing snapshot
 literal indentation error, fixed before this passing run. The existing
 equality-reasoning book also replays **3/3**
 (`c2-equality-operand-equality-replay.log`).
+
+
+### C2 type-derived polynomial rows (2026-09-07, in progress)
+
+Isolated producer **f9d55fb3e6** records the one executed type-set query in
+POLYS-FROM-TYPE-SET and associates its returned rows by cons identity with
+that construction. PROCESS-EQUATIONAL-POLYS emits origins only for its
+actually selected pair; an unobserved row retains NIL. Logical rows,
+tag trees and search remain unchanged. The fresh less-than capture completes
+**4/4**, and all **149** existing events compare unchanged after removing
+only POLY-TYPE-BASIS in memory (`c2-poly-type-event-comparison.log`).
+All four selected pairs carry both actual construction origins.
+Tagging and the final image build pass (`c2-poly-type-tags-final.log`,
+`c2-poly-type-image-rerun.log`). An initial build omitted the existing
+`--no-sysinit` flag and failed at the sandbox's /etc/sbclrc boundary; the
+first hermetic build then exposed the required raw-code function registration,
+which was added before the passing build.
+
+The consumer retains and prints this basis, matches the selected unit row's
+coefficients, rational flag, parents and tag tree, and checks the recorded
+construction query and snapshot. For the observed mask-1 class, only the
+query's actual PT literals enter its checked context. Two primitive zero-cell
+laws establish the positive and negative weak rows; the existing unit-pair
+and continuation composition then prove the insertion. The first model-cell
+build failed because `decide` did not unfold linearDifference; explicit
+primitive unfolding fixes it. The rerun passes **6276 jobs**
+(`c2-poly-type-consumer-build-rerun.log`).
+
+All **four actual insertions** kernel-check relative to their recorded
+continuations with accepted axioms, and **44 mutations** reject missing row
+origins, changed mask/term/tag tree, missing query/children/snapshot, reversed
+rows and a changed rational flag (`c2-poly-type-controls.log`). Both comparison
+books' actual **Subgoal 3' subtrees replay unconditionally** at the quotient
+world with the previously checked bootstrap registry; their accepted-axiom
+receipts are in `c2-poly-type-insertion-subtrees.log`. These are subtree
+statements, despite the probe printing their enclosing theorem names.
+The entire comparison theorems remain incomplete: their Subgoal 3 literal 3
+now reaches NOT(EQUAL 'NIL (< ...)) while the recorded result is
+NOT(IF (< ...) 'NIL 'T) (`c2-poly-type-components.log`). Its failed whole
+declarations consequently have no axiom receipt. The actual rewrite-equal
+NIL-left/right arms return that IF without logging a step; observation of
+those executed arms is the next increment, not a new inferred bridge.
+
+The same producer captures the unchanged times prefix through
+<=-OF-*-AND-*-SAME-FORWARD-2, **38/38** proofs
+(`c2-poly-type-times-prefix-capture.log`). The initial full capture failed
+at the system include equal-of-booleans because the isolated producer has a
+sparse books directory; supplying the established ACL2_SYSTEM_BOOKS path to
+the production books fixes the capture. Strict-helper Subgoal 9.12 now has
+both actual construction queries for (* X2 Y)=0, with X2 mask -128 and Y
+mask 14 (`c2-strict-helper-poly-type-record.log`). Its multiplication query
+and propagated recognizer tuple remain separate consumer work. This is a
+diagnostic producer; production provenance and baseline msort row classes
+still gate promotion, and all new mirrors remain open.
+
+Both **Subgoal 2' subtrees** also replay unconditionally with accepted axioms
+(`c2-poly-type-insertion-subtrees-two.log`), giving four checked actual
+insertion subtrees across the two comparison books. The affected build passes
+**3160 jobs**, static checks pass, and the existing equality-reasoning book
+replays **3/3** (`c2-poly-type-affected-build.log`, `c2-poly-type-static.log`,
+`c2-poly-type-equality-replay.log`). This is a fast-gate checkpoint; no golden,
+production producer, whole-comparison or mirror-completion claim is made.

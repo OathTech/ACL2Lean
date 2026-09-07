@@ -96,6 +96,8 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │      output: {info.outputClause}"
       IO.println s!"{pad}  │      numeric flags: {info.numericFlags}; assumptions: {info.assumptions}"
       IO.println s!"{pad}  │      polynomial pairs: {info.polyPairs}; runes: {repr info.runes}"
+      if let some basis := info.polyTypeBasis then
+        IO.println s!"{pad}  │      polynomial construction queries: {basis}"
     | .taSubst n f _ _ _ =>
       IO.println s!"{pad}  │    ta-subst: {f} ⇒ {n}"
     | .useHint hyps ccl appC lmis translated folds =>

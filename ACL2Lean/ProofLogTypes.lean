@@ -393,6 +393,7 @@ structure LinearEquationInsertion where
   outputClause : List SExpr
   numericFlags : List String
   numericBasis : Option SExpr := none
+  polyTypeBasis : Option SExpr := none
   polyPairs : List SExpr
   assumptions : List SExpr
   runes : List Rune

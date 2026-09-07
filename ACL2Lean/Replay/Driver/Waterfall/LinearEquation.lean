@@ -1,6 +1,6 @@
 import ACL2Lean.Replay.Driver.Waterfall.ClauseFalsity
 import ACL2Lean.Replay.Driver.Waterfall.LinearNumeric
-import ACL2Lean.NumericLinear
+import ACL2Lean.Replay.Lemmas.TsLinearFacts
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -13,15 +13,16 @@ private def linearNat (x : SExpr) : Except String Nat := do
   unless k ≥ 0 do throw "linear equation: negative parent"
   pure k.toNat
 
-/-- A selected direct weak row. Its parent is the original comparison;
-the remaining PTs are the recorded numeric premises. Other derivation
-classes require their own consumers and are rejected here. -/
-private structure DirectLinearRow where
-  parent : Nat
+/-- The selected unit row's parent and tag-tree provenance. Its construction
+class is checked separately against a direct comparison or captured query. -/
+private structure UnitLinearRow where
+  parents : List Nat
   tips : List Nat
+  ttree : SExpr
+  rational : Bool
 
 private def readUnitLinearRow (p a b : SExpr) (positive hasNumericBasis : Bool) :
-    Except String DirectLinearRow := do
+    Except String UnitLinearRow := do
   -- LINEAR-A.LISP's DEFREC POLY: outer singleton, then metadata and
   -- constant/relation/rational/derived-from-not-equality fields.
   let some [fields] := p.toList? | throw "linear equation: malformed poly wrapper"
@@ -38,8 +39,8 @@ private def readUnitLinearRow (p a b : SExpr) (positive hasNumericBasis : Bool) 
     else some (SExpr.cons term (.atom (.number (.int coefficient))))
   unless alist.toList? == some expected do
     throw "linear equation: coefficients do not isolate the recorded unit equation"
-  let some [parent] := parents.toList?
-    | throw "linear equation: row is not from one direct parent"
+  let some parents := parents.toList?
+    | throw "linear equation: malformed row parents"
   let ptTags := tags.filter fun t => (asApp t).any (fun (s, _) => s.name == "PT")
   let [pts] := ptTags | throw "linear equation: expected one PT provenance tag"
   let some (.atom (.symbol tag) :: tips) := pts.toList?
@@ -50,11 +51,11 @@ private def readUnitLinearRow (p a b : SExpr) (positive hasNumericBasis : Bool) 
   let otherTags := tags.filter (· != pts)
   unless otherTags.isEmpty || otherTags == [expectedLemmas] do
     throw "linear equation: row uses an unsupported lemma derivation"
-  let parent ← linearNat parent
+  let parents ← parents.mapM linearNat
   let tips ← tips.mapM linearNat
-  unless tips.contains parent && tips.eraseDups == tips do
+  unless parents.all tips.contains && parents.eraseDups == parents && tips.eraseDups == tips do
     throw "linear equation: parent/PT provenance differs"
-  pure { parent, tips }
+  pure { parents, tips, ttree := SExpr.ofList tags, rational := rat == .t }
 
 /-- Check only equality of the emitted polynomial and the source
 comparison's primitive arithmetic expansion. This is deterministic additive
@@ -77,6 +78,36 @@ private def checkLinearNormalization (lhs rhs : Expr) : MetaM Expr := do
   unless remaining.isEmpty do
     throwError "linear equation: polynomial normalization remains open: {← remaining.head!.getType}"
   instantiateMVars goal
+
+/-- Replay the executed zero-cell query which constructed this exact row.
+Only its recorded PT facts enter the context; the type-alist is checked data. -/
+private def replayTypeZeroRow (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (info : LinearEquationInsertion) (row : UnitLinearRow) (basis term : SExpr)
+    (positive : Bool) (parentFalse : Nat → MetaM (SExpr × Expr)) : MetaM Expr := do
+  let fs ← tsQueryRead (TsQueryCapture.fields basis
+    ["KIND", "TERM", "MASK", "TYPE-ALIST", "QUERIES", "TTREE"])
+  unless (← tsQueryRead (TsQueryCapture.required fs "KIND")) == .atom (.keyword "TYPE-SET") &&
+      (← tsQueryRead (TsQueryCapture.required fs "TERM")) == term &&
+      (← tsQueryRead (TsQueryCapture.required fs "MASK")) == .atom (.number (.int 1)) do
+    throwError "linear type row: unsupported construction term or mask"
+  let tt ← tsQueryRead (TsQueryCapture.required fs "TTREE")
+  unless row.rational && tt == row.ttree && row.parents == row.tips do
+    throwError "linear type row: construction tag tree differs from selected row"
+  primitiveQueryTtree tt
+  let ta ← tsQueryRead (TsQueryCapture.typeAlist (← tsQueryRead (TsQueryCapture.required fs "TYPE-ALIST")))
+  let [query] ← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "QUERIES")))
+    | throwError "linear type row: expected the single construction query"
+  let q ← tsQueryRead (TsQueryCapture.query query)
+  unless q.term == term && q.result == 1 && q.ttree == tt do
+    throwError "linear type row: construction query mismatch"
+  checkTsQueryLookups ta query
+  let mut queryCtx := ctx
+  for k in row.parents do
+    let (lit, h) ← parentFalse k
+    queryCtx := {queryCtx with litFacts := queryCtx.litFacts ++
+      [(info.inputClause.length - info.parentClause.length + k, lit, h)]}
+  let h ← replayTsQuery cfg queryCtx query
+  mkAppM (if positive then ``linear_zero_cell_positive else ``linear_zero_cell_negative) #[h]
 
 /-- Prove an insertion from the actual selected complementary pair, then
 consume the complete recorded continuation at its output clause. -/
@@ -101,12 +132,20 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
     throwError "linear equation: inserted literal is not NOT EQUAL"
   let [.cons p1 p2] := info.polyPairs
     | throwError "linear equation: expected one selected polynomial pair"
-  let readRow (p : SExpr) (positive : Bool) : MetaM DirectLinearRow :=
+  let readRow (p : SExpr) (positive : Bool) : MetaM UnitLinearRow :=
     match readUnitLinearRow p a b positive info.numericBasis.isSome with
     | .ok r => pure r
     | .error msg => throwError msg
   let r1 ← readRow p1 true
   let r2 ← readRow p2 false
+  let (basis1, basis2) ← match info.polyTypeBasis with
+    | none => pure (SExpr.nil, SExpr.nil)
+    | some raw => do
+      let [pair] ← tsQueryRead (TsQueryCapture.asList raw)
+        | throwError "linear type row: basis count differs from selected pairs"
+      let [b1, b2] ← tsQueryRead (TsQueryCapture.asList pair)
+        | throwError "linear type row: expected both row basis slots"
+      pure (b1, b2)
   let mut ctx := ctx
   for t in info.outputClause do ctx ← pinTermOpaques cfg cfg.envExpr ctx t
   let va ← ctxValExpr cfg ctx a
@@ -123,15 +162,22 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
       unless actual == lit do throwError "linear equation: indexed parent differs from its record"
       pure (lit, proof)
     let numeric ← replayLinearNumericBasis cfg ctx info a b parentFalse
-    let checkRow (row : DirectLinearRow) (x y : SExpr) : MetaM (Expr × Expr × Expr) := do
-      let (lit, hLit) ← parentFalse row.parent
+    let checkRow (row : UnitLinearRow) (basis : SExpr) (positive : Bool)
+        (x y : SExpr) : MetaM (Expr × Expr × Expr) := do
+      if basis != .nil then
+        unless quotedInt? b == some 0 do throwError "linear type row: only zero-cell bounds are supported"
+        let some (ha, hb) := numeric | throwError "linear type row: numeric query basis required"
+        let h ← replayTypeZeroRow cfg ctx info row basis a positive parentFalse
+        return (h, ha, hb)
+      let [parent] := row.parents | throwError "linear equation: row is not from one direct parent"
+      let (lit, hLit) ← parentFalse parent
       let some (ltS, [lhs, rhs]) := asApp lit
         | throwError "linear equation: direct parent is not a comparison"
       unless ltS.name == "<" do throwError "linear equation: unsupported direct parent"
       let mut ha : Option Expr := numeric.map (·.1)
       let mut hb : Option Expr := numeric.map (·.2)
       for tip in row.tips do
-        if tip == row.parent then continue
+        if tip == parent then continue
         let (typeLit, hType) ← parentFalse tip
         let some (n, [ratTerm]) := asApp typeLit
           | throwError "linear equation: PT is not a negated rationality fact"
@@ -156,8 +202,8 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
       let eq ← checkLinearNormalization source target
       let transported ← mkEqMP (← mkCongrArg (mkConst ``Logic.LinearNonnegative) eq) raw
       pure (transported, numberA, numberB)
-    let (hp, ha, hb) ← checkRow r1 a b
-    let (hn, _, _) ← checkRow r2 b a
+    let (hp, ha, hb) ← checkRow r1 basis1 true a b
+    let (hn, _, _) ← checkRow r2 basis2 false b a
     let eq ← mkAppM ``Logic.linear_unit_pair #[va, vb, ha, hb, hp, hn]
     let hEq ← mkAppM ``Iff.mpr #[← mkAppM ``Logic.equal_ne_nil_iff #[va, vb], eq]
     let pEq ← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx eqTerm, hEq]

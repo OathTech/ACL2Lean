@@ -786,8 +786,9 @@ No pattern books exist yet — authoring them is the arc's work.
   checks under COMPLEX-0 after the equality-NIL negation arm; the whole
   theorem now passes its selected Boolean singleton lookups and mask-1
   equality nodes using executed operand queries. Both complex/rational
-  comparison theorems next stop at a type-derived linear row whose parent
-  is rationality, outside the direct-comparison row consumer. The scoped bootstrap
+  comparison books' Subgoal 3' subtrees now replay unconditionally after
+  checking their actual type-derived zero rows. Whole comparison replay next
+  stops at the silent rewrite-equal NIL-to-IF normalization in Subgoal 3. The scoped bootstrap
   diagnostic replays DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and COMPLEX-0
   unconditionally, consuming the actual USE-instance ground folds and the
   selected clausify NOT assumption lookup. All three declarations have

@@ -186,6 +186,14 @@ type-alist snapshot. The first instance queries ACL2-NUMBERP(X1) from mask
 64 / PTs 0, 1, 4 and a quoted T for zero. The image and capture pass;
 the query consumer and promotion remain open (NS1 charter).
 
+The diagnostic consumer now checks those numeric queries, including
+recognizer tuples propagated through REALPART/IMAGPART. Producer
+`f9d55fb3e6` additionally records actual POLYS-FROM-TYPE-SET construction
+queries for selected rows. Four comparison zero-row insertions and both
+Subgoal 3' subtrees check; strict-helper multiplication queries and the
+baseline msort row classes remain open. The production pointer is unchanged,
+so BUG-049 remains open (NS1 charter).
+
 The isolated producer now records the insertion and the original clause
 whose literal indices label the polynomial parents (aaaaaea5c4, following
 1589f73292). The fresh times capture reconstructs six insertion items in
