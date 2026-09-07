@@ -110,6 +110,8 @@ structure StepProvenance where
   taEntry : Option SExpr := none
   taSingletonBasis : Option TaSingletonBasis := none
   operandTypeBasis : Option SExpr := none
+  /-- Actual selected clause literal and its retention/deletion decision. -/
+  branchSubstitutionBasis : Option SExpr := none
   /-- The fn-restricted tau-database slice on a `preprocess/tau` verdict
       record (`:TAU-BASIS`, fork-batch item I): raw per-fn entries, copied
       verbatim from the emitted step; the DP consumer gates its rule
@@ -471,9 +473,10 @@ partial def parseProofNodesAux (events : List TraceEvent)
       parseProofNodesAux rest []
         (.node ⟨"type-set", "", none⟩ term result pendingChildren
           { runes, literalNotFlg := some notFlg } :: nodes) windowTest
-  | .branchSubstitution equiv lhs rhs :: rest =>
+  | .branchSubstitution equiv lhs rhs basis :: rest =>
       parseProofNodesAux rest []
-        (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren { equivTerm := equiv } :: nodes) windowTest
+        (.node ⟨"branch-substitution", "", none⟩ lhs rhs pendingChildren
+          { equivTerm := equiv, branchSubstitutionBasis := basis } :: nodes) windowTest
   | .contextSubst var value _ :: rest =>
       parseProofNodesAux rest [] (.node ⟨"context-subst", "", none⟩ var value pendingChildren {} :: nodes) windowTest
   | .hypRelief hyp origin taRunes parents _taDerivs recogBasis lookupBasis ifBasis substBasis

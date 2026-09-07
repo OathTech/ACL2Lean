@@ -18,6 +18,8 @@ partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Un
         IO.println s!"{pad}  window: {wt} @ {repr prov.innerPath}"
       if let some basis := prov.operandTypeBasis then
         IO.println s!"{pad}  operand type queries: {basis}"
+      if let some basis := prov.branchSubstitutionBasis then
+        IO.println s!"{pad}  selected substitution: {basis}"
       if let some basis := prov.taSingletonBasis then
         IO.println s!"{pad}  singleton exclusion: {basis.equality}, side {basis.side}"
         IO.println s!"{pad}  operand masks {basis.leftMask}/{basis.rightMask}; entry {basis.entry}"
@@ -70,6 +72,8 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
             IO.println s!"{pad}  │        selected assumption: {call.basis}"
     | .step (.node rune lhs rhs children prov) =>
       IO.println s!"{pad}  │    {rune.ty}: {lhs} ⇒ {rhs}"
+      if let some basis := prov.branchSubstitutionBasis then
+        IO.println s!"{pad}  │      selected substitution: {basis}"
       if prov.clauseContextBasis.isSome then
         IO.println s!"{pad}  │      recorded clause-context/FC basis"
       -- A clause-level step (e.g. a termination conjecture's bare rewrite chain)

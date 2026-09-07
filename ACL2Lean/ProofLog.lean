@@ -216,7 +216,7 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :LHS") pure
         let rhs ← lookupKeyword "RHS" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :RHS") pure
-        pure (.branchSubstitution equivalence lhs rhs)
+        pure (.branchSubstitution equivalence lhs rhs (lookupKeyword "SUBSTITUTION-BASIS" rest))
     | .atom (.keyword "CONTEXT-SUBST") :: rest =>
         let var ← lookupKeyword "VARIABLE" rest
           |>.elim (throw "CONTEXT-SUBST: missing :VARIABLE") pure

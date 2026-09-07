@@ -55,6 +55,16 @@ proof for the lost premise. Receipts: `c2-bootstrap-poly-tree.log`,
 `c2-strict-product-subtree.log` under
 `.tmp/ns1/`; source: `simplify.lisp`'s two named functions.
 
+Isolated producer `7b5da0495c` now records that selection. The dedicated
+linear-insertion continuation consumes the exact input, selected position,
+literal and retention flag, applies each recorded substitution/ground fold,
+and replays exactly one matching child. Both actual postpasses kernel-check
+relative to their recorded children; 26 mutations reject. Whole strict
+Subgoal 9.12 now checks under two ordinary component-rule conditions, with
+accepted axioms. Bootstrap ADD-DEF-COMPLEX instead reaches an unsupported
+IMAGPART nonnumeric zero query. Production promotion and the general
+retention/deletion coverage remain open; this bug is not closed.
+
 ## BUG-054 — numeric solidification omits the selected type mask
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)

@@ -793,8 +793,10 @@ No pattern books exist yet — authoring them is the arc's work.
   accepted-axiom receipts. Production bootstrap provenance remains open. Each observed
   ELIM step has one round, containing one or two records.
   Strict-helper Subgoal 9.12's executed product queries and selected zero-row
-  insertion check with 20 rejected mutations. Whole-subtree replay still fails
-  after trivial substitution loses its retained equality (BUG-055).
+  insertion check with 20 rejected mutations. Captured literal-retention
+  decisions then close its postpass, with the whole subtree checking under
+  the same two conditions as 9.18'. The actual bootstrap and strict postpasses
+  reject 26 mutations (BUG-055); production promotion remains open.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

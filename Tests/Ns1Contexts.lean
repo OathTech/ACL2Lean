@@ -39,11 +39,11 @@ elab "ns1_context_controls%" : command => Elab.Command.liftTermElabM do
                   app "NUMERATOR" [sym "X"]] then
               changed.modify (· + 1)
               return []
-          | .branchSubstitution equiv lhs _ =>
+          | .branchSubstitution equiv lhs _ basis =>
             if kind == "wrong-postpass-equation" && lhs == app "DENOMINATOR" [sym "X"] then
               changed.modify (· + 1)
               return [.branchSubstitution equiv lhs
-                (app "QUOTE" [.atom (.number (.int 2))])]
+                (app "QUOTE" [.atom (.number (.int 2))]) basis]
           | .rewriteStep st =>
             if kind == "wrong-discharge-clause" &&
                 st.origin == "rewrite-clause/type-alist-contradiction" &&
@@ -136,7 +136,7 @@ elab "ns1_congruence_substitution_control%" : command => Elab.Command.liftTermEl
     | .step s =>
       unless (← active.get) do return ev
       let traceEvents ← s.traceEvents.flatMapM fun ev => do
-        if let .branchSubstitution _ _ _ := ev then
+        if let .branchSubstitution _ _ _ _ := ev then
           changed.modify (· + 1)
           return []
         return [ev]

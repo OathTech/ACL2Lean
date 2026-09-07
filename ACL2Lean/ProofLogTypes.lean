@@ -425,6 +425,7 @@ inductive TraceEvent where
   | endBranch
   | caseSplit (literalIndex : Nat) (numBranches : Nat)
   | branchSubstitution (equivalence : SExpr) (lhs : SExpr) (rhs : SExpr)
+      (basis : Option SExpr := none)
   | contextSubst (var : SExpr) (value : SExpr) (justification : SExpr)
   /-- A rule hypothesis relieved SILENTLY (no rewrite events): by a type-alist
       lookup, by type-set under the clause type-alist, or by the backchain

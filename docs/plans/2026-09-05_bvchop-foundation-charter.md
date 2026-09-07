@@ -4177,3 +4177,63 @@ existing equality-reasoning book replays **3/3**
 wrong path after a successful executable build, then the corrected corpus
 path passed. This is an intermediate fast-gate checkpoint, with no new full
 gate, golden repin, production producer promotion or mirror-completion claim.
+
+
+### C2 recorded retention after linear insertion (2026-09-07)
+
+Isolated producer **7b5da0495c** emits SUBSTITUTION-BASIS at the actual
+remove-trivial-equivalences selection: input clause, zero-based literal
+position, selected literal, and the deletion flag passed to the substitution
+routine. Source statements, hints and logical execution are unchanged.
+The hermetic image and tagging pass (`c2-substitution-retention-image.log`,
+`c2-substitution-retention-tags.log`). The bootstrap capture completes
+initialization with unchanged sources, 743,588 raw bytes and checked archive
+hashes. Its ten substitution decisions include ADD-DEF-COMPLEX Subgoal 2's
+three retained equalities at positions 0/1/2. Removing only the new field
+in memory leaves all **79 prior events** unchanged
+(`c2-bootstrap-retention-event-comparison.log`).
+
+The unchanged times prefix also captures **38/38**. Its **498 events**
+compare with the earlier polynomial capture after removing only the new
+retention field and the intervening observers' USE-instance folds,
+clausify-call assumptions and explicit equality-to-NIL steps
+(`c2-substitution-retention-times-event-comparison-final.log`). The first
+comparison omitted those intervening fields and correctly failed; the
+expanded comparison names each additional observer, and no normalized
+comparison output is used as a proof input.
+
+The parser/tree retain the new field. A separate continuation consumer,
+selected after actual linear insertion, requires its selected input/literal
+position and retained-equality flag. It derives the selected equality from
+the input clause's falsity, substitutes through the other literals, consumes
+each recorded ground fold/drop, and requires exactly one child whose clause
+matches the result. It adds no setup memos or DP fallback. Both actual
+postpasses kernel-check relative to their recorded child; **26 mutations**
+reject absent/changed data, omitted steps, wrong relation and missing/extra
+children (`c2-substitution-retention-controls-final.log`). Initial control
+scripts had a pattern-inference error and a reserved `let rec` name; both
+were corrected before the successful receipt.
+
+The **whole actual strict Subgoal 9.12 subtree** now replays with two kept
+conditions, REALPART-+ and REALPART-OF-*-WHEN-RATIONALP-ARG2, using the
+unconditional component/comparison registry at the quotient world. Its
+registered declaration has accepted axioms
+(`c2-strict-retention-subtree.log`). The bootstrap defaults remain
+unconditional; ADD-DEF-COMPLEX advances to the actual IMAGPART query with
+input mask -128 and output mask 1
+(`c2-bootstrap-retention-declarations.log`). The parent row/query obligations
+are still checked after their continuations, so the remaining outer
+bootstrap row classes must be measured as that child closes. Core build
+passes **3145 jobs** (`c2-substitution-retention-consumer-final-build.log`).
+BUG-055 remains open for promotion and other retention/deletion contexts;
+C2 and all three native products remain incomplete.
+
+Affected targets pass **3161 jobs**
+(`c2-substitution-retention-affected-build.log`); static checks, including
+the staged new module's reachability/weight checks, pass. Equality-reasoning
+replays **3/3** after the **6278-job** executable build
+(`c2-substitution-retention-equality-replay.log`). The preceding product-query
+checkpoint also preserves all four unconditional comparison declarations
+(`c2-product-query-comparison-regression.log`). This is an intermediate
+fast-gate checkpoint; no full-suite, production promotion or mirror exit is
+claimed.

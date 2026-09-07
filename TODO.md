@@ -54,9 +54,10 @@ charter or the archive carry the record.
       bootstrap capture's source/proof provenance. Capture and consume the
       diagnostic comparison book's now-unconditional 4/4 declarations and
       their capture route into the required dependency chain. Close the
-      strict helper's Subgoal 9.12 after its checked product query/zero row:
-      capture and consume whether each trivial substitution retains its
-      justifying literal (BUG-055). Preserve the
+      strict helper's remaining component rules: Subgoal 9.12 now also
+      checks under the same two conditions as 9.18'. Promote the recorded
+      literal-retention route (BUG-055) and close the bootstrap's nonnumeric
+      component queries. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

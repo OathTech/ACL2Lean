@@ -9,7 +9,7 @@ import ACL2Lean.Replay.Driver.Waterfall.Compose
 import ACL2Lean.Replay.Driver.Waterfall.Conjunction
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReflexivity
 import ACL2Lean.Replay.Driver.Waterfall.LiteralVerdict
-import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
+import ACL2Lean.Replay.Driver.Waterfall.LinearSubstitution
 import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
 import ACL2Lean.Replay.Driver.Waterfall.Elim
@@ -51,7 +51,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
   match items with
   | .linearEquation info :: rest =>
     unless accClause.isEmpty do throwError "linear equation: insertion after partial literal scan at {idStr}"
-    replayLinearEquation cfg ctx (clauseLits.map (·.2)) info fun output =>
+    replayLinearInsertion rec cfg ctx idStr (clauseLits.map (·.2)) info rest children fun output =>
       replayClauseSpineWith rec cfg ctx idStr (output.zipIdx.map fun (t, i) => (i, t))
         rest [] children
   | .fcDerivations _ :: rest =>
