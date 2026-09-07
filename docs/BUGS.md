@@ -192,6 +192,14 @@ bootstrap theorems, including whole ADD-DEF-COMPLEX, REALPART-+ and
 IMAGPART-+, now replay unconditionally with accepted axioms. Production promotion and the general
 retention/deletion coverage remain open; this bug is not closed.
 
+NS1-R's selected-edit implication now consumes deletion as well as retention.
+The whole `<-OF-*-AND-*-CANCEL` proof replays unconditionally through all six
+recorded deletions with accepted axioms. Two retained and two deleted actual
+postpasses check against their recorded children and reject their mutation
+controls. The residual construction/cleanup consolidation and production
+promotion remain open; this is not a complete repair of the capture surface.
+Evidence: [NS1-R execution](notes/2026-09-07_ns1-r-execution.md).
+
 ## BUG-054 — numeric solidification omits the selected type mask
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)
@@ -246,8 +254,13 @@ six product/cancellation targets, five with nested IF arguments, have outer
 masks/tuples but no argument branch evidence. The root-IF collector is a
 diagnostic re-query, not a record of the original query's executed children.
 The shared query protocol must cover the actual recursive calls and branch
-contexts at this consumer as well. No repair or full integration is claimed;
-see the [NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
+contexts at this consumer as well. Diagnostic producer `af782a07af` now
+observes these original calls and their IF decisions, plus the original
+explicit recognizer and Boolean-collapse queries. The six target trees carry
+312 recursive queries, and real source probes exercise both-branch,
+true-only and false-only IF decisions. Shared consumption and production
+integration remain open; see the
+[NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
 
 The strict multiplication helper also exercises `:CONSTANT-BOUND`, whose
 returned derivation omitted the selected type-alist entry. Isolated producer

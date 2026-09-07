@@ -1,6 +1,6 @@
 # NS1-R — reusable type-query and clause-edit replay
 
-Dated 2026-09-07. **Execution activated; R0 checkpointed, R1 scope frozen; R2 in progress.**
+Dated 2026-09-07. **Execution activated; R0 checkpointed, R1 scope frozen; query capture and edit implementation in progress.**
 Evidence and current next actions are in the
 [execution record](../notes/2026-09-07_ns1-r-execution.md).
 This is the next bounded slice within NS1, following the project check-in.

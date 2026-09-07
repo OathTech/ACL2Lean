@@ -1,27 +1,9 @@
 import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.ClauseReplacement
 
 namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
-
-/-- Replace every occurrence of a TERM by another (quote-opaque) — ACL2's
-    `subst-expr` for remove-trivial-equivalences' NON-VARIABLE lhs (the
-    `(CDR IT) := 'JUNK` class, G1 inc-2c). On a variable lhs this agrees
-    with `substTerm`. -/
-partial def replaceTermOcc (src dst : SExpr) (t : SExpr) : SExpr :=
-  if t == src then dst
-  else match t with
-    | .cons h args =>
-      match h with
-      | .atom (.symbol q) =>
-        if q.name == "QUOTE" then t
-        else .cons h (replaceArgs args)
-      | _ => .cons (replaceTermOcc src dst h) (replaceArgs args)
-    | _ => t
-where
-  replaceArgs : SExpr → SExpr
-    | .cons a rest => .cons (replaceTermOcc src dst a) (replaceArgs rest)
-    | e => e
 
 /-- Replay the recorded remove-trivial-equivalences postpass on a residual
     clause. Unlike the scan's in-clause substitution, this pass retains the

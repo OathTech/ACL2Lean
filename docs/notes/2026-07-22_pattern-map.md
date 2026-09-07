@@ -748,10 +748,11 @@ No pattern books exist yet — authoring them is the arc's work.
   [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
 
 - NS1-R's [frozen scope](2026-09-07_ns1-r-supported-scope.md) adds selected
-  deletion and actual temporary literal construction to the next bounded
-  implementation. The complete-tree inventory observes six deletions in
-  strict CANCEL and three deletions/five retentions in CANCEL-GEN. These
-  are observed frontiers, not new whole-proof support claims.
+  deletion and actual temporary literal construction. The selected-edit
+  implication now closes whole strict CANCEL unconditionally through all six
+  deletions, with accepted axioms. Retention/deletion controls pass against
+  their actual children. CANCEL-GEN and shared residual construction remain
+  open; see the [execution receipt](2026-09-07_ns1-r-execution.md).
 
 ### P6 — induction clean-up (trivial-clause drops)
 - source: `acl2/induct.lisp:7047` → `trivial-clause-p`

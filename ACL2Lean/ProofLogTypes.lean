@@ -462,6 +462,7 @@ inductive TraceEvent where
       (ifBasis : Option HypIfBasis := none)
       (substBasis : Option HypSubstitutionBasis := none)
       (comparisonBasis : Option HypComparisonBasis := none)
+      (typeSetBasis : Option SExpr := none)
   /-- The clause's approved forward-chaining derivations, emitted where
       ACL2 flattens them (`emit/fc-derivations`, cluster item 4): raw
       per-derivation plists (:RUNE :CONCL :TRIGGER :SUBST :PARENTS

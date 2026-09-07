@@ -2,10 +2,11 @@
 
 Dated 2026-09-07. Implements the
 [focused plan](../plans/2026-09-07_ns1-replay-mechanisms-plan.md).
-**In progress: R0 checkpointed at `435a26f`; R1 scope frozen; R2 probes next.**
+**In progress: R1 scope frozen; query captures and selected clause edits underway.**
 The [supported scope](2026-09-07_ns1-r-supported-scope.md) records the cases,
 module contracts, integration bounds and subsequently selected reuse witnesses.
-Neither production replay fragment has been changed by this slice.
+The selected clause-edit fragment closes the first required CANCEL proof.
+Shared query consumption and residual clause construction remain incomplete.
 
 ## Baseline and preservation
 
@@ -240,3 +241,125 @@ The R1 inventory/scope checkpoint passes a fresh fast gate: static recipes in
 The inventory script compiled and traversed the source trees as recorded
 above. This checkpoint changes the inspection tool and records; it makes no
 new production replay or full-gate claim.
+
+## R2 query observations and first edit implementation
+
+The scope/inventory checkpoint is `b8f9034`. The diagnostic producer then
+added executed known-true and scoped IF query observation (`4ad3e3248d`),
+followed by original explicit-recognizer and IF-Boolean-collapse query
+observation (`af782a07afae25b9370d9fa3f85eb4bb55f91ce6`). Both changes only
+observe original calls; the older addressed-leaf collectors remain explicitly
+separate diagnostic re-queries. Nested original queries are appended back to
+their parent observer in execution order. No mandatory source or hint changed.
+
+The first diagnostic image rebuild passed but its first TIMES capture failed
+at the system include of equal-of-booleans: the image defaulted to the
+absent diagnostic `books/` directory. The failed raw output is retained in
+`r2-query-times-capture/`; no successful log or sidecar was published for it.
+An explicit `ACL2_SYSTEM_BOOKS` path to the existing production books fixes
+the environment. Clean producer rebuilds then succeed, with matching image
+banner/commit, and captures use that explicit system path.
+
+Latest capture command pattern (new scratch outputs have no embedded consumer):
+
+```sh
+ACL2_SYSTEM_BOOKS="$PWD/acl2/books" \
+ACL2="$PWD/.tmp/ns1/acl2-ta-singleton/saved_acl2" \
+OUTDIR="$PWD/.tmp/ns1-r/r2-query-all-consumers-times-capture" \
+CAPTURE_WORKER=1 CAPTURE_THROUGH='<=-OF-*-AND-*-SAME-FORWARD-2' \
+scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
+```
+
+The latest TIMES capture has 38/38 QEDs, 166,796 lines and 10,572,735 bytes
+(old selected capture: 6,647,656 bytes). The Boolean book has 2/2 QEDs,
+1044 lines and 56,589 bytes. Source/image/capture hashes, all 55 producer
+source hashes and the exact system path are recorded in
+`.tmp/ns1-r/r2-query-provenance.json`. The final clean build receipt is
+`r2-query-consumers-clean-image-build.log`. This remains diagnostic production
+work; no production submodule or maintained capture has been promoted.
+
+The first query capture reconstructs the same 6180 inventory rows for all
+seven TIMES trees. Its structure, statements, runes and legacy basis projection
+are identical to R1 (`r2-query-structural-comparison.json`). That comparison
+explicitly omits raw provenance and log identity, so it does not by itself
+establish equality of every old metadata field. Source delta inspection and
+full metadata comparisons remain part of promotion.
+
+The six targets' fourteen known-true recognizer records expose 127 executed
+queries, including seven actual IF queries. All seven take both branches;
+their decision prefixes contain two, three or six executed queries. The
+Boolean book's formerly failing collapse now records its actual lookup of
+Y at mask 384, citing BOOLEANP-COMPOUND-RECOGNIZER. A later Boolean-book
+query also retains accumulated ordinary rewrite and SPLITTER-IF-INTRO
+citations, an evidence-channel distinction the consumer must preserve.
+
+The authored `.tmp/ns1-r/query-probes.lisp` places its conditional inside an
+ordinary rewrite rule's hypothesis, so argument rewriting does not erase the
+query beforehand. Real ACL2 captures 6/6 theorems. The complete reconstructed
+three consumer trees contain 31 executed queries: three outer both-branch
+IFs, one inner true-only IF and one inner false-only IF. These are positive
+source observations, not Lean replay successes. The input contains unreachable
+non-Boolean branches, making branch pruning material to Boolean membership.
+The propagated recognizer tuple contains a numeric enabled-rule index
+(`1040`) where the old query checker assumes NIL; the tuple's semantic fields
+and its source index must be distinguished. The contradictory-context IF
+case is not yet witnessed. Receipts: `r2-query-probes-capture.log`,
+`r2-query-probe-inventory.log`, `r2-query-probe-trees.jsonl`.
+
+Parser/tree WIP retains the new hypothesis query envelope; the inventory
+walk now exposes both hypothesis and operand query trees. No shared query
+consumer has been implemented yet. In parallel, the already inventoried
+selected EQUAL edit now has a fragment-local selection record and an explicit
+`ClauseEditSound w env before after` implication judgment. The linear
+continuation calls it for both retention and deletion. Quote-opaque replacement
+was moved out of the residual postpass without changing its implementation.
+The selected equality is used inside the parent contradiction and is not
+added to the child's assumptions. Two compile errors (a mutable binding name
+and a missing direct import) were fixed; `r3-selected-clause-edit-build-final.log`
+now builds the replay executable. The actual owning proof `<-OF-*-AND-*-CANCEL` now replays unconditionally
+through all six selected deletions, taking 19,874 ms in the reported replay
+interval. `probe-selected-edit-cancel.lean` fails unless the condition list is
+empty and the axiom set is accepted; its additional `#print axioms` confirms
+`{propext, Classical.choice, Quot.sound}`. Receipt:
+`r3-selected-edit-cancel.log`. This uses the preserved original TIMES capture;
+acceptance through the new query consumers and maintained captures is still
+required. It is one required whole proof, not completion of either family.
+
+Both staged modules were freshly recompiled after the parser/edit changes:
+24 component and seven negation declarations remain unconditional, with
+accepted axiom receipts (`r3-selected-edit-components.log`,
+`r3-selected-edit-negations.log`). The two existing retention postpasses
+kernel-check relative to their actual recorded children and reject all 26
+existing mutations. The new deletion controls use actual CANCEL Subgoals
+2.9 and 2.8, check the same conditional child contract, and reject 26
+mutations including a removed deletion decision and missing cleanup/child.
+Receipts: `r3-selected-edit-retention-controls.log` and
+`r3-selected-edit-deletion-controls.log`.
+
+The latest full six-tree query inventory, including explicit recognizer and
+Boolean-collapse operands, contains 312 recursive queries in 80 envelopes
+(14 hypothesis, 66 operand). The new operand observations include negation
+and addition queries narrowed by existing contexts; these must pass through
+the shared membership judgment as well. Raw counts describe this capture,
+not a support claim. Residual consumer consolidation, temporary construction
+capture, query consumers and all final acceptance checks remain open.
+
+The next query integration uses the existing whole-formula dependency
+transport to offer cited ordinary recognizer proofs explicitly. The Boolean
+case must consume the instantiated replayed equivalence, rather than merely
+retain an unused proof alongside a primitive Boolean law. Lookup and
+recognizer application then share this checked relation in opposite
+directions. Inherited ttree tags are distinguished from newly selected query
+evidence; their presence is not permission to assume an ordinary theorem.
+Primitive negation's new recorded result masks will be handled by the source's
+finite atomic-type transfer, not a theorem-indexed list of additional masks.
+
+The selected-edit increment passes its fast gate: all static recipes in
+`r3-selected-edit-static.log`, updated BUGS/pattern-map checks in
+`r3-selected-edit-record-checks.log`, and six affected test targets in
+`r3-selected-edit-affected-build.log` (3169 jobs; Ns1Mod's fresh build takes
+246 seconds). Focused EQUAL-DENOMINATOR-1 replay is unconditional in
+`r3-selected-edit-denominator-replay.log`; it checks the extracted replacement
+helper on the existing residual route, and does not yet count as acceptance
+through the future shared residual edit consumer. There is no new full
+claim-gate receipt.

@@ -1,13 +1,14 @@
 import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
 import ACL2Lean.Replay.Driver.Waterfall.ResidualPostpass
 import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
+import ACL2Lean.Replay.Driver.Waterfall.ClauseEdits
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- The recorded postpass following linear equation insertion. Each selected
-quote equality is retained at its actual position, while substitution affects
-the other literals. This lane ends only at the exact recorded child clause. -/
+/-- The recorded postpass following linear equation insertion. The shared
+edit judgment handles the selected literal's retention/deletion. This lane
+ends only at the exact recorded child clause. -/
 partial def replayLinearSubstitutions (rec : ClauseRec) (cfg : ReplayConfig)
     (ctx : ReplayCtx) (idStr : String) (clause : List SExpr)
     (items : List ClauseItem) (children : List ClauseNode) : MetaM Expr := do
@@ -27,40 +28,10 @@ partial def replayLinearSubstitutions (rec : ClauseRec) (cfg : ReplayConfig)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhs
     if rune.ty == "branch-substitution" then
-      unless prov.equivTerm == some (.atom (.symbol {name := "EQUAL"})) do
-        throwFrontier m!"linear substitution: unsupported relation"
-      let some basis := prov.branchSubstitutionBasis
-        | throwError "linear substitution: missing selected literal decision"
-      let fs ← tsQueryRead (TsQueryCapture.fields basis
-        ["INPUT-CLAUSE", "LITERAL-POSITION", "LITERAL", "DELETE-LITERAL"])
-      let input ← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "INPUT-CLAUSE")))
-      let position ← tsQueryRead (TsQueryCapture.asInt (← tsQueryRead (TsQueryCapture.required fs "LITERAL-POSITION")))
-      let literal ← tsQueryRead (TsQueryCapture.required fs "LITERAL")
-      unless input == clause && position ≥ 0 && clause[position.toNat]? == some literal do
-        throwError "linear substitution: selected literal/input position mismatch"
-      unless (← tsQueryRead (TsQueryCapture.required fs "DELETE-LITERAL")) == .nil do
-        throwFrontier m!"linear substitution: deletion requires its own continuation"
-      let some (a, b) := notEqualSides? literal
-        | throwError "linear substitution: selected literal is not a negated equality"
-      unless (a == lhs && b == rhs) || (a == rhs && b == lhs) do
-        throwError "linear substitution: selected equality differs from substitution"
-      let next := clause.zipIdx.map fun (lit, i) =>
-        if i == position.toNat then lit else replaceTermOcc lhs rhs lit
-      let goal ← mkAppM ``EvTrue
-        #[cfg.worldExpr, cfg.envExpr, reflectSExpr (disjoinTerm clause)]
-      let contradiction ← withLocalDeclD `hInputFalse (← mkAppM ``Not #[goal]) fun hf => do
-        let (_, hLiteral) ← clauseLiteralFalsity cfg ctx clause hf position.toNat
-        let hEq ← mkAppM ``logic_not_equal_nil_eq
-          #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, hLiteral]
-        let hEq ← if a == lhs then pure hEq else mkAppM ``Eq.symm #[hEq]
-        let stepEq ← mkAppM ``fuel_eq_of_conv
-          #[← ctxValProof cfg ctx lhs, ← ctxValProof cfg ctx rhs, hEq]
-        let chain ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs stepEq
-          (disjoinTerm clause) (disjoinTerm next)
-        let p ← replayLinearSubstitutions rec cfg ctx idStr next rest children
-        let p ← evtrueWith chain p
-        mkLambdaFVars #[hf] (mkApp hf p)
-      return ← mkAppM ``Classical.byContradiction #[contradiction]
+      let (next, edit) ← certifySelectedClauseSubstitution cfg ctx clause n
+      let p ← replayLinearSubstitutions rec cfg
+        { ctx with litFacts := [], dedupDrops := [] } idStr next rest children
+      return mkApp edit p
     if rune.ty == "executable-counterpart" && prov.origin == "scons-term/exec" then
       let (stepEq, relation) ← replayNode cfg ctx n
       unless relation.isNone do throwError "linear substitution: non-equality executable fold"

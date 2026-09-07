@@ -25,6 +25,23 @@ private def emit (out : IO.FS.Handle) (loc : Location)
     ("address", js loc.address), ("input_clause", sexprs loc.clause),
     ("branch_segments", sexprs loc.segments)] ++ fields)).compress
 
+private def readCapture (x : Except String α) : IO α :=
+  match x with
+  | .ok a => pure a
+  | .error e => throw (IO.userError e)
+
+private partial def visitQuery (out : IO.FS.Handle) (loc : Location)
+    (raw : SExpr) : IO Unit := do
+  let q ← readCapture (TsQueryCapture.query raw)
+  emit out loc "type-query" [
+    ("term", js (toString q.term)), ("result", toJson q.result),
+    ("route", js (toString q.route)), ("lookup", js (toString q.lookup)),
+    ("comparison", js (toString q.comparison)), ("recognizer", js (toString q.recognizer)),
+    ("ttree", js (toString q.ttree)), ("input_ttree", js (toString q.inputTtree)),
+    ("dwp", js (toString q.dwp)), ("child_count", toJson q.children.length)]
+  for (child, i) in q.children.zipIdx do
+    visitQuery out {loc with address := s!"{loc.address}/query:{i}"} child
+
 private partial def visitNode (out : IO.FS.Handle) (loc : Location)
     (n : ProofNode) : IO Unit := do
   let .node rune lhs rhs children p := n
@@ -36,6 +53,16 @@ private partial def visitNode (out : IO.FS.Handle) (loc : Location)
     ("recognizer_basis", js (reprStr p.recogBasis)),
     ("argument_leaf_count", toJson p.argLeaves.length),
     ("provenance", js (reprStr p))]
+  for (label, basis) in [("hypothesis", p.hypTypeSetBasis), ("operand", p.operandTypeBasis)] do
+    if let some raw := basis then
+      unless raw == .nil do
+        let fs ← readCapture (TsQueryCapture.fields raw ["TYPE-ALIST", "QUERIES"])
+        let ta ← readCapture (TsQueryCapture.required fs "TYPE-ALIST")
+        let _ ← readCapture (TsQueryCapture.typeAlist ta)
+        emit out loc "query-context" [("consumer", js label), ("type_alist", js (toString ta))]
+        let roots ← readCapture (TsQueryCapture.asList (← readCapture (TsQueryCapture.required fs "QUERIES")))
+        for (root, i) in roots.zipIdx do
+          visitQuery out {loc with address := s!"{loc.address}/{label}-query:{i}"} root
   for (child, i) in children.zipIdx do
     visitNode out {loc with address := s!"{loc.address}/node:{i}"} child
 

@@ -35,11 +35,12 @@ charter or the archive carry the record.
 
 ## In flight
 
-- [ ] **NS1-R — reusable type-query and clause-edit replay (active, R2).**
+- [ ] **NS1-R — reusable type-query and clause-edit replay (active, query capture / edit implementation).**
       With the [scope frozen](docs/notes/2026-09-07_ns1-r-supported-scope.md),
       capture executed recursive queries and literal construction, then
-      consolidate shared consumers. Close the six required dependencies and
-      reserved whole reuse proofs; preserve the 31 staged prerequisites,
+      consolidate shared consumers. Close the other five required dependencies,
+      integrate the checked CANCEL proof and pass the reserved reuse proofs;
+      preserve the 31 staged prerequisites,
       integrate production captures and measure the downstream helper.
       Broader C2 work stays deferred. Plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
       Evidence: [execution record](docs/notes/2026-09-07_ns1-r-execution.md).
