@@ -108,6 +108,8 @@ structure StepProvenance where
   canon1 : Option SExpr := none
   canon2 : Option SExpr := none
   taEntry : Option SExpr := none
+  taSingletonBasis : Option TaSingletonBasis := none
+  operandTypeBasis : Option SExpr := none
   /-- The fn-restricted tau-database slice on a `preprocess/tau` verdict
       record (`:TAU-BASIS`, fork-batch item I): raw per-fn entries, copied
       verbatim from the emitted step; the DP consumer gates its rule
@@ -355,7 +357,8 @@ private def rewriteStepNode (step : RewriteStep) (children : List ProofNode) : P
       parents := step.parents, subst := step.subst, equivTerm := step.equivTerm,
       typeSet := step.typeSet, trueTs := step.trueTs, path := step.path,
       swapped := step.swapped, canon1 := step.canon1, canon2 := step.canon2,
-      taEntry := step.taEntry, tauBasis := step.tauBasis,
+      taEntry := step.taEntry, taSingletonBasis := step.taSingletonBasis, operandTypeBasis := step.operandTypeBasis,
+      tauBasis := step.tauBasis,
       clauseContextBasis := step.clauseContextBasis,
       falseTs := step.falseTs, geneqv := step.geneqv,
       lhsTs := step.lhsTs, rhsTs := step.rhsTs,

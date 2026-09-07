@@ -3887,3 +3887,104 @@ claim. The final parser receipt is
 `c2-bootstrap-call-parser-controls-final.log`: its improper-list mutation
 now uses an atomic tail and reaches the outer-list check. The initial
 mutation was still rejected, but at the inner-record check instead.
+
+
+### C2 selected singleton-entry consumer (2026-09-07, in progress)
+
+The d7e87b2716 less-than diagnostic's selected-entry basis now survives the
+RewriteStep/ProofNode boundary. The parser checks the EQUAL-FALSE-SINGLETON
+record, and the tree printer displays its equality, selected side, operand
+masks and exact entry. The consumer checks the node origin, source equality,
+selected entry and replacement. It demands only that recorded equality's
+falsity. The implemented operand class is an actual primitive binary Boolean
+range against quoted T/NIL; other operand derivations remain frontiers.
+Two model-proved Boolean singleton exclusion cells supply the primitive step.
+No CoreSpine setup inference or hypothesis DP was added.
+
+Both consumer builds pass **6274 jobs**
+(`c2-ta-singleton-consumer-build.log`,
+`c2-ta-singleton-consumer-final-build.log`), and static checks pass
+(`c2-ta-singleton-static.log`). The actual tree is
+`c2-ta-singleton-consumer-tree.log`. All **four actual selected lookup nodes**
+kernel-check, with the accepted classical trio, and **32 mutations** reject
+missing basis, wrong side/masks/source/entry/output and absent source scope
+(`c2-ta-singleton-controls-rerun.log`). The first node-control script treated
+the replay function's proof/payload pair as a bare proof; that script error
+was fixed before the passing run.
+
+The complete comparison theorem does **not** yet replay. It now reaches
+`equal/type-set-true` on `(EQUAL (IMAGPART Y) '0)` in Subgoal 3'' (and the
+corresponding Subgoal 2''), with both recorded operand masks **1**
+(`c2-component-equality-true-tree.log`,
+`c2-ta-singleton-component-dependencies.log`). The attempted declaration's
+subsequent axiom-print fails because the theorem is absent; no clean
+whole-theorem receipt is claimed. Its earlier linear insertion of
+IMAGPART Y = 0 is also a type-derived row and remains unproved: continuation
+checking runs first. Thus the four node checks are partial evidence only.
+The mask-1 equality consumer is now being built, using the existing checked
+operand type context; its first build needed the missing numeric-facts
+import (`c2-component-singleton-equality-build.log`). The production pointer
+and bootstrap provenance route remain unchanged; C2 and all new mirrors
+remain open.
+
+
+### C2 executed equality operands and projection queries (2026-09-07)
+
+The first mask-1 equality attempt correctly refused to manufacture
+IMAGPART Y = 0 from context (`c2-component-singleton-equality-replay.log`).
+The isolated producer now observes the two actual `rewrite-equal` operand
+queries. It preserves their order and forwards their records once to an
+existing collector. Final producer **cc4f81f508** emits this basis only for
+the true verdict. Its fresh ordinary less-than capture completes **4/4**;
+all **149** pre-existing S-expression events are unchanged after removing
+only the new diagnostic field in memory
+(`c2-equality-operand-true-event-comparison.log`). No altered artifact is
+used for replay. The original book hash remains
+`15b1d094612fa844c33b09945697e651f5697330d4f833a7401436ab34e64883`.
+
+`OPERAND-TYPE-BASIS` now survives reconstruction and appears in the actual
+tree (`c2-equality-operand-tree.log`). The equality consumer checks both
+executed queries through the existing query walker, then applies the
+primitive singleton-zero equality cell. IF markers and equality nodes now
+share their existing captured-lookup context provisioning: only actual
+lookup queries request clause ingredients, and the snapshot supplies no
+assumptions. The extracted helper initially needed its original `partial`
+declaration restored; the subsequent build passes **6274 jobs**
+(`c2-equality-operand-consumer-build-rerun.log`).
+
+All **four actual equality nodes** kernel-check under the actual clause's
+rationality ingredient with the accepted axiom trio; **36 mutations** reject
+missing/reordered queries, changed masks/output, missing children/snapshot,
+and absent rationality (`c2-equality-operand-controls.log`). These complement
+the four selected singleton nodes and their 32 rejected mutations.
+
+Whole comparison replay then exposed the insertion's executed numeric
+query: ACL2-NUMBERP passes its recognizer tuple through IMAGPART to the Y
+lookup (`c2-equality-operand-linear-records.log`). ACL2's
+`type-set-b.lisp` REALPART/IMAGPART arms pass DWP unchanged. The consumer now
+checks that exact propagation and requires a non-NIL lookup tuple to decide
+the recognizer; it does not accept arbitrary double-whammy computation.
+The updated core build passes **6274 jobs**
+(`c2-projection-dwp-consumer-build.log`). Both complete comparison attempts
+now stop at **linear equation: direct parent is not a comparison**
+(`c2-projection-dwp-components.log`). Thus the equality continuation and
+numeric-query checks advance, but neither whole comparison theorem nor its
+type-derived row is claimed proved. DEFAULT-COMPLEX-1/2, COMPLEX-0,
+COMPLEX-OPENER and REALPART-WHEN-RATIONALP remain unconditional in this
+consumer world; the product realpart rule retains its ARG1 dependency.
+
+The affected build passes **3159 jobs**, including Ns1Comparison,
+Ns1Contexts, DriverTests and TamperTests
+(`c2-equality-operand-affected-build.log`). Static checks pass
+(`c2-equality-operand-static.log`) and the hints replay is **4/4**
+(`c2-equality-operand-hints-replay.log`). No golden or production fork pointer
+changes are included. This is an intermediate fast-gate increment, with
+C2 and all three new mirrors still open.
+
+The actual insertion numeric-query pair separately kernel-checks with the
+accepted trio; five mutations reject a changed projection tuple, missing or
+changed propagated tuple, missing child and missing snapshot
+(`c2-projection-dwp-controls-rerun.log`). The first probe had a structure
+literal indentation error, fixed before this passing run. The existing
+equality-reasoning book also replays **3/3**
+(`c2-equality-operand-equality-replay.log`).

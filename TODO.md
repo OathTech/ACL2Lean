@@ -52,9 +52,10 @@ charter or the archive carry the record.
       Subgoal 9.17 also checks under seven conditions, adding IMAGPART-+
       and the imaginary product rule. Close the bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
       linear-insertion/substitution composition. Integrate the scoped six-theorem
-      bootstrap capture's source/proof provenance. Finish the comparison book's
-      type-alist truth lookup at Subgoal 2, and the strict helper's derived
-      linear row at Subgoal 9.12. Preserve the
+      bootstrap capture's source/proof provenance. Capture and consume the
+      comparison book's type-derived linear rows in Subgoals 2/3: its selected
+      singleton/equality nodes and linear numeric queries now check. Close the
+      strict helper's derived linear row at Subgoal 9.12. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

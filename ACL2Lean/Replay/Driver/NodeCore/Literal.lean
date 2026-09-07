@@ -305,13 +305,9 @@ partial def typeSetContextDemands (t : SExpr) : List ContextDemand :=
     | _ => []
   direct ++ operands.flatMap typeSetContextDemands
 
-/-- An executed lookup demands its context ingredients. These are only
-requests to split actual clause literals; every entry still requires proof
-in `replayTsQuery`, and the recorded snapshot supplies no assumptions. -/
-partial def ifQueryContextDemands (marker : SExpr × Bool × SExpr) : MetaM (List ContextDemand) := do
-  let (_, _, just) := marker
-  let some fields := just.toList? | return []
-  let some basis := ProofLog.lookupKeyword "TYPE-SET-BASIS" fields | return []
+/-- Provision context only for lookups in an actual captured query tree.
+The snapshot itself supplies no assumptions; replayTsQuery checks every fact. -/
+partial def capturedTypeQueryDemands (basis : SExpr) : MetaM (List ContextDemand) := do
   let fs ← tsQueryRead (TsQueryCapture.fields basis ["TYPE-ALIST", "QUERIES"])
   let qs ← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "QUERIES")))
   let rec queryDemands (raw : SExpr) : MetaM (List ContextDemand) := do
@@ -319,6 +315,21 @@ partial def ifQueryContextDemands (marker : SExpr × Bool × SExpr) : MetaM (Lis
     let own := if q.route == .atom (.keyword "LOOKUP") then typeSetContextDemands q.term else []
     return own ++ (← q.children.mapM queryDemands).flatten
   return (← qs.mapM queryDemands).flatten
+
+/-- Reuse captured-query context provisioning for an actual IF marker. -/
+def ifQueryContextDemands (marker : SExpr × Bool × SExpr) : MetaM (List ContextDemand) := do
+  let (_, _, just) := marker
+  let some fields := just.toList? | return []
+  let some basis := ProofLog.lookupKeyword "TYPE-SET-BASIS" fields | return []
+  capturedTypeQueryDemands basis
+
+/-- Equality operand lookups use the same captured-query provisioning. -/
+partial def collectOperandQueryDemands (node : ProofNode) : MetaM (List ContextDemand) := do
+  let .node _ _ _ children p := node
+  let own ← match p.operandTypeBasis with
+    | some basis => capturedTypeQueryDemands basis
+    | none => pure []
+  return own ++ (← children.mapM collectOperandQueryDemands).flatten
 
 /-- Demand exactly the selected source of each emitted clausify call. -/
 def clausifyCallDemands (lp : LiteralProof) : MetaM (List ContextDemand) := do
@@ -531,7 +542,9 @@ partial def collectContextDemands (fcDerivs : List SExpr := []) :
           else []
         | _ => [])
      else if prov.origin == "recognizer/false" then [ContextDemand.term l]
-     else []) ++ typeDemands ++ ifTestDemands ++ children.flatMap (collectContextDemands fcDerivs)
+     else []) ++ (match prov.taSingletonBasis with
+       | some b => [ContextDemand.term b.equality]
+       | none => []) ++ typeDemands ++ ifTestDemands ++ children.flatMap (collectContextDemands fcDerivs)
 
 /-- WORLD-AWARE demand augmentation: a DEFINITION node's unfolded body (read
     from the world's defun, formals substituted by the recorded call args)

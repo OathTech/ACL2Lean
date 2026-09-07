@@ -622,6 +622,7 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     let pr ← ctxValProof cfg ctx rhs
     mkAppM ``fuel_eq_of_conv #[pl, pr, valueEq]
   | "type-alist", _ =>
+    if let some basis := prov.taSingletonBasis then return ← replaySolidifySingleton cfg ctx n basis
     -- SOLIDIFY from the type-alist: the clause context — a spine literal's
     -- falsity — pins the term's value; the node rewrites the term to that
     -- constant. Only the direct-falsity/nil form is supported (a truthy or
@@ -933,6 +934,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     | none => return pCore
     | some ch => mkAppM ``fuel_chain_eq #[pCore, ch]
   | "type-set-equality", _ =>
+    if nodeOrigin n == "equal/type-set-true" then return ← replayTypeSetSingletonEquality cfg ctx n
+    unless prov.operandTypeBasis.isNone do throwError "type-set-equality: operand queries on unsupported verdict"
     -- `(equal x 'c) ⇒ 'nil` decided by ACL2's type-set on DISJOINT types
     -- (origin equal/type-set-nil). Registered cell: the clause context
     -- proves `(consp x)` and the quoted constant is a NON-CONS (a cons can

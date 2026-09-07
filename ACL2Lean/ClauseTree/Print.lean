@@ -16,6 +16,11 @@ partial def printProofNodes (nodes : List ACL2.ProofNode) (indent : Nat) : IO Un
       IO.println s!"{pad}  {lhs} => {rhs}"
       if let some wt := prov.innerTerm then
         IO.println s!"{pad}  window: {wt} @ {repr prov.innerPath}"
+      if let some basis := prov.operandTypeBasis then
+        IO.println s!"{pad}  operand type queries: {basis}"
+      if let some basis := prov.taSingletonBasis then
+        IO.println s!"{pad}  singleton exclusion: {basis.equality}, side {basis.side}"
+        IO.println s!"{pad}  operand masks {basis.leftMask}/{basis.rightMask}; entry {basis.entry}"
       if let some basis := prov.comparisonBasis then
         IO.println s!"{pad}  comparison result {basis.resultTs}: {basis.route}"
       if !prov.runes.isEmpty then

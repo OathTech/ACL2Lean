@@ -64,6 +64,21 @@ def parseRunes (s : SExpr) : Except String (List Rune) :=
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
 
+/-- Retain the executed singleton exclusion arm; reject unsupported records. -/
+def parseTaSingletonBasis (value : Option SExpr) :
+    Except String (Option TaSingletonBasis) := do
+  let some raw := value | return none
+  if raw == .nil then return none
+  let some [.atom (.keyword "KIND"), .atom (.keyword "EQUAL-FALSE-SINGLETON"),
+      .atom (.keyword "EQUALITY"), equality, .atom (.keyword "SIDE"), .atom (.number (.int side)),
+      .atom (.keyword "LEFT"), left, .atom (.keyword "RIGHT"), right,
+      .atom (.keyword "LEFT-MASK"), .atom (.number (.int leftMask)),
+      .atom (.keyword "RIGHT-MASK"), .atom (.number (.int rightMask)),
+      .atom (.keyword "ENTRY"), entry] := raw.toList?
+    | throw "TA-SINGLETON-BASIS: malformed or unsupported selected basis"
+  unless side == 1 || side == 2 do throw "TA-SINGLETON-BASIS: invalid selected side"
+  return some { equality, side := side.toNat, left, right, leftMask, rightMask, entry }
+
 /-- Parse a clausify decision-trace `:PATH` — a list of `(:t . test)` /
     `(:f . test)` conses, outermost-first — into (assumed-true?, test)
     pairs. Hard-fails on any other shape. -/

@@ -112,6 +112,8 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let canon2 := lookupKeyword "CANON2" rest
       let tauBasis := lookupKeyword "TAU-BASIS" rest
       let clauseContextBasis := lookupKeyword "CLAUSE-CONTEXT-BASIS" rest
+      let operandTypeBasis := lookupKeyword "OPERAND-TYPE-BASIS" rest
+      let taSingletonBasis ← parseTaSingletonBasis (lookupKeyword "TA-SINGLETON-BASIS" rest)
       let taEntry := match lookupKeyword "TA-ENTRY" rest with
         | some .nil => none
         | e => e
@@ -133,7 +135,7 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
       let geneqv ← parseSymbolListField "GENEQV" (lookupKeyword "GENEQV" rest)
       let crRune ← parseCrRuneField parseRune? (lookupKeyword "CR-RUNE" rest)
       let argLeaves ← parseArgLeavesField (lookupKeyword "ARG-LEAVES" rest)
-      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, crRune, typeSet, trueTs, falseTs, strongp, argLeaves, lhsTs, rhsTs, canon1, canon2, taEntry, tauBasis, clauseContextBasis, geneqv, path }
+      pure { rune, equiv, lhs, rhs, origin, swapped, runes, parents, subst, equivTerm, crRune, typeSet, trueTs, falseTs, strongp, argLeaves, lhsTs, rhsTs, canon1, canon2, taEntry, taSingletonBasis, operandTypeBasis, tauBasis, clauseContextBasis, geneqv, path }
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 

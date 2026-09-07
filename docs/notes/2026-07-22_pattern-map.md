@@ -784,7 +784,10 @@ No pattern books exist yet — authoring them is the arc's work.
   its comparison Subgoal 2''' checks with a COMPLEX-0 condition and
   two rejected duplicate-record mutations. The comparison's Subgoal 4 also
   checks under COMPLEX-0 after the equality-NIL negation arm; the whole
-  theorem next needs its Subgoal 2 type-alist truth lookup. The scoped bootstrap
+  theorem now passes its selected Boolean singleton lookups and mask-1
+  equality nodes using executed operand queries. Both complex/rational
+  comparison theorems next stop at a type-derived linear row whose parent
+  is rationality, outside the direct-comparison row consumer. The scoped bootstrap
   diagnostic replays DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and COMPLEX-0
   unconditionally, consuming the actual USE-instance ground folds and the
   selected clausify NOT assumption lookup. All three declarations have

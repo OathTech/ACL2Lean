@@ -53,16 +53,23 @@ def primitiveQueryTtree (t : SExpr) : MetaM Unit := do
 /-- Consume a recorded recursive type-set call. Children are checked in
 their execution order; a mask alone never proves a fact. No hypothesis DP. -/
 partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
-    (lookupDwp : SExpr := .nil) : MetaM Expr := do
+    (expectedDwp : SExpr := .nil) : MetaM Expr := do
   let q ← tsQueryRead (TsQueryCapture.query raw)
-  unless q.dwp == lookupDwp && (q.dwp == .nil || q.route == .atom (.keyword "LOOKUP")) do
+  let projection := (asApp q.term).any fun (fn, args) =>
+    (fn.name == "REALPART" || fn.name == "IMAGPART") && args.length == 1
+  unless q.dwp == expectedDwp && (q.dwp == .nil ||
+      q.route == .atom (.keyword "LOOKUP") || (projection && q.route == .nil)) do
     throwFrontier m!"type-set query: unsupported double-whammy computation or parent tuple"
   primitiveQueryTtree q.ttree
   primitiveQueryTtree q.inputTtree
   let cs ← q.children.mapM fun raw => do
     let c ← tsQueryRead (TsQueryCapture.query raw)
     let mut childDwp := SExpr.nil
-    if c.dwp != .nil then
+    -- TYPE-SET-WITH-RULES passes DWP unchanged through component projections.
+    -- A recognizer instead supplies its own recorded recognizer tuple.
+    if projection then
+      childDwp := q.dwp
+    else if c.dwp != .nil then
       let some (fn, [_]) := asApp q.term | throwError "type-set query: DWP child lacks a recognizer parent"
       let some [_, tm, fm, strong, rune] := q.recognizer.toList?
         | throwError "type-set query: DWP child lacks its parent tuple"
@@ -74,6 +81,12 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
   let finish (p : Expr) := do mkExpectedTypeHint p (← queryType cfg ctx q)
   if q.route == .atom (.keyword "LOOKUP") then
     unless cs.isEmpty && q.recognizer == .nil do throwError "type-set query: lookup has computation children"
+    if q.dwp != .nil then
+      let .cons (.atom (.symbol _)) (.cons (.cons .nil tm) (.cons (.cons fm _) _)) := q.dwp
+        | throwError "type-set query: malformed propagated recognizer tuple"
+      unless tsDisjointM q.result (← tsQueryRead (TsQueryCapture.asInt tm)) ||
+          tsDisjointM q.result (← tsQueryRead (TsQueryCapture.asInt fm)) do
+        throwFrontier m!"type-set query: propagated DWP lookup does not decide its recognizer"
     let [m, tt] ← tsQueryRead (TsQueryCapture.asList q.lookup) | throwError "type-set query: malformed lookup pair"
     unless (← tsQueryRead (TsQueryCapture.asInt m)) == q.result do throwError "type-set query: lookup mask mismatch"
     let some [.atom (.keyword "LOOKUP"), .atom (.keyword "ENTRY"), entry,

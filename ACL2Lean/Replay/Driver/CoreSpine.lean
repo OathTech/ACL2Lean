@@ -915,6 +915,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- litFacts and the walk re-enters (one fewer demand each time).
     let demanded := (lp.nodes.flatMap (collectContextDemands ctx.fcDerivs) ++
       lp.nodes.flatMap (collectDefBodyDemands cfg) ++ (← clausifyCallDemands lp) ++
+      (← lp.nodes.mapM collectOperandQueryDemands).flatten ++
       lp.ifMarkers.flatMap ifMarkerDemands ++ (← lp.ifMarkers.mapM ifQueryContextDemands).flatten).eraseDups
     -- "fact in scope" must mean a WELL-TYPED fact (sorting-completion-2
     -- class A: an env-crossed segFact leaked from a parent elim walk

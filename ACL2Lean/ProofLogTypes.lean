@@ -129,6 +129,17 @@ def TpLeaf.parseList (fn : String) (l : SExpr) :
     | _ => throw s!"TYPE-PRESCRIPTION {fn}: bad leaf: {repr entry}"
   | none => throw s!"TYPE-PRESCRIPTION {fn}: :LEAVES not a list: {repr l}"
 
+/-- Construction-site basis for the actual selected type-alist entry. -/
+structure TaSingletonBasis where
+  equality : SExpr
+  side : Nat
+  left : SExpr
+  right : SExpr
+  leftMask : Int
+  rightMask : Int
+  entry : SExpr
+  deriving Repr, Inhabited, BEq
+
 /-- A single rewrite application from ACL2's rewriter. -/
 structure RewriteStep where
   /-- The rune applied, e.g. ("rewrite", "car-cons"). -/
@@ -218,6 +229,8 @@ structure RewriteStep where
   /-- The bound disequality entry's term (`:TA-ENTRY`; none when the
       verdict came from the quotep/canon-collapse shortcuts). -/
   taEntry : Option SExpr := none
+  taSingletonBasis : Option TaSingletonBasis := none
+  operandTypeBasis : Option SExpr := none
   /-- The fn-restricted tau-database slice (`:TAU-BASIS`, fork-batch
       item I, ruled 2026-08-10): on a `preprocess/tau` verdict record,
       the raw per-fn slice — tau-pair, pos/neg-implicants, form-1/2
