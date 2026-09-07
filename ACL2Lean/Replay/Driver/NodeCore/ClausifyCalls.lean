@@ -3,22 +3,29 @@ import ACL2Lean.Replay.Driver.NodeCore.ClausifyEval
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- Validate the actual selected commutative EQUAL assumption. Other call-stack
+/-- Validate the actual selected exact-term or commutative EQUAL assumption. Other call-stack
 lookup classes remain explicit frontiers, including an absent selected basis. -/
 def clausifyCallSource (call : ClausifyCallAssumption) : Except String (SExpr × Bool) := do
   let app := fun name args => SExpr.cons (.atom (.symbol { name })) (SExpr.ofList args)
   unless call.input == app "NOT" [call.query] &&
       call.output == (if call.value then quoteNil else quoteT) do
     throw "clausify call: input/query/value/output mismatch"
+  let parseSign := fun sign => do
+    let sign ← match sign with
+      | .atom (.keyword "TRUE") => pure true
+      | .atom (.keyword "FALSE") => pure false
+      | _ => throw "clausify call: malformed assumption sign"
+    unless sign == call.value do throw "clausify call: selected sign differs from returned value"
+    return sign
+  if let some [.atom (.keyword "KIND"), .atom (.keyword "EXACT-TERM"),
+      .atom (.keyword "TERM"), source, .atom (.keyword "SIGN"), sign] := call.basis.toList? then
+    unless source == call.query do throw "clausify call: selected exact term differs from query"
+    return (source, ← parseSign sign)
   let some [.atom (.keyword "KIND"), .atom (.keyword "COMMUTATIVE-BINARY"),
       .atom (.keyword "TERM"), source, .atom (.keyword "SIGN"), sign,
       .atom (.keyword "FN"), .atom (.symbol fn)] := call.basis.toList?
     | throw "clausify call: unsupported selected assumption basis"
-  let sign ← match sign with
-    | .atom (.keyword "TRUE") => pure true
-    | .atom (.keyword "FALSE") => pure false
-    | _ => throw "clausify call: malformed assumption sign"
-  unless sign == call.value do throw "clausify call: selected sign differs from returned value"
+  let sign ← parseSign sign
   unless fn == ({ name := "EQUAL" } : Symbol) do
     throw "clausify call: commutative function has no checked recipe"
   let some (qfn, [x, y]) := asApp call.query

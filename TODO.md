@@ -47,9 +47,9 @@ charter or the archive carry the record.
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Consume the combined linear capture's numeric queries and direct zero rows;
       close the remaining real-product rule condition of strict-helper Subgoals
-      9.12 and 9.18'. Emit and consume 9.17's selected exact-term clausify
-      assumption (BUG-056) on the current combined capture, then remeasure its product-rule
-      conditions. Integrate the scoped six-theorem
+      9.12 and 9.18', and the two component-product rule conditions of 9.17.
+      Promote the captured exact-term clausify-assumption observer/consumer
+      (BUG-056) with its verified source route. Integrate the scoped six-theorem
       bootstrap capture's source/proof provenance. Capture and consume the
       diagnostic comparison book's now-unconditional 4/4 declarations and
       their capture route into the required dependency chain. Close the

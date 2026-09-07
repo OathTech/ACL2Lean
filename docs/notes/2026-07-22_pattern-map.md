@@ -778,8 +778,9 @@ No pattern books exist yet — authoring them is the arc's work.
   mutations rejected. Earlier captures checked Subgoal 9.18' under two rule conditions
   and 9.17 under four after consuming the checked component/comparison
   registry. On the current combined capture, 9.18' and 9.12 retain only
-  the real-product rule after bootstrap closure; 9.17 now exposes an
-  unemitted exact-term clausify-assumption basis (BUG-056). Each restriction quartet checks with eight rejected
+  the real-product rule after bootstrap closure. Fresh exact-term assumption
+  emission/replay (BUG-056) brings 9.17 to two component-product conditions;
+  six actual calls kernel-check and 48 mutations reject. Each restriction quartet checks with eight rejected
   controls. The component books exercise rational/zero/negative restrictions
   and preprocessing before ELIM (four rejected boundary mutations).
   REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry.

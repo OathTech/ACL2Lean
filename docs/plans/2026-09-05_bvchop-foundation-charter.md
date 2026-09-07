@@ -4695,3 +4695,57 @@ Final affected targets pass 3166 jobs
 (`c2-constant-iff-copy-affected-build.log`). This completes this increment's
 fast-gate checks; production capture gaps and all three NS1 mirrors remain
 open.
+
+
+### C2 selected exact-term clausify assumptions (2026-09-07)
+
+Diagnostic producer `f4a6d954b1` records the selected term and sign in both
+successful exact-term lookup branches of `if-interp-assumed-value1` (BUG-056).
+The first image build rejected the new raw-only observer because it was
+absent from ACL2's raw-code function inventory. Registering it beside the
+existing commutative lookup observer resolves that consistency check; the
+hermetic image build and tagging checks pass
+(`c2-clausify-exact-image-rerun.log`, `c2-clausify-exact-tags-final.log`).
+Logical return values and proof search are unchanged.
+
+The unchanged times prefix recaptures **38/38** through
+`<=-OF-*-AND-*-SAME-FORWARD-2`; its source hash remains
+`e7249fa1f3a5b1e13c8e666746818f2f64dba2ea2b91775ebb623b6b16a2cab2`.
+All **498** events compare unchanged after replacing only the six new
+EXACT-TERM bases with their former NIL in the comparison value
+(`c2-clausify-exact-times-event-comparison.log`). That normalized value is
+never a replay artifact. The actual tree now records `(< S '0)`, false,
+as the selected source of 9.17.1' literal 9's NOT call
+(`c2-strict-exact-assumption-calls.log`).
+
+The consumer validates the six-item exact-term schema, source/query identity
+and sign, then uses the existing `clausifyCallDemands` and checked lookup.
+Six actual calls kernel-check with accepted axioms; **48** mutations of
+basis, context, query, input, output, verdict, source and sign reject
+(`c2-clausify-exact-controls-hoisted.log`). The first control probe considered
+only earlier rewritten literals and missed the selected later clause literal;
+ACL2's rewriter uses other clause literals too. The corrected control uses
+the existing demand's actual other-literal source, excluding the consuming
+literal itself. No consumer scope or assumption-proving code changed.
+
+Strict-helper 9.17 now replays with **two** conditions,
+REALPART-OF-*-WHEN-RATIONALP-ARG2 and IMAGPART-OF-*-WHEN-RATIONALP-ARG2.
+Subgoals 9.12 and 9.18' retain one real-product rule condition apiece.
+All three declarations carry accepted axiom receipts
+(`c2-strict-with-exact-assumptions.log`). The supporting bootstrap and
+comparison declarations remain unconditional; the whole strict helper and
+all three NS1 mirrors remain open.
+
+Core build passes 3149 jobs and statics pass with 275 reachable sources
+(`c2-clausify-exact-consumer-build.log`, `c2-clausify-exact-static.log`).
+Equality-reasoning replay passes 3/3 unconditionally with both DP leaves
+checked (`c2-clausify-exact-equality-replay.log`). Affected targets follow
+before the intermediate fast-gate commit. Production promotion of the
+observer, bootstrap provenance and the selected HIDE edit (BUG-057) remain
+open.
+
+Final affected targets pass 3166 jobs
+(`c2-clausify-exact-affected-build.log`); executable build passes 6286 jobs.
+The exact-context inspector confirms that literal 9's selected `(< S '0)`
+is the later literal 12 in Goal 9.17.1' (`c2-strict-exact-context.log`).
+This is a fast-gate checkpoint, with no new full-suite or product claim.

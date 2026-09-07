@@ -73,6 +73,20 @@ hypothesis DP or inference from the desired result is authorized. Receipt:
 `.tmp/ns1/acl2-ta-singleton/rewrite.lisp:3529–3540,3679–3710`.
 Production promotion remains open.
 
+Diagnostic producer `f4a6d954b1` now observes both successful exact-term
+lookup branches and registers that raw observer in ACL2's existing raw-code
+function list. The hermetic image build passes. The unchanged times prefix
+captures 38/38 theorems; its 498 events compare unchanged when only the new
+EXACT-TERM bases are returned to their former NIL for comparison. The consumer
+checks the six-item basis, exact source/query identity and sign, then uses
+its existing selected-premise context demand and environment checks. Six
+actual calls kernel-check; 48 invalid mutations reject. Strict-helper 9.17
+now replays with two component-product rule conditions and accepted axioms.
+Receipts: `.tmp/ns1/c2-clausify-exact-times-event-comparison.log`,
+`.tmp/ns1/c2-clausify-exact-controls-hoisted.log`, and
+`.tmp/ns1/c2-strict-with-exact-assumptions.log`. Production promotion remains
+open, so this bug is not closed.
+
 ## BUG-055 — trivial substitution omits its literal-retention decision
 Status: open
 Pinned-by: none (proof-capture evidence and replay composition)
