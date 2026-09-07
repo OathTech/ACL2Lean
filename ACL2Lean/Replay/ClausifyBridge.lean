@@ -12,17 +12,11 @@
   Fragment-local per invariant L1; world-parametric per L3. Design:
   docs/plans/2026-06-12_g3-consolidations.md (D-B1..3).
 -/
-import ACL2Lean.Replay.DpLift
+import ACL2Lean.Replay.ClausifyNegation
 
 namespace ACL2.Replay
 
 open ACL2
-
-/-- `(quote t)`, the result an equal-self literal reduces to. -/
-def quoteT : SExpr := .cons (.atom (.symbol { name := "QUOTE" })) (.cons SExpr.t .nil)
-
-/-- `(quote nil)`. -/
-def quoteNil : SExpr := .cons (.atom (.symbol { name := "QUOTE" })) (.cons .nil .nil)
 
 /-- ACL2's `disjoin` of a literal list: `(if l₁ 't (if l₂ 't … lₖ))`; a singleton
     is the literal itself; the empty clause is `'nil` (false). -/
@@ -32,23 +26,6 @@ def disjoinTerm : List SExpr → SExpr
   | l :: rest =>
     .cons (.atom (.symbol { name := "IF" }))
       (.cons l (.cons quoteT (.cons (disjoinTerm rest) .nil)))
-
-/-- ACL2's `dumb-negate-lit`, two of its four arms (strip a `not`, else
-    wrap). The other two arms (quote-fold `'nil`↔`'t`, `(equal x 'nil)` →
-    `x`) are pure too but not mirrored; a log taking them diverges from this
-    recomputation and hard-fails at `bridgeClausify`'s record validation.
-    ACL2 strips `(not x)` by exact symbol while we strip by NAME (any
-    package); the bridge lemma handles the wrong-package case vacuously and
-    the record check catches any behavioral divergence. -/
-def dumbNegateLit (t : SExpr) : SExpr :=
-  match t with
-  | .cons (.atom (.symbol ns)) (.cons _ .nil) =>
-    if ns.name == "NOT" then
-      match t with
-      | .cons _ (.cons inner .nil) => inner
-      | _ => t
-    else .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
-  | _ => .cons (.atom (.symbol { name := "NOT" })) (.cons t .nil)
 
 /-- The PURE fragment of `clausify-input1` (no `expand-and-or`; sub-clauses
     joined by plain `++` where ACL2's `disjoin-clauses`/`add-literal` may
@@ -283,10 +260,6 @@ theorem dpLiftF_atom_expand {vars : List (Symbol × SExpr)}
     rw [show callBuiltin "ATOM" [xv] = some (Logic.atom xv) from rfl]
     cases xv <;> rfl
 
-/-- `(EQUAL x y)` shape. -/
-abbrev equalAppCB (x y : SExpr) : SExpr :=
-  .cons (.atom (.symbol { name := "EQUAL" })) (.cons x (.cons y .nil))
-
 /-- `(CONS x y)` shape. -/
 abbrev consAppCB (x y : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "CONS" })) (.cons x (.cons y .nil))
@@ -298,24 +271,6 @@ abbrev carAppCB (x : SExpr) : SExpr :=
 /-- `(CDR x)` shape. -/
 abbrev cdrAppCB (x : SExpr) : SExpr :=
   .cons (.atom (.symbol { name := "CDR" })) (.cons x .nil)
-
-theorem dpLiftF_prim2 {vars : List (Symbol × SExpr)}
-    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true)
-    (n : String) (x y : SExpr)
-    (hban : ((({ name := n } : Symbol)).isNamed "QUOTE" ||
-             (({ name := n } : Symbol)).isNamed "IF" ||
-             dpLiftHeads.contains n) = true)
-    (hnq : ((({ name := n } : Symbol)) == { name := "QUOTE" }) = false)
-    (hnif : ((({ name := n } : Symbol)) == { name := "IF" }) = false)
-    (hprim : ((({ name := n } : Symbol)).package == "ACL2" &&
-              dpLiftHeads.contains n) = true) :
-    dpLiftF vars opq
-        (.cons (.atom (.symbol { name := n })) (.cons x (.cons y .nil)))
-      = (dpLiftF vars opq x).bind (fun xv =>
-          (dpLiftF vars opq y).bind (fun yv => callBuiltin n [xv, yv])) := by
-  rw [dpLiftF.eq_def, dpOpqWF_find_banned opq hwf _ hban]
-  simp only [hnq, hnif, hprim, if_true, if_false, Bool.false_eq_true]
-  cases hx : dpLiftF vars opq x <;> cases hy : dpLiftF vars opq y <;> rfl
 
 /-- The cons-equality decomposition is a PRIMITIVE-level identity: the
     S4 lemma-arm registry fact behind the EQUAL-CONS expansion. -/
@@ -467,20 +422,6 @@ theorem evtrue_disjoin_append_elim (w : World) (env : Env) :
 /-! ## The literal-liftability induction (every clause literal lifts when
 the input does — feeds the literal convergences of the main theorem). -/
 
-/-- Symbols with different names are BEq-distinct. -/
-theorem symbol_beq_false_of_name_ne {a b : Symbol} (h : a.name ≠ b.name) :
-    (a == b) = false := by
-  cases hab : a == b
-  · rfl
-  · exact absurd (congrArg Symbol.name (eq_of_beq hab)) h
-
-/-- BEq-distinct symbols from full inequality. -/
-theorem symbol_beq_false_of_ne {a b : Symbol} (h : a ≠ b) :
-    (a == b) = false := by
-  cases hab : a == b
-  · rfl
-  · exact absurd (eq_of_beq hab) h
-
 /-- A POS leaf `[t]`: the literal is the input itself. -/
 theorem lifts_leaf_pos {vars : List (Symbol × SExpr)}
     {opq : List (SExpr × SExpr)} (t : SExpr)
@@ -489,72 +430,6 @@ theorem lifts_leaf_pos {vars : List (Symbol × SExpr)}
   intro l hmem
   rw [List.mem_singleton.mp hmem]
   exact hl
-
-/-- `dumbNegateLit` characterized: either the wrap `(not t)`, or the strip
-    of a unary `not`-NAMED application. -/
-theorem dumbNegateLit_eq (t : SExpr) :
-    dumbNegateLit t = notT t ∨
-    ∃ ns x, t = .cons (.atom (.symbol ns)) (.cons x .nil) ∧
-      ns.isNamed "NOT" = true ∧ dumbNegateLit t = x := by
-  rcases t with _ | a | ⟨hd, tl⟩
-  · exact Or.inl rfl
-  · exact Or.inl rfl
-  · rcases hd with _ | a' | _
-    · exact Or.inl rfl
-    · rcases a' with ns | _ | _ | _ | _
-      · rcases tl with _ | _ | ⟨x, tl2⟩
-        · exact Or.inl rfl
-        · exact Or.inl rfl
-        · rcases tl2 with _ | _ | _
-          · by_cases hname : ns.name = "NOT"
-            · exact Or.inr ⟨ns, x, rfl, by simp [Symbol.isNamed, hname],
-                by simp [dumbNegateLit, hname]⟩
-            · exact Or.inl (by simp [dumbNegateLit, hname])
-          · exact Or.inl rfl
-          · exact Or.inl rfl
-      · exact Or.inl rfl
-      · exact Or.inl rfl
-      · exact Or.inl rfl
-      · exact Or.inl rfl  -- .char-headed cons: not a `not`-application
-    · exact Or.inl rfl
-
-/-- A NEG leaf `[dumbNegateLit t]`: the strip arm inverts the `not` (or is
-    vacuous for a wrong-package `not`-named head); the wrap arm introduces
-    one. -/
-theorem lifts_leaf_neg {vars : List (Symbol × SExpr)}
-    {opq : List (SExpr × SExpr)} (hwf : dpOpqWF opq = true) (t : SExpr)
-    (hl : (dpLiftF vars opq t).isSome) :
-    ∀ l ∈ [dumbNegateLit t], (dpLiftF vars opq l).isSome := by
-  intro l hmem
-  rw [List.mem_singleton.mp hmem]
-  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-  rcases dumbNegateLit_eq t with hwrap | ⟨ns, x, hshape, hname, hstrip⟩
-  · rw [hwrap]
-    exact Option.isSome_iff_exists.mpr ⟨_, dpLiftF_not_intro hwf hv⟩
-  · rw [hstrip]
-    subst hshape
-    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
-    · subst hfull
-      obtain ⟨xv, hxv, _⟩ := dpLiftF_not_inv hwf hv
-      exact Option.isSome_iff_exists.mpr ⟨xv, hxv⟩
-    · -- wrong-package not: the lift premise is refutable
-      exfalso
-      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
-      have hnone : dpLiftF vars opq
-          (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
-        dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
-          (by simp [Symbol.isNamed, hnn, dpLiftHeads])
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (by
-            cases hpkg : ns.package == "ACL2"
-            · simp
-            · exact absurd (by
-                have hp : ns.package = "ACL2" := eq_of_beq hpkg
-                cases ns
-                simp_all) hfull)
-      rw [hnone] at hv
-      cases hv
 
 /-- The vacuous-case refuter, packaged: an if-NAMED head that is not the
     default-package `if` cannot lift. -/
@@ -680,96 +555,6 @@ theorem clausifyPure_lifts {vars : List (Symbol × SExpr)}
 def ClausifyGoal (w : World) (env : Env) (t : SExpr) : Bool → Prop
   | true => EvTrue w env t
   | false => ∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil
-
-/-- The NEG leaf: a true `dumbNegateLit t` makes `t` converge to nil. -/
-theorem sound_neg_leaf (w : World) (env : Env)
-    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
-    (hvars : ∀ q ∈ vars,
-      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
-    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
-    (hns : dpNoShadow w) (hwf : dpOpqWF opq = true) (t : SExpr)
-    (hl : (dpLiftF vars opq t).isSome)
-    (hdis : EvTrue w env (dumbNegateLit t)) :
-    ∃ N, ∀ f ≥ N, evalOpt f w env t = some SExpr.nil := by
-  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-  rcases dumbNegateLit_eq t with hwrap | ⟨ns, x, hshape, hname, hstrip⟩
-  · -- wrap arm: EvTrue (not t) pins Logic.not v ≠ nil, so v = nil
-    rw [hwrap] at hdis
-    have hnotconv := dpLiftF_sound w env vars opq hvars hopq hns _ _
-      (dpLiftF_not_intro hwf hv)
-    have hne := ne_nil_of_evtrue_conv hdis hnotconv
-    have hvnil := arg_nil_of_not_truthy hne
-    exact hvnil ▸ dpLiftF_sound w env vars opq hvars hopq hns t v hv
-  · -- strip arm: t = (not x); a true x makes (not x) nil
-    rw [hstrip] at hdis
-    subst hshape
-    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
-    · subst hfull
-      -- after the strip rewrite, the hypothesis IS x's truth; the goal IS
-      -- the not-application's nil convergence
-      exact conv_not_nil_of_evtrue (hns "NOT" (by simp [dpLiftHeads])) hdis
-    · exfalso
-      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
-      have hnone : dpLiftF vars opq
-          (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
-        dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
-          (by simp [Symbol.isNamed, hnn, dpLiftHeads])
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (by
-            cases hpkg : ns.package == "ACL2"
-            · simp
-            · exact absurd (by
-                have hp : ns.package = "ACL2" := eq_of_beq hpkg
-                cases ns
-                simp_all) hfull)
-      rw [hnone] at hv
-      cases hv
-
-/-- The DUAL NEG leaf: a nil-converging `dumbNegateLit t` makes `t` TRUE
-    (the multi-clause bridge's converter, mirroring `sound_neg_leaf`). -/
-theorem neg_leaf_false_sound (w : World) (env : Env)
-    {vars : List (Symbol × SExpr)} {opq : List (SExpr × SExpr)}
-    (hvars : ∀ q ∈ vars,
-      ∃ N, ∀ f ≥ N, evalOpt f w env (.atom (.symbol q.1)) = some q.2)
-    (hopq : ∀ p ∈ opq, ∃ N, ∀ f ≥ N, evalOpt f w env p.1 = some p.2)
-    (hns : dpNoShadow w) (hwf : dpOpqWF opq = true) (t : SExpr)
-    (hl : (dpLiftF vars opq t).isSome)
-    (hnil : ∃ N, ∀ f ≥ N, evalOpt f w env (dumbNegateLit t) = some SExpr.nil) :
-    EvTrue w env t := by
-  obtain ⟨v, hv⟩ := Option.isSome_iff_exists.mp hl
-  have sound := dpLiftF_sound w env vars opq hvars hopq hns
-  rcases dumbNegateLit_eq t with hwrap | ⟨ns, x, hshape, hname, hstrip⟩
-  · -- wrap arm: (not t) converges nil, so Logic.not v = nil, so v ≠ nil
-    rw [hwrap] at hnil
-    have hnotconv := sound _ _ (dpLiftF_not_intro hwf hv)
-    have hnotnil : Logic.not v = SExpr.nil := val_unique hnotconv hnil
-    exact evtrue_of_conv_ne_nil (sound t v hv) (logic_not_nil_ne v hnotnil)
-  · -- strip arm: t = (not x); a nil x makes (not x) converge to t
-    rw [hstrip] at hnil
-    subst hshape
-    by_cases hfull : ns = ({ name := "NOT" } : Symbol)
-    · subst hfull
-      have ht := conv_not_t_of_conv_nil
-        (hns "NOT" (by simp [dpLiftHeads])) hnil
-      exact evtrue_of_conv_ne_nil ht (by simp [SExpr.t])
-    · exfalso
-      have hnn : ns.name = "NOT" := by simpa [Symbol.isNamed] using hname
-      have hnone : dpLiftF vars opq
-          (.cons (.atom (.symbol ns)) (x.cons SExpr.nil)) = none :=
-        dpLiftF_app_none_of_banned_name hwf (x.cons SExpr.nil)
-          (by simp [Symbol.isNamed, hnn, dpLiftHeads])
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (symbol_beq_false_of_name_ne (by simp [hnn]))
-          (by
-            cases hpkg : ns.package == "ACL2"
-            · simp
-            · exact absurd (by
-                have hp : ns.package = "ACL2" := eq_of_beq hpkg
-                cases ns
-                simp_all) hfull)
-      rw [hnone] at hv
-      cases hv
 
 /-- The multi-clause bridge's CONJUNCTION lemma: when EVERY literal of
     `clausifyPure t pos` converges to nil, `t` satisfies the OPPOSITE goal —

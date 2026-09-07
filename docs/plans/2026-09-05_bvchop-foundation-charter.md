@@ -3388,3 +3388,359 @@ claim. Its separate informational DP probe still has two assumed leaves;
 those are not row conditions. This intermediate checkpoint is **fast-gate**
 only. No full gate, golden repin, phase completion, or native-product claim
 is made. C2 and all three BVCHOP mirrors remain open.
+
+
+### C2 clausifier negation (2026-09-07, WIP)
+
+Checkpoint `a38c7f5` records the component/ELIM increment with the fast-gate
+receipts above. The next change extracts the existing negation family from
+the 1500-line ClausifyBridge into ClausifyNegation, keeping public names and
+bodies unchanged. The original module is 1307 lines and the extracted
+family 199. Its Runner build passes **3140 jobs**
+(`c2-clausify-negation-split-build.log`), and the actual comparison
+clausifier records print byte-identically (`c2-component-clausifier-after-split.log`,
+compared against `c2-component-clausifier-frontier-record.log`). Whole
+component replays retain the same conditions and Subgoal 4 split mismatch
+(`c2-component-dependencies-negation-split.log`). The initial extraction
+script stopped on a missing section delimiter before modifying either
+module; the corrected script checked every moved span unchanged.
+The equality-NIL arm and consolidation of the three repeated negative-leaf
+proofs are next; no new clausifier support is yet claimed.
+
+
+The equality-with-quoted-NIL arm is implemented on either side. The
+negative-leaf bridges now share one liftability/truth-negation lemma;
+stripping equality can return any ACL2 value, so the lemma states opposite
+truth rather than equality with a Boolean value. The existing binary
+primitive-lift helper and equality-term constructor moved with their
+consumer. The first proof build failed at a substitution that left a free
+variable in `decide` (`c2-clausify-equal-nil-build.log`); explicit equality
+elimination fixes it. The two affected modules pass **3036 jobs**
+(`c2-clausify-equal-nil-substitution-build.log`) and Runner passes **3140**
+(`c2-clausify-equal-nil-runner-build.log`). There is no budget increase.
+
+The actual comparison **Subgoal 4** subtree now kernel-checks with accepted
+axioms under one explicit COMPLEX-0 condition
+(`c2-component-clausify-subtree.log`). The whole theorem reaches
+**Subgoal 2**, where its recorded type-alist rewrite of `(< X Y)` to T lacks
+a current truth proof (`c2-component-dependencies-equal-nil.log`,
+`c2-component-type-alist-frontier-trace.log`). It remains unproved.
+The initial clausifier mutation probe has a layout parsing error and no
+receipt (`c2-component-clausify-controls.log`); its corrected run is pending.
+
+Correction to the earlier backlog's “multiple ELIM rounds”: explicit list
+counts from the actual records show **one outer entry in every step**, with
+one or two records (`c2-component-elim-sequence-shapes.log`). The two-record
+Subgoal 4 elimination already composes via the existing consumer; no new
+round support was needed or added. The live backlog/pattern map are corrected.
+
+
+The second mutation-probe edit also failed Lean layout parsing
+(`c2-component-clausify-controls-rerun.log`). The corrected probe uses
+explicit intermediate bindings and passes
+(`c2-component-clausify-controls-layout.log`): untouched Subgoal 4 checks
+under COMPLEX-0 with accepted axioms, while removing its actual NOT
+expansion or changing its recorded negative-branch literal fails the
+recomputed split check. No positive artifact was synthesized.
+All statics pass (`c2-clausify-equal-nil-static.log`); the four affected
+NS1 targets and replay CLI are rebuilding. A full regression gate is next.
+
+Subgoal 2's actual input contains later literal 8,
+`(EQUAL (< X Y) 'NIL)`, while literal 3 uses the type-alist's truth of
+`(< X Y)`. The present hoist requests only `(NOT (< X Y))` and does not
+retain this later equality's falsity. The solidify emission records the
+resulting mask, but not the assumption-normalization route. This is the
+next evidence/consumer investigation; no new inference or legacy setup-memo
+case has been added. The actual tree dump is
+`c2-component-type-alist-subtree.log`; its diagnostic's unused bindings
+have been removed before the next run.
+
+
+The affected build passes all four NS1 targets and the replay CLI:
+**6283 jobs** (`c2-clausify-equal-nil-affected-build.log`; Arithmetic
+93 s, Positive 11 s, Contexts 22 s, MOD 243 s). The full regression gate
+is now running with sources frozen at the uncommitted clausifier increment
+on `a38c7f5`. This is not yet a full-gate receipt.
+
+The isolated producer has a prepared observer-only bootstrap experiment:
+`ACL2LEAN_BOOTSTRAP_TRACE=1` activates structured output after the
+initializer's state reset for `initialize-acl2 nil`; bootstrap LD preserves
+that output mode's print settings. Its tagging check passes
+(`c2-bootstrap-observer-tags.log`), but it has not been built or captured.
+No production submodule pointer or capture has changed. The diagnostic
+runner requires a true initializer return before emitting the capture
+manifest, so an old initialization status file cannot count as completion.
+
+
+The full run first finds a `sorting/perm` golden mismatch: all **8/8
+rows remain unconditional**, but PERM-IS-AN-EQUIVALENCE now includes the
+standalone `(BOOLEANP (PERM X Y))` tau-contradiction probe, conditional on
+that probe's totality/TP arguments. The actual root has three children,
+so the old childless-node inventory omitted this real closed branch
+(`c2-perm-discharge-inventory.log`). This is BUG-053's intended inventory
+correction from the earlier increment, not a condition added to the theorem.
+The golden is still unchanged; the remaining full run and deliberate report
+reassembly/review precede any repin.
+
+The isolated bootstrap observer's default image build passes
+(`c2-bootstrap-observer-image-build.log`, `make LISP='sbcl --no-sysinit'`).
+Bootstrap proof capture has not started; it waits for replay/build jobs to
+finish. The actual singleton-exclusion source route for Subgoal 2 is
+recorded in `.tmp/ns1/component-type-alist-next.md`; it remains unimplemented.
+
+
+The same full run also catches the stale weak-parametric binder inventory:
+the registered REALFIX and COMPLEX primitive heads add exactly
+`w.defs.get? {name := ...} = none` premises. A separate diagnostic retains
+all conclusion, six-constraint and canonical kept-premise checks, updates
+only those two expected names, and prints the actual new premise types.
+It passes; all four parametric/canonical constants have accepted axioms
+(`c2-component-parametric-registry-review.log`). The permanent pin has not
+yet changed while the full run finishes. These are registry-domain
+requirements, not new mathematical assumptions on a native product.
+
+The isolated observer is now clean at **3907b8218e** after its tagging and
+default image-build checks. There are no new bootstrap proof records yet.
+
+
+A temporary assembly command reads the 29 generated coverage sections and
+recomputes both headers by the existing harness's row/probe rules. This is
+needed because the aggregate imports the failing per-book golden check.
+The first command failed at the reserved Lean identifier `section` before
+writing anything (`c2-component-coverage-assembly.log`); a prematurely run
+golden review therefore compared the old actual and found it unchanged.
+The corrected command succeeds (`c2-component-coverage-assembly-rerun.log`).
+Its raw diff has exactly two changed lines: the new PERM equivalence probe
+and the probe tally **62 → 63 checked, 71 → 72 total**. All **116 theorem
+rows remain unconditional**, with no added/removed row. The ordinary
+`just golden-review` helper misclassifies the informational bracket's
+conditions as a row condition change (`c2-component-golden-review-rerun.log`);
+the raw diff and canonical lexicon resolve that distinction. The golden
+remains unmodified pending the current full run's exit.
+
+
+The first full gate finishes **TRUE_EXIT=1**:
+`.gate-runs/a38c7f5-20260907T081222Z.log`. Its only failed targets are
+BSperm's reviewed probe-report mismatch and ParametricPins' reviewed two
+no-shadow entries. PatternPins passes in **625 s**, SortingPins in **919 s**,
+and SortsEquivalent in **1251 s** (previous full-build observations:
+696 s, 966 s, 1372 s respectively; these are run comparisons, not causal
+performance claims). The seam gate checks all **21 existing products**.
+
+The permanent parametric pin now includes only the two reviewed names,
+with an explanatory source-review comment. `just coverage-repin` copies
+the mechanically assembled actual and invalidates the coverage caches
+(`c2-component-coverage-repin.log`). The full rerun is required before any
+passing claim or commit of this report change. No proof condition was removed,
+source theorem changed, or new native product claimed.
+
+
+The invalidated second gate reaches additional per-book modules and finds
+more newly inventoried standalone probes (first, convert-perm-to-how-many).
+The first assembly used each available section; that was not a fresh
+all-book rerun, and its two-line diff is not the final whole-corpus diff.
+The full fresh section set must finish before the next review/repin.
+
+Bootstrap diagnostic scheduling is revised after checking its write set:
+the new runner writes only to an unused diagnostic directory and its
+isolated ACL2 checkout, invokes no coverage invalidation, and changes no
+production log/image/pointer. No Lean source/test/script references that
+new capture path. It can run independently alongside the fixed-artifact
+regression sweep; ordinary captures that invalidate or replace live inputs
+remain serialized. The diagnostic is now running. Neither overlap's timing
+is an isolated performance benchmark.
+
+The second full gate finishes **TRUE_EXIT=1**
+(`.gate-runs/a38c7f5-20260907T084455Z.log`). ParametricPins passes. The
+subsequent explicit all-book coverage build also finds two actual
+regressions, in COUNT-DOWN and MY-EVENP termination: quoted `-1` was offered
+as an inhabitant of positive type-set 14. `mkDecideProof` constructs a term
+without recursively checking its internal typing, so the old exception
+handler did not reject this false candidate; the final kernel check did.
+The expanded primitive mask table exposed the pre-existing unchecked
+constant path (`c2-component-full-coverage-assembly-build.log`). These
+failures must not be repinned.
+
+`inTsFromCtx` now checks the actual quoted value's computable membership
+before constructing its kernel proof. False membership returns no candidate;
+the blanket exception handler is removed, so other proof-construction
+errors surface. The real COUNT-DOWN tree was inspected before this repair
+(`c2-countdown-membership-actual-tree.log`). The replayer builds, and both
+unchanged books replay with their termination rows and theorem rows
+unconditional (`c2-quoted-membership-runner-build.log`,
+`c2-quoted-membership-measure.log`, `c2-quoted-membership-mutual.log`). The
+fresh full coverage sweep is running; neither a full pass nor a final
+golden update is claimed.
+
+The first bootstrap diagnostic actually fails: process exit **1**,
+initializer result **NIL**, source tree unchanged at **3907b8218e**
+(`c2-bootstrap-proof-capture/diagnostic.json`). The final event is
+`(:EVENT-FAILED :CTX (DEFUN . OPEN-INPUT-CHANNEL-P1))`; its preceding record
+is that definition's VERIFY-GUARDS tree. Structured setup inhibited error
+text, so the preserved output does not explain the failure. A SIGTERM
+request was sent after large output was observed, but the recorded exit
+and NIL result do not establish that the signal caused the failure. No
+bootstrap completion or usable target dependency is claimed. The raw
+output is 4,284,902,397 bytes and its Latin-1/UTF-8 transcode is byte-identical.
+The two copies are being losslessly archived with decompressed SHA-256
+verification. A new isolated observer experiment keeps diagnostic errors
+visible without changing source events, proof flags, or hints. It has not
+yet produced a second capture.
+
+The repaired whole-coverage build finishes with only two expected probe
+report mismatches, BN05Hints and BSconvertPermToHowMany
+(`c2-quoted-membership-whole-coverage.log`). The freshly assembled report
+retains **116/116 unconditional theorem rows**, including both repaired
+termination rows; standalone probes are **65 checked, 9 assumed, 0 failed
+of 74**. The two additional probes are actual closed `'T` verdicts in
+roots with children, inspected from their reconstructed trees
+(`c2-new-discharge-inventory.log`). The raw diff changes only their two
+informational brackets and the probe tally. `just golden-review` reports
+zero status flips and exits 1 as documented for any differing file;
+it does not display these probe-only changes, so the raw diff was reviewed
+as well (`c2-quoted-membership-coverage-review.diff`). The allowed repin
+recipe runs and the full claim gate is now running. Its result is pending.
+
+All statics pass (`c2-quoted-membership-static.log`). The first bootstrap
+archive is verified and replaces both identical originals with the
+**369,665,638-byte** gzip recorded in its diagnostic manifest. The isolated
+error-visible observer passes tagging and its image build and is committed
+clean at **7aea544dc1** (`c2-bootstrap-error-output-tags.log`,
+`c2-bootstrap-error-output-image-build.log`). A second diagnostic capture
+is running in a new directory. Its runner streams raw and UTF-8 output
+directly into gzip archives, hashes while writing, and verifies decompressed
+hashes afterward; it no longer reads the multi-GB log into memory. No
+production observer pointer or captured input has changed.
+
+The full gate reaches previously blocked downstream coverage modules and
+finds two more omitted standalone probes in equisort, for
+WEAK-SORTFN1-IS-SORTFN2 and STRONG-SSORTFN1-IS-SSORTFN2. Their theorem rows
+remain unconditional. The preceding failed convert-perm module had
+prevented equisort and sorts-equivalent from rebuilding; the prior assembled
+report still included their old sections. Thus that assembly was not a
+fresh complete corpus result. Review of these downstream records and the
+final sorts-equivalent coverage run remain necessary; the current gate is
+not passing.
+
+The second bootstrap run passes OPEN-INPUT-CHANNEL-P1's actual guard proof
+and emits its DEFUN, then passes OPEN-OUTPUT-CHANNEL-P1. These observed
+QED/DEFUN headers are at raw offsets 5,069,332,405/5,069,332,413 and
+6,057,505,372/6,057,505,380 respectively. The first, stopped attempt does
+not establish a reproducible proof failure at OPEN-INPUT-CHANNEL-P1; its
+interruption is a possible cause of the NIL return. The current run has
+not been interrupted and is still producing output. Large unrelated guard
+trees dominate this diagnostic; replaying guards is still outside NS1.
+
+The unscoped diagnostic was deliberately interrupted at **35,507,993,520
+raw bytes**, after the formerly suspected guard proof had passed. Its
+`operator-stop.json` records the verified owned PID, SIGTERM and reason;
+process exit 1 / initializer NIL describe an interrupted diagnostic, not
+an established ACL2 proof failure. Both gzip archives completed their
+decompression-hash checks.
+
+The replacement diagnostic driver observes only the contiguous six
+arithmetic defthms while still calling **initialize-acl2 NIL** on the
+unchanged source sequence. It wraps the raw entry points to change four
+LD print settings, inhibit output outside the selected window, and toggle
+structured recording around the actual logic-mode defthm calls. Original
+arguments and return values are preserved; source forms, hints and proof
+flags are unchanged. It asserts the selected event order and successful
+error triples. A separate status file records the direct initializer result;
+only a true result allows the retained cited-symbol closure and CAPTURE-END
+to be emitted. No proof-log filtering is involved.
+
+That diagnostic completes: **596,160 raw bytes**, initializer **T**,
+the six expected events in order, source tree unchanged at **7aea544dc1**
+(`c2-bootstrap-target-proof-capture/diagnostic.json`,
+`initializer-result.lisp`). Raw and UTF-8 gzip archives pass decompressed
+SHA-256 checks. The hydrated UTF-8 bytes parse and reconstruct all six
+theorem trees and the complete capture-end record
+(`c2-bootstrap-target-proof-tree.log`). Their first Lean replay is running
+(`c2-bootstrap-first-replay.log`). This is not yet replay coverage or a
+production provenance receipt. The original full diagnostic driver's
+stdout status marker would itself be invalid inside a successful proof
+stream; the new driver keeps that status in its separate file.
+
+A second isolated producer checkout, `acl2-ta-singleton`, now records the
+actual equality-false singleton exclusion at entry construction and
+retrieves it by **cons identity** at a direct solidify lookup. It does not
+infer an origin from value-equal entries. Tagging and the default image
+build pass (`c2-ta-singleton-tags.log`, `c2-ta-singleton-image-build.log`);
+the producer is clean at **d7e87b2716**. A premature raw-source reader
+check failed because ACL2's `#.*FIXNAT-TYPE*` reader value was not loaded,
+not with a completed source-validation result. The real image build is
+the subsequent validation.
+
+The unchanged less-than book captures **4/4** defthm/QED events under this
+diagnostic producer (`c2-ta-singleton-capture/`). Its **149** event
+S-expressions are unchanged from the previous capture after removing only
+the added diagnostic field for comparison; that comparison result is never
+replayed or written as a proof artifact (`c2-ta-singleton-event-comparison.log`).
+Four selected origins occur, in the two comparison theorems' Subgoals 2
+and 3 (`c2-ta-singleton-origin-slices.log`): falsity of equality with NIL
+removes mask 128 from Boolean mask 384 and yields 256; falsity of equality
+with T removes 256 and yields 128. This diagnostic currently records
+operand masks and the construction/lookup identity, not their recursive
+query derivations. No new parser/consumer support or proof is claimed yet.
+The capture writes only a new unused directory under CAPTURE_WORKER=1;
+no live input or coverage cache was modified during the pending full gate.
+
+The first focused bootstrap replay fails at DEFAULT-COMPLEX-1/Goal:
+`no use:COMPLETION-OF-COMPLEX hypothesis in scope` (**8 ms** for the theorem;
+`c2-bootstrap-default1-focused.log`). Its two standalone probes pass, but
+the theorem does not replay. The longer whole-book diagnostic was stopped
+without an aggregate result after this prefix run identified the first
+required change (`c2-bootstrap-first-replay-stop.json`, process exit 143).
+The actual cited primitive axiom has a prepared model proof with accepted
+axioms `{propext, Quot.sound}` (`c2-bootstrap-completion-model.log`), and
+`.tmp/ns1/complex-completion-next.patch` prepares its exact-schema USE
+registration. Neither is wired into production while the regression gate
+is running; no bootstrap dependency is yet claimed discharged.
+
+All six selected defthm source forms are byte-identical to the production
+pinned ACL2 `axioms.lisp`, including their hints. Their individual source
+form hashes and the comparison paths are recorded in
+`c2-bootstrap-target-proof-capture/selected-source-comparison.json`.
+
+
+### C2 regression checkpoint and USE-fold capture (2026-09-07)
+
+The final fresh coverage build passes **3178 jobs** and all **29 books**
+(`c2-equisort-probes-full-coverage.log`). SortsEquivalent replays **3/3**
+rows in **332120 ms**. The final golden retains **116/116 unconditional
+theorem rows**; standalone informational probes are **67 checked, 9 assumed,
+0 failed of 76**, up from 62/9/0 of 71. The five added probes are the
+previously reviewed PERM equivalence, LEN2 USE, convert-perm, and two
+equisort closed branches. No theorem row gained a condition or changed
+status. The raw diff and actual trees were reviewed; the ordinary repin
+recipe was used. The golden now matches the fresh aggregate byte-for-byte.
+
+The full **`TMPDIR="$PWD/.tmp" just claim-gate` passes TRUE_EXIT=0**:
+`.gate-runs/a38c7f5-20260907T095722Z.log`
+(`c2-regression-complete-claim-gate-console.log`). It checks all **21 existing
+mirror products**, their **59 seams**, the affected NS1 targets and both
+termination repairs. This closes this regression/repin increment, including
+the equality-NIL clausifier arm and the no-shadow pin update. C2 and all
+three new native proofs remain open.
+
+The actual DEFAULT-COMPLEX-2 and COMPLEX-0 USE records also expose two
+closed substitutions in COMPLEX-DEFINITION: RATIONALP of quoted zero and
+multiplication of quoted #C(0 1) by quoted zero. Their earlier USE payloads
+retain the translated substitution and folded result, but not the folds.
+The isolated observer now scopes the existing cons-term recorder around
+the **single actual** translate-lmi/instance substitution call, retaining
+its ordered paths/results with the translated alist. It no longer repeats
+that substitution for bookkeeping. The logical result, constraints and
+proof hints are unchanged.
+
+That observer is clean at **3836441e36** in `acl2-quoted-unify`; tagging and
+the default image build pass (`c2-use-instance-folds-tags.log`,
+`c2-use-instance-folds-image-build.log`). The new scoped bootstrap diagnostic
+completes with initializer **T**, unchanged source tree, and **596488 raw
+bytes** (`c2-bootstrap-use-folds-capture/diagnostic.json`). Its **79 actual
+events** match the prior capture after removing only INSTANCE-FOLDS for
+comparison (`c2-bootstrap-use-folds-event-comparison.log`); this comparison
+is never a replay artifact. Each of the two affected USE instances records
+exactly the two folds above, at paths (0 1) and (1 1 1)
+(`c2-bootstrap-use-folds-records.log`). Parser/consumer integration and
+permanent bootstrap provenance remain open; no production pointer changed.

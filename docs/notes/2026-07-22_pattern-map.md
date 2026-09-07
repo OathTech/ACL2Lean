@@ -782,8 +782,10 @@ No pattern books exist yet — authoring them is the arc's work.
   and preprocessing before ELIM (four rejected boundary mutations).
   REALPART-WHEN-RATIONALP replays with the two DEFAULT-COMPLEX conditions;
   its comparison Subgoal 2''' checks with a COMPLEX-0 condition and
-  two rejected duplicate-record mutations. The whole comparison next needs
-  its Boolean-equality clausifier conversion and multiple ELIM rounds.
+  two rejected duplicate-record mutations. The comparison's Subgoal 4 also
+  checks under COMPLEX-0 after the equality-NIL negation arm; the whole
+  theorem next needs its Subgoal 2 type-alist truth lookup. Each observed
+  ELIM step has one round, containing one or two records.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

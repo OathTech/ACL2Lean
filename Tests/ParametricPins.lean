@@ -95,6 +95,10 @@ private def checkPin (declName : Name) (binderNames : List String)
 -- conclusion, six constraints, and both canonical kept-premise pins below
 -- were checked unchanged (c2-parametric-registry-review.log); no arithmetic
 -- premise or theorem content is added.
+-- NS1 (2026-09-07): REALFIX/COMPLEX add two more no-shadow premises.
+-- Their exact types, the source conclusion/constraints, both canonical
+-- kept inventories and all four axiom receipts were checked in
+-- c2-component-parametric-registry-review.log.
 run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
         ["env", "w",
          "hnoshadow_CONS", "hnoshadow_CAR", "hnoshadow_CDR", "hnoshadow_CONSP",
@@ -103,10 +107,10 @@ run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
          "hnoshadow_<", "hnoshadow_INTEGERP", "hnoshadow_NATP", "hnoshadow_POSP",
          "hnoshadow_RATIONALP", "hnoshadow_ACL2-NUMBERP", "hnoshadow_ZP",
          "hnoshadow_SYMBOLP", "hnoshadow_BOOLEANP", "hnoshadow_STRINGP",
-         "hnoshadow_FIX", "hnoshadow_NFIX", "hnoshadow_IFIX", "hnoshadow_IMPLIES", "hnoshadow_IFF",
+         "hnoshadow_FIX", "hnoshadow_NFIX", "hnoshadow_IFIX", "hnoshadow_REALFIX", "hnoshadow_IMPLIES", "hnoshadow_IFF",
          "hnoshadow_TRUE-LISTP", "hnoshadow_LEN", "hnoshadow_LEXORDER", "hnoshadow_EXPT",
          "hnoshadow_NUMERATOR", "hnoshadow_DENOMINATOR", "hnoshadow_REALPART",
-         "hnoshadow_IMAGPART", "hnoshadow_COMPLEX-RATIONALP", "hnoshadow_COERCE",
+         "hnoshadow_IMAGPART", "hnoshadow_COMPLEX-RATIONALP", "hnoshadow_COMPLEX", "hnoshadow_COERCE",
          "htotal_PERM", "htotal_ORDEREDP", "htotal_HOW-MANY",
          "htotal_PERM-COUNTER-EXAMPLE", "htotal_SORTFN1", "htotal_SORTFN2",
          "htp_HOW-MANY",

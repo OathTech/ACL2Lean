@@ -1,5 +1,5 @@
 Driver coverage — REPLAYED 116/116 (116 unconditional + 0 conditional)
-Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0 of 71:
+Standalone DP probes (assumeFact — informational, NOT replay): ✓67 ◌9 ✗0 of 76:
 • simple  (world: 12 defun(s), 1 theorem(s))
     MY-LEN-MY-APP → REPLAYED ✓
 • 00-direct  (world: 1 defun(s), 3 theorem(s))
@@ -25,7 +25,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     CLASSIFY-POS → REPLAYED ✓
 • 05-hints  (world: 12 defun(s), 4 theorem(s))
     LEN2-APP-HELPER → REPLAYED ✓
-    LEN2-APP-VIA-USE → REPLAYED ✓
+    LEN2-APP-VIA-USE → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
     LEN2-APP-VIA-INDUCT → REPLAYED ✓
     LEN2-APP-NO-HELPER → REPLAYED ✓
 • 06-measure  (world: 14 defun(s), 1 theorem(s))
@@ -69,7 +69,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     COMM-RM → REPLAYED ✓
     PERM-RM → REPLAYED ✓
     PERM-TRANSITIVE → REPLAYED ✓
-    PERM-IS-AN-EQUIVALENCE → REPLAYED ✓
+    PERM-IS-AN-EQUIVALENCE → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(PERM X Y), tp:PERM]]
 • sorting/convert-perm-to-how-many  (world: 18 defun(s), 13 theorem(s))
     HOW-MANY-RM → REPLAYED ✓
     NOT-MEMB-IMPLIES-RM-IS-NO-OP → REPLAYED ✓  [DISCHARGE: Subgoal *1/3:preprocess/type-set-fc ✓ cond[total:(MEMB A X), tp:MEMB]]
@@ -83,7 +83,7 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     MEMB-TLFIX → REPLAYED ✓
     PERM-COUNTER-EXAMPLE-TLFIX-2 → REPLAYED ✓
     HOW-MANY-TLFIX → REPLAYED ✓
-    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓  [DISCHARGE: Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
+    CONVERT-PERM-TO-HOW-MANY → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓, Goal':preprocess/tau-contradiction ✓ cond[total:(TLFIX X), total:(TLFIX Y), total:(PERM X Y), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) X), total:(HOW-MANY (PERM-COUNTER-EXAMPLE X Y) Y), tp:TLFIX, tp:TLFIX, tp:PERM, tp:HOW-MANY, tp:HOW-MANY]]
 • sorting/isort  (world: 27 defun(s), 3 theorem(s))
     ORDEREDP-ISORT → REPLAYED ✓
     TRUE-LISTP-ISORT → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(INSERT X1 IT), tp:INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
@@ -113,14 +113,14 @@ Standalone DP probes (assumeFact — informational, NOT replay): ✓62 ◌9 ✗0
     TRUE-LISTP-SORTFN2 → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau ◌ assumed cond[total:(SORTFN1 X), tp:SORTFN1, ASSUMED:dp-fact]]
     HOW-MANY-SORTFN1 → REPLAYED ✓
     HOW-MANY-SORTFN2 → REPLAYED ✓
-    WEAK-SORTFN1-IS-SORTFN2 → REPLAYED ✓
+    WEAK-SORTFN1-IS-SORTFN2 → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
     ORDEREDP-SSORTFN1 → REPLAYED ✓
     TRUE-LISTP-SSORTFN1 → REPLAYED ✓  [DISCHARGE: Subgoal *1.1/3:preprocess/type-set-fc ✓ cond[total:(SSORTFN1-INSERT X1 S1), tp:SSORTFN1-INSERT], Subgoal *1.1/2'':preprocess/tau-contradiction ✓]
     ORDEREDP-SSORTFN2 → REPLAYED ✓
     TRUE-LISTP-SSORTFN2 → REPLAYED ✓
     HOW-MANY-SSORTFN1 → REPLAYED ✓
     HOW-MANY-SSORTFN2 → REPLAYED ✓
-    STRONG-SSORTFN1-IS-SSORTFN2 → REPLAYED ✓
+    STRONG-SSORTFN1-IS-SSORTFN2 → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓]
 • cov-encapsulate  (world: 2 defun(s), 2 theorem(s))
     CF-NUMBERP → REPLAYED ✓  [DISCHARGE: Goal:preprocess/type-set-fc ✓ cond[total:(CF X), tp:CF]]
     CF-PLUS-COMM → REPLAYED ✓  [DISCHARGE: Goal:preprocess/tau-contradiction ✓ cond[total:(CF A), total:(CF B), tp:CF, tp:CF]]

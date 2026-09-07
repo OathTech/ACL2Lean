@@ -780,15 +780,18 @@ partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
     (t : SExpr) (tv : Expr) (target : Int) (citedTp : List String := []) : MetaM (Option Expr) := do
   -- a QUOTED CONSTANT needs no fact at all: its value is closed, so
   -- ACL2's verdict for it is a kernel decision
-  if let .cons (.atom (.symbol q)) (.cons _ .nil) := t then
+  if let .cons (.atom (.symbol q)) (.cons value .nil) := t then
     if q.name == "QUOTE" then
+      -- Candidate cells may request a mask that excludes this constant.
+      -- mkDecideProof builds a proof term; it does not check that term's
+      -- internal typing. Reject false membership before constructing it.
+      unless ACL2.Replay.tsMember target (ACL2.Replay.tsIndex value) do
+        return none
       let ty ← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr target, tv]
-      try
-        return some (← mkExpectedTypeHint (← mkDecideProof (← mkEq
-          (← mkAppM ``ACL2.Replay.tsMember
-            #[Lean.toExpr target, ← mkAppM ``ACL2.Replay.tsIndex #[tv]])
-          (mkConst ``Bool.true))) ty)
-      catch _ => return none
+      return some (← mkExpectedTypeHint (← mkDecideProof (← mkEq
+        (← mkAppM ``ACL2.Replay.tsMember
+          #[Lean.toExpr target, ← mkAppM ``ACL2.Replay.tsIndex #[tv]])
+        (mkConst ``Bool.true))) ty)
   let cands ← inTsCandidates cfg ctx localFacts citedCr t tv citedTp
   for (m, h) in cands do
     if ACL2.Replay.tsSubsumedM m target then
