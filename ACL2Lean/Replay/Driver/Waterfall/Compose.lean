@@ -50,8 +50,8 @@ private def selectSplitBranch (idStr : String)
     for a literal whose clausify SPLIT (docs/notes/2026-07-03_branch-split-
     spine.md, ratified partial logging). The byCases tree comes from the
     emitted decision trace; at each leaf the literal's collapse along the path
-    facts is re-derived by `collapseEval` (fail-closed against the emitted
-    leaf value), then:
+    facts consumes the emitted call assumptions where present, otherwise
+    using the legacy collapse (checked against the emitted leaf value), then:
     - a DROPPED leaf ('t): the literal itself is true — the disjunction closes;
     - a SEGMENT leaf: split on the literal's value (truth closes); under its
       falsity, select the unique branch whose segment literals are all
@@ -67,7 +67,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let kind := match tree with
         | .split _ _ _ => "split"
         | .resolved _ verdict how _ => s!"resolved {how} {verdict}"
-        | .leaf _ outcome _ => s!"leaf {outcome}"
+        | .leaf _ outcome _ _ => s!"leaf {outcome}"
       return m!"{idStr} literal {lp.index} {kind}, {facts.length} path facts") do
   let w := cfg.worldExpr
   let e := cfg.envExpr
@@ -187,10 +187,10 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                         {idStr} (frontier)"
     composeSplit rec cfg ctx idStr lp chainOpt clauseLit restLits branches
       accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
-  | .leaf value outcome emittedSeg =>
+  | .leaf value outcome emittedSeg calls =>
     -- re-derive the literal's collapse along the path facts
     let (collapseOpt, collapsed) ← traceSplitPhase "collapse literal" <|
-      collapseEval cfg ctx facts lp.result
+      collapseWithCallAssumptions cfg ctx facts lp.result calls
     unless collapsed == value do
       throwError "composeSplit: collapse of literal {lp.index} reached \
                   {repr collapsed}, trace leaf is {repr value} at {idStr}"

@@ -385,6 +385,17 @@ structure LinearEquationInsertion where
   runes : List Rune
   deriving Repr, Inhabited
 
+/-- An actual call-stack NOT lookup, captured with its selected assumption.
+The basis remains explicit data; unsupported lookup classes fail in replay. -/
+structure ClausifyCallAssumption where
+  input : SExpr
+  output : SExpr
+  query : SExpr
+  value : Bool
+  basis : SExpr
+  path : List (Bool × SExpr)
+  deriving Repr, Inhabited, BEq
+
 /-- A trace event from ACL2's detailed rewriter output.
     These appear inside the :REWRITES field of a waterfall step. -/
 inductive TraceEvent where
@@ -494,6 +505,7 @@ inductive TraceEvent where
       the converter drops literals subsumed by an assumed constant equality). -/
   | clausifyLeaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
       (segment : Option (List SExpr))
+      (calls : List ClausifyCallAssumption := [])
   /-- Fired-marker (emit/if-interp/satriani-fired,
       emit/clausify/subsumption-loop-fired): a post-pass RESHAPED the segment
       set beyond the decision trace — the replay hard-fails on it rather than

@@ -3814,3 +3814,76 @@ events are unchanged after removing only CALL-ASSUMPTIONS for comparison
 record occurs: DEFAULT-COMPLEX-1's true RATIONALP Y branch, selecting the
 negative EQUAL assumption and returning F, so NOT returns quoted T
 (`c2-bootstrap-call-assumptions-records.log`). Its parser/consumer is next.
+
+
+### C2 selected clausify assumption and bootstrap closure (2026-09-07)
+
+CALL-ASSUMPTIONS now survives parsing and reconstruction, including the
+actual input/output, query/value, selected basis and branch path. The
+literal tree shows the exact NOT/EQUAL lookup in DEFAULT-COMPLEX-1
+(`c2-bootstrap-call-literal-tree.log`). The existing collapse and trace-tree
+code moved from Node into ClausifyEval; ClausifyCalls checks the selected
+assumption in the current environment and composes the primitive NOT step.
+During a recorded-call collapse, legacy assumption reconstruction is disabled.
+Each record must be consumed in order at its exact rebuilt call, and its
+path must match the leaf. Other lookup kinds and records crossing a
+conjunction continuation remain explicit frontiers. CoreSpine only wires
+the emitted source demand and routes its leaf to this composer; no new
+inferred setup memo was added.
+
+The actual captured DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2 and COMPLEX-0 now
+**all replay unconditionally**, registering each proof in actual event
+order for the next theorem. Each declaration's axioms are exactly
+`{propext, Classical.choice, Quot.sound}`
+(`c2-bootstrap-call-declarations-rerun.log`). This closes these three
+bootstrap replay dependencies; it does not yet integrate their production
+capture provenance or imports.
+
+Nine mutations of the real DEFAULT-COMPLEX-1 tree reject: missing/duplicated
+call, missing basis, changed input/output/query/value/path, and a selected
+source absent from the clause context (`c2-bootstrap-call-controls-final.log`).
+Five parser controls, derived from the actual emitted record, reject malformed
+lists, missing/duplicated/unknown fields and an invalid returned truth value
+(`c2-bootstrap-call-parser-controls.log`). Positive evidence is always the
+unchanged actual capture. The earlier scope mutation also changed the input,
+so it was rejected at call matching; the final control changes only the
+selected source and reaches the intended missing-scope check.
+
+The consumer build passes **6272 jobs**
+(`c2-clausify-call-consumer-build-rerun2.log`), after fixing record-field
+formatting and an unavailable Option helper. Temporary declaration/control
+scripts also needed record formatting fixes before the passing runs; their
+initial failures are retained. Static checks pass
+(`c2-clausify-call-static.log`); the broader affected build and focused
+regressions are running. No new full-gate claim or golden change.
+ADD-DEF-COMPLEX's Subgoal 2 composition, REALPART-+/IMAGPART-+, the comparison
+singleton lookup, linear classes, C2 and **0/3 new BVCHOP mirrors** remain open.
+
+
+The same actual bootstrap proofs also replay unconditionally in the larger
+quotient consumer world. With that registry, COMPLEX-OPENER and
+**REALPART-WHEN-RATIONALP replay unconditionally**; the latter's declaration
+has the accepted-axiom receipt (`c2-bootstrap-component-dependencies.log`).
+REALPART-OF-*-WHEN-RATIONALP-ARG2 retains one condition,
+`use:REALPART-OF-*-WHEN-RATIONALP-ARG1`. The complex/rational comparison still
+stops at its recorded type-alist truth lookup, as expected.
+Focused `just replay` passes 05-hints **4/4** and p8-clausify-detail **1/1**
+(`c2-clausify-call-{hints,p8}-replay.log`).
+
+ADD-DEF-COMPLEX qualification: the linear insertion consumer checks its
+continuation before proving the inserted row. Thus the Subgoal 2 continuation
+failure does **not** certify its three inserted equations. Their PT(0) points
+to ACL2-NUMBERP Y, while the current row consumer requires a direct comparison.
+They also require the actual type-derived polynomial class, like the strict
+helper's Subgoal 9.12; their proof basis must be captured and consumed.
+
+
+The affected build passes **6291 jobs**, including DriverTests and all six
+selected NS1/tamper targets; Ns1Mod takes **241 s**
+(`c2-clausify-call-affected-build.log`). Final static checks pass
+(`c2-clausify-call-final-static.log`), and the focused replays above pass.
+This is a **fast-gate** checkpoint, with no golden change or new full-suite
+claim. The final parser receipt is
+`c2-bootstrap-call-parser-controls-final.log`: its improper-list mutation
+now uses an atomic tail and reaches the outer-list check. The initial
+mutation was still rejected, but at the inner-record check instead.

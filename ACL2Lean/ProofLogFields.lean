@@ -64,6 +64,49 @@ def parseRunes (s : SExpr) : Except String (List Rune) :=
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
 
+/-- Parse a clausify decision-trace `:PATH` — a list of `(:t . test)` /
+    `(:f . test)` conses, outermost-first — into (assumed-true?, test)
+    pairs. Hard-fails on any other shape. -/
+def parseClausifyPath (s : SExpr) : Except String (List (Bool × SExpr)) := do
+  let some items := s.toList?
+    | throw s!"clausify :PATH is not a list: {repr s}"
+  items.mapM fun
+    | .cons (.atom (.keyword "T")) test => pure (true, test)
+    | .cons (.atom (.keyword "F")) test => pure (false, test)
+    | e => throw s!"clausify :PATH entry is not (:t/:f . test): {repr e}"
+
+/-- Parse each recorded NOT call without accepting malformed or partial plists. -/
+def parseClausifyCalls (value : Option SExpr) :
+    Except String (List ClausifyCallAssumption) := do
+  let some value := value | return []
+  let some rows := value.toList? | throw "CLAUSIFY-LEAF: CALL-ASSUMPTIONS is not a list"
+  rows.mapM fun row => do
+    let some fields := row.toList? | throw "clausify call: record is not a plist"
+    let rec validate : List SExpr → List String → Except String Unit
+      | [], seen => unless seen.length == 6 do throw "clausify call: missing field"
+      | .atom (.keyword key) :: _ :: rest, seen => do
+        unless ["INPUT", "OUTPUT", "QUERY", "VALUE", "BASIS", "PATH"].contains key &&
+            !seen.contains key do throw "clausify call: unknown or repeated field"
+        validate rest (key :: seen)
+      | _, _ => throw "clausify call: malformed plist"
+    validate fields []
+    let get := fun key => match lookupKeyword key fields with
+      | some value => Except.ok value
+      | none => Except.error s!"clausify call: missing {key}"
+    let value ← match ← get "VALUE" with
+      | .atom (.symbol s) =>
+        if s.name == "T" then pure true
+        else if s.name == "F" then pure false
+        else throw "clausify call: VALUE is not T/F"
+      | _ => throw "clausify call: VALUE is not T/F"
+    return {
+      input := ← get "INPUT"
+      output := ← get "OUTPUT"
+      query := ← get "QUERY"
+      value
+      basis := ← get "BASIS"
+      path := ← parseClausifyPath (← get "PATH") }
+
 /-- Parse the same cons-term fold record in hypothesis relief and USE instances. -/
 def parseSubstitutionFolds (label : String) (folds : SExpr) :
     Except String (List SubstitutionFold) := do

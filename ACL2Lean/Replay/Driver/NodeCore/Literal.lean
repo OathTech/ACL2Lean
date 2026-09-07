@@ -320,6 +320,18 @@ partial def ifQueryContextDemands (marker : SExpr × Bool × SExpr) : MetaM (Lis
     return own ++ (← q.children.mapM queryDemands).flatten
   return (← qs.mapM queryDemands).flatten
 
+/-- Demand exactly the selected source of each emitted clausify call. -/
+def clausifyCallDemands (lp : LiteralProof) : MetaM (List ContextDemand) := do
+  let calls := lp.splitTrace.flatMap fun | .leaf _ _ _ _ cs => cs | _ => []
+  if !calls.isEmpty && (lp.result == quoteT || lp.literal == quoteT ||
+      lp.nodes.any (fun n => (runeOf n).ty == "type-set")) then
+    throwError "clausify call: record after a literal closer (frontier)"
+  calls.mapM fun call => do
+    let (source, sign) ← ofExcept (clausifyCallSource call)
+    let literal := if sign then
+      SExpr.cons (.atom (.symbol { name := "NOT" })) (.cons source .nil) else source
+    return .term literal
+
 /-- The CLAUSE-CONTEXT falsity demands of a literal's chain, as the exact
     clause-literal terms/indices whose falsity the chain's nodes consume
     (ACL2 rewrites literal i under the falsity of ALL other clause literals):

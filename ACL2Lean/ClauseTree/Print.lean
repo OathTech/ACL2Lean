@@ -57,6 +57,12 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       else
         IO.println s!"{pad}  │    literal {lp.index}: {lp.literal} ⇒ {lp.result}  ({lp.nodes.length}-step rewrite)"
         printProofNodes lp.nodes rwIndent
+      for decision in lp.splitTrace do
+        if let .leaf _ _ _ _ calls := decision then
+          for call in calls do
+            IO.println s!"{pad}  │      clausify call: {call.input} ⇒ {call.output}"
+            IO.println s!"{pad}  │        query {call.query}, value {call.value}, path {repr call.path}"
+            IO.println s!"{pad}  │        selected assumption: {call.basis}"
     | .step (.node rune lhs rhs children prov) =>
       IO.println s!"{pad}  │    {rune.ty}: {lhs} ⇒ {rhs}"
       if prov.clauseContextBasis.isSome then

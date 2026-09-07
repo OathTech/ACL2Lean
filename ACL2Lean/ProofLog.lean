@@ -137,17 +137,6 @@ private def parseRewriteStep? (s : SExpr) : Except String RewriteStep := do
     | _ => throw s!"REWRITE-STEP: expected :REWRITE-STEP keyword, got {repr s}"
   | none => throw s!"REWRITE-STEP: expected list, got {repr s}"
 
-/-- Parse a clausify decision-trace `:PATH` — a list of `(:t . test)` /
-    `(:f . test)` conses, outermost-first — into (assumed-true?, test)
-    pairs. Hard-fails on any other shape. -/
-private def parseClausifyPath (s : SExpr) : Except String (List (Bool × SExpr)) := do
-  let some items := s.toList?
-    | throw s!"clausify :PATH is not a list: {repr s}"
-  items.mapM fun
-    | .cons (.atom (.keyword "T")) test => pure (true, test)
-    | .cons (.atom (.keyword "F")) test => pure (false, test)
-    | e => throw s!"clausify :PATH entry is not (:t/:f . test): {repr e}"
-
 /-- Parse a single trace event from the :REWRITES field. -/
 private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
   match s.toList? with
@@ -326,7 +315,8 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
                                 (stale log? recapture-all)"
           | some _, o => throw s!"CLAUSIFY-LEAF: unexpected :SEGMENT on a \
                                   {o} leaf"
-        pure (.clausifyLeaf value outcome path segment)
+        let calls ← parseClausifyCalls (lookupKeyword "CALL-ASSUMPTIONS" rest)
+        pure (.clausifyLeaf value outcome path segment calls)
     | .atom (.keyword "CLAUSIFY-CONJUNCTION") :: rest =>
         let l ← lookupKeyword "LEFT" rest
           |>.elim (throw "CLAUSIFY-CONJUNCTION: missing :LEFT") pure

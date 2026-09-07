@@ -173,8 +173,8 @@ inductive ProofNode where
     `emit/if-interp/*` — docs/notes/2026-07-03_branch-split-spine.md): the
     decision skeleton of the assume-true-false split `rewrite-clause` performs
     on a rewritten literal. `path` is the tests split so far, outermost-first,
-    as (assumed-true?, test). Justifications are deliberately not recorded —
-    the replay re-derives them fail-closed. -/
+    as (assumed-true?, test). Legacy test justifications are not recorded;
+    leaf-local call records retain the selected NOT assumption where emitted. -/
 inductive SplitDecision where
   /-- An if-test decision: `verdict` ∈ split/true/false, `how` ∈
       constant/assumed/split. -/
@@ -185,6 +185,7 @@ inductive SplitDecision where
       constructed for this leaf — the exact leaf→child-clause link. -/
   | leaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
       (segment : Option (List SExpr))
+      (calls : List ClausifyCallAssumption := [])
   deriving Repr, Inhabited, BEq
 
 /-- Proof that a single literal simplifies to a result under clause
@@ -667,7 +668,7 @@ partial def parseClauseItems (events : List TraceEvent)
       -- chain events carries no information)
       let splitTrace := litEvents.filterMap fun
         | .clausifyTest t v h p => some (SplitDecision.test t v h p)
-        | .clausifyLeaf v o p seg => some (SplitDecision.leaf v o p seg)
+        | .clausifyLeaf v o p seg calls => some (SplitDecision.leaf v o p seg calls)
         -- Conjunction calls are retained separately: unlike an if-interp
         -- test, strip-branches unions two independent clause sets.
         | .clausifyConjunction .. => none
