@@ -30,6 +30,31 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-055 — trivial substitution omits its literal-retention decision
+Status: open
+Pinned-by: none (proof-capture evidence and replay composition)
+
+`remove-trivial-equivalences-rec` records the substitution's sides and
+relation, but omits the selected literal position and the actual deletion
+flag passed to `subst-equiv-and-maybe-delete-lit`. ACL2 retains a trivial
+quote equality, substituting through the other literals. The in-clause
+consumer currently substitutes through and deletes every justifying equality.
+The residual postpass has a separate retention route, but the top-level
+linear-insertion continuation cannot select it from these records.
+
+The fresh bootstrap ADD-DEF-COMPLEX Subgoal 2 retains three inserted zero
+equalities; replay instead ends without a matching child. The strict
+multiplication helper's Subgoal 9.12 also retains its inserted equality
+in the pushed child. After the product query/row repair, replay deletes it
+and reaches the legacy equation-add DP fallback, which fails. Neither
+whole subtree is claimed checked. Emit the actual selected literal,
+position, input clause and deletion decision, then consume the appropriate
+recorded route; do not infer retention from the desired child or add a DP
+proof for the lost premise. Receipts: `c2-bootstrap-poly-tree.log`,
+`c2-bootstrap-poly-declarations.log`, `c2-strict-product-tree.log`, and
+`c2-strict-product-subtree.log` under
+`.tmp/ns1/`; source: `simplify.lisp`'s two named functions.
+
 ## BUG-054 — numeric solidification omits the selected type mask
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)
@@ -190,8 +215,9 @@ The diagnostic consumer now checks those numeric queries, including
 recognizer tuples propagated through REALPART/IMAGPART. Producer
 `f9d55fb3e6` additionally records actual POLYS-FROM-TYPE-SET construction
 queries for selected rows. Four comparison zero-row insertions and both
-Subgoal 3' subtrees check; strict-helper multiplication queries and the
-baseline msort row classes remain open. The production pointer is unchanged,
+Subgoal 2'/3' subtrees check. The strict helper's multiplication query and
+selected zero-row insertion also check; its continuation exposes BUG-055.
+The baseline msort row classes remain open. The production pointer is unchanged,
 so BUG-049 remains open (NS1 charter).
 
 The isolated producer now records the insertion and the original clause

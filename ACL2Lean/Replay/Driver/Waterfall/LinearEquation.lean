@@ -91,7 +91,9 @@ private def replayTypeZeroRow (cfg : ReplayConfig) (ctx : ReplayCtx)
       (← tsQueryRead (TsQueryCapture.required fs "MASK")) == .atom (.number (.int 1)) do
     throwError "linear type row: unsupported construction term or mask"
   let tt ← tsQueryRead (TsQueryCapture.required fs "TTREE")
-  unless row.rational && tt == row.ttree && row.parents == row.tips do
+  -- COLLECT-PARENTS0 pushes each atomic PT tip onto its accumulator. The
+  -- supported single flat, duplicate-free PT tag therefore yields reverse order.
+  unless row.rational && tt == row.ttree && row.parents == row.tips.reverse do
     throwError "linear type row: construction tag tree differs from selected row"
   primitiveQueryTtree tt
   let ta ← tsQueryRead (TsQueryCapture.typeAlist (← tsQueryRead (TsQueryCapture.required fs "TYPE-ALIST")))

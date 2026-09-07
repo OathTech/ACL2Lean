@@ -46,16 +46,17 @@ charter or the archive carry the record.
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Consume the combined linear capture's numeric queries and direct zero rows;
-      close the five explicit rule conditions of strict-helper Subgoal 9.18'
-      (REALPART-+, complex/rational comparison, rational realpart, realpart of
-      a product, COMPLEX-OPENER). Its actual ELIM subtree kernel-checks;
-      Subgoal 9.17 also checks under seven conditions, adding IMAGPART-+
-      and the imaginary product rule. Close the bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
+      close the two remaining rule conditions of strict-helper Subgoal 9.18'
+      (REALPART-+ and realpart of a product). Subgoal 9.17 retains those
+      two plus IMAGPART-+ and the imaginary product rule. Both subtrees
+      consume the newly unconditional comparison/component dependencies. Close the bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
       linear-insertion/substitution composition. Integrate the scoped six-theorem
       bootstrap capture's source/proof provenance. Capture and consume the
       diagnostic comparison book's now-unconditional 4/4 declarations and
       their capture route into the required dependency chain. Close the
-      strict helper's derived linear row at Subgoal 9.12. Preserve the
+      strict helper's Subgoal 9.12 after its checked product query/zero row:
+      capture and consume whether each trivial substitution retains its
+      justifying literal (BUG-055). Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

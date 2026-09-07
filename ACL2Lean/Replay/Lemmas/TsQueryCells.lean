@@ -2,6 +2,7 @@ import ACL2Lean.Replay.Lemmas.TsNumericFacts
 import ACL2Lean.Replay.Lemmas.TsBooleanFacts
 import ACL2Lean.NumericPositive
 import ACL2Lean.NumericEquality
+import ACL2Lean.NumericComplexView
 
 namespace ACL2.Replay
 open ACL2
@@ -10,6 +11,18 @@ theorem equal_zero_t_of_inTs {v : SExpr} (h : InTs 1 v) :
     Logic.equal v (.atom (.number (.int 0))) = .t := by
   rw [zero_of_inTs1 h]
   rfl
+
+/-- The executed multiplication query in the strict helper has a nonnumeric
+left operand. ACL2's primitive completion makes the product zero. -/
+theorem inTs_times_nonnumber_left {a : SExpr} (b : SExpr) (ha : InTs (-128) a) :
+    InTs 1 (Logic.times a b) := by
+  have hn : Logic.acl2Numberp a = .nil := by
+    by_contra hn
+    exact inTs_disjoint_absurd (by decide : tsDisjointM (-128) 127 = true) ha
+      (inTs_acl2Numberp (logic_acl2Numberp_ne_nil_t a hn))
+  rw [Logic.times_comm, Logic.times_nonnumber_right b a hn]
+  unfold InTs
+  decide
 
 /-- The negative-rational restriction excludes the false comparison cell. -/
 theorem lt_zero_of_inTs {v : SExpr} (h : InTs 48 v) :

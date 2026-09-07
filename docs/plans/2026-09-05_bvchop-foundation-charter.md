@@ -4120,3 +4120,60 @@ pattern replays **1/1** (`c2-clausify-lambda-static.log`,
 `c2-clausify-lambda-pattern-replay.log`). This remains an intermediate
 fast-gate checkpoint, with no golden repin or new full-suite claim. C2 and
 all three native BVCHOP proofs remain open.
+
+
+### C2 strict-helper product query and retained-equality frontier (2026-09-07)
+
+Using only unconditional entries from the checked component/comparison
+registry reduces strict-helper Subgoal 9.18' from five conditions to **two**:
+REALPART-+ and REALPART-OF-*-WHEN-RATIONALP-ARG2. Subgoal 9.17 drops from
+seven to **four**, adding IMAGPART-+ and its product rule. Both actual
+subtree declarations have accepted axioms; these are conditional proofs,
+not complete dependencies (`c2-strict-unconditional-comparison-dependencies-rerun.log`).
+The conditional ARG2 registry entry cannot supply its missing ARG1 USE
+premise in the helper telescope; the earlier attempted transfer correctly
+refuses it (`c2-strict-closed-comparison-dependencies.log`).
+
+The composed diagnostic producer **3b15f1894e** includes the earlier actual
+USE folds and NOT lookup observers alongside the polynomial/query observers.
+Its hermetic image and tags pass (`c2-combined-bootstrap-poly-image.log`,
+`c2-combined-bootstrap-poly-tags.log`). The six-event bootstrap capture
+completes `initialize-acl2 nil` with unchanged sources and 727,656 raw bytes;
+both compressed archives round-trip through their manifest hashes. The
+UTF-8 proof-log archive is hydrated exactly, without filtering. Comparing
+all **79 events** in memory, removing only the added diagnostic fields and
+explicit NIL-normalization steps, preserves every previous event
+(`c2-bootstrap-poly-event-comparison.log`). The three defaults still replay
+unconditionally with accepted axioms; ADD-DEF-COMPLEX still stops at Subgoal
+2's continuation (`c2-bootstrap-poly-declarations.log`). This remains a
+diagnostic capture; production bootstrap provenance is open.
+
+The strict helper's actual Subgoal 9.12 queries BINARY-*(X2,Y) with X2 mask
+-128 and Y mask 14, returning singleton zero. The consumer now checks this
+executed product and the recognizer tuple propagated unchanged to both
+children, using the primitive nonnumeric-completion law. The right child
+is checked and retained even though completion needs only the left premise.
+Selected row parents must match ACL2's COLLECT-PARENTS order: the supported
+single flat, duplicate-free PT tag yields the reverse of its tips.
+The actual numeric query pair and selected insertion kernel-check with
+accepted axioms; **8 query mutations** and **12 row mutations**, including
+parent-order reversal, reject (`c2-product-query-controls.log`,
+`c2-product-row-controls.log`). The insertion proof is explicitly relative
+to its recorded continuation, not a closed subtree.
+
+Whole Subgoal 9.12 now reaches the subsequent trivial substitution and
+fails when the consumer deletes an equality ACL2 retained
+(`c2-strict-product-subtree.log`). Source inspection identifies the missing
+selected literal/deletion decision, now BUG-055. The same distinction
+explains ADD-DEF-COMPLEX's retained zero equalities. Capture that executed
+decision before routing the continuation; no missing premise may be supplied
+by the legacy DP fallback. The core build passes **3144 jobs**
+(`c2-product-query-consumer-build.log`). All three BVCHOP mirrors remain open.
+
+Affected targets pass **3160 jobs**, and static checks pass
+(`c2-product-query-affected-build.log`, `c2-product-query-static.log`). The
+existing equality-reasoning book replays **3/3**
+(`c2-product-query-equality-replay-rerun.log`); the first invocation used a
+wrong path after a successful executable build, then the corrected corpus
+path passed. This is an intermediate fast-gate checkpoint, with no new full
+gate, golden repin, production producer promotion or mirror-completion claim.

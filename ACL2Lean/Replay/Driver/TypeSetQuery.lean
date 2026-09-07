@@ -55,19 +55,20 @@ their execution order; a mask alone never proves a fact. No hypothesis DP. -/
 partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     (expectedDwp : SExpr := .nil) : MetaM Expr := do
   let q ← tsQueryRead (TsQueryCapture.query raw)
-  let projection := (asApp q.term).any fun (fn, args) =>
-    (fn.name == "REALPART" || fn.name == "IMAGPART") && args.length == 1
+  let propagatesDwp := (asApp q.term).any fun (fn, args) =>
+    ((fn.name == "REALPART" || fn.name == "IMAGPART") && args.length == 1) ||
+      (fn.name == "BINARY-*" && args.length == 2)
   unless q.dwp == expectedDwp && (q.dwp == .nil ||
-      q.route == .atom (.keyword "LOOKUP") || (projection && q.route == .nil)) do
+      q.route == .atom (.keyword "LOOKUP") || (propagatesDwp && q.route == .nil)) do
     throwFrontier m!"type-set query: unsupported double-whammy computation or parent tuple"
   primitiveQueryTtree q.ttree
   primitiveQueryTtree q.inputTtree
   let cs ← q.children.mapM fun raw => do
     let c ← tsQueryRead (TsQueryCapture.query raw)
     let mut childDwp := SExpr.nil
-    -- TYPE-SET-WITH-RULES passes DWP unchanged through component projections.
+    -- TYPE-SET-WITH-RULES passes DWP unchanged through projections and products.
     -- A recognizer instead supplies its own recorded recognizer tuple.
-    if projection then
+    if propagatesDwp then
       childDwp := q.dwp
     else if c.dwp != .nil then
       let some (fn, [_]) := asApp q.term | throwError "type-set query: DWP child lacks a recognizer parent"
@@ -135,13 +136,20 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
         c.result == 7 && q.result == 11 do
       throwFrontier m!"type-set query: unsupported reciprocal masks {c.result} → {q.result}"
     return ← finish (← mkAppM ``inTs_reciprocal_nonneg_int #[p])
-  if fn.name == "BINARY-+" then
-    let [(l, pl), (r, pr)] := cs | throwError "type-set query: addition arity"
+  if fn.name == "BINARY-+" || fn.name == "BINARY-*" then
+    let [(l, pl), (r, pr)] := cs | throwError "type-set query: binary arithmetic arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
-      throwError "type-set query: addition has an unexpected route"
+      throwError "type-set query: binary arithmetic has an unexpected route"
+    if fn.name == "BINARY-*" && l.result == -128 && q.result == 1 then
+      let result ← finish (← mkAppM ``inTs_times_nonnumber_left
+        #[← ctxValExpr cfg ctx r.term, pl])
+      -- Completion needs only the nonnumber premise, but retain the other
+      -- executed operand query as a checked child of this proof.
+      return ← withLetDecl `hProductRight (← inferType pr) pr fun hp =>
+        mkLetFVars #[hp] result (usedLetOnly := false)
     let some (_, _, _, ruleName) := (tsBinaryOf fn.name).find? fun (lm, rm, out, _) =>
         lm == l.result && rm == r.result && out == q.result
-      | throwFrontier m!"type-set query: unsupported addition masks {l.result}/{r.result} → {q.result}"
+      | throwFrontier m!"type-set query: unsupported {fn.name} masks {l.result}/{r.result} → {q.result}"
     return ← finish (← mkAppM ruleName #[pl, pr])
   if fn.name == "<" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: comparison arity"

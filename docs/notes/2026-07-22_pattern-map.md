@@ -776,8 +776,8 @@ No pattern books exist yet — authoring them is the arc's work.
   recipe and executed restriction queries are in progress: sorting's actual
   two-record guard subtree checks unconditionally, with all six removed-edit
   mutations rejected. The untouched
-  Subgoal 9.18' subtree kernel-checks under five explicit rule conditions,
-  and 9.17 under seven. Each restriction quartet checks with eight rejected
+  Subgoal 9.18' subtree now kernel-checks under two explicit rule conditions,
+  and 9.17 under four, after consuming the checked component/comparison registry. Each restriction quartet checks with eight rejected
   controls. The component books exercise rational/zero/negative restrictions
   and preprocessing before ELIM (four rejected boundary mutations).
   REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry.
@@ -792,6 +792,9 @@ No pattern books exist yet — authoring them is the arc's work.
   selected clausify NOT assumption lookup. All three declarations have
   accepted-axiom receipts. Production bootstrap provenance remains open. Each observed
   ELIM step has one round, containing one or two records.
+  Strict-helper Subgoal 9.12's executed product queries and selected zero-row
+  insertion check with 20 rejected mutations. Whole-subtree replay still fails
+  after trivial substitution loses its retained equality (BUG-055).
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison
