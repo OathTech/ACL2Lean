@@ -780,13 +780,19 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- Complete complex constructors before an equality premise can replace
   -- them with a larger arithmetic term. This closes the recorded opener's
   -- tau leaf from its nonrational argument, before field-view expansion.
-  let normalizeTac ← if withComplexConstructor then
+  -- Component completion must precede that expansion too: the bootstrap's
+  -- nonnumeric verdict leaf otherwise expands products that already vanish.
+  let normalizeTac ← if withComplexConstructor then do
+    let additiveTac ← dpPrimitiveAdditiveTactic
     `(tactic|
-      (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>
-      (try simp_all only [Logic.complex, Logic.rationalValue_zero_of_nonrational,
-        show Logic.rationalValue (.atom (.number (.int (Int.ofNat 0)))) = (0 : Rat) from rfl,
-        show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
-        Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> $normalizeTac:tactic)
+      first
+      | (solve | $additiveTac:tactic)
+      | (try simp_all only [Logic.realpart_nonnumber, Logic.imagpart_nonnumber]) <;>
+        (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>
+        (try simp_all only [Logic.complex, Logic.rationalValue_zero_of_nonrational,
+          show Logic.rationalValue (.atom (.number (.int (Int.ofNat 0)))) = (0 : Rat) from rfl,
+          show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
+          Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> (try rfl) <;> $normalizeTac:tactic)
     else pure normalizeTac
   let directTac ← if withImplication || withComplexConstructor then pure tac else
     `(tactic| $normalizeTac:tactic <;> $tac:tactic)

@@ -7,6 +7,22 @@ namespace ACL2.Logic
 theorem acl2Numberp_complex (a b : SExpr) : acl2Numberp (complex a b) = .t := by
   rfl
 
+/-- Primitive component completion before expanding arithmetic on a nonnumber. -/
+private theorem components_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    realpart v = .atom (.number (.int 0)) ∧
+    imagpart v = .atom (.number (.int 0)) := by
+  cases v with
+  | nil | cons _ _ => exact ⟨rfl, rfl⟩
+  | atom a => cases a with
+    | number _ => simp [acl2Numberp] at h
+    | _ => exact ⟨rfl, rfl⟩
+
+theorem realpart_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    realpart v = .atom (.number (.int 0)) := (components_nonnumber h).1
+
+theorem imagpart_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    imagpart v = .atom (.number (.int 0)) := (components_nonnumber h).2
+
 /-- The two range conjuncts of the primitive COMPLEX-IMPLIES1 axiom. -/
 theorem rationalp_realpart (v : SExpr) : rationalp (realpart v) = .t := by
   cases v with

@@ -4323,3 +4323,81 @@ obligation has two variables and no opaque terms and builds in 1 ms
 measurements continue. The enclosing Subgoal 2 and Subgoal 2'' trace runs
 were stopped without results once the smaller branch was isolated; they
 supply no proof or timing receipt.
+
+
+### C2 component completion at emitted verdict leaves (2026-09-07)
+
+The whole addition timeout localizes to its actual Subgoal 2.1 type-set
+verdict. Its two-variable value obligation builds in 1 ms. Completing
+nonnumeric REALPART/IMAGPART before unfolding COMPLEX constructs a proof
+in 9 ms in the focused experiment, with a kernel/accepted-axiom receipt
+(`c2-bootstrap-leaf-completion-final.log`). The first experiment tried to
+call a private helper, then exposed a remaining closed definitional equality;
+the corrected no-recovery harness and reflexivity finish the proof. The
+production leaf procedure, with tracing enabled, constructs the same fact
+in 62 ms and kernel-checks (`c2-bootstrap-leaf-completion-production-profile.log`).
+These are construction measurements, not kernel-time measurements.
+
+The component model now exposes the two primitive completion laws;
+TsComplexFacts reuses them instead of duplicating their constructor cases.
+The DP procedure normalizes those components before its existing constructor
+expansion. The **actual Subgoal 2.1 subtree replays unconditionally**, with
+accepted axioms (`c2-bootstrap-component-completion-zero-subtree.log`). All
+seven construction-query controls still kernel-check and reject 42 mutations
+(`c2-bootstrap-leaf-completion-query-regression.log`). Core and affected
+builds pass **3147** and **3164** jobs, and static checks pass
+(`c2-bootstrap-leaf-completion-build.log`,
+`c2-bootstrap-leaf-completion-affected-build.log`,
+`c2-bootstrap-leaf-completion-static.log`). The earlier long 2.1/prover probes
+were stopped after the focused success and supply no result receipts.
+
+The whole addition attempt now returns an honest **ASSUMED** result with
+COMPLEX-EQUAL, DEFAULT-+-1, DEFAULT-+-2 and ASSUMED:dp-fact conditions;
+it produces no accepted whole declaration
+(`c2-bootstrap-component-completion-declarations.log`). All three rule
+names are actual `defthm`s in axioms.lisp (4431, 25407, 25412), so their
+proofs require capture/replay. The remaining DP obligation is Subgoal 1.1's
+actual linear-contradiction leaf (`c2-bootstrap-addition-leaves.log`). Its
+recorded component equalities reduce it to primitive additive normalization;
+the exact four-variable value obligation kernel-checks in an 11 ms focused
+construction (`c2-bootstrap-additive-leaf-probe.log`). The production
+normalizer now preserves those primitive sums and tries this additive
+normalization before constructor expansion. Its profiled fact construction
+is 73 ms, with accepted axioms (`c2-bootstrap-additive-leaf-production.log`).
+Core build passes **3147 jobs** (`c2-bootstrap-additive-leaf-build.log`).
+
+The **whole ADD-DEF-COMPLEX replay now has only three rule conditions**:
+COMPLEX-EQUAL, DEFAULT-+-1 and DEFAULT-+-2. Its registered conditional
+declaration has accepted axioms; no ASSUMED:dp-fact remains
+(`c2-bootstrap-additive-declarations.log`). Continuing to REALPART-+ exposes
+a looping `Logic.plus.eq_1` simplification warning and recursion-limit
+failure. Neither that theorem nor IMAGPART-+ is claimed checked; repair the
+measured normalization/primitive projection route without suppressing the
+warning or raising the limit. All three BVCHOP mirrors remain open.
+
+Two further diagnostic initializations capture the actual COMPLEX-EQUAL
+and DEFAULT-+-1/2 source events, preserving every other initialization proof
+and changing only output visibility. Producer **7b5da0495c** stays clean.
+Both initializers report success, source trees are unchanged, and both
+compressed archives round-trip through their manifest hashes. The exact
+hydrated UTF-8 logs have **93,194** and **44,426** bytes and SHA-256 hashes
+`ff372afc5c813783c9303e72e4a2d5629edcde511f016438642a03884ad1bf54` and
+`a3d0c294464f9b34a343dddafb4e8a229afe2e7e33591049a4f16d52001b9fb2`.
+Receipts and trees are `c2-bootstrap-complex-equal-capture.log`,
+`c2-bootstrap-plus-defaults-capture.log` and the corresponding `-tree.log`
+files; manifests are in their named capture directories. This is execution
+evidence, not production bootstrap provenance. The actual replay attempts
+stop at missing primitive USE handlers: IMAGPART-COMPLEX (also REALPART-COMPLEX
+in the same four-instance hint) and COMPLETION-OF-+ respectively
+(`c2-bootstrap-complex-equal-declarations.log`,
+`c2-bootstrap-plus-defaults-declarations.log`). Ordinary theorem content
+must continue through those captured trees.
+
+The final affected build passes **3164 jobs**, static checks pass, and
+existing equality-reasoning replays **3/3** after the **6282-job** executable
+build (`c2-bootstrap-additive-leaf-affected-build.log`,
+`c2-bootstrap-additive-leaf-static.log`,
+`c2-bootstrap-additive-leaf-equality-replay.log`). This is a fast-gate
+checkpoint for the two emitted verdict leaves and conditional addition
+replay, not a full-suite or C2 exit. The production producer and all native
+specifications remain unchanged.

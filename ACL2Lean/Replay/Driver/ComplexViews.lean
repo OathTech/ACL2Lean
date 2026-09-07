@@ -5,6 +5,12 @@ import ACL2Lean.NumericPositive
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- Normalize primitive sums using the equalities of an emitted verdict leaf.
+Keeping other numeric operations abstract preserves those recorded premises. -/
+def dpPrimitiveAdditiveTactic : MetaM (TSyntax `tactic) :=
+  `(tactic| simp_all only [logic_not_equal_nil_iff, Logic.equal_ne_nil_iff,
+    Logic.plus_assoc, Logic.plus_comm, Logic.plus_left_comm])
+
 /-- Boolean normalization plus the primitive POSITIVE laws inside a recorded
 verdict leaf. Numeric subterms stay abstract; the leaf itself must supply all
 rationality and sign premises. This avoids constructor enumeration for the

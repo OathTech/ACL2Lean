@@ -56,9 +56,11 @@ charter or the archive carry the record.
       their capture route into the required dependency chain. Close the
       strict helper's remaining component rules: Subgoal 9.12 now also
       checks under the same two conditions as 9.18'. Promote the recorded
-      literal-retention route (BUG-055). Decompose whole ADD-DEF-COMPLEX's measured isDefEq timeout after
-      its seven zero-row insertions check relative to their continuations; its
-      Subgoal 2.2 is unconditional. Preserve the
+      literal-retention route (BUG-055). Replay COMPLEX-EQUAL/DEFAULT-+-1/2 from their bootstrap captures,
+      adding their primitive USE routes (component projections and addition
+      completion). Repair REALPART-+'s measured looping primitive expansion.
+      Subgoals 2.1 and 2.2 are unconditional; all seven zero-row insertions
+      check relative to their continuations. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

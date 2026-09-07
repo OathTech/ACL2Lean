@@ -800,9 +800,15 @@ No pattern books exist yet — authoring them is the arc's work.
   Bootstrap ADD-DEF-COMPLEX Subgoal 2.2 now replays unconditionally after
   component-zero queries and the primitive REALPART-IMAGPART-ELIM rewrite;
   both actual rewrite nodes reject 14 mutations, and seven construction
-  queries reject 42. Whole addition still times out in isDefEq. All seven full row checks
-  now consume their actual numeric queries, including tuple propagation
-  through COMPLEX and quoted operands (61 rejected mutations).
+  queries reject 42. Subgoal 2.1's emitted type-set verdict now also
+  replays unconditionally after primitive nonnumber completion avoids its
+  expensive expansion. All seven full row checks consume their actual
+  numeric queries, including tuple propagation through COMPLEX and quoted
+  operands (61 rejected mutations). Subgoal 1.1's actual linear verdict
+  closes through its recorded equalities and primitive additive normalization.
+  Whole addition has three bootstrap rule conditions and accepted axioms;
+  REALPART-+ still hits a looping primitive-expansion warning and recursion
+  failure. The three dependency captures reach missing primitive USE handlers.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

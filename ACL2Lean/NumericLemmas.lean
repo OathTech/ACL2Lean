@@ -98,4 +98,8 @@ theorem plus_assoc (a b c : SExpr) :
   simp only [plus_parts, numberParts_mkParts]
   rw [Rat.add_assoc, Rat.add_assoc]
 
+/-- Additive normalization without expanding the completed numeric values. -/
+theorem plus_left_comm (a b c : SExpr) : plus a (plus b c) = plus b (plus a c) := by
+  rw [← plus_assoc, plus_comm a b, plus_assoc]
+
 end ACL2.Logic

@@ -78,11 +78,8 @@ private theorem inTs_components_nonnumber {v : SExpr} (h : InTs (-128) v) :
   have hn := logic_acl2Numberp_nil_of_ts_disjoint
     (by decide : tsDisjointM (-128) 127 = true) h
   have hz : InTs 1 (.atom (.number (.int 0))) := by unfold InTs; decide
-  cases v with
-  | nil | cons _ _ => exact ⟨hz, hz⟩
-  | atom a => cases a with
-    | number _ => simp [Logic.acl2Numberp] at hn
-    | _ => exact ⟨hz, hz⟩
+  rw [Logic.realpart_nonnumber hn, Logic.imagpart_nonnumber hn]
+  exact ⟨hz, hz⟩
 
 theorem inTs_realpart_nonnumber {v : SExpr} (h : InTs (-128) v) :
     InTs 1 (Logic.realpart v) := (inTs_components_nonnumber h).1
