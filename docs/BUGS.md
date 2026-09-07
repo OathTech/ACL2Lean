@@ -30,6 +30,28 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-056 — clausify NOT lookup omits the selected noncommutative assumption
+Status: open
+Pinned-by: none (proof-capture evidence, not interpreter values)
+
+The diagnostic NOT-call observer records the returned truth value but emits
+`BASIS NIL` when the selected lookup is outside its instrumented commutative
+binary arm. In the current combined times capture, strict-helper Subgoal
+9.17.1' literal 9 queries `(< S '0)` and returns false under the path
+`(EQUAL '0 R)`; its selected assumption is absent. The consumer correctly
+refuses this record instead of reconstructing a premise from the result.
+
+Producer `7b5da0495c` instruments the successful branches of
+`if-interp-assumed-value2`. This query is dispatched by
+`if-interp-assumed-value-x` to `if-interp-assumed-value1`, whose exact-term
+lookup branches do not record their selection. Emit the actual selected
+term and sign at those branches, recapture the unchanged source, and consume
+that recorded premise with the existing environment/scope checks. No
+hypothesis DP or inference from the desired result is authorized. Receipt:
+`.tmp/ns1/c2-strict-assumption-calls.log`; source:
+`.tmp/ns1/acl2-ta-singleton/rewrite.lisp:3529–3540,3679–3710`.
+Production promotion remains open.
+
 ## BUG-055 — trivial substitution omits its literal-retention decision
 Status: open
 Pinned-by: none (proof-capture evidence and replay composition)
@@ -60,10 +82,10 @@ linear-insertion continuation consumes the exact input, selected position,
 literal and retention flag, applies each recorded substitution/ground fold,
 and replays exactly one matching child. Both actual postpasses kernel-check
 relative to their recorded children; 26 mutations reject. Whole strict
-Subgoal 9.12 now checks under two ordinary component-rule conditions, with
-accepted axioms. Bootstrap ADD-DEF-COMPLEX Subgoal 2.2 now also replays
-unconditionally after its component queries and primitive reconstruction
-rewrites. Whole addition replay remains incomplete. Production promotion and the general
+Subgoal 9.12 now checks under one ordinary real-product rule condition,
+with accepted axioms, after bootstrap dependency closure. The six scoped
+bootstrap theorems, including whole ADD-DEF-COMPLEX, REALPART-+ and
+IMAGPART-+, now replay unconditionally with accepted axioms. Production promotion and the general
 retention/deletion coverage remain open; this bug is not closed.
 
 ## BUG-054 — numeric solidification omits the selected type mask

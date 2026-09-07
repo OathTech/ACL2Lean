@@ -779,7 +779,7 @@ No pattern books exist yet — authoring them is the arc's work.
   and 9.17 under four after consuming the checked component/comparison
   registry. On the current combined capture, 9.18' and 9.12 retain only
   the real-product rule after bootstrap closure; 9.17 now exposes an
-  unsupported selected clausify-assumption basis. Each restriction quartet checks with eight rejected
+  unemitted exact-term clausify-assumption basis (BUG-056). Each restriction quartet checks with eight rejected
   controls. The component books exercise rational/zero/negative restrictions
   and preprocessing before ELIM (four rejected boundary mutations).
   REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry.
@@ -817,7 +817,10 @@ No pattern books exist yet — authoring them is the arc's work.
   literal-verdict completion and retained-equality FERTILIZE/HIDE composition
   (two actual substitutions plus their children, 20 rejected mutations).
   The scoped bootstrap diagnostic is 6/6 unconditional; production
-  provenance remains open.
+  provenance remains open. Primitive REALPART-IMAGPART-ELIM USE now closes
+  both captured COMPLEX-SPLIT declarations at the quotient consumer world
+  (three actual USE premises, nine rejected mutations). REALPART-REDEF
+  reaches a separate nonnumeric literal verdict and remains incomplete.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

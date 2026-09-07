@@ -4574,3 +4574,38 @@ books check. Executable build: **6284 jobs**. Receipts:
 `c2-bootstrap-retained-fertilize-equality-replay.log`,
 `c2-bootstrap-retained-fertilize-rev-replay.log`. This is a **fast-gate**
 implementation checkpoint; no full-suite or NS1 completion claim.
+
+
+### C2 primitive component reconstruction USE (2026-09-07)
+
+The actual REALPART-IMAGPART-ELIM USE instances now consume the checked
+model law for that core defaxiom. Three actual premises kernel-check with
+accepted axioms, and nine mutations of the hypothesis, X substitution and
+axiom name reject (`c2-component-reconstruction-use-controls.log`). This
+closes both captured ordinary COMPLEX-SPLIT declarations, in the realpart
+and imagpart books, unconditionally at the quotient consumer world through
+their recorded proof trees (`c2-component-reconstruction-dependencies.log`).
+REALPART-REDEF advances to a separate positive type-set verdict with a
+nonnumeric X premise. It remains incomplete; that probe's final print of
+its absent declaration fails and the combined run is not a passed gate.
+
+Strict-helper 9.17's selected clausify NOT assumption has BASIS NIL in the
+current combined capture. The actual query is `(< S '0)`, selected false
+while clausifying the negative complex-product comparison in Subgoal
+9.17.1', literal 9. The producer's `<` dispatch reaches exact-term selection
+in `if-interp-assumed-value1`, outside the commutative-binary observer.
+BUG-056 records this emission gap and its exact receipt
+(`c2-strict-assumption-calls.log`). Emit the selected source term and sign
+at that actual branch and recapture; NIL remains a consumer frontier.
+
+Core build passes 3148 jobs (`c2-component-reconstruction-use-build.log`).
+Static checks pass with 274 reachable sources
+(`c2-component-reconstruction-use-static.log`). Affected builds and focused
+replay are recorded below before the intermediate fast-gate commit. No
+producer changes, production provenance promotion or new mirror is claimed.
+
+Affected targets pass 3165 jobs and focused equality-reasoning replay
+passes 3/3 unconditionally, with both DP leaves checked, after the 6284-job
+executable build (`c2-component-reconstruction-use-affected-build.log`,
+`c2-component-reconstruction-use-equality-replay.log`). This is a fast-gate
+checkpoint; the last full-gate and product counts are unchanged.

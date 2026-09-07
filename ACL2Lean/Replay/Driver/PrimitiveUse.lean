@@ -14,6 +14,12 @@ private theorem rationalReconstructionTrue (v : SExpr) :
   (Logic.implies_ne_nil_iff _ _).mpr fun h =>
     (Logic.equal_ne_nil_iff _ _).mpr (Logic.rational_reconstruct v h)
 
+private theorem componentReconstructionTrue (v : SExpr) :
+    Logic.implies (Logic.acl2Numberp v)
+      (Logic.equal (Logic.complex (Logic.realpart v) (Logic.imagpart v)) v) ≠ .nil :=
+  (Logic.implies_ne_nil_iff _ _).mpr fun h =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.complex_realpart_imagpart h)
+
 private theorem rationalPairImplicationTrue (x y consequence : SExpr)
     (h : Logic.rationalp x ≠ .nil → Logic.rationalp y ≠ .nil → consequence ≠ .nil) :
     Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
@@ -136,6 +142,8 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     | "ASSOCIATIVITY-OF-*" => some (app "EQUAL" [assocLhs, assocRhs])
     | "RATIONAL-IMPLIES2" => some (app "IMPLIES" [app "RATIONALP" [x],
         app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
+    | "REALPART-IMAGPART-ELIM" => some (app "IMPLIES" [app "ACL2-NUMBERP" [x],
+        app "EQUAL" [app "COMPLEX" [app "REALPART" [x], app "IMAGPART" [x]], x]])
     | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
     | "COMPLEX-DEFINITION" => some complexSchema
     | "COMPLETION-OF-COMPLEX" => some (app "EQUAL" [complexLhs, complexRhs])
@@ -164,6 +172,7 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate assocLhs))
         (← ctxValExpr cfg ctx (instantiate assocRhs)) law
     | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
+    | "REALPART-IMAGPART-ELIM" => mkAppM ``componentReconstructionTrue #[vx]
     | "COMPLEX-DEFINITION" => mkAppM ``complexDefinitionTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
     | "REALPART-COMPLEX" => mkAppM ``realpartComplexTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
     | "IMAGPART-COMPLEX" => mkAppM ``imagpartComplexTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
