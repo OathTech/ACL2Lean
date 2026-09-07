@@ -46,21 +46,17 @@ charter or the archive carry the record.
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Consume the combined linear capture's numeric queries and direct zero rows;
-      close the two remaining rule conditions of strict-helper Subgoal 9.18'
-      (REALPART-+ and realpart of a product). Subgoal 9.17 retains those
-      two plus IMAGPART-+ and the imaginary product rule. Both subtrees
-      consume the newly unconditional comparison/component dependencies. Close the bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
-      linear-insertion/substitution composition. Integrate the scoped six-theorem
+      close the remaining real-product rule condition of strict-helper Subgoals
+      9.12 and 9.18'. Consume 9.17's newly exposed selected clausify-assumption
+      basis on the current combined capture, then remeasure its product-rule
+      conditions. Integrate the scoped six-theorem
       bootstrap capture's source/proof provenance. Capture and consume the
       diagnostic comparison book's now-unconditional 4/4 declarations and
       their capture route into the required dependency chain. Close the
-      strict helper's remaining component rules: Subgoal 9.12 now also
-      checks under the same two conditions as 9.18'. Promote the recorded
-      literal-retention route (BUG-055). Integrate the now-unconditional bootstrap addition/dependency declarations
-      into the component-addition consumers. Repair REALPART-+'s literal-level nonnumber verdict in Subgoal 2 and
-      replay its retained-equality FERTILIZE/HIDE route (DELETE-LIT-FLG NIL).
-      Subgoals 2.1 and 2.2 are unconditional; all seven zero-row insertions
-      check relative to their continuations. Preserve the
+      strict helper's remaining component rules. Promote the recorded
+      literal-retention route (BUG-055). Use the now-unconditional six bootstrap
+      declarations and three supporting
+      declarations to close the ordinary component-product dependencies. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

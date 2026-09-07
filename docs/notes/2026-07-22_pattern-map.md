@@ -775,9 +775,11 @@ No pattern books exist yet — authoring them is the arc's work.
 - books: none yet. CAR/CDR recipe landed. Shared REALPART/IMAGPART
   recipe and executed restriction queries are in progress: sorting's actual
   two-record guard subtree checks unconditionally, with all six removed-edit
-  mutations rejected. The untouched
-  Subgoal 9.18' subtree now kernel-checks under two explicit rule conditions,
-  and 9.17 under four, after consuming the checked component/comparison registry. Each restriction quartet checks with eight rejected
+  mutations rejected. Earlier captures checked Subgoal 9.18' under two rule conditions
+  and 9.17 under four after consuming the checked component/comparison
+  registry. On the current combined capture, 9.18' and 9.12 retain only
+  the real-product rule after bootstrap closure; 9.17 now exposes an
+  unsupported selected clausify-assumption basis. Each restriction quartet checks with eight rejected
   controls. The component books exercise rational/zero/negative restrictions
   and preprocessing before ELIM (four rejected boundary mutations).
   REALPART-WHEN-RATIONALP replays unconditionally with the bootstrap registry.
@@ -811,9 +813,11 @@ No pattern books exist yet — authoring them is the arc's work.
   (six actual premises, 24 rejected mutations) and the existing cross-book
   registry/tree channels. Its two primitive projection rewrites now consume
   both HYP records (four actual nodes, 32 rejected mutations). REALPART-+
-  Subgoals 2' and 1.2 replay unconditionally; the parent's separate literal
-  verdict still loops, and its retained-equality FERTILIZE/HIDE path remains
-  open.
+  and IMAGPART-+ now replay wholly and unconditionally after nonnumber
+  literal-verdict completion and retained-equality FERTILIZE/HIDE composition
+  (two actual substitutions plus their children, 20 rejected mutations).
+  The scoped bootstrap diagnostic is 6/6 unconditional; production
+  provenance remains open.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

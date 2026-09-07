@@ -17,10 +17,13 @@ from the component recognizer law. -/
 def dpComponentZeroTactic : MetaM (TSyntax `tactic) :=
   `(tactic| simp_all only [Logic.realpart_nonnumber,
     Logic.imagpart_nonnumber, Logic.equal_ne_nil_iff] <;>
-    simp (disch := simp only [ne_eq, Logic.acl2Numberp_nil_iff,
+    (try simp (disch := simp only [ne_eq, Logic.acl2Numberp_nil_iff,
       Logic.rationalp_realpart, Logic.rationalp_imagpart, SExpr.t,
       reduceCtorEq, false_and, not_false_eq_true]) only
-      [Logic.plus_zero_right_fix, Logic.plus_zero_fix, Logic.fix_of_number])
+      [Logic.plus_zero_right_fix, Logic.plus_zero_fix, Logic.fix_of_number] at *) <;>
+    simp_all only [Logic.plus_parts, Logic.numberParts_nonnumber, Prod.fst, Prod.snd,
+      Rat.zero_add, Rat.add_zero,
+      show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int 0)) from rfl] <;> rfl)
 
 /-- Boolean normalization plus the primitive POSITIVE laws inside a recorded
 verdict leaf. Numeric subterms stay abstract; the leaf itself must supply all

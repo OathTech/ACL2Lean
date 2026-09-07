@@ -4497,3 +4497,80 @@ three new mirrors still open.
 Focused equality-reasoning replay passes **3/3 unconditionally**, both
 DP leaves checked, after the **6284-job** executable build
 (`c2-bootstrap-component-projections-equality-replay.log`).
+
+
+### C2 complete scoped bootstrap diagnostic replay (2026-09-07)
+
+The scoped six-theorem bootstrap capture now replays **6/6 unconditionally**:
+DEFAULT-COMPLEX-1, DEFAULT-COMPLEX-2, COMPLEX-0, ADD-DEF-COMPLEX,
+REALPART-+ and IMAGPART-+. Every registered declaration has the accepted
+axiom set (`c2-bootstrap-retained-fertilize-declarations.log`). This uses
+the three previously replayed bootstrap dependencies through the checked
+registry and tree channels. It is diagnostic replay evidence; production
+bootstrap provenance and all three BVCHOP mirrors remain open.
+
+The separate Subgoal 2 literal verdict consumes the actual four enclosing
+falsity facts: NUMBERP Y, the rewritten equality containing FIX's IF,
+NUMBERP X, and the zero-constructor equality. Its prototype proof constructs
+in **14 ms** with accepted axioms after completing nonnumber components,
+then primitive sums (`c2-bootstrap-nonnumber-addition-leaf-rerun.log`).
+The initial one-pass prototype left closed component arithmetic unreduced;
+staging zero completion before the component representation resolves it.
+The production consumer now closes the **whole Subgoal 2** without the
+previous looping warning (`c2-bootstrap-nonnumber-addition-subtrees.log`).
+No ordinary book theorem is substituted by this verdict-leaf proof.
+
+The retained-equality FERTILIZE route follows
+`acl2/other-processes.lisp:1882–1910`: preserve the selected equality inside
+NOT/HIDE, substitute the recorded target elsewhere, check the complete
+emitted output, and replay its child. The existing false-literal IF-frame
+composition is shared by deletion and retention. HIDE already has identity
+semantics in `callBuiltin` and the checked `gz_def_hide` equation; the two
+DP/value-lift tables now expose that existing value with their existing
+package, arity and no-shadow checks. No interpreter semantics changed.
+Two actual retained substitutions and their complete children kernel-check
+with accepted axioms; **20** mutations of decisions, equality sides,
+output and child reject (`c2-bootstrap-retained-fertilize-controls.log`).
+The previous HIDE value-lift and retained-equality frontiers are closed for
+these actual nodes.
+
+Core build passes **3148 jobs** and static checks pass with 274 reachable
+sources (`c2-bootstrap-retained-fertilize-build.log`,
+`c2-bootstrap-retained-fertilize-static.log`). Affected-target and focused
+regression checks follow before this increment's fast-gate commit. No
+new full-suite claim, golden repin or producer promotion is made here.
+
+The same six bootstrap declarations also replay unconditionally at the
+quotient consumer world, alongside COMPLEX-OPENER, IMAGPART-WHEN-RATIONALP,
+COMMUTATIVITY-2-OF-* and REALPART-WHEN-RATIONALP
+(`c2-component-products-with-bootstrap.log`; the first three informational
+registry labels still say bootstrap world, but the script constructs the
+quotient world's expression). The remaining product dependency frontiers
+are now measured: primitive USE:REALPART-IMAGPART-ELIM in COMPLEX-SPLIT and
+REALPART-REDEF; an IFF constant-test IF in IMAGPART-OF-*-OF-I; and an
+ASSUMED verdict leaf plus those ordinary dependencies in imaginary product
+ARG1. ARG2 still depends on ARG1. Conditional registry mapping also blocks
+the real-product probes; none of those failed/conditional rows is claimed
+unconditional. Their capture statements and hints remain unchanged.
+
+On the current combined times capture, strict-helper Subgoals 9.12 and
+9.18' each now retain **one** rule condition,
+REALPART-OF-*-WHEN-RATIONALP-ARG2, with accepted axioms
+(`c2-strict-with-closed-bootstrap.log`). The same probe's 9.17 attempt fails
+at an unsupported selected clausify-assumption basis; its earlier
+four-condition receipt is not a success receipt for this newer capture.
+The final print for that absent declaration also fails, so that probe is
+not a wholly successful run. Preserve the two independently checked
+declarations and inspect the newly exposed recorded assumption route.
+
+The scoped rerun of strict-helper 9.12 and 9.18' succeeds with those
+same one-condition declarations and axiom receipts
+(`c2-strict-two-with-closed-bootstrap.log`). Final affected targets pass
+**3165 jobs**. Equality-reasoning replays **3/3 unconditionally**, and the
+existing reverse book, including its deletion-mode FERTILIZE route, replays
+**5/5 unconditionally**; all five standalone DP verdicts across those two
+books check. Executable build: **6284 jobs**. Receipts:
+`c2-bootstrap-retained-fertilize-affected-build.log`,
+`c2-bootstrap-retained-fertilize-equality-replay.log`,
+`c2-bootstrap-retained-fertilize-rev-replay.log`. This is a **fast-gate**
+implementation checkpoint; no full-suite or NS1 completion claim.

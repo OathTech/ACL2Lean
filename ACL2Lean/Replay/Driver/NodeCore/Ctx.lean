@@ -828,6 +828,7 @@ def dpUnary : List (String × Name × Name) :=
    ("NATP",     ``Logic.natp,     ``callBuiltin_natp),
    ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
    ("REALFIX",  ``Logic.realfix,  ``callBuiltin_realfix),
+   ("HIDE",     ``dpHideValue,    ``gz_def_hide),
    ("LEN",      ``Logic.len,      ``callBuiltin_len),
    ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
    ("ATOM",     ``Logic.atom,     ``callBuiltin_atom),

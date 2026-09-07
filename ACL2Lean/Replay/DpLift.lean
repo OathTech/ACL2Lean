@@ -44,6 +44,10 @@ namespace ACL2.Replay
 
 open ACL2
 
+/-- Value view of the existing HIDE builtin, whose interpreter equation
+is already `gz_def_hide`. This monomorphic view fits the driver's table. -/
+def dpHideValue (a : SExpr) : SExpr := a
+
 /-- The DP-lift primitive heads (the FIXED table — mirrors the driver's
     `dpUnary`/`dpBinary`; anything else with a symbol head is opaque). -/
 def dpLiftHeads : List String :=
@@ -52,7 +56,7 @@ def dpLiftHeads : List String :=
    "FIX", "LEN", "ENDP", "ATOM", "NUMERATOR", "DENOMINATOR", "REALPART",
    "IMAGPART", "COMPLEX-RATIONALP", "UNARY--", "POSP", "NATP", "EQUAL",
    "<", "LEXORDER", "BINARY-+", "BINARY-*", "COERCE", "CONS", "IMPLIES",
-   "IFF", "IFIX", "EXPT", "UNARY-/", "COMPLEX", "REALFIX"]
+   "IFF", "IFIX", "EXPT", "UNARY-/", "COMPLEX", "REALFIX", "HIDE"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable
