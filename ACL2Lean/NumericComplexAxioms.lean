@@ -35,6 +35,28 @@ theorem complex_definition (x y : SExpr)
   simp only [Rat.zero_mul, Rat.one_mul, Rat.sub_eq_add_neg, Rat.neg_zero,
     Rat.add_zero, Rat.zero_add]
 
+private theorem number_of_rational (v : SExpr) (h : rationalp v ≠ .nil) :
+    acl2Numberp v ≠ .nil := by
+  intro hn
+  exact h ((acl2Numberp_nil_iff v).mp hn).1
+
+/-- The real projection of a primitive constructor preserves its rational
+argument, independently of the other component's completion. -/
+theorem realpart_complex_of_rational (x y : SExpr) (hx : rationalp x ≠ .nil) :
+    realpart (complex x y) = x := by
+  apply (number_eq_iff _ _
+    (number_of_rational _ (by rw [rationalp_realpart]; decide)) (number_of_rational x hx)).mpr
+  rw [numberParts_realpart, complex, numberParts_mkParts,
+    numberParts_of_not_complex x (isComplex_false_of_rationalp x hx)]
+
+/-- The imaginary projection preserves its rational argument as well. -/
+theorem imagpart_complex_of_rational (x y : SExpr) (hy : rationalp y ≠ .nil) :
+    imagpart (complex x y) = y := by
+  apply (number_eq_iff _ _
+    (number_of_rational _ (by rw [rationalp_imagpart]; decide)) (number_of_rational y hy)).mpr
+  rw [numberParts_imagpart, complex, numberParts_mkParts,
+    numberParts_of_not_complex y (isComplex_false_of_rationalp y hy)]
+
 theorem numberParts_fix (x : SExpr) : numberParts (fix x) = numberParts x := by
   cases x with
   | nil | cons _ _ => rfl
@@ -44,10 +66,7 @@ private theorem realpart_equal_parts (x y : SExpr) :
     equal (realpart x) (realpart y) =
       if (numberParts x).1 = (numberParts y).1 then .t else .nil := by
   have num (z : SExpr) : acl2Numberp (realpart z) ≠ .nil := by
-    intro hn
-    have hr := ((acl2Numberp_nil_iff _).mp hn).1
-    rw [rationalp_realpart] at hr
-    cases hr
+    exact number_of_rational _ (by rw [rationalp_realpart]; decide)
   have he := number_eq_iff (realpart x) (realpart y) (num x) (num y)
   rw [numberParts_realpart, numberParts_realpart] at he
   simp only [Prod.mk.injEq, and_true] at he

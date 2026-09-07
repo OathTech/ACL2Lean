@@ -30,13 +30,7 @@ theorem complexValue_zero :
 
 theorem complexValue_nonnumber (v : SExpr) (h : acl2Numberp v = .nil) :
     complexValue v = 0 := by
-  cases v with
-  | nil | cons _ _ =>
-    apply Complex.ext <;> simp [complexValue, numberParts, rationalValue]
-  | atom a =>
-    cases a with
-    | number _ => simp [acl2Numberp] at h
-    | _ => apply Complex.ext <;> simp [complexValue, numberParts, rationalValue]
+  apply Complex.ext <;> simp [complexValue, numberParts_nonnumber h]
 
 /-- Multiplication completes a nonnumeric argument to zero. -/
 theorem times_nonnumber_right (a b : SExpr) (hb : acl2Numberp b = .nil) :

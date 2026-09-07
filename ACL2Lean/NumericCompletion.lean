@@ -2,6 +2,15 @@ import ACL2Lean.NumericLemmas
 
 namespace ACL2.Logic
 
+/-- The component view completes every nonnumeric value to zero. -/
+theorem numberParts_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    numberParts v = (0, 0) := by
+  cases v with
+  | nil | cons _ _ => rfl
+  | atom a => cases a with
+    | number _ => simp [acl2Numberp] at h
+    | _ => rfl
+
 /-- Reassembling the numeric components is ACL2's numeric completion. -/
 theorem mkParts_numberParts (v : SExpr) :
     mkParts (numberParts v).1 (numberParts v).2 = fix v := by

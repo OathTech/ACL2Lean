@@ -2,6 +2,7 @@ import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericRational
 import ACL2Lean.NumericPositive
 import ACL2Lean.NumericComplexAxioms
+import ACL2Lean.NumericAdditionCompletion
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -13,13 +14,31 @@ private theorem rationalReconstructionTrue (v : SExpr) :
   (Logic.implies_ne_nil_iff _ _).mpr fun h =>
     (Logic.equal_ne_nil_iff _ _).mpr (Logic.rational_reconstruct v h)
 
+private theorem rationalPairImplicationTrue (x y consequence : SExpr)
+    (h : Logic.rationalp x ≠ .nil → Logic.rationalp y ≠ .nil → consequence ≠ .nil) :
+    Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
+      consequence ≠ .nil :=
+  (Logic.implies_ne_nil_iff _ _).mpr fun hg =>
+    h (cond_tnil_ne_nil_test hg) (cond_tnil_ne_nil_then hg)
+
 private theorem complexDefinitionTrue (x y : SExpr) :
     Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
       (Logic.equal (Logic.complex x y)
         (Logic.plus x (Logic.times (.atom (.number (.complex 0 1 (by decide)))) y))) ≠ .nil :=
-  (Logic.implies_ne_nil_iff _ _).mpr fun h =>
-    (Logic.equal_ne_nil_iff _ _).mpr (Logic.complex_definition x y
-      (cond_tnil_ne_nil_test h) (cond_tnil_ne_nil_then h))
+  rationalPairImplicationTrue x y _ fun hx hy =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.complex_definition x y hx hy)
+
+private theorem realpartComplexTrue (x y : SExpr) :
+    Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
+      (Logic.equal (Logic.realpart (Logic.complex x y)) x) ≠ .nil :=
+  rationalPairImplicationTrue x y _ fun hx _ =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.realpart_complex_of_rational x y hx)
+
+private theorem imagpartComplexTrue (x y : SExpr) :
+    Logic.implies (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
+      (Logic.equal (Logic.imagpart (Logic.complex x y)) y) ≠ .nil :=
+  rationalPairImplicationTrue x y _ fun _ hy =>
+    (Logic.equal_ne_nil_iff _ _).mpr (Logic.imagpart_complex_of_rational x y hy)
 
 private theorem completionOrderLaw (x y : SExpr) : Logic.lt x y =
     (bif Logic.toBool (bif Logic.toBool (Logic.rationalp x) then Logic.rationalp y else .nil)
@@ -93,6 +112,13 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let complexLhs := app "COMPLEX" [x, y]
   let rationalCompleted := fun t => app "IF" [app "RATIONALP" [t], t, zero]
   let complexRhs := app "COMPLEX" [rationalCompleted x, rationalCompleted y]
+  let componentSchema := fun projection result => app "IMPLIES"
+    [both (app "RATIONALP" [x]) (app "RATIONALP" [y]),
+     app "EQUAL" [app projection [complexLhs], result]]
+  let plusLhs := app "BINARY-+" [x, y]
+  let plusRhs := app "IF" [app "ACL2-NUMBERP" [x],
+    app "IF" [app "ACL2-NUMBERP" [y], plusLhs, x],
+    app "IF" [app "ACL2-NUMBERP" [y], y, zero]]
   let x1 := sym "X1"
   let y1 := sym "Y1"
   let realLt := app "<" [app "REALPART" [x1], app "REALPART" [y1]]
@@ -113,6 +139,9 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
     | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
     | "COMPLEX-DEFINITION" => some complexSchema
     | "COMPLETION-OF-COMPLEX" => some (app "EQUAL" [complexLhs, complexRhs])
+    | "REALPART-COMPLEX" => some (componentSchema "REALPART" x)
+    | "IMAGPART-COMPLEX" => some (componentSchema "IMAGPART" y)
+    | "COMPLETION-OF-+" => some (app "EQUAL" [plusLhs, plusRhs])
     | "COMPLETION-OF-<" => some (app "EQUAL" [orderLhs, orderRhs])
     | _ => none
   let some schema := schema? | return none
@@ -136,6 +165,12 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         (← ctxValExpr cfg ctx (instantiate assocRhs)) law
     | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
     | "COMPLEX-DEFINITION" => mkAppM ``complexDefinitionTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+    | "REALPART-COMPLEX" => mkAppM ``realpartComplexTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+    | "IMAGPART-COMPLEX" => mkAppM ``imagpartComplexTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+    | "COMPLETION-OF-+" => do
+      let law ← mkAppM ``Logic.plus_completion #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate plusLhs))
+        (← ctxValExpr cfg ctx (instantiate plusRhs)) law
     | "COMPLETION-OF-COMPLEX" => do
       let law ← mkAppM ``Logic.complex_completion #[vx, ← ctxValExpr cfg ctx (instantiate y)]
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate complexLhs))

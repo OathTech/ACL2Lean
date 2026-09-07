@@ -4401,3 +4401,48 @@ build (`c2-bootstrap-additive-leaf-affected-build.log`,
 checkpoint for the two emitted verdict leaves and conditional addition
 replay, not a full-suite or C2 exit. The production producer and all native
 specifications remain unchanged.
+
+
+### C2 bootstrap projection USE and addition dependency closure (2026-09-07)
+
+The actual COMPLEX-EQUAL and DEFAULT-+-1/2 captures now replay their whole
+proof trees **unconditionally**, with the accepted axiom set. The new
+primitive USE handlers check the exact REALPART-COMPLEX, IMAGPART-COMPLEX
+and COMPLETION-OF-+ schemas, substitutions and recorded instance folds.
+These three are actual `defaxiom`s in `axioms.lisp`; the ordinary
+COMPLEX-EQUAL and default addition `defthm`s still enter by captured replay.
+The model laws share the existing component representation and a new
+`numberParts_nonnumber` helper; the existing complex-value completion proof
+reuses it. The rational-pair implication wrapper is shared by three actual
+primitive schemas. No ordinary dependency proof was added to GzRules.
+
+Six actual USE premises kernel-check with the accepted axioms; all **24**
+mutations of hypotheses, X/Y substitutions or axiom identity reject
+(`c2-bootstrap-primitive-use-controls.log`). Whole-dependency receipts are
+`c2-bootstrap-primitive-use-complex-equal.log` and
+`c2-bootstrap-primitive-use-plus-defaults.log`. The existing cross-book
+registry checks the source worlds and reconstructs all three at the six-event
+bootstrap consumer world. Passing their actual trees and rule channels
+alongside those declarations closes **whole ADD-DEF-COMPLEX with zero
+conditions**, with an accepted-axiom receipt
+(`c2-bootstrap-addition-with-dependency-trees.log`). An earlier probe passed
+only the registry and retained all three rule conditions
+(`c2-bootstrap-addition-with-dependencies.log`); the corrected probe uses
+the existing dependency-selection interface, with no gate bypass. The
+three earlier default-complex/zero declarations remain unconditional.
+
+The initial core build exposed a closed rational-zero normalization gap
+in the new primitive completion proof; explicit `Rat.zero_add` fixes it.
+The corrected core build passes **3148 jobs**, affected targets pass
+**3165 jobs**, and static checks pass with **274 reachable sources**
+(`c2-bootstrap-primitive-use-build-rerun.log`,
+`c2-bootstrap-primitive-use-affected-build.log`,
+`c2-bootstrap-primitive-use-static.log`). REALPART-+/IMAGPART-+ and
+production bootstrap provenance remain open; no new mirror or full-gate
+claim is made by this increment.
+
+The focused equality-reasoning replay passes **3/3 unconditionally**, with
+both DP leaves checked, after the **6284-job** executable build
+(`c2-bootstrap-primitive-use-equality-replay.log`). This is an intermediate
+**fast-gate** checkpoint; the last full-gate receipt remains the earlier
+116-theorem/21-product baseline checkpoint.

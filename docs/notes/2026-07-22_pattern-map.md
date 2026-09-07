@@ -806,9 +806,11 @@ No pattern books exist yet — authoring them is the arc's work.
   numeric queries, including tuple propagation through COMPLEX and quoted
   operands (61 rejected mutations). Subgoal 1.1's actual linear verdict
   closes through its recorded equalities and primitive additive normalization.
-  Whole addition has three bootstrap rule conditions and accepted axioms;
-  REALPART-+ still hits a looping primitive-expansion warning and recursion
-  failure. The three dependency captures reach missing primitive USE handlers.
+  Whole addition now replays unconditionally with accepted axioms after
+  replaying its three bootstrap dependencies through primitive USE schemas
+  (six actual premises, 24 rejected mutations) and the existing cross-book
+  registry/tree channels. REALPART-+ still hits a looping primitive-expansion
+  warning and recursion failure.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison
