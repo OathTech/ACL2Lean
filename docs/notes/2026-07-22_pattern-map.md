@@ -751,8 +751,10 @@ No pattern books exist yet — authoring them is the arc's work.
   deletion and actual temporary literal construction. The selected-edit
   implication now closes whole strict CANCEL unconditionally through all six
   deletions, with accepted axioms. Retention/deletion controls pass against
-  their actual children. CANCEL-GEN and shared residual construction remain
-  open; see the [execution receipt](2026-09-07_ns1-r-execution.md).
+  their actual children. The common construction consumer now also closes
+  inverse-product, both Boolean-book proofs and the reserved denominator
+  reuse proof unconditionally from fresh diagnostic captures. CANCEL-GEN,
+  legacy retirement and production promotion remain open; see the [execution receipt](2026-09-07_ns1-r-execution.md).
 
 ### P6 — induction clean-up (trivial-clause drops)
 - source: `acl2/induct.lisp:7047` → `trivial-clause-p`

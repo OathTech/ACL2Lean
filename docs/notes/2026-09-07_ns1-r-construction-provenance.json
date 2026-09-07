@@ -1,0 +1,101 @@
+{
+  "producer": "7317fc15cd0ad087456a2c9c1a8e04a5c262cf05",
+  "producer_status": "clean",
+  "source_hashes": {
+    "acl2-check.lisp": "545f6536a3788fdf5f652518d9e04fbfea5ae72ad05edf98661a54d8482940f4",
+    "acl2-fns.lisp": "b82e755ec61a3e50be989aa7c993eb868774c85fa43700d3287838ee796d1cd7",
+    "acl2-init.lisp": "5deb3772c233ee204d0987dca2465ade99f7c9bf09aec556931de475eefee441",
+    "acl2.lisp": "d3bc8c3899a67f247bb73a004481dc4562850e89ce78c764aa0c8af9d338b3b6",
+    "akcl-acl2-trace.lisp": "7fa5798752a1c6108280c896ffb5aa50e43516cb4ea20dc89160ca8fa8d35b37",
+    "allegro-acl2-trace.lisp": "9ed5651452e31d250c012e16282da4336376f148e17e09cfda4f3081efd00805",
+    "apply-constraints.lisp": "fed9386ab7b6d2ac9f49032c541c5f1fa9c09d84ac6521f15fadf4e7fdbadf5e",
+    "apply-prim.lisp": "224e8deb742183003b09588d289966b13913b6df8b2d121772788af30acf8188",
+    "apply-raw.lisp": "ff64defa208f24c8bf2f209e29f625119097e51119425a9dc45fe6493d9638b8",
+    "apply.lisp": "d8f28e242609e60680fd7ff25280797e3c9ffa4aece8694a1e1415904c706915",
+    "axioms.lisp": "cdda2eff86345d62420f641da90fb884ec53b38df0672cd216196007f9d2cb6b",
+    "basis-a.lisp": "b5af3fa369048b4136a25c03b5e5b5e08ab35938a37b96841f25ab3abe134c2f",
+    "basis-b.lisp": "13ecd005deecba9830f7dfcb3ec2ce8d629b1da67cd1ef7db1623a01e109cff2",
+    "bdd.lisp": "11ebb6b9713c969cf9494a23c1c5eebf4dc9e23a03ef74472f48cd49b733313a",
+    "boot-strap-pass-2-a.lisp": "ba53584bedaf1b0d26f74f9cbe0626a9938fff8b74e856d0af48498ed5c14971",
+    "boot-strap-pass-2-b.lisp": "7d57f15ea4a9bcc5706e2a7fe9c361d936e592c0530a67102835e44a1b1fd672",
+    "defpkgs.lisp": "0a4e454b1c561613332f607fa64df29481c281acbb45f9d2f6e11f014de6d7c1",
+    "defthm.lisp": "1b2fce5a32df10bb97eb3988e457cdea15615a410bef7bd0f814f648262ec5fc",
+    "defuns.lisp": "ee68d37ad7b0c866af96dfbfc37eb6294ebea0b4604cffee71890f61845be4e8",
+    "doc.lisp": "911c580b742685adfc219d2d641777c6b78bfcd9f1c2a9b40e58558bdffe252c",
+    "float-a.lisp": "e1a8cb2d8dd167c80e2b1524060afe9feb832e101145fb938ecbc8dcf4d8f626",
+    "float-b.lisp": "ee5d9646f31ec681321df3116a2db5fccbc804355efd997b5ee20a965c2cf9ed",
+    "float-raw.lisp": "69e03a371e1a24940834cdd295e13fcf0cf3c7a55819ff2a21570c40fc440ca3",
+    "futures-raw.lisp": "ed03be18ef444571f8b6b943321a8e840268ef68834f388a39c914a37780787d",
+    "history-management.lisp": "b9180b849f7e45a474ee67d3472e7a79c7bb42e1b6d0a331d7b9ca2c3d7c56fd",
+    "hons-raw.lisp": "a984c7c5920b816c774ec4eb8c07ea9684ae03d14ebe8965aa9d997a0a23f402",
+    "hons.lisp": "76fbeb12fc9f6c8f2be495616fbf147d521e3d0c62437b14f0bc1ada44d301b5",
+    "induct.lisp": "9bb9e897dc0f8370ae5a295f60e70dd52aeb16944aa05059e3102b07c2fce80c",
+    "init.lisp": "1e975f91442d35b5e25ed2b97c44eb24703cdfd9fc84f14a6622af3e90adfb6f",
+    "interface-raw.lisp": "4e5786279f0916a99604472c649800ae1c7bd499ca1d5259dd8243f29b528060",
+    "ld.lisp": "00b3667b73ff7c2d42e2f7c8a55eefb5304219edc93c7052bfb75aa877f1faac",
+    "linear-a.lisp": "4120ae4d12d451b01a18107249085ea3cc3a178a2d64e9eb667b8333b1cf3556",
+    "linear-b.lisp": "add4f557c81ed78127c090a9aa4f296221c7f3a634fb5aa33902d245cfc80844",
+    "mcl-acl2-startup.lisp": "83d4eee79682262acc74963c789e9ed39e6ad6ad4fdb6a31d01160b73cb357db",
+    "memoize-raw.lisp": "30618961c05a1a8cefa9022e2455f1b741db1f360e63c00e81b3f09389dd3022",
+    "memoize.lisp": "7edf030dc1412ca5e9761d0fb25fe1acb0a1914b89f43a063013c0d16e5a95b6",
+    "multi-threading-raw.lisp": "abc209b7502ec3f6962551fdf08b21b0ab91a5bbac47bb77d3be98f4ce9295f1",
+    "non-linear.lisp": "c733f869e6bc3291c2e27c39c2e940cf051db1356dcc29be0fdd1f78397583fd",
+    "openmcl-acl2-trace.lisp": "e63876d975d906fb847828086e4b5ba3ea4a6dc4dfeee1674b24f4b855e1c696",
+    "other-events.lisp": "e3a2980f119d92853a2463eac5e2f1d2748a0d736f444fdb2c132e7b5944d29b",
+    "other-processes.lisp": "47b1296aaada80627b3445ad8c7cefd435c565caf5bc07c74a50a8d4228644ee",
+    "parallel-raw.lisp": "34da7b683989a2de412047f1fe4504db4fd16f47fb160c10fa63bd95e70a3323",
+    "parallel.lisp": "6f036269471df0ab397273ef6126a2eb8064bdd571bd901a2b2ace64ced9b4b5",
+    "proof-builder-a.lisp": "99b4785a99c8eee70460a2709108a892a7db969249ed7a89ecb33fcdb4043cdb",
+    "proof-builder-b.lisp": "1ff437feb30df7257818ed3068b4d525746ab181c8914150b1e86858831ba8fe",
+    "proof-builder-pkg.lisp": "580ce830bff62022dec18c34db7db13832b63f9ef9e47019bbc80fdcb43ff7b5",
+    "prove.lisp": "38143db2dcabef38d26bdb86b7c1ff66dcefbd88aa89e447c42e801361ff8d09",
+    "rewrite.lisp": "7777a39575d3227fcba9c9ead6b698749445f69a9c92bbcf9f15a4e9e0aee470",
+    "serialize-raw.lisp": "86f7efcb6d595833dbc3f11e11f49610a40dbc02f907651daa161c1abb51c402",
+    "serialize.lisp": "da90b3cc3da31e4fdf985568a2638043e54f343e21dff90e86824d3cc9d06ac8",
+    "simplify.lisp": "abc188a9f3d4dbf2d5409be75d4de9f697353b2f4f1acf4be3a14f8229ad538c",
+    "tau.lisp": "30dd1d152d04271bcc4d2b009df73abb8da9dbe19682fb2aeb80b07ade9dc2eb",
+    "translate.lisp": "4c4cd1c157e549454429373fec1eb7e6e26e151ce5bd1103007f6160fd581d84",
+    "type-set-a.lisp": "91affac2af6800f6ed84d1f737e2c53f65a30e134a9c7dd53147f3797bd61195",
+    "type-set-b.lisp": "460ee3c2eb82a6b50cdb4e2a5b7a15981f1a681743124bae3bbe63d6cdd6f675"
+  },
+  "files": {
+    ".tmp/ns1/acl2-ta-singleton/saved_acl2": {
+      "sha256": "691b12690a3e18ab1c9797b0afd0bb7145a4a940fa13887873ecfd5dbacefdac",
+      "bytes": 384
+    },
+    ".tmp/ns1-r/r3-construction-booleans-capture/equal-of-booleans.proof-log": {
+      "sha256": "034e1b1671b1e289a1d73349dfde945d982c84f4ccf0517e734c7168145f813b",
+      "bytes": 103686
+    },
+    ".tmp/ns1-r/r3-construction-booleans-capture/equal-of-booleans.proof-log.meta": {
+      "sha256": "c6d019a83e14908ca760563f0cb747f0654dd78cbe4061047aa7bec01b855cd9",
+      "bytes": 411
+    },
+    ".tmp/ns1-r/r3-construction-times-capture/times.proof-log.meta": {
+      "sha256": "7b9fd4609e3c50bcca8b8c9b8bdbf76ddd113a4e932a0d66acf76e4ee8b2f384",
+      "bytes": 1953
+    },
+    ".tmp/ns1-r/r3-construction-times-capture/times.proof-log": {
+      "sha256": "62632c5bc9f8d10127c68c57571d6efb99834900bf2efd20e7dd19ac6281d260",
+      "bytes": 12284596
+    },
+    ".tmp/ns1/acl2-ta-singleton/saved_acl2.core": {
+      "sha256": "1cddbeefaec14ea2ad5c20d24808e606a6816be059f6ca810b58edfd2be856a5",
+      "bytes": 242013760
+    },
+    ".tmp/ns1-r/r3-construction-denominator-capture/numerator-and-denominator.proof-log": {
+      "sha256": "4bf7f34a33bb037fc5ca8aae0992b32e53d8bd46645d3f8338eda762ca4c1a8d",
+      "bytes": 999936
+    },
+    ".tmp/ns1-r/r3-construction-denominator-capture/numerator-and-denominator.proof-log.meta": {
+      "sha256": "6220c8791ad03bf643e5f013ab211807c1659b884322af46c1ce5af7dd5ed727",
+      "bytes": 1445
+    }
+  },
+  "image_build_receipt": ".tmp/ns1-r/r3-construction-clean-image-build.log",
+  "system_books": "/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop/acl2/books",
+  "additional_lisp_files": {
+    "acl2-proclaims.lisp": "908fecfe544db4d63046094f8a84a0ea660050efdee780179141ce4df5007668",
+    "acl2r.lisp": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+  }
+}

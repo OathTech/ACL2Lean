@@ -51,8 +51,13 @@ sets the goal sequence. The [NS1 charter](plans/2026-09-05_bvchop-foundation-cha
 specifies the first three BVCHOP mirrors, completion receipts, and the
 agreed scope and review allocation for the long run.
 
-Next slice: [NS1-R — reusable type-query and clause-edit replay](plans/2026-09-07_ns1-replay-mechanisms-plan.md)
+Active slice: [NS1-R — reusable type-query and clause-edit replay](plans/2026-09-07_ns1-replay-mechanisms-plan.md)
 sets the focused probe, consolidation, whole-dependency replay and reuse
 acceptance plan from the 2026-09-07 check-in. It builds on the existing NS1
 worktree and has its own bounded completion condition; it does not close NS1
 or change the three native targets.
+
+Its [frozen supported scope](notes/2026-09-07_ns1-r-supported-scope.md) and
+[execution record](notes/2026-09-07_ns1-r-execution.md) separate implemented
+cases, whole-proof receipts and remaining acceptance work. The execution
+record links the capture/image provenance manifests.

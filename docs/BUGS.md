@@ -196,8 +196,12 @@ NS1-R's selected-edit implication now consumes deletion as well as retention.
 The whole `<-OF-*-AND-*-CANCEL` proof replays unconditionally through all six
 recorded deletions with accepted axioms. Two retained and two deleted actual
 postpasses check against their recorded children and reject their mutation
-controls. The residual construction/cleanup consolidation and production
-promotion remain open; this is not a complete repair of the capture surface.
+controls. Diagnostic `7317fc15cd` also records recursive expression/literal
+construction and cleanup. Both whole Boolean-book proofs now replay
+unconditionally through the common construction consumer; fourteen whole-proof
+query/construction mutation controls reject. Remaining continuation adapters,
+legacy retirement and production promotion remain open; this is not a complete
+repair of the capture surface.
 Evidence: [NS1-R execution](notes/2026-09-07_ns1-r-execution.md).
 
 ## BUG-054 — numeric solidification omits the selected type mask
@@ -258,7 +262,10 @@ contexts at this consumer as well. Diagnostic producer `af782a07af` now
 observes these original calls and their IF decisions, plus the original
 explicit recognizer and Boolean-collapse queries. The six target trees carry
 312 recursive queries, and real source probes exercise both-branch,
-true-only and false-only IF decisions. Shared consumption and production
+true-only and false-only IF decisions. The Boolean-collapse consumer now
+uses the shared query path and an explicit ordinary-rule channel; both Boolean
+book theorems replay unconditionally and consume the replayed bootstrap
+recognizer. Known-true, explicit recognizer, nested-IF consumption and production
 integration remain open; see the
 [NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
 

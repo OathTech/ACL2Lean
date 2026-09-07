@@ -42,6 +42,40 @@ private partial def visitQuery (out : IO.FS.Handle) (loc : Location)
   for (child, i) in q.children.zipIdx do
     visitQuery out {loc with address := s!"{loc.address}/query:{i}"} child
 
+private partial def visitConstructionTerm (out : IO.FS.Handle) (loc : Location)
+    (raw : SExpr) : IO Unit := do
+  let fs ← readCapture (TsQueryCapture.fields raw
+    ["INPUT", "OUTPUT", "ROUTE", "ASSEMBLED", "FOLDS", "CHILDREN"])
+  let get (k : String) := readCapture (TsQueryCapture.required fs k)
+  let children ← readCapture (TsQueryCapture.asList (← get "CHILDREN"))
+  emit out loc "construction-term" [
+    ("input", js (toString (← get "INPUT"))), ("output", js (toString (← get "OUTPUT"))),
+    ("route", js (toString (← get "ROUTE"))), ("assembled", js (toString (← get "ASSEMBLED"))),
+    ("folds", js (toString (← get "FOLDS"))), ("child_count", toJson children.length)]
+  for (child, i) in children.zipIdx do
+    visitConstructionTerm out {loc with address := s!"{loc.address}/argument:{i}"} child
+
+private def visitClauseConstruction (out : IO.FS.Handle) (loc : Location)
+    (raw : SExpr) : IO Unit := do
+  let fs ← readCapture (TsQueryCapture.fields raw
+    ["INPUT-CLAUSE", "LITERAL-POSITION", "LITERAL", "DELETE-LITERAL", "CONSTRUCTIONS", "RESULT-CLAUSE"])
+  if let some records := fs.lookup "CONSTRUCTIONS" then
+    emit out loc "clause-edit-result" [
+      ("input", js (toString (← readCapture (TsQueryCapture.required fs "INPUT-CLAUSE")))) ,
+      ("result", js (toString (← readCapture (TsQueryCapture.required fs "RESULT-CLAUSE"))))]
+    for record in ← readCapture (TsQueryCapture.asList records) do
+      let rs ← readCapture (TsQueryCapture.fields record
+        ["POSITION", "INPUT", "ACTION", "EXPRESSIONS", "CLEANUP", "OUTPUT-CLAUSE"])
+      let get (k : String) := readCapture (TsQueryCapture.required rs k)
+      let pos ← readCapture (TsQueryCapture.asInt (← get "POSITION"))
+      let here := {loc with address := s!"{loc.address}/construction:{pos}"}
+      emit out here "clause-construction" [
+        ("position", toJson pos), ("input", js (toString (← get "INPUT"))),
+        ("action", js (toString (← get "ACTION"))), ("cleanup", js (toString (← get "CLEANUP"))),
+        ("output_clause", js (toString (← get "OUTPUT-CLAUSE")))]
+      for (expression, i) in (← readCapture (TsQueryCapture.asList (← get "EXPRESSIONS"))).zipIdx do
+        visitConstructionTerm out {here with address := s!"{here.address}/expression:{i}"} expression
+
 private partial def visitNode (out : IO.FS.Handle) (loc : Location)
     (n : ProofNode) : IO Unit := do
   let .node rune lhs rhs children p := n
@@ -53,6 +87,7 @@ private partial def visitNode (out : IO.FS.Handle) (loc : Location)
     ("recognizer_basis", js (reprStr p.recogBasis)),
     ("argument_leaf_count", toJson p.argLeaves.length),
     ("provenance", js (reprStr p))]
+  if let some raw := p.branchSubstitutionBasis then visitClauseConstruction out loc raw
   for (label, basis) in [("hypothesis", p.hypTypeSetBasis), ("operand", p.operandTypeBasis)] do
     if let some raw := basis then
       unless raw == .nil do

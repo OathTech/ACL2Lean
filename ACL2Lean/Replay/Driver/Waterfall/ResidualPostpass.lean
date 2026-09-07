@@ -1,5 +1,6 @@
 import ACL2Lean.Replay.Driver.Waterfall
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReplacement
+import ACL2Lean.Replay.Driver.Waterfall.ClauseConstruction
 
 namespace ACL2.Replay.Driver
 
@@ -16,6 +17,13 @@ open ACL2 ACL2.Replay Lean Lean.Meta
 def replayResidualPostpass (rec : ClauseRec) (cfg : ReplayConfig)
     (ctx : ReplayCtx) (idStr : String) (clause : List SExpr)
     (items : List ClauseItem) (children : List ClauseNode) : MetaM Expr := do
+  if let .step (.node rune _ _ _ prov) :: _ := items then
+    if rune.ty == "branch-substitution" then
+      if let some raw := prov.branchSubstitutionBasis then
+        let selection ← selectedClauseSubstitution raw
+        if selection.constructions.isSome then
+          let p ← replayConstructedClauseEdits rec cfg ctx idStr selection.input items children (crunched := true)
+          return ← constructedResidualToCurrent cfg ctx selection.input clause p
   let mut ctx := ctx
   let mut current := clause
   let mut chain : Option Expr := none

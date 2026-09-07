@@ -1,5 +1,5 @@
 import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
-import ACL2Lean.Replay.Driver.Waterfall.ResidualPostpass
+import ACL2Lean.Replay.Driver.Waterfall.ClauseConstruction
 import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
 import ACL2Lean.Replay.Driver.Waterfall.ClauseEdits
 
@@ -28,6 +28,9 @@ partial def replayLinearSubstitutions (rec : ClauseRec) (cfg : ReplayConfig)
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
     let ctx ← pinTermOpaques cfg cfg.envExpr ctx rhs
     if rune.ty == "branch-substitution" then
+      if let some raw := prov.branchSubstitutionBasis then
+        if (← selectedClauseSubstitution raw).constructions.isSome then
+          return ← replayConstructedClauseEdits rec cfg ctx idStr clause items children
       let (next, edit) ← certifySelectedClauseSubstitution cfg ctx clause n
       let p ← replayLinearSubstitutions rec cfg
         { ctx with litFacts := [], dedupDrops := [] } idStr next rest children

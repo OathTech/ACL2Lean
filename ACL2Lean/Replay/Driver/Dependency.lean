@@ -132,6 +132,12 @@ def depReplayedProofAt (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         | [(_, h)] => pure h
         | _ => miss m!"depReplayedProofAt: registry dependency \
             {name} keeps {c}, absent or ambiguous in the consumer telescope"
+      else if c.startsWith "query:" then
+        let qn := (c.drop "query:".length).toString
+        match ctx.queryRuleHyps.filter (fun (s, _) => s.name == qn) with
+        | [(_, h)] => pure h
+        | _ => miss m!"depReplayedProofAt: registry dependency {name} keeps {c}, \
+            absent or ambiguous in the consumer telescope"
       else if c.startsWith "tpthm:" then
         let tn := (c.drop "tpthm:".length).toString
         match ctx.tpThmHyps.filter (fun (s, _) => s.name == tn) with

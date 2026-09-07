@@ -432,8 +432,15 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- The shared two-valuedness walk handles core predicates and the
         -- emitted Boolean TP of a user function, recursively through IF.
         -- This is the same source used when decoding IFF rule conclusions.
-        let some hd ← boolDisj? cfg ctx c
-          | throwError "if1/boolean: test {repr c} has no two-valuedness source (frontier)"
+        let hd ← if let some raw := prov.operandTypeBasis then do
+            let (mask, hm) ← replayOperandTsQuery cfg ctx c raw
+            unless tsSubsumedM mask 384 do throwError "if1/boolean: recorded query is not Boolean"
+            let hb ← mkAppM ``inTs_weaken #[← tsSubsumedProofM mask 384, hm]
+            mkAppM ``Or.symm #[← mkAppM ``boolean_range_of_inTs #[hb]]
+          else do
+            let some hd ← boolDisj? cfg ctx c
+              | throwError "if1/boolean: test {repr c} has no two-valuedness source (frontier)"
+            pure hd
         let hBool ← mkAppM ``cond_tnil_of_range #[hd]
         let pl ← ctxValProof cfg ctx lhs
         let pr ← ctxValProof cfg ctx c

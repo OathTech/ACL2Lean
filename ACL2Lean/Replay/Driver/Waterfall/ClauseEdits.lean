@@ -17,10 +17,12 @@ structure SelectedClauseSubstitution where
   position : Nat
   literal : SExpr
   deleteLiteral : Bool
+  constructions : Option SExpr
+  resultClause : Option (List SExpr)
 
 def selectedClauseSubstitution (raw : SExpr) : MetaM SelectedClauseSubstitution := do
   let fs ← tsQueryRead (TsQueryCapture.fields raw
-    ["INPUT-CLAUSE", "LITERAL-POSITION", "LITERAL", "DELETE-LITERAL"])
+    ["INPUT-CLAUSE", "LITERAL-POSITION", "LITERAL", "DELETE-LITERAL", "CONSTRUCTIONS", "RESULT-CLAUSE"])
   let input ← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "INPUT-CLAUSE")))
   let position ← tsQueryRead (TsQueryCapture.asInt (← tsQueryRead (TsQueryCapture.required fs "LITERAL-POSITION")))
   let literal ← tsQueryRead (TsQueryCapture.required fs "LITERAL")
@@ -30,7 +32,28 @@ def selectedClauseSubstitution (raw : SExpr) : MetaM SelectedClauseSubstitution 
   let deleteLiteral ← if deletion == SExpr.t then pure true
     else if deletion == .nil then pure false
     else throwError "clause edit: malformed deletion decision"
-  pure { input, position := position.toNat, literal, deleteLiteral }
+  let constructions := fs.lookup "CONSTRUCTIONS"
+  let resultClause ← (fs.lookup "RESULT-CLAUSE").mapM fun raw => tsQueryRead (TsQueryCapture.asList raw)
+  unless constructions.isSome == resultClause.isSome do
+    throwError "clause edit: incomplete construction/result record"
+  pure { input, position := position.toNat, literal, deleteLiteral, constructions, resultClause }
+
+/-- The selected literal supplies the recorded EQUAL value equation.
+ACL2 treats a variable literal as its equality to NIL; other supported
+selections are explicit negated equalities, in either source orientation. -/
+def selectedClauseEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (selection : SelectedClauseSubstitution) (lhs rhs : SExpr) (hLiteral : Expr) : MetaM Expr := do
+  if let some (a, b) := notEqualSides? selection.literal then
+    unless (a == lhs && b == rhs) || (a == rhs && b == lhs) do
+      throwError "clause edit: selected equality differs from the recorded substitution"
+    let h ← mkAppM ``logic_not_equal_nil_eq
+      #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b, hLiteral]
+    return ← if a == lhs then pure h else mkAppM ``Eq.symm #[h]
+  let .atom (.symbol s) := selection.literal
+    | throwFrontier m!"clause edit: unsupported selected literal"
+  unless s.name != "T" && lhs == selection.literal && rhs == quoteNil do
+    throwError "clause edit: selected variable does not justify the recorded NIL substitution"
+  mkExpectedTypeHint hLiteral (← mkEq (← ctxValExpr cfg ctx lhs) (← ctxValExpr cfg ctx rhs))
 
 /-- Certify the recorded selected EQUAL edit. The selected literal is skipped
 while replacing other literals. Its falsity justifies the equality inside
@@ -47,10 +70,8 @@ def certifySelectedClauseSubstitution (cfg : ReplayConfig) (ctx : ReplayCtx)
   let selection ← selectedClauseSubstitution raw
   unless selection.input == clause do
     throwError "clause edit: recorded input differs from the current clause"
-  let some (a, b) := notEqualSides? selection.literal
-    | throwError "clause edit: selected literal is not a negated equality"
-  unless (a == lhs && b == rhs) || (a == rhs && b == lhs) do
-    throwError "clause edit: selected equality differs from the recorded substitution"
+  unless selection.constructions.isNone do
+    throwError "clause edit: construction record requires the construction consumer"
   let retained := clause.zipIdx.map fun (lit, i) =>
     if i == selection.position then lit else replaceTermOcc lhs rhs lit
   let after := if selection.deleteLiteral then retained.eraseIdx selection.position else retained
@@ -65,9 +86,7 @@ def certifySelectedClauseSubstitution (cfg : ReplayConfig) (ctx : ReplayCtx)
   let proof ← withLocalDeclD `hEdited resultType fun hEdited => do
     let contradiction ← withLocalDeclD `hInputFalse (← mkAppM ``Not #[inputType]) fun hf => do
       let (_, hLiteral) ← clauseLiteralFalsity cfg editCtx clause hf selection.position
-      let hEq ← mkAppM ``logic_not_equal_nil_eq
-        #[← ctxValExpr cfg editCtx a, ← ctxValExpr cfg editCtx b, hLiteral]
-      let hEq ← if a == lhs then pure hEq else mkAppM ``Eq.symm #[hEq]
+      let hEq ← selectedClauseEquation cfg editCtx selection lhs rhs hLiteral
       let stepEq ← mkAppM ``fuel_eq_of_conv
         #[← ctxValProof cfg editCtx lhs, ← ctxValProof cfg editCtx rhs, hEq]
       let chain ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs stepEq

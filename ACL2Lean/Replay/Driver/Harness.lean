@@ -405,6 +405,11 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       (Name.mkSimple s!"hlinear_{r.name}", BinderInfo.default,
        fun (_ : Array Expr) => mkLinearHypType cfg r)).toArray
   let fcSpecs ← recordedFcSpecs cp
+  let querySpecs ← recordedQueryRuleSpecs cp depProofs useSameBook useEarlier
+  let queryDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
+    (querySpecs.map fun r =>
+      (Name.mkSimple s!"hquery_{r.name}", BinderInfo.default,
+       fun (_ : Array Expr) => mkUseHypType cfg r)).toArray
   let fcDecls : Array (Name × BinderInfo × (Array Expr → MetaM Expr)) :=
     (fcSpecs.map fun r =>
       (Name.mkSimple s!"hfc_{r.name}", BinderInfo.default,
@@ -421,6 +426,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
     tpThmSpecs.map (fun s => s!"tpthm:{s.name}") ++
     linearSpecs.map (fun r => s!"linear:{r.name}") ++
     fcSpecs.map (fun r => s!"fc:{r.name}") ++
+    querySpecs.map (fun r => s!"query:{r.name}") ++
     dpStmts.map (fun _ => assumedDpFactCond) ++
     useFiSpecs.map (fun u => s!"usefi:{u.name}")
   withLocalDecls totalDecls fun totalVs => do
@@ -433,6 +439,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       withLocalDecls tpThmDecls fun tpThmVs => do
       withLocalDecls linearDecls fun linearVs => do
       withLocalDecls fcDecls fun fcVs => do
+      withLocalDecls queryDecls fun queryVs => do
       withLocalDecls dpDecls fun dpVs => do
       -- usefi binders LAST: their discharge (the prepared-constant
       -- application) references arbitrary earlier telescope fvars, and
@@ -449,6 +456,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
           useHyps := useSpecs.zip useVs.toList,
           useFiHyps := useFiSpecs.zip useFiVs.toList,
           fcHyps := fcSpecs.zip fcVs.toList,
+          queryRuleHyps := querySpecs.zip queryVs.toList,
           -- audit F1 (linear-verdicts fold-back): the DECLARATION is
           -- content-deduped (hyps/concl determine the hypothesis; ONE
           -- fvar), but the OFFER carries EVERY emitted spec — max-term is
@@ -531,6 +539,9 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- lane's topology needs (see the per-pass notes below).
       let dischargeSweep (prf0 : Expr) : MetaM Expr := do
         let mut prfR := prf0
+        for (spec, hypV) in (querySpecs.zip queryVs.toList).reverse do
+          if discharge then
+            prfR ← attempt prfR hypV (dischargeUseHyp cfg ctx spec depProofs replayed)
         -- use:<thm> discharge (R7a) FIRST: a use discharge re-replays the
         -- cited theorem's whole tree, which can consume rule:/cong:/
         -- equivrefl:/total:/tp: fvars — all caught by the passes below.
@@ -625,7 +636,7 @@ def replayProofConditional (cfg : ReplayConfig) (tps : List (String × SExpr))
       -- every iteration strictly shrinks the free-fvar set or stops — the
       -- cap is the honest-mistake speedbump against a discharger that
       -- re-introduces what it retired. Do not harden it.
-      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ fcVs ++ dpVs ++ useFiVs).toList)
+      let hypFVarsAll := condsAll.zip ((totalVs ++ tpAllVs ++ ruleVs ++ congVs ++ useVs ++ equivVs ++ equivFullVs ++ tpThmVs ++ linearVs ++ fcVs ++ queryVs ++ dpVs ++ useFiVs).toList)
       let hypVsAll := hypFVarsAll.map (·.2)
       let freeCount (e : Expr) : MetaM Nat := do
         let ei ← instantiateMVars e

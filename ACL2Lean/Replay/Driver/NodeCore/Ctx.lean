@@ -7,6 +7,7 @@
   replayRewrites knot).
 -/
 import ACL2Lean.Replay.Driver.Reflect
+import ACL2Lean.Replay.Lemmas.SelfEvaluating
 
 namespace ACL2.Replay.Driver
 
@@ -531,6 +532,9 @@ structure ReplayCtx where
       `replayRecognizer`'s cited-rune fallback; discharged like `cong:`
       hyps. -/
   tpThmHyps : List (TpThmSpec × Expr) := []
+  /-- Ordinary theorems cited by executed type queries. Reuses the whole-
+      formula offer representation; `query:` remains separate from `use:`. -/
+  queryRuleHyps : List (UseSpec × Expr) := []
   /-- Equivalence-REFLEXIVITY hypotheses (`equivrefl:<thm>`): per
       equivalence-shaped in-scope defthm (incl. INCLUDE-BOOK'd ones), the
       spec and the bound hypothesis `∀ env', EvTrue w env' (R x x)`.
@@ -908,6 +912,10 @@ partial def proveConv (cfg : ReplayConfig) (envExpr : Expr) (ctx : ReplayCtx) (t
   -- a pinned ctx fact covers any term (uniform with the value layer)
   if let some (_, p) := ctx.val? t then
     return ← mkAppM ``conv_vfix_of_val #[p]
+  if selfEvaluatingLiteral t then
+    let hp ← mkAppM ``re_val_selfEvaluating #[cfg.worldExpr, envExpr, reflectSExpr t,
+      ← mkDecideProof (← mkEq (← mkAppM ``selfEvaluatingLiteral #[reflectSExpr t]) (toExpr true))]
+    return ← mkAppM ``conv_vfix_of_val #[hp]
   -- A lambda-body convergence check changes the environment, so its
   -- applications need the function-level totality hypothesis, rather than
   -- a value pin for an occurrence in the outer environment. Instantiate the
@@ -1069,6 +1077,7 @@ where
 partial def dpValExpr (opq : List (SExpr × Expr)) (varVal : Symbol → MetaM Expr)
     (t : SExpr) : MetaM Expr := do
   if let some (_, v) := opq.find? (fun (o, _) => o == t) then return v
+  if selfEvaluatingLiteral t then return reflectSExpr t
   match t with
   | .atom (.symbol s) => varVal s
   | .cons (.atom (.symbol fs)) (.cons a .nil) =>
@@ -1141,6 +1150,9 @@ partial def dpValProof (cfg : ReplayConfig) (envExpr : Expr)
     (varP : Symbol → Option (Expr × Expr) := fun _ => none)
     (t : SExpr) : MetaM Expr := do
   if let some (_, h) := opqP.find? (fun (o, _) => o == t) then return h
+  if selfEvaluatingLiteral t then
+    return ← mkAppM ``re_val_selfEvaluating #[cfg.worldExpr, envExpr, reflectSExpr t,
+      ← mkDecideProof (← mkEq (← mkAppM ``selfEvaluatingLiteral #[reflectSExpr t]) (toExpr true))]
   match t with
   | .atom (.symbol s) =>
     match varP s with

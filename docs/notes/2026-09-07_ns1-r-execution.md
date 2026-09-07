@@ -363,3 +363,188 @@ The selected-edit increment passes its fast gate: all static recipes in
 helper on the existing residual route, and does not yet count as acceptance
 through the future shared residual edit consumer. There is no new full
 claim-gate receipt.
+
+This increment is checkpoint `147ce0f` (fast-gate). The focused denominator
+command replays the prefix through the selected theorem: the target is
+unconditional, but five earlier rows fail and one other row is conditional.
+Its successful process exit is not a green-book receipt. The affected build
+and static checks above are the verified regression results for that commit.
+
+### Ordinary query channel and its owning continuation (WIP)
+
+The next implementation offers ordinary query citations through an explicit
+`query:` whole-formula dependency channel, sharing the existing theorem
+registry and substitution transport. Its Boolean-cell adapter consumes the
+instantiated source equivalence in both directions; it does not register a
+handwritten Boolean recognizer theorem. The lookup validates the selected
+type-alist entry and separates its evidence from incoming ttree tags. The
+`if1/boolean` consumer uses this query whenever the new record is present,
+with no fallback after a rejected record.
+
+`r3-query-ordinary-build-2.log` builds the Runner and dependencies (3154 jobs).
+The first build's syntax/name errors are retained in
+`r3-query-ordinary-build.log`. The actual owning test
+`probe-query-boolean.lean` freshly replays BOOLEANP-COMPOUND-RECOGNIZER
+unconditionally in 275 ms with accepted axioms. EQUAL-OF-BOOLEANS-CHEAP gets
+past its lookup but fails at the following residual continuation in 73 ms:
+`no equation justifies X => 'NIL at Goal'`. The complete Boolean-book test
+therefore fails (`r3-query-boolean-replay.log`); no new whole dependency
+success or completed query fragment is claimed.
+
+The failing actual address is EQUAL-OF-BOOLEANS-CHEAP, Goal', simplify,
+item 2/1/2/0. The source selection names literal `X`, position 4 in the
+recorded full clause, retained while substituting `X` by quoted NIL.
+`find-trivial-equivalence1` explicitly treats a variable literal as
+`(NOT (EQUAL variable 'NIL))`. This is the selected EQUAL fragment's direct
+falsity premise, not a new relation or a recognizer inference. Its existing
+consumer only looks for a syntactic negated equality. The same continuation
+then folds expressions in earlier literals, including one that disappears
+from the residual. It needs the already planned E2 construction record;
+patching the current residual equation search alone would strand those folds.
+
+The diagnostic observer now retains original recursive `subst-equiv-expr1`
+calls, with separate child positions and local `scons-term` folds. Each
+original clause-recursion call records its input position, selection/copy/
+substitution action, expression construction, literal/tail cleanup call and
+returned clause. The selected edit owns the complete construction and final
+result. Source checkpoint: diagnostic `7317fc15cd`. The first image build
+correctly rejected two newly observed functions missing from ACL2's raw-code
+registration list; those registrations were added, and
+`r3-construction-image-build-2.log` builds the image successfully. The clean build and subsequent consumer results are recorded below.
+
+The new numeric operand inventory is more specific than its initial reading:
+the three negation queries at mask 14 and both addition queries at mask 49
+are selected lookups. Only one newly observed negation at mask 15 is a
+computation. Preserve that distinction when implementing Q1; do not add
+arithmetic transfer rules for calls ACL2 answered by lookup.
+
+
+### Construction capture and first complete consumers (WIP)
+
+Clean diagnostic producer `7317fc15cd0ad087456a2c9c1a8e04a5c262cf05`
+builds in `r3-construction-clean-image-build.log`. Fresh unchanged-source
+captures have 2/2 Boolean QEDs, 38/38 times-prefix QEDs, and 7/7 denominator
+prefix QEDs. The denominator capture stops at EQUAL-DENOMINATOR-1, as does
+its maintained predecessor. [The construction provenance record](2026-09-07_ns1-r-construction-provenance.json) records the
+55 canonical producer source hashes, saved launcher/core hashes, captures
+and sidecars; the production submodule remains unchanged.
+
+Complete inventories retain 24 expression constructions and 22 literal
+constructions across the Boolean book. The seven selected times trees
+(the six targets plus inverse-product) retain 387 expression constructions,
+130 literal constructions and 23 local folds, all `SCONS-TERM/EXEC`.
+The old/new structural, statement, rune and query projections agree for
+80 Boolean rows and 1774 six-target rows
+(`r3-construction-structural-comparison.json`). This comparison excludes
+raw provenance and the newly added construction rows; it is not full
+metadata equality or production promotion.
+
+The new `ClauseConstruction` interpreter consumes the original expression
+recursion in argument order, then its local folds against the same actual
+continuation nodes. Argument substitution is positional. The clause-return
+walk validates each literal's action, incoming tail, cleanup and returned
+clause; it produces `ClauseEditSound` over an arbitrary world/environment.
+Both linear insertion and residual postpass select this common consumer
+when complete construction records are present. The legacy consumers
+cannot silently discard the new records. Their remaining migration and
+retirement are still open.
+
+Two implementation mismatches found by the complete Boolean proof were
+fixed: the existing evaluator self-evaluates keywords, but the convergence
+adapter lacked that generic literal case; and `ADD-LITERAL-AND-PT` uses
+`MEMBER-TERM`/`MEMBER-COMPLEMENT-TERM`, whose EQUAL-NIL behavior differs
+from clausification's `DUMB-NEGATE-LIT`. No interpreter semantics changed.
+A following recorded context alias is also consumed through the existing
+selector channel. It supplies no assumed equation.
+
+`r3-query-construction-booleans-replay-4.log` checks the bootstrap recognizer
+and both whole Boolean-book theorems unconditionally, with only
+`propext`, `Classical.choice`, and `Quot.sound`. Replay intervals are
+303 ms, 1602 ms and 414 ms respectively. These are additional ordinary
+dependencies, not two of the six required target proofs or the reserved
+query reuse proof. Earlier failure receipts are preserved; the first three
+construction runs expose the literal adapter, cleanup predicate, and
+context-alias issues respectively.
+
+`r3-query-construction-controls-5.log` checks a fresh whole Boolean proof,
+verifies that its proof term consumes the replayed bootstrap theorem, and
+rejects fourteen altered copies at their consuming boundaries: source
+absence/class, missing query, wrong query term/mask/context, missing
+construction, wrong selection position/literal, removed expression child,
+removed local/flat fold, changed cleanup tail, and changed final clause.
+Earlier control receipts include harness syntax/expected-message corrections.
+One inefficient proof-dependency traversal was terminated and replaced by a
+visited-set traversal; no proof budget was increased.
+
+The 24 component and seven negation stages freshly recompile unconditionally
+with the new ordinary-rule channel and construction modules
+(`r3-construction-components.log`, `r3-construction-negations.log`). The
+fresh times capture then exposes additional query integration requirements
+before reaching its deletion continuation: inherited ttree citations,
+primitive negation, and comparison Boolean-range returns. TYPE-SET's input
+ttree is an accumulator (source comment at `type-set-b.lisp:8196`); an
+inherited rewrite citation is not a new inference by this query. Its child
+queries must still replay. The implemented evidence adapter checks new
+evidence separately and preserves incoming citations. The unconditional
+comparison return has no successful table/bound record; it consumes the
+recorded argument queries and the existing primitive range law, without
+inventing a table record.
+
+The reserved denominator witness similarly exercises INTEGERP's primitive
+range tuple and CRUNCH-CLAUSE-SEGMENTS2's removal of the internal marker
+before child handoff. The latter is a source-specific structural operation:
+a finished scan must have an empty unrewritten prefix and one marker at the
+front. The next child must match the exact remaining clause; an unfinished
+prefix remains a named frontier. Fresh whole replay of these adapters,
+fast-gate verification and production integration remain open at this point.
+
+
+The subsequent whole-proof receipts cross those adapters:
+`r3-construction-arithmetic-3.log` checks strict CANCEL in 29709 ms and
+`*-OF-/-SAME-ARG2` in 3112 ms, both unconditional with accepted axioms.
+CANCEL consumes its six deletions from the fresh construction capture;
+inverse-product consumes the temporary folds that the former residual
+replacement loop could not place. The earlier two fresh arithmetic runs
+failed in query integration and are retained as such.
+
+The reserved edit reuse proof EQUAL-DENOMINATOR-1 now checks unconditionally
+through the migrated consumer in 4186 ms
+(`r3-construction-denominator-replay-2.log`). A fresh 4240 ms replay plus
+removal of the actual recorded Subgoal 2 verifies that the altered tree fails
+at the exact continuation handoff (`r3-construction-denominator-control.log`).
+This is the selected whole theorem, not a prefix command with failed earlier
+rows hidden by a successful exit. `r3-query-construction-controls-6.log`
+rechecks the whole Boolean proof and all fourteen controls after the range
+and crunch adapters. The latest Runner build passes in
+`r3-query-range-crunch-build.log` (3156 jobs).
+
+These results establish one of the six mandatory targets on the fresh
+capture, an additional inverse-product dependency, both Boolean dependencies,
+and the reserved edit reuse proof. They do not establish the shared query
+family, the other five targets, reserved query reuse, or production integration.
+
+The two new-capture deletion postpasses (CANCEL Subgoals 2.9 and 2.8)
+also kernel-check relative to their actual child and reject all 26 selected
+mutations, including removed deletion and missing final cleanup/child
+(`r3-constructed-deletion-controls.log`). Static checks pass in
+`r3-construction-static.log`; the updated bug/pattern records pass in
+`r3-construction-record-checks.log`. The source/include/scope sidecar
+projections match the previous captures for all three books
+(`r3-construction-source-comparison.json`).
+
+The definition and theorem/root/class projections also agree across all
+three complete captured prefixes: 1 definition / 2 theorems for Boolean,
+18 / 38 for times, and 21 / 7 for denominator
+(`r3-construction-projections-2.log`; the first receipt is a harness type
+annotation error). The affected six-target regression build passes all
+3173 jobs in `r3-construction-affected-build.log`; Ns1Mod's fresh build takes
+283 seconds. No full claim gate has been run for this increment.
+
+The focused CLI regression also passes 3/3 equality-reasoning theorems
+unconditionally and both emitted DP leaves in
+`r3-construction-equality-replay.log`. Together with the static checks,
+affected build and owning/negative receipts above, this is an intermediate
+**fast-gate** checkpoint. NS1-R remains incomplete. The next implementation
+package is ordinary recognizer hypothesis/operand queries and scoped nested
+IF queries; the remaining five target proofs and reserved EQUAL-/ reuse
+still depend on that package and the bounded I1/I2 integration work.
