@@ -4928,3 +4928,80 @@ executable build (`c2-complex-negation-cell-affected-build.log`,
 `c2-complex-negation-cell-equality-replay.log`). The missing cleanup evidence
 is indexed as BUG-058. This is an intermediate **fast-gate** checkpoint;
 all three BVCHOP mirrors remain open and no new full gate is claimed.
+
+### C2 selected clausify reductions (2026-09-07)
+
+Diagnostic producer `df7a28e38c` retains the exact before/after clauses when
+ACL2 drops a newly generated or accumulated clause, performs the Satriani
+replacement, or selects a general subsumption/replacement. Each pass has
+its own dynamically scoped history; operations appear in execution order.
+The Satriani observer preserves recursive cancellation: if the new clause
+is discarded, proposed changes to accumulated clauses are not recorded as
+performed. Logical returns and recursive inputs are unchanged.
+
+The first image build failed on a missing closing parenthesis in the new
+subsumption observer. The corrected build and tagging check pass
+(`c2-clausify-reductions-image-rerun.log`,
+`c2-clausify-reductions-tags.log`). The unchanged times prefix recaptures
+**38/38** under this clean diagnostic producer, in
+`c2-clausify-reductions-times-capture/`. All **498** original parsed events
+remain identical after removing only the newly emitted REDUCTIONS fields
+(`c2-clausify-reductions-event-comparison.log`). The comparison value is
+neither replayed nor saved as a proof log. Production ACL2 remains at
+`fd27e59021cf`.
+
+Typed reduction histories now pass through the parser and tree. Each leaf
+receives only operations that occurred after its generation: an earlier
+reduction must not be applied to a later regenerated segment. Mixed
+present/missing histories are refused. The consumer follows exact recorded
+before/after matches and requires the resulting branch to match exactly;
+the new path has no fallback to a different falsified branch. Each reduction
+must strengthen its source by literal inclusion, and the existing composer
+kernel-checks every used final literal's falsity. Only the implication from
+the final clauses to the raw leaf is needed here; no Lean resolution search
+or arithmetic decision procedure replaces ACL2's cleanup selection.
+
+Core build passes **3150 jobs**
+(`c2-clausify-reductions-consumer-build.log`). All **121** actual cleanup
+markers parse, nine malformed-record controls reject, and the recorded
+mapping identifies exactly one final branch for each of the **twelve**
+false leaves in 7'/6'. Removing any of the **fourteen** used reduction edges
+loses its recorded final branch (`c2-clausify-reduction-structure-controls.log`).
+The complete link inventory is in `c2-clausify-reductions-tree.log`.
+Whole-subtree replay crosses the branch-selection frontier. Subgoal **6'**
+produces a checked conditional declaration, with accepted axioms, retaining
+REALPART-OF--, IMAGPART-OF--, <-OF-*-AND-0, <-OF-*-AND-*-CANCEL-GEN, and
+<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2. Seven mutations of that actual subtree
+reject: missing, empty or reversed histories; unsupported operation kind;
+reversed reduction direction; missing or duplicate selected branch
+(`c2-clausify-reduction-replay-controls.log`). The supporting bootstrap and
+six component-product declarations remain unconditional.
+
+Subgoal **7'** instead retains an assumed DP fact and five ordinary rules;
+it is not registered as a theorem. The whole strict-helper attempt hits the
+existing **3,000,000-heartbeat** limit at `isDefEq`. The limit is unchanged.
+The prior 9.12, 9.18' and 9.17 subtrees still register unconditionally with
+accepted axioms. The whole probe's trailing axiom query for missing 7' fails,
+so `c2-strict-with-clausify-reductions.log` is a failed overall run, not a
+passed gate. Its 6' receipt is repeated in the successful mutation-control
+run above.
+
+A standalone inventory finds two actual 7' branch verdicts, both with three
+variables and zero opaques. With no extra TP/linear premises, one checks in
+**372 ms** and the other fails in **45,877 ms**
+(`c2-strict-seven-dp-inventory-rerun.log`). The latter contains both positive
+IMAGPART(X2) and positive negated IMAGPART(X2) among its clause-falsity
+premises. This supplies the next local normalization target. The first
+inventory script failed to resolve `collectProofAxioms`; the corrected run
+opens its existing namespace. Ordinary component-negation, product-sign and
+cancellation proofs also remain to be staged before remeasuring the whole
+helper. No hand proof replaces those ordinary declarations.
+
+Affected targets pass **3167 jobs**; statics pass with **276 reachable
+sources** (`c2-clausify-reductions-affected-build.log`,
+`c2-clausify-reductions-static.log`). Focused equality reasoning passes
+**3/3 unconditionally**, and reverse passes **5/5 unconditionally**, with
+their five DP leaves checked after the **6288-job** executable build
+(`c2-clausify-reductions-equality-replay.log`,
+`c2-clausify-reductions-rev-replay.log`). These are **fast-gate** receipts.
+No full-suite, production-promotion, whole-helper or new-mirror claim is made.

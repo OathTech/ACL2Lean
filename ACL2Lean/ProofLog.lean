@@ -332,9 +332,12 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | some (.atom (.symbol s)) => pure (s.name.map Char.toLower)
           | some s => throw s!"CLAUSIFY-SATRIANI: bad :WHICH: {repr s}"
           | none => throw "CLAUSIFY-SATRIANI: missing :WHICH"
-        pure (.clausifySetReshaped s!"satriani-{which}")
-    | .atom (.keyword "CLAUSIFY-SUBSUMPTION-LOOP") :: _ =>
-        pure (.clausifySetReshaped "subsumption-loop")
+        let which := s!"satriani-{which}"
+        pure (.clausifySetReshaped which
+          (← parseClausifyReductions which (lookupKeyword "REDUCTIONS" rest)))
+    | .atom (.keyword "CLAUSIFY-SUBSUMPTION-LOOP") :: rest =>
+        pure (.clausifySetReshaped "subsumption-loop"
+          (← parseClausifyReductions "subsumption-loop" (lookupKeyword "REDUCTIONS" rest)))
     | .atom (.keyword "TYPE-SET-REASONING") :: rest =>
         let term ← lookupKeyword "TERM" rest
           |>.elim (throw "TYPE-SET-REASONING: missing :TERM") pure

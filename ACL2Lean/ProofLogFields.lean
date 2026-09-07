@@ -122,6 +122,30 @@ def parseClausifyCalls (value : Option SExpr) :
       basis := ← get "BASIS"
       path := ← parseClausifyPath (← get "PATH") }
 
+/-- Parse the selected reductions attached to one cleanup marker. Missing
+fields identify legacy captures; present records must be complete. -/
+def parseClausifyReductions (which : String) (value : Option SExpr) :
+    Except String (Option (List ClausifyReduction)) := do
+  let some value := value | return none
+  let some rows := value.toList? | throw "clausify reductions: not a list"
+  if rows.isEmpty then throw "clausify reductions: fired marker has no reductions"
+  let reductions ← rows.mapM fun row => do
+    let some [.atom (.keyword "KIND"), .atom (.symbol kind),
+        .atom (.keyword "BEFORE"), beforeTerm, .atom (.keyword "AFTER"), afterTerm] :=
+        row.toList? | throw "clausify reductions: malformed selected reduction"
+    let kind := kind.name.map Char.toLower
+    let allowed := if which == "subsumption-loop" then ["subsumed", "replaced"]
+      else if which == "satriani-subsumed1" then ["subsumed-new"]
+      else if which == "satriani-replaced" then ["subsumed-old", "replaced"]
+      else []
+    unless allowed.contains kind do throw "clausify reductions: kind disagrees with pass"
+    let some beforeClause := beforeTerm.toList?
+      | throw "clausify reductions: BEFORE is not a clause"
+    let some afterClause := afterTerm.toList?
+      | throw "clausify reductions: AFTER is not a clause"
+    return { kind, beforeClause, afterClause : ClausifyReduction }
+  return some reductions
+
 /-- Parse the same cons-term fold record in hypothesis relief and USE instances. -/
 def parseSubstitutionFolds (label : String) (folds : SExpr) :
     Except String (List SubstitutionFold) := do

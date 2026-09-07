@@ -45,8 +45,10 @@ charter or the archive carry the record.
       helpers after their CASES/conjunction and numeric-context repairs; validate
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
-      Emit and consume the strict helper's actual Satriani/subsumption clause
-      reductions at Subgoals 7' and 6'; their split-branch selection is ambiguous.
+      Integrate the selected Satriani/subsumption reductions (BUG-058). Close
+      7's remaining component-sign verdict and the ordinary negation, product-sign,
+      and cancellation dependencies of 7'/6'. Decompose the whole helper's
+      replay after its current heartbeat timeout; preserve the existing limit.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer
       (BUG-056) with its verified source route. Integrate the scoped six-theorem

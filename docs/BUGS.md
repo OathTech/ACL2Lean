@@ -50,6 +50,20 @@ diagnostic `rewrite.lisp`, `quick-and-dirty-subsumption-replacement-step`,
 receipt: `.tmp/ns1/c2-strict-split-link.log`; whole replay fails in
 `.tmp/ns1/c2-strict-with-complex-negation.log`.
 
+Diagnostic producer `df7a28e38c` now retains the selected before/after clauses
+at the actual cleanup operations, with a local history on each existing
+marker. The unchanged times prefix captures 38/38; all 498 original events
+are identical after removing only the new REDUCTIONS fields. Its 121 actual
+cleanup markers parse, and nine malformed-record controls reject. The tree
+attaches only operations occurring after a leaf was generated. Following
+those operations identifies one exact branch for each of the twelve false
+leaves in 7'/6'; fourteen used-edge removal controls lose that final branch
+(`c2-clausify-reduction-structure-controls.log`). Subgoal 6' now has a checked
+conditional proof with five ordinary rules remaining and accepted axioms;
+seven replay mutations reject (`c2-clausify-reduction-replay-controls.log`).
+Subgoal 7' crosses branch selection but retains an assumed verdict leaf.
+Production promotion remains open; no unconditional helper result is claimed.
+
 ## BUG-057 — simplify-clause omits its selected HIDE removal
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)

@@ -21,7 +21,7 @@ require a unique branch falsified by the same path facts. An open survivor
 is left out of those falsity obligations. -/
 private def selectSplitBranch (idStr : String)
     (branches : List (SExpr × List ClauseItem)) (emittedSeg : Option (List SExpr))
-    (survivor : Option SExpr) (deriveFalsity : SExpr → MetaM (Option Expr)) :
+    (exactLink : Bool) (survivor : Option SExpr) (deriveFalsity : SExpr → MetaM (Option Expr)) :
     MetaM (Option (List SExpr × List ClauseItem × List Expr)) := traceSplitPhase "select branch" do
   let select (exact : Bool) : MetaM (Option (List SExpr × List ClauseItem × List Expr)) := do
     let mut selected := none
@@ -44,7 +44,7 @@ private def selectSplitBranch (idStr : String)
         selected := some (segL, cont, proofs)
     return selected
   let first ← select emittedSeg.isSome
-  if first.isNone && emittedSeg.isSome then select false else pure first
+  if first.isNone && emittedSeg.isSome && !exactLink then select false else pure first
 
 /-- The W3 branch-split COMPOSER: prove `EvTrue w env (disjoin (lit :: rest))`
     for a literal whose clausify SPLIT (docs/notes/2026-07-03_branch-split-
@@ -67,7 +67,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let kind := match tree with
         | .split _ _ _ => "split"
         | .resolved _ verdict how _ => s!"resolved {how} {verdict}"
-        | .leaf _ outcome _ _ => s!"leaf {outcome}"
+        | .leaf _ outcome _ _ _ => s!"leaf {outcome}"
       return m!"{idStr} literal {lp.index} {kind}, {facts.length} path facts") do
   let w := cfg.worldExpr
   let e := cfg.envExpr
@@ -187,7 +187,11 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
                         {idStr} (frontier)"
     composeSplit rec cfg ctx idStr lp chainOpt clauseLit restLits branches
       accClause children (facts ++ [(T, vT, wantSign, hFact)]) sub
-  | .leaf value outcome emittedSeg calls =>
+  | .leaf value outcome emittedSeg calls reductions =>
+    let linkedSeg ← match emittedSeg, reductions with
+      | some segment, some history =>
+        pure (some (← ofExcept (followClausifyReductions segment history)))
+      | _, _ => pure emittedSeg
     -- re-derive the literal's collapse along the path facts
     let (collapseOpt, collapsed) ← traceSplitPhase "collapse literal" <|
       collapseWithCallAssumptions cfg ctx facts lp.result calls
@@ -277,7 +281,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- Consume its actual postpass before handing the resulting clause
         -- to a child; the path falsifies the original segment throughout.
         if let some (segL, cont, proofs) ←
-            selectSplitBranch idStr branches emittedSeg none (segFactFalsity facts) then
+            selectSplitBranch idStr branches linkedSeg reductions.isSome none (segFactFalsity facts) then
           if !cont.isEmpty then
             let expected := accClause ++ segL.filter (!accClause.contains ·)
             let segFactsHere := segL.zip proofs
@@ -295,7 +299,8 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
         -- this path's byCases facts for the segment). The child's proof
         -- then CONTRADICTS the path; the singleton goal follows ex falso
         -- (mirrors the spine walker's vacuous residual arm).
-        let segL := emittedSeg.getD []
+        let some segL := linkedSeg
+          | throwError "composeSplit: false segment has no recorded clause at {idStr}"
         let expected := accClause ++ segL.filter (!accClause.contains ·)
         -- the pushed child may have been SUBSUMPTION-SIMPLIFIED (Satriani):
         -- accept the UNIQUE child whose clause is an order-preserving SUBSET
@@ -309,6 +314,8 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
           match children.find? (·.inputClause == expected) with
           | some c => pure c
           | none =>
+            if reductions.isSome then
+              throwError "composeSplit: recorded reductions have no exact residual child at {idStr}"
             match children.filter (fun c => isSublist c.inputClause expected) with
             | [c] => pure c
             | [] => throwError "composeSplit: no child clause matches the vacuous \
@@ -337,7 +344,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
       let deriveFalsity (L : SExpr) : MetaM (Option Expr) :=
         segFactFalsity facts L
       let some (segL, cont, segProofs) ←
-          selectSplitBranch idStr branches emittedSeg (some value) deriveFalsity
+          selectSplitBranch idStr branches linkedSeg reductions.isSome (some value) deriveFalsity
         | throwError "composeSplit: no residual branch matches the open leaf \
                       {repr value} at {idStr} (frontier)"
       let expected := accClause ++ segL.filter (!accClause.contains ·)
@@ -383,7 +390,7 @@ partial def composeSplit (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCtx
             return some hLeafNil
           segFactFalsity facts L
         let some (segL, cont, segProofs) ←
-            selectSplitBranch idStr branches emittedSeg none deriveFalsity
+            selectSplitBranch idStr branches linkedSeg reductions.isSome none deriveFalsity
           | throwError "composeSplit: no branch matches the {outcome} leaf \
                         {repr value} at {idStr} (frontier)"
         let effectiveCont := cont.dropWhile fun

@@ -14,6 +14,7 @@ inductive TraceTree where
       leaf — the exact leaf→branch link the composer selects by. -/
   | leaf (value : SExpr) (outcome : String) (segment : Option (List SExpr))
       (calls : List ClausifyCallAssumption := [])
+      (reductions : Option (List ClausifyReduction) := none)
   | resolved (test : SExpr) (verdict : String) (how : String) (sub : TraceTree)
   /-- A genuine split: `fSide` (test assumed false — the ELSE branch,
       logged first) and `tSide`. -/
@@ -34,7 +35,7 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
     else
       let (sub, rest) ← parseTraceTree path rest
       return (.resolved t v h sub, rest)
-  | .leaf v o p seg calls :: rest => do
+  | .leaf v o p seg calls reductions :: rest => do
     unless p == path do
       throw s!"parseTraceTree: leaf {repr v} at path {repr p}, expected \
                {repr path}"
@@ -53,14 +54,28 @@ partial def parseTraceTree (path : List (Bool × SExpr)) :
     -- (collapse-vs-leaf-value, branch selection) stays fail-closed.
     let nextSamePath := match rest with
       | .test _ _ _ p' :: _ => p' == path
-      | .leaf _ _ p' _ _ :: _ => p' == path
+      | .leaf _ _ p' _ _ _ :: _ => p' == path
       | [] => false
     if o == "segment-open" && nextSamePath then
       unless calls.isEmpty do
         throw "parseTraceTree: call assumptions before conjunction continuation (frontier)"
       let (k, rest') ← parseTraceTree path rest
-      return (.split v (.leaf quoteNil "segment-false" seg) k, rest')
-    return (.leaf v o seg calls, rest)
+      return (.split v (.leaf quoteNil "segment-false" seg [] reductions) k, rest')
+    return (.leaf v o seg calls reductions, rest)
+
+/-- Follow the actual later reductions of this generated segment, in emitted
+order. Every replacement must be a strengthening by literal inclusion;
+the composer separately kernel-checks each final literal's falsity. -/
+def followClausifyReductions (segment : List SExpr) (reductions : List ClausifyReduction) :
+    Except String (List SExpr) := do
+  let mut current := segment
+  for reduction in reductions do
+    unless ["subsumed-new", "subsumed-old", "subsumed", "replaced"].contains reduction.kind do
+      throw "clausify reductions: unsupported selected operation"
+    unless reduction.afterClause.all reduction.beforeClause.contains do
+      throw "clausify reductions: result is not a subset of its selected source (frontier)"
+    if current == reduction.beforeClause then current := reduction.afterClause
+  return current
 
 /-- Collapse `t`'s ifs whose tests are DECIDED by the in-scope facts (the
     branch-split composer's byCases hypotheses + re-derived resolved

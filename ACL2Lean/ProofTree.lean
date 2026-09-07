@@ -190,6 +190,7 @@ inductive SplitDecision where
   | leaf (value : SExpr) (outcome : String) (path : List (Bool × SExpr))
       (segment : Option (List SExpr))
       (calls : List ClausifyCallAssumption := [])
+      (reductions : Option (List ClausifyReduction) := none)
   deriving Repr, Inhabited, BEq
 
 /-- Proof that a single literal simplifies to a result under clause
@@ -509,7 +510,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the clause-level parser. (This match is exhaustive over TraceEvent, so a
       -- new event kind becomes a compile error here — never a silent drop.)
       return (nodes.reverse ++ pendingChildren, events)
-  | .clausifyTest .. :: _ | .clausifyLeaf .. :: _ | .clausifySetReshaped _ :: _
+  | .clausifyTest .. :: _ | .clausifyLeaf .. :: _ | .clausifySetReshaped .. :: _
   | .clausifyConjunction .. :: _ =>
       -- literal-clausify decision-trace events are partitioned out by
       -- `parseClauseItems` before the chain is parsed; reaching one here means
@@ -654,6 +655,29 @@ private def collectClausify (input : SExpr) (evs : List TraceEvent)
     | [] => throw "collectClausify: events ended before :CLAUSIFY-OUT"
   go [] [] [] evs
 
+/-- Attach only the cleanup operations that occurred AFTER each leaf was
+generated. Earlier reductions must not apply to a later regenerated segment.
+The selected histories remain data for replay, not inferred branch links. -/
+private def collectSplitTrace (events : List TraceEvent) : Except String (List SplitDecision) := do
+  let recorded := events.any fun
+    | .clausifySetReshaped _ (some _) => true
+    | _ => false
+  let rec go : List TraceEvent →
+      Except String (List ClausifyReduction × List SplitDecision)
+    | [] => pure ([], [])
+    | event :: rest => do
+      let (future, trace) ← go rest
+      match event with
+      | .clausifySetReshaped _ (some reductions) => pure (reductions ++ future, trace)
+      | .clausifySetReshaped _ none =>
+        if recorded then throw "clausify: partial reduction history"
+        else pure (future, trace)
+      | .clausifyTest t v h p => pure (future, .test t v h p :: trace)
+      | .clausifyLeaf v o p seg calls =>
+        pure (future, .leaf v o p seg calls (if recorded then some future else none) :: trace)
+      | _ => pure (future, trace)
+  return (← go events).2
+
 /-- Parse a clause-level event list (ACL2's `:REWRITES`) into its branch tree, in
     log order, returning the items and the events after this branch. A
     `BEGIN-BRANCH`/`END-BRANCH` pair is a case split; `BEGIN-LITERAL`/
@@ -674,15 +698,9 @@ partial def parseClauseItems (events : List TraceEvent)
       -- partition out the literal's clausify DECISION TRACE (all emitted by
       -- the single clausify call after the chain — their position among the
       -- chain events carries no information)
-      let splitTrace := litEvents.filterMap fun
-        | .clausifyTest t v h p => some (SplitDecision.test t v h p)
-        | .clausifyLeaf v o p seg calls => some (SplitDecision.leaf v o p seg calls)
-        -- Conjunction calls are retained separately: unlike an if-interp
-        -- test, strip-branches unions two independent clause sets.
-        | .clausifyConjunction .. => none
-        | _ => none
+      let splitTrace ← collectSplitTrace litEvents
       let splitReshaped := litEvents.filterMap fun
-        | .clausifySetReshaped w => some w
+        | .clausifySetReshaped w _ => some w
         | _ => none
       let conjunctions := litEvents.filterMap fun
         | .clausifyConjunction l r => some (l, r)
@@ -718,7 +736,7 @@ partial def parseClauseItems (events : List TraceEvent)
         | .ifTestFalse t _ j => some (t, false, j)
         | _ => none
       let chainEvents := litEvents.filter fun
-        | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped _
+        | .clausifyTest .. | .clausifyLeaf .. | .clausifySetReshaped ..
         | .clausifyConjunction .. | .complementClose _ | .dedupDrop _
         | .taSubst .. => false
         | .rewriteStep st => st.origin != "atm/try-type-set"

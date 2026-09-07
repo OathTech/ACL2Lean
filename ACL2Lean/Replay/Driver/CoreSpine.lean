@@ -1071,7 +1071,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       let hasSplit := lp.splitTrace.any fun
         | .test _ v _ _ => v == "split"
         | _ => false
-      if hasSplit || lp.splitTrace.any (fun | .leaf _ _ _ _ cs => !cs.isEmpty | _ => false) then
+      if hasSplit || lp.splitTrace.any (fun | .leaf _ _ _ _ cs _ => !cs.isEmpty | _ => false) then
         -- W3: the assume-true-false composer. Post-pass reshaping (the
         -- Satriani REPLACEMENT, the subsumption loop) is transparent to the
         -- LEAF-driven composer: branch selection is by derivable segment
@@ -1091,7 +1091,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         -- inside them)
         let mut ctx := ctx
         for d in lp.splitTrace do
-          if let .leaf v _ _ _ _ := d then
+          if let .leaf v _ _ _ _ _ := d then
             ctx ← pinTermOpaques cfg cfg.envExpr ctx v
         return ← composeSplit rec cfg ctx idStr lp chainOpt clit restLits branchSegs
           accClause children [] tree
@@ -1115,7 +1115,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
       -- already establish.
       if branchSegs.isEmpty then
         let droppedLeaf := lp.splitTrace.any fun
-          | .leaf v outcome _ _ _ => v == lp.result && outcome == "dropped"
+          | .leaf v outcome _ _ _ _ => v == lp.result && outcome == "dropped"
           | _ => false
         let itemClose := lp.complementCloses.any (fun l =>
           l == lp.result ||
@@ -1174,7 +1174,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
             | throwError "replayClauseSpine: literal {idx}'s branch segment \
                           {repr seg} is not a list at {idStr}"
           match lp.splitTrace.filter (fun | .leaf .. => true | _ => false) with
-          | [.leaf lv outcome _ _ _] =>
+          | [.leaf lv outcome _ _ _ _] =>
             if outcome == "dropped" then
               throwError "replayClauseSpine: single DROPPED leaf on the \
                           non-closing literal {idx} at {idStr} (frontier)"
@@ -1232,7 +1232,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
           -- an AND-shape strip records exactly two SEGMENT-OPEN leaves whose
           -- values are the conjuncts; anything else is a divergence.
           let leaves := lp.splitTrace.filterMap fun
-            | .leaf v outcome _ _ _ => some (v, outcome)
+            | .leaf v outcome _ _ _ _ => some (v, outcome)
             | _ => none
           unless leaves.length == 2 &&
               leaves.all (fun (_, o) => o == "segment-open") &&

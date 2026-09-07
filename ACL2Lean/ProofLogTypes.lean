@@ -410,6 +410,14 @@ structure ClausifyCallAssumption where
   path : List (Bool × SExpr)
   deriving Repr, Inhabited, BEq
 
+/-- An actual clause reduction selected by a literal-clausify cleanup pass.
+The result implies the old clause; replay still checks the used literal facts. -/
+structure ClausifyReduction where
+  kind : String
+  beforeClause : List SExpr
+  afterClause : List SExpr
+  deriving Repr, Inhabited, BEq
+
 /-- The actual post-rewrite HIDE edit selected by simplify-clause1. -/
 structure UnhideLiteralSelection where
   inputClause : List SExpr
@@ -532,9 +540,10 @@ inductive TraceEvent where
       (calls : List ClausifyCallAssumption := [])
   /-- Fired-marker (emit/if-interp/satriani-fired,
       emit/clausify/subsumption-loop-fired): a post-pass RESHAPED the segment
-      set beyond the decision trace — the replay hard-fails on it rather than
-      mis-attributing segments. -/
+      set beyond the decision trace. New captures retain the selected
+      reductions in execution order; legacy captures have only the flag. -/
   | clausifySetReshaped (which : String)
+      (reductions : Option (List ClausifyReduction) := none)
   /-- The strip-branches AND-shape conjunction split
       (emit/strip-branches/and-shape, S1.2 2026-07-23): `(IF left right
       'NIL)` clausifies as the UNION of the two sides' clause sets with no
