@@ -61,18 +61,19 @@ their execution order; a mask alone never proves a fact. No hypothesis DP. -/
 partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     (expectedDwp : SExpr := .nil) : MetaM Expr := do
   let q ← tsQueryRead (TsQueryCapture.query raw)
+  let isQuoted := (asApp q.term).any (fun (fn, args) => fn.name == "QUOTE" && args.length == 1)
   let propagatesDwp := (asApp q.term).any fun (fn, args) =>
     ((fn.name == "REALPART" || fn.name == "IMAGPART") && args.length == 1) ||
-      (fn.name == "BINARY-*" && args.length == 2)
+      ((fn.name == "BINARY-*" || fn.name == "COMPLEX") && args.length == 2)
   unless q.dwp == expectedDwp && (q.dwp == .nil ||
-      q.route == .atom (.keyword "LOOKUP") || (propagatesDwp && q.route == .nil)) do
+      q.route == .atom (.keyword "LOOKUP") || ((propagatesDwp || isQuoted) && q.route == .nil)) do
     throwFrontier m!"type-set query: unsupported double-whammy computation or parent tuple"
   primitiveQueryTtree q.ttree
   primitiveQueryTtree q.inputTtree
   let cs ← q.children.mapM fun raw => do
     let c ← tsQueryRead (TsQueryCapture.query raw)
     let mut childDwp := SExpr.nil
-    -- TYPE-SET-WITH-RULES passes DWP unchanged through projections and products.
+    -- TYPE-SET-PRIMITIVE passes DWP unchanged through these primitive arguments.
     -- A recognizer instead supplies its own recorded recognizer tuple.
     if propagatesDwp then
       childDwp := q.dwp
@@ -114,7 +115,8 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     return ← finish p
   unless q.lookup == SExpr.ofList [.nil, .nil] do
     throwFrontier m!"type-set query: nontrivial lookup/computation intersection"
-  if (asApp q.term).any (fun (fn, args) => fn.name == "QUOTE" && args.length == 1) then
+  -- TYPE-SET-REC computes a quote's mask directly, preserving but not using DWP.
+  if isQuoted then
     unless cs.isEmpty && q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
       throwError "type-set query: quoted query has an unexpected route"
     return ← finish (← mkDecideProof (← withTransparency .all <| whnf (← queryType cfg ctx q)))

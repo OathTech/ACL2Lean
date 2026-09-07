@@ -4288,3 +4288,38 @@ existing equality-reasoning book replays **3/3** after the **6282-job**
 executable build (`c2-bootstrap-component-cells-equality-replay.log`).
 This is an intermediate fast-gate checkpoint. The isolated producer and
 production pointer are unchanged. All three BVCHOP mirrors remain open.
+
+
+### C2 numeric-query tuple propagation (2026-09-07)
+
+The four remaining numeric-query checks reach two observed cases:
+TYPE-SET-PRIMITIVE passes the recognizer tuple through COMPLEX to both
+arguments, and TYPE-SET-REC computes the quoted imaginary unit's mask while
+retaining that tuple. The consumer now checks the exact parent tuple on
+these calls, then uses its existing constructor/quote proof route. ACL2
+source evidence is `type-set-b.lisp:9661` and its quoted arm at line 8202
+in isolated producer 7b5da0495c; the compact actual query tree is
+`c2-bootstrap-zero-numeric-records.log`.
+
+All **seven complete zero-row insertions** kernel-check relative to their
+recorded continuations (`c2-bootstrap-numeric-dwp-rows.log`). Their seven
+numeric-query pairs separately kernel-check with accepted axioms, and
+**61 mutations** reject missing/changed tuples, missing children/snapshots
+and changed child terms (`c2-bootstrap-numeric-dwp-controls-rerun.log`).
+The initial control script had a structure-literal indentation error,
+corrected before the passing run. Core build passes **3147 jobs**
+(`c2-bootstrap-numeric-dwp-build.log`); static checks also pass
+(`c2-bootstrap-numeric-dwp-static.log`). Whole addition proof composition
+and its measured timeout remain under investigation. No budget is raised.
+
+Affected targets pass **3164 jobs**, and equality-reasoning replays **3/3**
+after the **6282-job** executable build
+(`c2-bootstrap-numeric-dwp-affected-build.log`,
+`c2-bootstrap-numeric-dwp-equality-replay.log`). This is another fast-gate
+increment, with no new full-suite or mirror claim. The expensive remaining
+branch is Subgoal 2.1's actual whole-clause type-set verdict. Its value
+obligation has two variables and no opaque terms and builds in 1 ms
+(`c2-bootstrap-leaf-obligation-export.log`). Separate proof/bridge
+measurements continue. The enclosing Subgoal 2 and Subgoal 2'' trace runs
+were stopped without results once the smaller branch was isolated; they
+supply no proof or timing receipt.

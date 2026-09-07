@@ -56,9 +56,8 @@ charter or the archive carry the record.
       their capture route into the required dependency chain. Close the
       strict helper's remaining component rules: Subgoal 9.12 now also
       checks under the same two conditions as 9.18'. Promote the recorded
-      literal-retention route (BUG-055). Close the four remaining propagated
-      recognizer-tuple query checks in bootstrap zero-row insertions, and
-      decompose whole ADD-DEF-COMPLEX's measured isDefEq timeout; its
+      literal-retention route (BUG-055). Decompose whole ADD-DEF-COMPLEX's measured isDefEq timeout after
+      its seven zero-row insertions check relative to their continuations; its
       Subgoal 2.2 is unconditional. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
