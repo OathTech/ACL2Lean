@@ -3,6 +3,11 @@
 Dated 2026-09-05. First goal of the
 [post-sorting master plan](2026-09-05_master-plan.md).
 **Status: C0 and C1 checked; C2 first-mirror work in progress. NS1 incomplete.**
+The long run is paused for the 2026-09-07 check-in. The next planned execution
+slice is [NS1-R — reusable type-query and clause-edit replay](2026-09-07_ns1-replay-mechanisms-plan.md),
+with focused probes, a frozen mechanism scope and complete dependency/reuse
+acceptance. It builds on this worktree; the native result contract below is
+unchanged. Writing that plan does not resume implementation.
 The strategic direction and preflight choices are agreed. On 2026-09-05 the
 user explicitly authorized ownership of the complex migration and the
 subagents proposed below. Those authorizations persist throughout this goal;

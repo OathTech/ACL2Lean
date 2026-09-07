@@ -35,6 +35,15 @@ charter or the archive carry the record.
 
 ## In flight
 
+- [ ] **NS1-R — reusable type-query and clause-edit replay (planned).**
+      Next slice after the paused 2026-09-07 check-in, in the existing NS1
+      worktree. Inventory source cases and real proof trees, freeze the
+      supported scope, then consolidate shared consumers. Acceptance includes
+      six unconditional product/cancellation dependencies, complete reuse
+      proofs, production capture integration, baseline preservation and a
+      measured downstream helper result. Broader C2 work below stays deferred.
+      Goal-ready plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
+
 - [ ] **NS1 — C2 first BVCHOP mirror.** In `.claude/worktrees/ns1-bvchop`,
       branch `mdd/ns1-bvchop`, from approved docs `b452b70`. C0/C1 checked;
       all three native proofs remain open. Close the actual FLOOR/quotient

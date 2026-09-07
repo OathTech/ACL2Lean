@@ -16,6 +16,14 @@ the user authorized the full complex-rational migration and the proposed
 two-reviewer design and final checkpoints. The charter records that standing
 authorization; it is not to be requested again during the run.
 
+**2026-09-07 execution update:** following the paused project check-in, the
+next slice is [NS1-R](2026-09-07_ns1-replay-mechanisms-plan.md): source-based
+probing and consolidation of reusable type-query and clause-edit replay,
+validated by complete arithmetic dependencies and separate reuse witnesses.
+It continues in the existing NS1 worktree. Its bounded acceptance criteria
+do not change the three NS1 native targets or constitute C2 completion;
+the broader mirror campaign remains paused while this plan is prepared.
+
 ## Destination and operating model
 
 Make ACL2Lean a tool with which a Lean developer can import a useful ACL2 book,

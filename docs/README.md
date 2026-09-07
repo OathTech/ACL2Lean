@@ -50,3 +50,9 @@ Its direction was accepted; the [new master plan](plans/2026-09-05_master-plan.m
 sets the goal sequence. The [NS1 charter](plans/2026-09-05_bvchop-foundation-charter.md)
 specifies the first three BVCHOP mirrors, completion receipts, and the
 agreed scope and review allocation for the long run.
+
+Next slice: [NS1-R — reusable type-query and clause-edit replay](plans/2026-09-07_ns1-replay-mechanisms-plan.md)
+sets the focused probe, consolidation, whole-dependency replay and reuse
+acceptance plan from the 2026-09-07 check-in. It builds on the existing NS1
+worktree and has its own bounded completion condition; it does not close NS1
+or change the three native targets.
