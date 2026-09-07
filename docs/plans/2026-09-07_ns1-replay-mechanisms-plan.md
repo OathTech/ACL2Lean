@@ -1,6 +1,8 @@
 # NS1-R — reusable type-query and clause-edit replay
 
-Dated 2026-09-07. **Goal-ready plan; implementation has not started.**
+Dated 2026-09-07. **Execution activated; R0 checkpointed, R1 scope frozen; R2 in progress.**
+Evidence and current next actions are in the
+[execution record](../notes/2026-09-07_ns1-r-execution.md).
 This is the next bounded slice within NS1, following the project check-in.
 It changes the immediate execution sequence, while preserving the three
 native propositions and completion requirements of the

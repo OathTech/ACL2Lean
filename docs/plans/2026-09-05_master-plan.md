@@ -22,7 +22,9 @@ probing and consolidation of reusable type-query and clause-edit replay,
 validated by complete arithmetic dependencies and separate reuse witnesses.
 It continues in the existing NS1 worktree. Its bounded acceptance criteria
 do not change the three NS1 native targets or constitute C2 completion;
-the broader mirror campaign remains paused while this plan is prepared.
+the broader mirror campaign stays deferred while the activated NS1-R slice
+executes. Its [execution record](../notes/2026-09-07_ns1-r-execution.md)
+tracks the source inventory, checked increments and remaining boundaries.
 
 ## Destination and operating model
 

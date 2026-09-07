@@ -240,6 +240,15 @@ crosses this node but remains ASSUMED on other dependencies and two DP
 facts (`.tmp/ns1/c2-quotient-shared-if-whole.log`). Production integration,
 other emitted query routes and full regression remain open.
 
+NS1-R's complete-tree inventory finds the same missing recursive-evidence
+class in known-true recognizer hypotheses: fourteen BOOLEANP queries in the
+six product/cancellation targets, five with nested IF arguments, have outer
+masks/tuples but no argument branch evidence. The root-IF collector is a
+diagnostic re-query, not a record of the original query's executed children.
+The shared query protocol must cover the actual recursive calls and branch
+contexts at this consumer as well. No repair or full integration is claimed;
+see the [NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
+
 The strict multiplication helper also exercises `:CONSTANT-BOUND`, whose
 returned derivation omitted the selected type-alist entry. Isolated producer
 `d592add7be` records that entry from the actual successful scan arm; its new
