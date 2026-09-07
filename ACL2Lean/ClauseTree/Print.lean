@@ -87,13 +87,17 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │      polynomial pairs: {info.polyPairs}; runes: {repr info.runes}"
     | .taSubst n f _ _ _ =>
       IO.println s!"{pad}  │    ta-subst: {f} ⇒ {n}"
-    | .useHint hyps ccl appC lmis translated =>
+    | .useHint hyps ccl appC lmis translated folds =>
       IO.println s!"{pad}  │    :use hint — {hyps.length} instantiated hyp(s):"
       for h in hyps do
         IO.println s!"{pad}  │      hyp: {h}"
       if let some ts := translated then
         for (raw, cooked) in lmis.zip ts do
           if raw != cooked then IO.println s!"{pad}  │      instance: {raw} ⇒ {cooked}"
+      if let some groups := folds then
+        for (group, i) in groups.zipIdx do
+          for fold in group do
+            IO.println s!"{pad}  │      instance {i + 1} fold {fold.path}: {fold.lhs} ⇒ {fold.rhs}"
       IO.println s!"{pad}  │      constraint-cl: {ccl}"
       IO.println s!"{pad}  │      application clauses: {appC}"
     | .branch segment subitems =>

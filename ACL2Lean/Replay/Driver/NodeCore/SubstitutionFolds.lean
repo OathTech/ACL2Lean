@@ -67,6 +67,15 @@ def replayHypSubstitution (cfg : ReplayConfig) (basis : HypSubstitutionBasis)
   if proofs.isEmpty then return none
   return some (← chainEqs proofs)
 
+/-- Transport an instantiated USE premise through its recorded closed folds.
+The final term is checked exactly even when the recorded fold list is empty. -/
+def foldUseInstanceProof (cfg : ReplayConfig) (input target : SExpr)
+    (folds : List SubstitutionFold) (proof : Expr) : MetaM Expr := do
+  match ← replayHypSubstitution cfg { input, folds } target with
+  | none => return proof
+  | some eq =>
+    mkAppM ``evtrue_of_fuel_eq #[← mkAppM ``fuel_eq_symm #[eq], proof]
+
 /-- The new basis names the plain instance; older markers already name that instance. -/
 def hypothesisMarkerInput : ProofNode → SExpr
   | .node _ lhs _ _ prov => (prov.substBasis.map (·.input)).getD lhs

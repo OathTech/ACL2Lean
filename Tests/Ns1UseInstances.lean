@@ -33,7 +33,7 @@ elab "ns1_use_instance_controls%" : command => Elab.Command.liftTermElabM do
     let events ← log.events.mapM fun
       | .step s => do
         let traceEvents ← s.traceEvents.mapM fun
-          | .useHint hyps ccl appC raw translated => do
+          | .useHint hyps ccl appC raw translated folds => do
             let some [cooked] := translated
               | throwError "USE controls: actual translated instance missing"
             unless raw.length == 1 && raw != [cooked] do
@@ -48,7 +48,7 @@ elab "ns1_use_instance_controls%" : command => Elab.Command.liftTermElabM do
                   | throwError "USE controls: unexpected actual binding shape"
                 pure (some [SExpr.ofList [tag, name,
                   SExpr.ofList [formal, quoteNil], second]])
-            pure (.useHint hyps ccl appC raw tr)
+            pure (.useHint hyps ccl appC raw tr folds)
           | ev => pure ev
         pure (.step { s with traceEvents })
       | ev => pure ev

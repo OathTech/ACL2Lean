@@ -60,10 +60,12 @@ private def primitiveEqualityTrue (lhs rhs law : Expr) : MetaM Expr := do
 
 /-- A named primitive axiom used through :USE rather than a rewrite rune.
 Its source schema is instantiated with the recorded translated substitution
-and checked verbatim against :HYPS. The ordinary USE consumer still replays
+and transported through its recorded ground folds, then checked exactly
+against :HYPS. The ordinary USE consumer still replays
 the application clause; this supplies only the cited axiom premise. -/
 def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
-    (subst : List (Symbol × SExpr)) (hyp : SExpr) : MetaM (Option (Expr × ReplayCtx)) := do
+    (subst : List (Symbol × SExpr)) (hyp : SExpr)
+    (folds : List SubstitutionFold := []) : MetaM (Option (Expr × ReplayCtx)) := do
   -- The exact translated schemas from axioms.lisp. Only these named
   -- primitive axioms are supplied here; book theorems remain dependencies.
   let sym := fun n => SExpr.atom (.symbol { name := n })
@@ -88,6 +90,9 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
   let complexSchema := app "IMPLIES" [both (app "RATIONALP" [x]) (app "RATIONALP" [y]),
     app "EQUAL" [app "COMPLEX" [x, y], app "BINARY-+" [x,
       app "BINARY-*" [app "QUOTE" [.atom (.number (.complex 0 1 (by decide)))], y]]]]
+  let complexLhs := app "COMPLEX" [x, y]
+  let rationalCompleted := fun t => app "IF" [app "RATIONALP" [t], t, zero]
+  let complexRhs := app "COMPLEX" [rationalCompleted x, rationalCompleted y]
   let x1 := sym "X1"
   let y1 := sym "Y1"
   let realLt := app "<" [app "REALPART" [x1], app "REALPART" [y1]]
@@ -107,13 +112,15 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         app "EQUAL" [app "BINARY-*" [app "UNARY-/" [den], app "NUMERATOR" [x]], x]])
     | "COMPLETION-OF-DENOMINATOR" => some (app "EQUAL" [den, denRhs])
     | "COMPLEX-DEFINITION" => some complexSchema
+    | "COMPLETION-OF-COMPLEX" => some (app "EQUAL" [complexLhs, complexRhs])
     | "COMPLETION-OF-<" => some (app "EQUAL" [orderLhs, orderRhs])
     | _ => none
   let some schema := schema? | return none
   let instantiate := substTerm (subst.map (·.1)) (subst.map (·.2))
-  unless instantiate schema == hyp do
+  let plain := instantiate schema
+  unless !folds.isEmpty || plain == hyp do
     throwError "primitive use:{name}: recorded substitution disagrees with :HYPS"
-  let ctx ← pinTermOpaques cfg cfg.envExpr ctx hyp
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx plain
   let vx ← ctxValExpr cfg ctx (instantiate x)
   let hne ← match name with
     | "POSITIVE" => mkAppM ``positiveSchema #[vx, ← ctxValExpr cfg ctx (instantiate y)]
@@ -129,6 +136,10 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
         (← ctxValExpr cfg ctx (instantiate assocRhs)) law
     | "RATIONAL-IMPLIES2" => mkAppM ``rationalReconstructionTrue #[vx]
     | "COMPLEX-DEFINITION" => mkAppM ``complexDefinitionTrue #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+    | "COMPLETION-OF-COMPLEX" => do
+      let law ← mkAppM ``Logic.complex_completion #[vx, ← ctxValExpr cfg ctx (instantiate y)]
+      primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate complexLhs))
+        (← ctxValExpr cfg ctx (instantiate complexRhs)) law
     | "COMPLETION-OF-<" => do
       let law ← mkAppM ``completionOrderLaw #[vx, ← ctxValExpr cfg ctx (instantiate y)]
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate orderLhs))
@@ -138,7 +149,8 @@ def primitiveUseInstance? (cfg : ReplayConfig) (ctx : ReplayCtx) (name : String)
       primitiveEqualityTrue (← ctxValExpr cfg ctx (instantiate den))
         (← ctxValExpr cfg ctx (instantiate denRhs)) law
     | _ => throwError "primitive USE schema has no proof handler: {name}"
-  let pf ← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hyp, hne]
+  let pf ← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx plain, hne]
+  let pf ← foldUseInstanceProof cfg plain hyp folds pf
   return some (pf, ctx)
 
 end ACL2.Replay.Driver

@@ -269,13 +269,15 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     let citedEquivs := (cn.steps.flatMap (·.runes)).filterMap
       (fun r => if r.ty == "equivalence" then some r.name else none)
     let useHs := (cn.steps.flatMap (·.items)).filterMap fun
-      | .useHint h c a l tr => some (h, c, a, l, tr) | _ => none
+      | .useHint h c a l tr folds => some (h, c, a, l, tr, folds) | _ => none
     if useHs.length > 1 then
       throwError "replayClause: {useHs.length} :USE-HINT payloads at \
           {cn.idStr} (frontier — one payload per apply-top-hints node)"
-    if let [(hyps, constraintCl, appClauses, rawLmis, translated)] := useHs then
+    if let [(hyps, constraintCl, appClauses, rawLmis, translated, instanceFolds)] := useHs then
       let .ok lmis := resolveUseLmis rawLmis translated hyps.length
         | throwError "use-hint: invalid translated instance records at {cn.idStr}"
+      unless (instanceFolds.getD []).all List.isEmpty do
+        throwError "use-hint+clausify: variable instance folds in a functional instance (frontier)"
       return ← replayUseHintClausify cfg ctx cn info preSteps postSteps
         citedCongs citedEquivs lits hyps constraintCl appClauses lmis
     -- the formula is the clause's DISJUNCTION; for a multi-literal clause the
@@ -408,7 +410,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
   -- frontier: adding the instantiated lemma as a hypothesis is
   -- functional-instantiation/:use soundness (R7 — the following arc).
   let useHints := (cn.steps.flatMap (·.items)).filterMap fun
-    | .useHint h c a l tr => some (h, c, a, l, tr) | _ => none
+    | .useHint h c a l tr folds => some (h, c, a, l, tr, folds) | _ => none
   -- never-silently-skip (R7a audit F3, the F12 class): a node with
   -- SEVERAL payloads must not fall through to the ordinary arms below
   -- (they would chain against the goal with an unrelated failure), and
@@ -417,7 +419,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     throwError "replayClause: {useHints.length} :USE-HINT payloads at \
                 {cn.idStr} (frontier — one payload per apply-top-hints \
                 node)"
-  if let [(hyps, constraintCl, appClauses, rawLmis, translated)] := useHints then
+  if let [(hyps, constraintCl, appClauses, rawLmis, translated, instanceFolds)] := useHints then
     let .ok lmis := resolveUseLmis rawLmis translated hyps.length
       | throwError "use-hint: invalid translated instance records at {cn.idStr}"
     unless lits.isEmpty do
@@ -471,7 +473,10 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
     -- under σ, cross-check the emitted instance verbatim
     let mut hLs : List (SExpr × Expr) := []
     let mut ctxU := ctx
-    for (lmi, hypI) in lmis.zip hyps do
+    let foldGroups := instanceFolds.getD (List.replicate hyps.length [])
+    unless foldGroups.length == hyps.length do
+      throwError "use-hint: fold records do not align with hypotheses"
+    for ((lmi, hypI), folds) in (lmis.zip hyps).zip foldGroups do
       -- FUNCTIONAL-INSTANCE (R7b 2a): the offer's formula IS the
       -- substituted instance (recomputed + verbatim-checked against this
       -- very :HYPS entry at offer derivation), so the hypothesis applies
@@ -479,6 +484,8 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
       -- offers stay KEPT conditions until the a1 alias-world composition
       -- (2c) discharges them.
       if let some (thmName, σ) := lmiFnInstance? lmi then
+        unless folds.isEmpty do
+          throwError "use-hint: variable instance folds on a functional instance (frontier)"
         let [(spec, hypV)] := ctxU.useFiHyps.filter
             (fun (u, _) => u.name == thmName && u.subst == σ
               && u.formula == hypI)
@@ -495,7 +502,7 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
         | throwError "use-hint: LMI {repr lmi} at {cn.idStr} is not a bare \
             theorem name, (:INSTANCE thm (var term)…), or \
             (:FUNCTIONAL-INSTANCE thm (fn (LAMBDA …))…) — frontier"
-      if let some (hL, ctxU') ← primitiveUseInstance? cfg ctxU thmName σpairs hypI then
+      if let some (hL, ctxU') ← primitiveUseInstance? cfg ctxU thmName σpairs hypI folds then
         ctxU := ctxU'
         hLs := hLs ++ [(hypI, hL)]
         continue
@@ -505,11 +512,13 @@ partial def replayClauseWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : Repla
             surface — frontier)"
       let σvars := σpairs.map (·.1)
       let σterms := σpairs.map (·.2)
-      unless ACL2.Replay.substTerm σvars σterms spec.formula == hypI do
+      let plain := ACL2.Replay.substTerm σvars σterms spec.formula
+      unless !folds.isEmpty || plain == hypI do
         throwError "use-hint: substTerm(σ, {thmName}) ≠ the emitted :HYPS \
             instance {repr hypI} at {cn.idStr} (emission divergence)"
       let (hL, ctxU') ← instantiateEvTrueHypAt cfg ctxU hypV σvars σterms
         spec.formula
+      let hL ← foldUseInstanceProof cfg plain hypI folds hL
       ctxU := ctxU'
       hLs := hLs ++ [(hypI, hL)]
     -- the surviving application clause: read off and shape-checked as

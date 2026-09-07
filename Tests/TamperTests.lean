@@ -49,7 +49,7 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   | .clausify i => .clausify i
   -- Keep every payload argument explicit: optional constructor defaults
   -- in patterns narrow matching instead of acting as wildcards (F1).
-  | .useHint h c a l tr => .useHint h c a l tr
+  | .useHint h c a l tr folds => .useHint h c a l tr folds
   | .fcDerivations d => .fcDerivations d
   | .complementClose lit => .complementClose lit
   | .dedupDrop lit => .dedupDrop lit

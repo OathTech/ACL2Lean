@@ -64,35 +64,48 @@ def parseRunes (s : SExpr) : Except String (List Rune) :=
     | none => throw s!"bad rune in rune list: {repr r}"
   | none => throw s!"rune list is not a list: {repr s}"
 
+/-- Parse the same cons-term fold record in hypothesis relief and USE instances. -/
+def parseSubstitutionFolds (label : String) (folds : SExpr) :
+    Except String (List SubstitutionFold) := do
+  let some rows := folds.toList? | throw s!"{label}: :SUBST-FOLDS is not a list"
+  let folds ← rows.mapM fun row => do
+    let some fields := row.toList? | throw s!"{label}: substitution fold is not a plist"
+    let rec validate : List SExpr → List String → Except String Unit
+      | [], seen => unless seen.length == 3 do
+          throw s!"{label}: substitution fold requires :PATH, :LHS and :RHS"
+      | .atom (.keyword key) :: _ :: rest, seen => do
+        unless ["PATH", "LHS", "RHS"].contains key && !seen.contains key do
+          throw s!"{label}: unknown or repeated substitution fold field"
+        validate rest (key :: seen)
+      | _, _ => throw s!"{label}: malformed substitution fold plist"
+    validate fields []
+    let some path := lookupKeyword "PATH" fields | throw s!"{label}: fold path absent"
+    let some parts := path.toList? | throw s!"{label}: fold path is not a list"
+    let path ← parts.mapM fun part => match part with
+      | .atom (.number (.int i)) =>
+        if i ≥ 0 then pure i.toNat else throw s!"{label}: negative fold path index"
+      | _ => throw s!"{label}: fold path index is not an integer"
+    let some lhs := lookupKeyword "LHS" fields | throw s!"{label}: fold lhs absent"
+    let some rhs := lookupKeyword "RHS" fields | throw s!"{label}: fold rhs absent"
+    return ({ path, lhs, rhs } : SubstitutionFold)
+  return folds
+
 /-- Preserve the paired substitution fields; reject malformed fold records. -/
 def parseHypSubstitutionBasis (input folds : Option SExpr) :
     Except String (Option HypSubstitutionBasis) := do
   match input, folds with
   | none, none => return none
   | some input, some folds =>
-    let some rows := folds.toList? | throw "HYP-RELIEF: :SUBST-FOLDS is not a list"
-    let folds ← rows.mapM fun row => do
-      let some fields := row.toList? | throw "HYP-RELIEF: substitution fold is not a plist"
-      let rec validate : List SExpr → List String → Except String Unit
-        | [], seen => unless seen.length == 3 do
-            throw "HYP-RELIEF: substitution fold requires :PATH, :LHS and :RHS"
-        | .atom (.keyword key) :: _ :: rest, seen => do
-          unless ["PATH", "LHS", "RHS"].contains key && !seen.contains key do
-            throw "HYP-RELIEF: unknown or repeated substitution fold field"
-          validate rest (key :: seen)
-        | _, _ => throw "HYP-RELIEF: malformed substitution fold plist"
-      validate fields []
-      let some path := lookupKeyword "PATH" fields | throw "HYP-RELIEF: fold path absent"
-      let some parts := path.toList? | throw "HYP-RELIEF: fold path is not a list"
-      let path ← parts.mapM fun part => match part with
-        | .atom (.number (.int i)) =>
-          if i ≥ 0 then pure i.toNat else throw "HYP-RELIEF: negative fold path index"
-        | _ => throw "HYP-RELIEF: fold path index is not an integer"
-      let some lhs := lookupKeyword "LHS" fields | throw "HYP-RELIEF: fold lhs absent"
-      let some rhs := lookupKeyword "RHS" fields | throw "HYP-RELIEF: fold rhs absent"
-      return ({ path, lhs, rhs } : SubstitutionFold)
-    return some { input, folds }
+    return some { input, folds := ← parseSubstitutionFolds "HYP-RELIEF" folds }
   | _, _ => throw "HYP-RELIEF: :UNFOLDED-HYP and :SUBST-FOLDS must occur together"
+
+/-- USE folds align with the actual hypothesis/LMI order. Absent is the old format. -/
+def parseUseInstanceFolds (value : Option SExpr) (count : Nat) :
+    Except String (Option (List (List SubstitutionFold))) := do
+  let some value := value | return none
+  let some rows := value.toList? | throw "USE-HINT: :INSTANCE-FOLDS is not a list"
+  unless rows.length == count do throw "USE-HINT: :INSTANCE-FOLDS must align with :HYPS"
+  return some (← rows.mapM (parseSubstitutionFolds "USE-HINT"))
 
 /-- Preserve the selected root comparison route and its returned mask. -/
 def parseHypComparisonBasis (value : Option SExpr) :

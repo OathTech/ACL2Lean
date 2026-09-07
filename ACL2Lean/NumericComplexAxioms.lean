@@ -4,6 +4,25 @@ import ACL2Lean.NumericRecognizers
 
 namespace ACL2.Logic
 
+/-- Component completion in the primitive COMPLETION-OF-COMPLEX axiom,
+required by the actual DEFAULT-COMPLEX-1/2 USE nodes. -/
+theorem rationalValue_completed (x : SExpr) :
+    rationalValue (bif toBool (rationalp x) then x else .atom (.number (.int 0))) =
+      rationalValue x := by
+  cases x with
+  | nil | cons _ _ => rfl
+  | atom a =>
+    cases a with
+    | number n => cases n <;> rfl
+    | symbol _ | keyword _ | string _ | char _ => rfl
+
+theorem complex_completion (x y : SExpr) :
+    complex x y = complex
+      (bif toBool (rationalp x) then x else .atom (.number (.int 0)))
+      (bif toBool (rationalp y) then y else .atom (.number (.int 0))) := by
+  simp only [complex, rationalValue_completed]
+
+
 /-- The primitive COMPLEX-DEFINITION axiom, required by the recorded USE
 in COMPLEX-OPENER. Its rational premises are retained. -/
 theorem complex_definition (x y : SExpr)

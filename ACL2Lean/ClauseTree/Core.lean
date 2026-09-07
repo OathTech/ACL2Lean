@@ -598,7 +598,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
         ++ collectHypEquivs rest
   | .step _ :: rest => collectHypEquivs rest
   | .clausify _ :: rest => collectHypEquivs rest
-  | .useHint _ _ _ _ _ :: rest => collectHypEquivs rest
+  | .useHint _ _ _ _ _ _ :: rest => collectHypEquivs rest
   | .fcDerivations _ :: rest => collectHypEquivs rest
   | .complementClose _ :: rest => collectHypEquivs rest
   | .dedupDrop _ :: rest => collectHypEquivs rest
@@ -636,7 +636,7 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
       return .linearEquation info :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
-  | .useHint h c a l tr :: rest => do return .useHint h c a l tr :: (← linkItems cands rest)
+  | .useHint h c a l tr folds :: rest => do return .useHint h c a l tr folds :: (← linkItems cands rest)
   | .complementClose lit :: rest => do
       return .complementClose lit :: (← linkItems cands rest)
   | .dedupDrop lit :: rest => do
@@ -1179,7 +1179,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .literal lp :: rest => lp.nodes.flatMap proofNodesOf ++ itemNodes rest
   | .step n :: rest => proofNodesOf n ++ itemNodes rest
   | .clausify _ :: rest => itemNodes rest
-  | .useHint _ _ _ _ _ :: rest => itemNodes rest
+  | .useHint _ _ _ _ _ _ :: rest => itemNodes rest
   | .fcDerivations _ :: rest => itemNodes rest
   | .complementClose _ :: rest => itemNodes rest
   | .dedupDrop _ :: rest => itemNodes rest

@@ -3744,3 +3744,73 @@ is never a replay artifact. Each of the two affected USE instances records
 exactly the two folds above, at paths (0 1) and (1 1 1)
 (`c2-bootstrap-use-folds-records.log`). Parser/consumer integration and
 permanent bootstrap provenance remain open; no production pointer changed.
+
+
+### C2 bootstrap USE folds and two dependency replays (2026-09-07)
+
+The USE parser and tree now preserve the ordered INSTANCE-FOLDS groups,
+aligned with the actual hypotheses and translated substitutions. The common
+substitution-fold consumer checks each primitive guard, path, intermediate
+term and result; both ordinary and primitive-axiom USE instances transport
+their proof through those folds before the exact hypothesis check.
+Unsupported functional-instance folds hard-fail. COMPLETION-OF-COMPLEX is
+registered as a model-proved primitive defaxiom; the DEFAULT-COMPLEX
+**defthms** remain ordinary replay dependencies.
+
+The actual COMPLEX-0 USE premise kernel-checks with accepted axioms. Six
+mutations reject missing/dropped/duplicated folds, a changed result, a changed
+path and a missing primitive guard (`c2-bootstrap-use-folds-controls.log`).
+The completion-axiom controls also reject a changed hypothesis/substitution
+and an unregistered axiom (`c2-bootstrap-completion-use-controls.log`).
+Primitive numeric type cells cover ACL2-NUMBERP falsity and the zero-imaginary
+COMPLEX constructor; these prove only the emitted primitive type judgments,
+not the ordinary COMPLEX-0 equality theorem.
+
+From the unchanged scoped diagnostic at producer **3836441e36**:
+
+- **DEFAULT-COMPLEX-2 replays unconditionally**, with its actual declaration's
+  axioms `{propext, Classical.choice, Quot.sound}`
+  (`c2-bootstrap-default2-declaration.log`).
+- **COMPLEX-0 replays with one condition, rule:DEFAULT-COMPLEX-1**, and the
+  same accepted-axiom receipt (`c2-bootstrap-complex0-declaration.log`).
+- DEFAULT-COMPLEX-1 stops at Goal'' / literal 1: after the RATIONALP Y split,
+  ACL2 uses a selected negative EQUAL assumption in call-stack's NOT arm.
+  The previous trace has only the final true leaf. No inferred CoreSpine
+  setup memo was added. An isolated diagnostic observer now records the
+  actual selected commutative-binary assumption and the call's input,
+  query, result and path; tagging and image builds pass at **ecfff6e4a5**
+  (`c2-clausify-call-observer-tags-final.log`,
+  `c2-clausify-call-observer-image-final.log`). Its capture and consumer are
+  still in progress.
+- ADD-DEF-COMPLEX stops with `ran out of items with no closer` at Subgoal 2
+  (`c2-bootstrap-add-def-complex-focused.log`). The reconstructed tree
+  contains **three actual linear-equation insertions**, the ensuing
+  substitutions/ground folds and a child Subgoal 2'. This is an unresolved
+  replay composition frontier, not evidence that ACL2 omitted a proof.
+  The CLI's later informational DP probe was deliberately stopped without
+  an aggregate result (`c2-bootstrap-add-def-stop.json`).
+
+The affected builds pass, including Ns1UseInstances, Ns1Substitution,
+Ns1Positive, Ns1Contexts, Ns1Mod and TamperTests (**3158 jobs**,
+`c2-bootstrap-cells-affected-build.log`). The first USE consumer build failed
+on a constructor comment and an omitted ClauseItem field; both were repaired
+before the passing build (`c2-use-folds-consumer-build-rerun.log`). These are
+intermediate checks, not a new full-gate claim. Production bootstrap
+provenance/imports, C2 and **all three BVCHOP mirrors remain open**.
+
+
+The final fast-gate static checks pass
+(`c2-bootstrap-use-folds-final-static.log`). Focused `just replay` passes
+05-hints **4/4**, 06-measure **1/1** plus COUNT-DOWN termination, and
+07-mutual-recursion **2/2** plus MY-EVENP termination
+(`c2-bootstrap-use-folds-{hints,measure,mutual}-replay.log`). No golden
+change or new full-suite claim accompanies this increment.
+
+The NOT-assumption diagnostic also completes: initializer **T**, source
+unchanged at **ecfff6e4a5**, **615563 raw bytes**, archive hashes checked
+(`c2-bootstrap-call-assumptions-capture/diagnostic.json`). All **79** old
+events are unchanged after removing only CALL-ASSUMPTIONS for comparison
+(`c2-bootstrap-call-assumptions-comparison.log`). Exactly one nonempty call
+record occurs: DEFAULT-COMPLEX-1's true RATIONALP Y branch, selecting the
+negative EQUAL assumption and returning F, so NOT returns quoted T
+(`c2-bootstrap-call-assumptions-records.log`). Its parser/consumer is next.

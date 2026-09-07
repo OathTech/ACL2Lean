@@ -86,8 +86,9 @@ def tsQuotedZero : SExpr :=
 def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
   match f with
   | .cons (.atom (.symbol r)) (.cons a .nil) =>
-    if r.name == "ACL2-NUMBERP" && pos then
-      some (a, 127, ``ACL2.Replay.inTs_acl2Numberp_true)
+    if r.name == "ACL2-NUMBERP" then
+      if pos then some (a, 127, ``ACL2.Replay.inTs_acl2Numberp_true)
+      else some (a, -128, ``ACL2.Replay.inTs_acl2Numberp_false)
     else if r.name == "INTEGERP" && pos then
       some (a, 23, ``ACL2.Replay.inTs_integerp_true)
     else if r.name == "RATIONALP" then
@@ -204,6 +205,8 @@ def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
   else if op == "BINARY-*" then
     [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
      (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]
+  else if op == "COMPLEX" then
+    [(127, 1, 63, ``ACL2.Replay.inTs_complex_number_zero)]
   else []
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is

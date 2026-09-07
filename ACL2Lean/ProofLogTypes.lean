@@ -466,6 +466,8 @@ inductive TraceEvent where
       -- ACL2's actual translated variable substitutions (BUG-042); raw
       -- source instances remain above. None is the legacy log format.
       (translatedLmis : Option (List SExpr) := none)
+      -- Ordered cons-term folds from the actual variable instantiation call.
+      (instanceFolds : Option (List (List SubstitutionFold)) := none)
   /-- Clausify checkpoints (preprocess formula → clause set; emit/clausify/*):
       the input term, the neg-clause pass, per-negated-literal splits, the
       conjoined output set, and the expand-and-or marker (a replay frontier). -/

@@ -321,6 +321,7 @@ inductive ClauseItem where
       -- R7a's discharge source; [] on pre-cluster logs (hard-fail there)
       (lmis : List SExpr := [])
       (translatedLmis : Option (List SExpr) := none)
+      (instanceFolds : Option (List (List SubstitutionFold)) := none)
   /-- The clause's approved FC derivations (cluster item 4): collected at
       clause level (and partitioned out of literal chains — they are
       provenance, not chain steps); the Phase-6 consumer joins :CONCL with
@@ -490,7 +491,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
       -- the literal's net result, captured separately by findLiteralResult.
       parseProofNodesAux rest pendingChildren nodes windowTest
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
-  | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ _ :: _
+  | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ _ _ :: _
   | .fcDerivations _ :: _ | .complementClose _ :: _ | .dedupDrop _ :: _
   | .taSubst .. :: _ | .linearEquation _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
@@ -741,9 +742,9 @@ partial def parseClauseItems (events : List TraceEvent)
       -- (audit S5): RECORDED as an item, not dropped.
       let (more, rest') ← parseClauseItems rest
       return (.taSubst n f ts sn so :: more, rest')
-  | .useHint hyps ccl appC lmis translated :: rest =>
+  | .useHint hyps ccl appC lmis translated folds :: rest =>
       let (more, rest') ← parseClauseItems rest
-      return (.useHint hyps ccl appC lmis translated :: more, rest')
+      return (.useHint hyps ccl appC lmis translated folds :: more, rest')
   | .caseSplit _ _ :: rest =>
       -- Informational header (`clause/case-split`): the preceding literal split the
       -- clause into N branches. The branches themselves follow as BEGIN-BRANCH/

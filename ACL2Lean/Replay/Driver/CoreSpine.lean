@@ -146,7 +146,7 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
   | .clausify _ :: _ =>
     throwError "replayClauseSpine: clausify record in the spine at {idStr} \
                 (frontier)"
-  | .useHint _ _ _ _ _ :: _ =>
+  | .useHint _ _ _ _ _ _ :: _ =>
     throwError "replayClauseSpine: :use-hint payload in the spine at {idStr} \
                 (frontier — the use-hint arm consumes it at the clause level)"
   | .step n :: rest =>

@@ -50,13 +50,12 @@ charter or the archive carry the record.
       (REALPART-+, complex/rational comparison, rational realpart, realpart of
       a product, COMPLEX-OPENER). Its actual ELIM subtree kernel-checks;
       Subgoal 9.17 also checks under seven conditions, adding IMAGPART-+
-      and the imaginary product rule. Close DEFAULT-COMPLEX-1/2 and the
-      bootstrap component-addition proof route; a scoped capture of the six
-      required bootstrap theorems now completes and reconstructs. Replay it
-      and integrate its source/proof provenance. Finish the comparison book's
+      and the imaginary product rule. Close DEFAULT-COMPLEX-1's actual clausify NOT assumption lookup and the
+      bootstrap component-addition proof route, including ADD-DEF-COMPLEX's
+      linear-insertion/substitution composition. Integrate the scoped six-theorem
+      bootstrap capture's source/proof provenance. Finish the comparison book's
       type-alist truth lookup at Subgoal 2, and the strict helper's derived
-      linear row at Subgoal 9.12. Consume the recorded USE-instance ground
-      folds in the bootstrap proof capture. Preserve the
+      linear row at Subgoal 9.12. Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

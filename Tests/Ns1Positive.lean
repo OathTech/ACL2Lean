@@ -72,7 +72,7 @@ elab "checkActualPositiveControls" : command => Command.liftTermElabM do
     expectRefusal "missing CASES child" "child clauses differ from the recorded applications"
       (replayClause cfg {} { cn with children := cn.children.drop 1 })
     let hints := (cn.steps.flatMap (·.items)).filterMap fun
-      | .useHint hs _ apps raw tr => some (hs, apps, raw, tr) | _ => none
+      | .useHint hs _ apps raw tr _folds => some (hs, apps, raw, tr) | _ => none
     let [(hs, apps, raw, tr)] := hints | throwError "USE payload"
     primitiveUseControls cfg "POSITIVE" hs raw tr
     let clauses := apps.map (·.drop hs.length)
@@ -122,7 +122,7 @@ elab "checkActualAssociativityUseControls" : command => Command.liftTermElabM do
   let some root := cp.root | throwError "root absent"
   let some cn := useNode root | throwError "actual associativity USE absent"
   let hints := (cn.steps.flatMap (·.items)).filterMap fun
-    | .useHint hs _ _ raw tr => some (hs, raw, tr) | _ => none
+    | .useHint hs _ _ raw tr _folds => some (hs, raw, tr) | _ => none
   let [(hs, raw, tr)] := hints | throwError "actual associativity USE payload"
   withLocalDeclD `env (mkConst ``Env) fun env => do
     let cfg := Runner.mkBookConfig dev dev.toWorld (mkConst ``Ns1Arithmetic.timesWorld) env

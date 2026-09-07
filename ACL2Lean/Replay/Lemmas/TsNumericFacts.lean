@@ -64,6 +64,19 @@ theorem inTs_acl2Numberp_true {v : SExpr}
     (h : Logic.toBool (Logic.acl2Numberp v) = true) : InTs 127 v :=
   inTs_acl2Numberp (logic_acl2Numberp_ne_nil_t v ((Logic.toBool_eq_true _).mp h))
 
+/-- The nonnumber branch used by COMPLEX-0's recorded RATIONALP verdict. -/
+theorem inTs_acl2Numberp_false {v : SExpr}
+    (h : Logic.toBool (Logic.acl2Numberp v) = false) : InTs (-128) v := by
+  cases v with
+  | nil => simp only [InTs, tsIndex_nil]; decide
+  | cons a d => simp only [InTs, tsIndex_cons]; split_ifs <;> decide
+  | atom a => cases a with
+    | number _ => simp [Logic.acl2Numberp, Logic.toBool] at h
+    | symbol s => simp only [InTs, tsIndex_symbol]; split_ifs <;> decide
+    | keyword _ => simp only [InTs, tsIndex_keyword]; decide
+    | string _ => simp only [InTs, tsIndex_string]; decide
+    | char _ => simp only [InTs, tsIndex_char]; decide
+
 /-- RATIONALP's true branch is exactly T, including the complex rejection. -/
 theorem logic_rationalp_ne_nil_t (v : SExpr)
     (h : Logic.rationalp v ≠ SExpr.nil) : Logic.rationalp v = SExpr.t := by
@@ -331,6 +344,17 @@ theorem zero_of_inTs1 {v : SExpr} (h : InTs 1 v) :
     split_ifs at h <;> contradiction
   subst n
   rfl
+
+/-- Numeric/zero constructor cell in COMPLEX-0's recorded context alias.
+The imaginary component is zero, so the canonical constructor is rational. -/
+theorem inTs_complex_number_zero {a b : SExpr} (_ha : InTs 127 a) (hb : InTs 1 b) :
+    InTs 63 (Logic.complex a b) := by
+  rw [zero_of_inTs1 hb]
+  apply inTs_rationalp_true
+  change Logic.toBool (Logic.rationalp
+    (.atom (.number (Number.fromRat (Logic.rationalValue a))))) = true
+  unfold Number.fromRat
+  split <;> rfl
 
 /-- Integer multiplication at INTEGERP-MOD's emitted argument leaves. -/
 theorem inTs_times_int {a b : SExpr} (ha : InTs 23 a) (hb : InTs 23 b) :

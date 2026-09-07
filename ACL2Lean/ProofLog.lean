@@ -440,7 +440,8 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
             | some ts => pure (some ts)
             | none => throw "USE-HINT: :TRANSLATED-LMI-LST not a list"
         let _ ← resolveUseLmis lmis translated hyps.length
-        pure (.useHint hyps ccl appC lmis translated)
+        let folds ← parseUseInstanceFolds (lookupKeyword "INSTANCE-FOLDS" rest) hyps.length
+        pure (.useHint hyps ccl appC lmis translated folds)
     | .atom (.keyword "CLAUSIFY-INPUT") :: rest =>
         let term ← lookupKeyword "TERM" rest
           |>.elim (throw "CLAUSIFY-INPUT: missing :TERM") pure
