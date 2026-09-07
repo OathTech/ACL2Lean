@@ -410,10 +410,19 @@ structure ClausifyCallAssumption where
   path : List (Bool × SExpr)
   deriving Repr, Inhabited, BEq
 
+/-- The actual post-rewrite HIDE edit selected by simplify-clause1. -/
+structure UnhideLiteralSelection where
+  inputClause : List SExpr
+  position : Nat
+  oldLiteral : SExpr
+  newLiteral : SExpr
+  deriving Repr, Inhabited
+
 /-- A trace event from ACL2's detailed rewriter output.
     These appear inside the :REWRITES field of a waterfall step. -/
 inductive TraceEvent where
   | linearEquation (info : LinearEquationInsertion)
+  | unhideLiteral (info : UnhideLiteralSelection)
   | rewriteStep (step : RewriteStep)
   | ifTestTrue (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)
   | ifTestFalse (test : SExpr) (unrewrittenTest : SExpr) (justification : SExpr)

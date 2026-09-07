@@ -225,6 +225,7 @@ partial def clauseSubtreeTerms (cn : ClauseNode) : List SExpr :=
       | .taSubst n f _ sn so => [n, f, sn, so]
       | .linearEquation info => info.parentClause ++ info.inputClause ++
           info.outputClause ++ [info.newLiteral]
+      | .unhideLiteral info => info.inputClause ++ [info.oldLiteral, info.newLiteral]
       | .branch _ items => items.flatMap goI
     goI it
   cn.inputClause ++ cn.steps.flatMap (·.items.flatMap itemTerms)

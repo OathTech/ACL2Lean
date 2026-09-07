@@ -12,6 +12,7 @@ import ACL2Lean.Replay.Driver.Waterfall.LiteralVerdict
 import ACL2Lean.Replay.Driver.Waterfall.LinearSubstitution
 import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
 import ACL2Lean.Replay.Driver.Waterfall.Fertilize
+import ACL2Lean.Replay.Driver.Waterfall.Unhide
 import ACL2Lean.Replay.Driver.Waterfall.Elim
 import ACL2Lean.Replay.Driver.Waterfall.Generalize
 import ACL2Lean.Replay.Driver.Waterfall.Subsumed
@@ -49,6 +50,10 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
         | none => "end"
       return m!"{idStr} {item}, {ctx.litFacts.length} literal facts") do
   match items with
+  | .unhideLiteral info :: rest =>
+    unless clauseLits.isEmpty && rest.isEmpty do
+      throwError "UNHIDE-LITERAL: edit must follow the complete literal scan at {idStr}"
+    replaySelectedUnhide rec cfg ctx idStr accClause info children
   | .linearEquation info :: rest =>
     unless accClause.isEmpty do throwError "linear equation: insertion after partial literal scan at {idStr}"
     replayLinearInsertion rec cfg ctx idStr (clauseLits.map (·.2)) info rest children fun output =>
@@ -871,10 +876,15 @@ partial def replayClauseSpineWith (rec : ClauseRec) (cfg : ReplayConfig) (ctx : 
     -- post-split steps — remove-trivial-equivalences, its evaluations —
     -- before that clause's BEGIN-BRANCH) belong to the FOLLOWING branch's
     -- continuation: regroup each maximal `.step` run into the next branch.
-    -- Nothing else may follow at this level; trailing steps with no branch
-    -- hard-fail.
+    -- The recorded HIDE postpass follows the entire unchanged scan. Carry
+    -- that one directive through its unique continuation, consuming it only
+    -- after the last literal. Other trailing items still hard-fail.
+    if rest.any (fun | .unhideLiteral _ => true | _ => false) then
+      unless (match rest with | [.branch _ _, .unhideLiteral _] => true | _ => false) do
+        throwError "UNHIDE-LITERAL: postpass requires one unchanged continuation at {idStr}"
     let rec regroup : List ClauseItem → Except String (List (SExpr × List ClauseItem))
       | [] => pure []
+      | [.branch seg its, .unhideLiteral info] => pure [(seg, its ++ [.unhideLiteral info])]
       | items => do
         let pre := items.takeWhile (fun | .step _ => true | _ => false)
         match items.drop pre.length with

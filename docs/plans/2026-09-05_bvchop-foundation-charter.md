@@ -4749,3 +4749,83 @@ Final affected targets pass 3166 jobs
 The exact-context inspector confirms that literal 9's selected `(< S '0)`
 is the later literal 12 in Goal 9.17.1' (`c2-strict-exact-context.log`).
 This is a fast-gate checkpoint, with no new full-suite or product claim.
+
+
+### C2 selected HIDE edit and imaginary-unit product (2026-09-07)
+
+Whole IMAGPART-OF-*-OF-I now replays unconditionally at the quotient consumer
+world, with the accepted axiom set. The same run preserves all six scoped
+bootstrap declarations, both COMPLEX-SPLIT declarations, REALPART-REDEF and
+IMAGPART-WHEN-RATIONALP (`c2-unhide-selection-controls-ordered.log`). This
+closes an ordinary dependency through its recorded tree; production capture
+promotion, C2 and all three BVCHOP mirrors remain open.
+
+Diagnostic producer `18af17e7a7` records the selected position and exact
+input/old/new literal in `simplify-clause1`, after `unhidden-lit-info`
+succeeds following an unchanged rewrite pass. The existing raw-code function
+inventory already covers that function. Hermetic image and tagging checks
+pass (`c2-unhide-selection-image.log`, `c2-unhide-selection-tags.log`). The
+unchanged full imagpart source recaptures **9/9**, with source SHA
+`1f5f3524d38d5cc97fdb7bb5f42471e6c61626a193442d21f7143ebcbc383036`.
+Its one actual UNHIDE-LITERAL record is Goal'5', position 0. All **122**
+events compare unchanged after removing only this new record and the newer
+producer's USE-fold/call-assumption fields from the comparison value
+(`c2-unhide-selection-imagpart-comparison-fields.log`). The older capture
+predates those fields; the initial HIDE-only comparison therefore fails.
+No normalized comparison value is a replay artifact.
+
+The parser retains the selected edit as a typed clause item and rejects it
+inside a literal window. The spine carries that actual directive through
+the scan's unique continuation, consuming it once after every literal has
+replayed. The consumer checks the accumulated input, selected position and
+old/new literals, changes exactly that occurrence, and requires a unique
+matching actual child. The checked existing HIDE equation supplies the
+literal equality; positional congruence connects the clauses. No child
+artifact, inferred unwrap or unrecorded NIL cleanup is introduced. Eleven
+replay mutations reject (`c2-unhide-selection-controls-ordered.log`), and
+nine parser/tree mutations reject (`c2-unhide-parser-controls-rerun.log`).
+The first parser probe had an invalid scratch list accessor; it is not a
+passing receipt.
+
+The complete tree then exposed Goal'9's recorded linear verdict. Its sum
+of two imaginary components equals X. The numeric equality view retains
+the guard that X is a number while comparing canonical components, keeping
+the product abstract. This representation normalization closes the actual
+leaf in **40 ms** in the prototype and **174 ms** in the production checker,
+with accepted axioms (`c2-imagpart-i-component-equality-final.log`,
+`c2-imagpart-i-final-leaf-production-ordered.log`). Initial prototypes exposed
+a quotation syntax error and a remaining propositional conjunction; those
+failed receipts precede the checked prototype. The normalization is confined
+to emitted verdict leaves; ordinary component theorems continue to replay.
+
+Trying the new normalizer before the existing successful completion checks
+regressed REALPART-+ within its fixed leaf budget
+(`c2-unhide-selection-controls-final.log`). Putting it after those checks
+restores all six bootstrap declarations and closes the new leaf. No resource
+limit changes. The core build passes **3150 jobs**
+(`c2-unhide-component-equality-order-build.log`). The first affected build
+found the new clause-item case missing in TamperTests' node mapper; the
+mapper now retains it. The next affected run was stopped with exit 143 when
+the normalization order changed. Neither is a passed gate. Final affected
+builds and focused replay are recorded below before this intermediate
+fast-gate commit; no full-suite claim or producer promotion is made here.
+
+Final affected targets pass **3167 jobs**, including TamperTests, and
+statics pass with **276 reachable sources**
+(`c2-unhide-selection-affected-build-ordered.log`,
+`c2-unhide-selection-static-staged.log`). The next component probe preserves
+unconditional IMAGPART-OF-*-OF-I and COMMUTATIVITY-2-OF-*; imaginary ARG1
+retains an unproved nonnumeric-Y verdict. Imaginary ARG2 keeps its USE of
+ARG1, the real-product I/ARG1 declarations keep the imaginary ARG2 rule,
+and real ARG2 keeps its USE of real ARG1. All registered declarations have
+accepted axioms (`c2-component-products-after-unhide.log`). Its three initial
+registry labels say bootstrap world; the script actually reflects the
+quotient consumer world. No conditional declaration is reported as complete.
+
+Focused equality-reasoning replay passes **3/3 unconditionally**, with both
+DP leaves checked. Reverse replay passes **5/5 unconditionally**, with three
+standalone DP leaves checked; their existing informational totality/TP
+brackets remain (`c2-unhide-selection-equality-replay.log`,
+`c2-unhide-selection-rev-replay.log`). Executable build: **6288 jobs**.
+This is an intermediate **fast-gate** checkpoint; the last full-suite and
+21-product receipts are unchanged.

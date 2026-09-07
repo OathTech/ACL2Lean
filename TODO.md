@@ -57,7 +57,8 @@ charter or the archive carry the record.
       literal-retention route (BUG-055). Use the now-unconditional six bootstrap
       declarations and three supporting
       declarations to close the remaining ordinary component-product dependencies
-      (IMAGPART-OF-*-OF-I now reaches selected HIDE removal, BUG-057; then ARG1). Preserve the
+      (ARG1 follows the now-unconditional IMAGPART-OF-*-OF-I). Promote the
+      selected HIDE observer and capture (BUG-057). Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

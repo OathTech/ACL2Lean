@@ -606,6 +606,7 @@ private partial def collectHypEquivs : List ClauseItem → List (EquivSource × 
   -- The insertion consumer establishes this equation at its own position;
   -- it is not an already-available literal/IH for the global linker.
   | .linearEquation _ :: rest => collectHypEquivs rest
+  | .unhideLiteral _ :: rest => collectHypEquivs rest
   | .branch _ items :: rest => collectHypEquivs items ++ collectHypEquivs rest
 
 /-- The hypotheses a clausify-branch SEGMENT contributes inside its branch:
@@ -634,6 +635,8 @@ private partial def linkItems (cands : List (EquivSource × SExpr))
       return .literal { lp with nodes } :: (← linkItems cands rest)
   | .linearEquation info :: rest => do
       return .linearEquation info :: (← linkItems cands rest)
+  | .unhideLiteral info :: rest => do
+      return .unhideLiteral info :: (← linkItems cands rest)
   | .step n :: rest => do return .step n :: (← linkItems cands rest)
   | .clausify info :: rest => do return .clausify info :: (← linkItems cands rest)
   | .useHint h c a l tr folds :: rest => do return .useHint h c a l tr folds :: (← linkItems cands rest)
@@ -1185,6 +1188,7 @@ private partial def itemNodes : List ClauseItem → List ProofNode
   | .dedupDrop _ :: rest => itemNodes rest
   | .taSubst .. :: rest => itemNodes rest
   | .linearEquation _ :: rest => itemNodes rest
+  | .unhideLiteral _ :: rest => itemNodes rest
   | .branch _ items :: rest => itemNodes items ++ itemNodes rest
 
 private def allProofNodes (cp : ClauseProof) : List ProofNode :=

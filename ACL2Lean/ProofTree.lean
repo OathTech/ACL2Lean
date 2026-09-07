@@ -312,6 +312,8 @@ structure ClausifyInfo where
 inductive ClauseItem where
   /-- A recorded linear equation insertion before trivial substitution. -/
   | linearEquation (info : LinearEquationInsertion)
+  /-- The selected clause edit after an unchanged rewrite pass. -/
+  | unhideLiteral (info : UnhideLiteralSelection)
   | literal (lp : LiteralProof)
   | step (node : ProofNode)
   | branch (segment : SExpr) (items : List ClauseItem)
@@ -500,7 +502,7 @@ partial def parseProofNodesAux (events : List TraceEvent)
   | .beginLiteral _ _ _ :: _ | .endLiteral _ _ _ :: _ | .beginBranch _ :: _
   | .endBranch :: _ | .caseSplit _ _ :: _ | .useHint _ _ _ _ _ _ :: _
   | .fcDerivations _ :: _ | .complementClose _ :: _ | .dedupDrop _ :: _
-  | .taSubst .. :: _ | .linearEquation _ :: _
+  | .taSubst .. :: _ | .linearEquation _ :: _ | .unhideLiteral _ :: _
   | .clausifyInput _ :: _ | .clausifyNeg _ :: _ | .clausifySplit _ _ :: _
   | .clausifyOut _ :: _ | .clausifyExpand _ _ _ _ :: _ =>
       -- A clause-structure boundary: stop and hand the remaining events back to
@@ -696,6 +698,8 @@ partial def parseClauseItems (events : List TraceEvent)
           2026-08-03 F7)"
       if litEvents.any (fun | .linearEquation _ => true | _ => false) then
         throw s!"parseClauseItems: LINEAR-EQUATION inside literal {index}'s window"
+      if litEvents.any (fun | .unhideLiteral _ => true | _ => false) then
+        throw s!"parseClauseItems: UNHIDE-LITERAL inside literal {index}'s window"
       let compCloses := litEvents.filterMap fun
         | .complementClose l => some l
         | _ => none
@@ -744,6 +748,9 @@ partial def parseClauseItems (events : List TraceEvent)
   | .linearEquation info :: rest =>
       let (more, rest') ← parseClauseItems rest
       return (.linearEquation info :: more, rest')
+  | .unhideLiteral info :: rest =>
+      let (more, rest') ← parseClauseItems rest
+      return (.unhideLiteral info :: more, rest')
   | .taSubst n f ts sn so :: rest =>
       -- clause-level ta-subst provenance outside any literal window
       -- (audit S5): RECORDED as an item, not dropped.

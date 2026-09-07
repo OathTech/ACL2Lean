@@ -211,4 +211,27 @@ def parseLinearEquation (rest : List SExpr) : Except String TraceEvent := do
     polyPairs := ← readList "POLY-PAIRS", assumptions := ← readList "ASSUMPTIONS",
     runes := ← parseRunes (← required "RUNES") })
 
+/-- Decode a selected HIDE edit without reconstructing it from the child. -/
+def parseUnhideLiteral (rest : List SExpr) : Except String TraceEvent := do
+  let rec validate : List SExpr → List String → Except String Unit
+    | [], seen => unless seen.length == 5 do throw "UNHIDE-LITERAL: missing fields"
+    | .atom (.keyword key) :: _ :: rest, seen => do
+      unless ["ORIGIN", "INPUT-CLAUSE", "POSITION", "OLD-LITERAL", "NEW-LITERAL"].contains key &&
+          !seen.contains key do throw "UNHIDE-LITERAL: unknown or repeated field"
+      validate rest (key :: seen)
+    | _, _ => throw "UNHIDE-LITERAL: malformed property list"
+  validate rest []
+  let required (key : String) : Except String SExpr :=
+    (lookupKeyword key rest).elim (throw s!"UNHIDE-LITERAL: missing :{key}") pure
+  unless (← required "ORIGIN") == .atom (.symbol {name := "SIMPLIFY-CLAUSE/UNHIDE-LITERAL"}) do
+    throw "UNHIDE-LITERAL: unsupported origin"
+  let some inputClause := (← required "INPUT-CLAUSE").toList?
+    | throw "UNHIDE-LITERAL: input clause is not a list"
+  let .atom (.number (.int position)) ← required "POSITION"
+    | throw "UNHIDE-LITERAL: position is not an integer"
+  unless position ≥ 0 do throw "UNHIDE-LITERAL: negative position"
+  return (.unhideLiteral {
+    inputClause := inputClause, position := position.toNat,
+    oldLiteral := ← required "OLD-LITERAL", newLiteral := ← required "NEW-LITERAL" })
+
 end ACL2.ProofLog

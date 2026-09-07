@@ -51,6 +51,16 @@ merely to match the desired child. Source: diagnostic
 actual tree: `.tmp/ns1/c2-imagpart-i-use-tree.log`; replay receipt:
 `.tmp/ns1/c2-component-product-imag-i-declarations.log`.
 
+Diagnostic producer `18af17e7a7` now emits this edit at its actual source
+branch. The unchanged imagpart book recaptures 9/9; Goal'5' records position
+0 and the exact old/new literals. The typed consumer replays the complete
+unchanged scan, applies the selected edit using the existing checked HIDE
+equation, and replays the matching real child. Eleven replay mutations and
+nine parser/tree mutations reject. With its final recorded linear verdict
+also checked, whole IMAGPART-OF-*-OF-I replays unconditionally at the quotient
+world (`c2-unhide-selection-controls-ordered.log`). Production promotion of
+the observer and capture remains open.
+
 ## BUG-056 — clausify NOT lookup omits the selected noncommutative assumption
 Status: open
 Pinned-by: none (proof-capture evidence, not interpreter values)

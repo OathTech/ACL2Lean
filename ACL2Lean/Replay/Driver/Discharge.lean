@@ -170,6 +170,7 @@ def itemDischargeOrigins : ClauseItem → List (String × SExpr)
   | .dedupDrop _ => []
   | .taSubst .. => []
   | .linearEquation _ => [] -- insertion is not a verdict-only closing leaf
+  | .unhideLiteral _ => [] -- a recorded clause edit, not a verdict-only leaf
   | .branch _ items => items.flatMap itemDischargeOrigins
 
 /-- Per-theorem verdict-only leaves — `(clauseId, origin, discharged clause)`.
@@ -784,6 +785,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- Component completion must precede that expansion too: the bootstrap's
   -- nonnumeric verdict leaf otherwise expands products that already vanish.
   let normalizeTac ← if withComplexValues then do
+    let componentEqualityTac ← dpComponentEqualityTactic
     let additiveTac ← dpPrimitiveAdditiveTactic
     let zeroTac ← dpComponentZeroTactic
     let cancellationTac ← dpAdditiveCancellationTactic
@@ -792,6 +794,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
       | (solve | $zeroTac:tactic)
       | (solve | $cancellationTac:tactic)
       | (solve | $additiveTac:tactic)
+      | (solve | $componentEqualityTac:tactic)
       | (try simp_all only [Logic.realpart_nonnumber, Logic.imagpart_nonnumber]) <;>
         (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>
         (try simp_all only [Logic.complex, Logic.rationalValue_zero_of_nonrational,

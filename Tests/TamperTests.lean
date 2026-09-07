@@ -55,6 +55,7 @@ private partial def mapItem (f : ProofNode → ProofNode) : ClauseItem → Claus
   | .dedupDrop lit => .dedupDrop lit
   | .taSubst n f ts sn so => .taSubst n f ts sn so
   | .linearEquation info => .linearEquation info
+  | .unhideLiteral info => .unhideLiteral info
 
 private partial def mapClause (f : ProofNode → ProofNode) (n : ClauseNode) : ClauseNode :=
   { n with

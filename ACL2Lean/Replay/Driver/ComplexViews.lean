@@ -6,6 +6,34 @@ import ACL2Lean.NumericPositive
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+private theorem guardedNumberEquality (a b : SExpr) (ha : Logic.acl2Numberp a ≠ .nil) :
+    a = b ↔ Logic.acl2Numberp b ≠ .nil ∧ Logic.numberParts a = Logic.numberParts b := by
+  constructor
+  · intro h
+    exact ⟨h ▸ ha, congrArg Logic.numberParts h⟩
+  · rintro ⟨hb, h⟩
+    exact (Logic.number_eq_iff a b ha hb).mpr h
+
+private theorem plusNumber (a b : SExpr) : Logic.acl2Numberp (Logic.plus a b) ≠ .nil := by
+  rw [Logic.plus_parts]
+  change SExpr.t ≠ SExpr.nil
+  decide
+
+/-- Preserve the numeric guard when a verdict's equality identifies a sum
+    or component with an arbitrary value. Then compare canonical components,
+    keeping products abstract. The first witness is IMAGPART-OF-*-OF-I's
+    final linear verdict: its sum equality supplies the required guard. -/
+def dpComponentEqualityTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp only [dpHideValue, logic_not_equal_nil_iff, Logic.equal_ne_nil_iff] at * <;>
+    simp (disch := first | exact plusNumber _ _ | assumption |
+      (simp only [ne_eq, Logic.acl2Numberp_nil_iff, Logic.rationalp_realpart,
+        Logic.rationalp_imagpart, SExpr.t, reduceCtorEq, false_and, not_false_eq_true])) only
+      [guardedNumberEquality] at * <;>
+    simp_all only [Logic.plus_parts, Logic.numberParts_mkParts, Logic.numberParts_imagpart,
+      Logic.numberParts_realpart, Prod.ext_iff, Prod.fst, Prod.snd, Rat.zero_add, Rat.add_zero] <;>
+    grind only [Rat.zero_add])
+
 /-- Normalize primitive sums using the equalities of an emitted verdict leaf.
 Keeping other numeric operations abstract preserves those recorded premises. -/
 def dpPrimitiveAdditiveTactic : MetaM (TSyntax `tactic) :=

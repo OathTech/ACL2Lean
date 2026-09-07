@@ -209,6 +209,7 @@ private def parseTraceEvent (s : SExpr) : Except String TraceEvent := do
           | none => throw "CASE-SPLIT: missing :NUM-BRANCHES"
         pure (.caseSplit litIdx numBranches)
     | .atom (.keyword "LINEAR-EQUATION") :: rest => parseLinearEquation rest
+    | .atom (.keyword "UNHIDE-LITERAL") :: rest => parseUnhideLiteral rest
     | .atom (.keyword "BRANCH-SUBSTITUTION") :: rest =>
         let equivalence ← lookupKeyword "EQUIVALENCE" rest
           |>.elim (throw "BRANCH-SUBSTITUTION: missing :EQUIVALENCE") pure

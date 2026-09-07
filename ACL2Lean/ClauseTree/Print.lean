@@ -93,6 +93,9 @@ partial def printClauseItems (items : List ACL2.ClauseItem)
       IO.println s!"{pad}  │    complement-close: {lit}"
     | .dedupDrop lit =>
       IO.println s!"{pad}  │    dedup-drop: {lit}"
+    | .unhideLiteral info =>
+      IO.println s!"{pad}  │    unhide literal at position {info.position}: {info.oldLiteral} ⇒ {info.newLiteral}"
+      IO.println s!"{pad}  │      input clause: {info.inputClause}"
     | .linearEquation info =>
       IO.println s!"{pad}  │    linear equation insertion: {info.newLiteral}"
       IO.println s!"{pad}  │      parent clause: {info.parentClause}"
