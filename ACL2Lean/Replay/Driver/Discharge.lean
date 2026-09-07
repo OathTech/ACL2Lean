@@ -760,7 +760,8 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   let withComparison := (stmt.find? (fun e => e.isConstOf ``Logic.lt)).isSome
   let withReciprocal := (stmt.find? (fun e => e.isConstOf ``Logic.reciprocal)).isSome
   let withImplication := (stmt.find? (fun e => e.isConstOf ``Logic.implies)).isSome
-  let withComplexConstructor := (stmt.find? (·.isConstOf ``Logic.complex)).isSome
+  let withComplexValues := (stmt.find? fun e => e.isConstOf ``Logic.complex ||
+    e.isConstOf ``Logic.realpart || e.isConstOf ``Logic.imagpart).isSome
   let tac ← dpLeafTactic withNumericOrder withNegation withComparison withReciprocal withImplication
   -- Normalize equalities for the unsplit attempt. This closes structural
   -- leaves without enumerating the numeric domain (the real EQUAL-CONS tau
@@ -782,12 +783,14 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- tau leaf from its nonrational argument, before field-view expansion.
   -- Component completion must precede that expansion too: the bootstrap's
   -- nonnumeric verdict leaf otherwise expands products that already vanish.
-  let normalizeTac ← if withComplexConstructor then do
+  let normalizeTac ← if withComplexValues then do
     let additiveTac ← dpPrimitiveAdditiveTactic
     let zeroTac ← dpComponentZeroTactic
+    let cancellationTac ← dpAdditiveCancellationTactic
     `(tactic|
       first
       | (solve | $zeroTac:tactic)
+      | (solve | $cancellationTac:tactic)
       | (solve | $additiveTac:tactic)
       | (try simp_all only [Logic.realpart_nonnumber, Logic.imagpart_nonnumber]) <;>
         (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>
@@ -796,7 +799,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
           show Logic.mkParts (0 : Rat) 0 = .atom (.number (.int (Int.ofNat 0))) from rfl,
           Logic.equal_ne_nil_iff, SExpr.t, reduceCtorEq]) <;> (try rfl) <;> $normalizeTac:tactic)
     else pure normalizeTac
-  let directTac ← if withImplication || withComplexConstructor then pure tac else
+  let directTac ← if withImplication || withComplexValues then pure tac else
     `(tactic| $normalizeTac:tactic <;> $tac:tactic)
   -- Full numeric products admit a field representation, including the
   -- complex-rational values. This remains inside the existing bounded
@@ -846,7 +849,7 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
         let g ← assertDpOrderFacts g
         let g ← assertDpEqualNilComm g
         let intTac ← dpIntegerViewTactic
-        let normalized ← if withImplication || withComplexConstructor then
+        let normalized ← if withImplication || withComplexValues then
           runDpTactic g normalizeTac else pure [g]
         let goals ← normalized.flatMapM fun g =>
           normalizeDpIntegerViews g (fun g => runDpTactic g intTac)

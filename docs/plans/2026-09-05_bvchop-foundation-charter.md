@@ -4609,3 +4609,41 @@ passes 3/3 unconditionally, with both DP leaves checked, after the 6284-job
 executable build (`c2-component-reconstruction-use-affected-build.log`,
 `c2-component-reconstruction-use-equality-replay.log`). This is a fast-gate
 checkpoint; the last full-gate and product counts are unchanged.
+
+
+### C2 complete REALPART-REDEF diagnostic replay (2026-09-07)
+
+The complete captured REALPART-REDEF declaration now replays unconditionally
+at the quotient consumer world, with accepted axioms. The same run checks
+all six scoped bootstrap declarations and both COMPLEX-SPLIT declarations
+(`c2-component-redef-declarations.log`). This closes another ordinary
+component dependency through its actual USE, preprocessing and clause tree.
+
+Its Goal'' literal 2 positive type-set verdict uses the actual nonnumeric
+X context. Primitive component completion, multiplication by zero, negated
+zero and FIX completion construct a checked prototype in 8 ms. The separate
+Goal''' linear verdict uses its emitted sum equality and primitive additive
+inverse/zero laws; its prototype constructs in 5 ms. The production leaf
+checker constructs them in 74 ms and 83 ms respectively, then kernel-checks
+with accepted axioms (`c2-component-redef-nonnumber-production.log`,
+`c2-component-redef-inverse-production.log`). No budget changes. The first
+zero prototype exposed simp's distinction between numeral and reflected
+Int.ofNat zero in its index; the same checked multiplication law at the
+component's numeral form resolves it. Initial failed prototype receipts
+are not production passes.
+
+The existing component normalizer now also runs when a leaf retains only
+REALPART/IMAGPART, after its COMPLEX constructor has been opened. The zero
+and additive-inverse routes are confined to emitted verdict leaves; no
+ordinary component theorem is hand-proved. Core build passes 3148 jobs
+(`c2-component-redef-leaves-build.log`) and statics pass with 274 reachable
+sources (`c2-component-redef-leaves-static.log`). Affected targets and
+focused replay follow before this intermediate fast-gate commit. The IFF
+constant-test route in IMAGPART-OF-*-OF-I and product ARG1 remain open.
+
+Final affected targets pass 3165 jobs, and equality-reasoning replay passes
+3/3 unconditionally with both DP leaves checked, after the 6284-job executable
+build (`c2-component-redef-leaves-affected-build.log`,
+`c2-component-redef-leaves-equality-replay.log`). This is a fast-gate
+checkpoint. C2, production bootstrap provenance and all three NS1 mirrors
+remain open; no new full-suite receipt is claimed.

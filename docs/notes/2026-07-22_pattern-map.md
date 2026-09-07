@@ -820,7 +820,9 @@ No pattern books exist yet — authoring them is the arc's work.
   provenance remains open. Primitive REALPART-IMAGPART-ELIM USE now closes
   both captured COMPLEX-SPLIT declarations at the quotient consumer world
   (three actual USE premises, nine rejected mutations). REALPART-REDEF
-  reaches a separate nonnumeric literal verdict and remains incomplete.
+  also replays wholly and unconditionally after checking its actual
+  nonnumeric literal verdict and additive-inverse linear verdict. All
+  declarations carry accepted-axiom receipts.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

@@ -56,7 +56,8 @@ charter or the archive carry the record.
       strict helper's remaining component rules. Promote the recorded
       literal-retention route (BUG-055). Use the now-unconditional six bootstrap
       declarations and three supporting
-      declarations to close the ordinary component-product dependencies. Preserve the
+      declarations to close the remaining ordinary component-product dependencies
+      (the recorded IFF constant-test route in IMAGPART-OF-*-OF-I, then ARG1). Preserve the
       actual guard children and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.

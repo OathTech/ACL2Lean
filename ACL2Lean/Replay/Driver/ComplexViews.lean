@@ -1,5 +1,6 @@
 import ACL2Lean.Replay.Driver.NodeCore
 import ACL2Lean.NumericComplexView
+import ACL2Lean.NumericNegation
 import ACL2Lean.NumericPositive
 
 namespace ACL2.Replay.Driver
@@ -11,12 +12,33 @@ def dpPrimitiveAdditiveTactic : MetaM (TSyntax `tactic) :=
   `(tactic| simp_all only [logic_not_equal_nil_iff, Logic.equal_ne_nil_iff,
     Logic.plus_assoc, Logic.plus_comm, Logic.plus_left_comm])
 
+private theorem subtractSummand (a b c : SExpr)
+    (ha : Logic.acl2Numberp a ≠ .nil) (h : Logic.plus a b = c) :
+    a = Logic.plus c (Logic.neg b) := by
+  rw [← h, Logic.plus_assoc, Logic.plus_neg_right, Logic.plus_zero_right_fix,
+    Logic.fix_of_number a ha]
+
+/-- Cancel a summand using the equality in a recorded arithmetic verdict.
+The numeric guard is checked from the leaf context or component range law. -/
+def dpAdditiveCancellationTactic : MetaM (TSyntax `tactic) :=
+  `(tactic| simp only [logic_not_equal_nil_iff, Logic.equal_ne_nil_iff] at * <;>
+    apply subtractSummand <;> first | assumption |
+      (simp only [ne_eq, Logic.acl2Numberp_nil_iff, Logic.rationalp_realpart,
+        Logic.rationalp_imagpart, SExpr.t, reduceCtorEq, false_and, not_false_eq_true]))
+
 /-- Complete components at an emitted verdict leaf before expanding numeric
 constructors. The zero equation leaves FIX, whose numeric guard is checked
 from the component recognizer law. -/
 def dpComponentZeroTactic : MetaM (TSyntax `tactic) :=
   `(tactic| simp_all only [Logic.realpart_nonnumber,
     Logic.imagpart_nonnumber, Logic.equal_ne_nil_iff] <;>
+    (try simp_all only [
+      -- Component completion produces the numeral form of zero; captured
+      -- literals use Int.ofNat. Both are the same checked primitive law.
+      show ∀ a, Logic.times a (.atom (.number (.int 0))) =
+        .atom (.number (.int 0)) from Logic.times_zero_right,
+      show Logic.neg (.atom (.number (.int 0))) = .atom (.number (.int 0)) from rfl,
+      Logic.plus_zero_right_fix, Logic.fix_nonnumber]) <;>
     (try simp (disch := simp only [ne_eq, Logic.acl2Numberp_nil_iff,
       Logic.rationalp_realpart, Logic.rationalp_imagpart, SExpr.t,
       reduceCtorEq, false_and, not_false_eq_true]) only

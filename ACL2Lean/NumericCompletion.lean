@@ -32,6 +32,12 @@ theorem mkParts_numberParts (v : SExpr) :
         simp [numberParts, mkParts, Number.fromParts, hi, fix]
     | _ => rfl
 
+/-- FIX completes an explicitly nonnumeric value to zero. -/
+theorem fix_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    fix v = .atom (.number (.int 0)) := by
+  rw [← mkParts_numberParts, numberParts_nonnumber h]
+  rfl
+
 /-- The primitive UNICITY-OF-0 equation, on the full ACL2 value universe. -/
 theorem plus_zero_fix (v : SExpr) :
     plus (.atom (.number (.int 0))) v = fix v := by
