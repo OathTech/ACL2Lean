@@ -84,6 +84,7 @@ def callBuiltin (name : String) (args : List SExpr) : Option SExpr :=
   | "FIX", [a] => some (Logic.fix a)
   | "NFIX", [a] => some (Logic.nfix a)
   | "IFIX", [a] => some (Logic.ifix a)
+  | "REALFIX", [a] => some (Logic.realfix a)
   | "IMPLIES", [a, b] => some (Logic.implies a b)
   | "IFF", [a, b] => some (Logic.iff a b)
   | "TRUE-LISTP", [a] => some (Logic.trueListp a)
@@ -120,7 +121,7 @@ def builtinNames : List String :=
    "BINARY-+", "BINARY-*", "UNARY--", "UNARY-/", "+", "-", "*", "1+", "1-",
    "<", "INTEGERP", "NATP", "POSP", "RATIONALP", "ACL2-NUMBERP", "ZP",
    "SYMBOLP", "BOOLEANP", "STRINGP", "CHARACTERP", "CHAR-CODE", "CODE-CHAR",
-   "FIX", "NFIX", "IFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
+   "FIX", "NFIX", "IFIX", "REALFIX", "IMPLIES", "IFF", "TRUE-LISTP", "LEN", "LEXORDER",
    "EVENP", "ODDP", "EXPT", "STRING-APPEND", "NUMERATOR", "DENOMINATOR",
    "REALPART", "IMAGPART", "COMPLEX-RATIONALP", "COMPLEX", "COERCE",
    "LIST", "FORCE", "DOUBLE-REWRITE", "HIDE"]

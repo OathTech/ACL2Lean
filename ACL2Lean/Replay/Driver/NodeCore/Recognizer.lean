@@ -126,14 +126,11 @@ partial def replayRecognizer (cfg : ReplayConfig) (ctx : ReplayCtx)
         let p ← ctxValProof cfg ctx term
         return ← mkAppM ``re_val_cast
           #[cfg.worldExpr, cfg.envExpr, reflectSExpr term, v, verdictE, p, hT]
-  -- Consume recorded type-set evidence for IF-valued arguments and for
-  -- ACL2-NUMBERP before its legacy pinned-integer route. Numeric primitive
-  -- outputs (e.g. NUMERATOR) need no opaque integer pin: the shared checker
-  -- checks their registered cells against the emitted TYPESET/TRUETS.
-  let numberpTerm := match term with
-    | .cons (.atom (.symbol s)) _ => s.name == "ACL2-NUMBERP"
-    | _ => false
-  if !argLeaves.isEmpty || numberpTerm then
+  -- Consume the node's recorded type-set evidence through the shared
+  -- recognizer registry before the legacy pin/TP routes. The checker
+  -- cross-checks both TYPESET and TRUETS and proves the argument mask;
+  -- this applies equally to true numeric and false rationality verdicts.
+  if !argLeaves.isEmpty || (stepTs.isSome && stepTrueTs.isSome) then
     if let .cons (.atom (.symbol rs)) (.cons z .nil) := term then
       if let some hV ← recogVerdictFromTs cfg ctx rs.name z verdict
           stepTs stepTrueTs argLeaves citedCr citedTpThms then

@@ -827,6 +827,7 @@ def dpUnary : List (String × Name × Name) :=
    ("POSP",     ``Logic.posp,     ``callBuiltin_posp),
    ("NATP",     ``Logic.natp,     ``callBuiltin_natp),
    ("FIX",      ``Logic.fix,      ``callBuiltin_fix),
+   ("REALFIX",  ``Logic.realfix,  ``callBuiltin_realfix),
    ("LEN",      ``Logic.len,      ``callBuiltin_len),
    ("ENDP",     ``Logic.endp,     ``callBuiltin_endp),
    ("ATOM",     ``Logic.atom,     ``callBuiltin_atom),
@@ -849,6 +850,7 @@ def dpBinary : List (String × Name × Name) :=
    ("EXPT",     ``Logic.expt,    ``callBuiltin_expt),
    ("COERCE",   ``Logic.coerce,  ``callBuiltin_coerce),
    ("CONS",     ``SExpr.cons,    ``callBuiltin_cons),
+   ("COMPLEX",  ``Logic.complex, ``callBuiltin_complex),
    ("IMPLIES",  ``Logic.implies, ``callBuiltin_implies),
    ("IFF",      ``Logic.iff,     ``callBuiltin_iff)]
 
@@ -879,6 +881,7 @@ def d4DefFacts : List (String × Name) :=
    ("NATP",       ``gz_def_natp),
    ("POSP",       ``gz_def_posp),
    ("FIX",        ``gz_def_fix),
+   ("REALFIX",    ``gz_def_realfix),
    ("BOOLEANP",   ``gz_def_booleanp),
    ("ENDP",       ``gz_def_endp),
    ("ATOM",       ``gz_def_atom)]

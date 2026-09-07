@@ -5,6 +5,16 @@ import ACL2Lean.NumericPositive
 namespace ACL2.Replay
 open ACL2
 
+/-- Excluding the singleton zero bit proves the recorded nonzero
+restriction; the emitted mask selects this primitive conversion. -/
+theorem equal_zero_nil_of_inTs {m : Int} {v : SExpr}
+    (hm : tsDisjointM m 1 = true) (hv : InTs m v) :
+    Logic.equal v (.atom (.number (.int 0))) = .nil := by
+  apply (Logic.equal_nil_iff _ _).mpr
+  intro hz
+  subst v
+  exact inTs_disjoint_absurd hm hv (by unfold InTs; decide)
+
 /-- The recorded BINARY-+ table cell for two positive rationals. Combine
 the primitive rational range and POSITIVE addition law; no arithmetic is
 re-solved at the hypothesis-query consumer. -/

@@ -100,6 +100,10 @@ theorem Symbol.normalizedName_lowercase (s : Symbol)
     callBuiltin "REALPART" [a] = some (Logic.realpart a) := by rfl
 @[simp] theorem callBuiltin_imagpart (a : SExpr) :
     callBuiltin "IMAGPART" [a] = some (Logic.imagpart a) := by rfl
+@[simp] theorem callBuiltin_complex (a b : SExpr) :
+    callBuiltin "COMPLEX" [a, b] = some (Logic.complex a b) := by rfl
+@[simp] theorem callBuiltin_realfix (a : SExpr) :
+    callBuiltin "REALFIX" [a] = some (Logic.realfix a) := rfl
 @[simp] theorem callBuiltin_complex_rationalp (a : SExpr) :
     callBuiltin "COMPLEX-RATIONALP" [a] = some (Logic.complexRationalp a) := by rfl
 @[simp] theorem callBuiltin_atom (a : SExpr) :
@@ -217,6 +221,17 @@ theorem gz_def_fix (a : SExpr) :
           (.atom (.number (.int 0))) := by
   cases a with
   | atom x => cases x <;> rfl
+  | _ => rfl
+
+/-- The predefined REALFIX body, checked against the actual definition
+unfolding in the complex-elimination child. -/
+theorem gz_def_realfix (a : SExpr) :
+    Logic.realfix a = cond (Logic.toBool (Logic.rationalp a)) a
+      (.atom (.number (.int 0))) := by
+  cases a with
+  | atom x => cases x with
+    | number n => cases n <;> rfl
+    | _ => rfl
   | _ => rfl
 
 /-- `(DEFUN BOOLEANP (X) (IF (EQUAL X T) T (EQUAL X NIL)))`. -/

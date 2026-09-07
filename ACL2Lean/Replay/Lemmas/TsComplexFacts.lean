@@ -1,5 +1,6 @@
 import ACL2Lean.Replay.Lemmas.TsNumericFacts
 import ACL2Lean.NumericEquality
+import ACL2Lean.NumericComponents
 
 namespace ACL2.Replay
 open ACL2
@@ -57,6 +58,19 @@ theorem imag_num_ne_zero_of_inTs_complex {v : SExpr} (hv : InTs 64 v) :
       | _ => simp [Logic.complexRationalp, Logic.isComplex, SExpr.t] at hc
     | _ => simp [Logic.complexRationalp, Logic.isComplex, SExpr.t] at hc
 
+/-- The IMAGPART query in the recorded elimination restriction has
+child mask 64 and result mask 62: a genuine complex has nonzero imaginary part. -/
+theorem inTs_imagpart_complex {v : SExpr} (hv : InTs 64 v) :
+    InTs 62 (Logic.imagpart v) := by
+  have hn : Logic.imagpart v ≠ .atom (.number (.int 0)) := by
+    intro hz
+    have hc := congrArg (fun z => (Logic.numberParts z).1.num) hz
+    rw [Logic.numberParts_imagpart] at hc
+    exact imag_num_ne_zero_of_inTs_complex hv hc
+  have he := (Logic.equal_nil_iff _ _).mpr hn
+  exact inTs_inter2 (by decide : tsInter2Subsumed 63 (-2) 62 = true)
+    (inTs_imagpart v) (inTs_not_zero ((Logic.toBool_eq_false _).mpr he))
+
 theorem inTs_mkParts_complex (r i : Rat) (hi : i.num ≠ 0) :
     InTs 64 (Logic.mkParts r i) := by
   simp only [Logic.mkParts, Number.fromParts, hi, ↓reduceDIte, InTs, tsIndex_complex]
@@ -69,6 +83,13 @@ theorem inTs_plus_complex_rat {a b : SExpr} (ha : InTs 64 a) (hb : InTs 63 b) :
   rw [Logic.plus_parts, Logic.numberParts_of_not_complex b (not_complex_of_inTs_rational hb)]
   simp only [Rat.add_zero]
   exact inTs_mkParts_complex _ _ (imag_num_ne_zero_of_inTs_complex ha)
+
+/-- The elimination child records the rational component on the left.
+This is the same primitive sum cell through addition's core commutativity. -/
+theorem inTs_plus_rat_complex {a b : SExpr} (ha : InTs 63 a) (hb : InTs 64 b) :
+    InTs 64 (Logic.plus a b) := by
+  rw [Logic.plus_comm]
+  exact inTs_plus_complex_rat hb ha
 
 /-- The actual COMPLEX-RATIONALP(* X1 Y) query uses a complex factor and
 a nonzero rational factor. Imaginary-part multiplication preserves the

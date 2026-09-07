@@ -494,6 +494,13 @@ def coerce (x y : SExpr) : SExpr :=
   | .atom (.number (.int _)) => s
   | _ => .atom (.number (.int 0))
 
+/-- ACL2's predefined `realfix`: rational inputs are preserved, while
+genuine complex numbers and nonnumbers become zero (`axioms.lisp`). -/
+@[inline, simp] def realfix (s : SExpr) : SExpr :=
+  match s with
+  | .atom (.number (.int _)) | .atom (.number (.rational _ _ _)) => s
+  | _ => .atom (.number (.int 0))
+
 /-- ACL2 `nfix` — coerce to a natural: a non-negative integer is itself,
     anything else (negative int, non-int) becomes `0`. -/
 @[inline, simp] def nfix (s : SExpr) : SExpr :=

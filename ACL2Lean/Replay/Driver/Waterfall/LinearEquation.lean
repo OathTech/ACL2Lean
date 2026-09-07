@@ -1,4 +1,4 @@
-import ACL2Lean.Replay.Driver.Waterfall
+import ACL2Lean.Replay.Driver.Waterfall.ClauseFalsity
 import ACL2Lean.Replay.Driver.Waterfall.LinearNumeric
 import ACL2Lean.NumericLinear
 
@@ -119,11 +119,9 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
       let some lit := info.parentClause[k]?
         | throwError "linear equation: PT outside original clause"
       let index := clause.length - info.parentClause.length + k
-      let value ← ctxValExpr cfg ctx lit
-      let eqNil ← mkEq value (mkConst ``SExpr.nil)
-      let contra ← withLocalDeclD `hParentTrue (← mkAppM ``Not #[eqNil]) fun ht => do
-        mkLambdaFVars #[ht] (mkApp hFalse (← evtrueOfLitTrue cfg ctx clause index lit ht))
-      pure (lit, ← mkAppM ``Classical.byContradiction #[contra])
+      let (actual, proof) ← clauseLiteralFalsity cfg ctx clause hFalse index
+      unless actual == lit do throwError "linear equation: indexed parent differs from its record"
+      pure (lit, proof)
     let numeric ← replayLinearNumericBasis cfg ctx info a b parentFalse
     let checkRow (row : DirectLinearRow) (x y : SExpr) : MetaM (Expr × Expr × Expr) := do
       let (lit, hLit) ← parentFalse row.parent

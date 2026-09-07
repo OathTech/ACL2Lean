@@ -762,11 +762,20 @@ No pattern books exist yet — authoring them is the arc's work.
 
 ### P7 — multi-record ELIM rounds
 - source: `eliminate-destructors-clause` (the per-record erase/prepend/σ
-  reorder rule, validated vs :NEWCLAUSES).
+  reorder rule, validated vs :NEWCLAUSES), plus
+  `other-processes.lisp`'s `type-restriction-segment` before generalization.
 - axes: record count; fresh vs occurring elim vars; guard-literal
-  position; per-level pinning.
-- anchor: msort rows.
-- books: none yet. status: recipe-landed.
+  position; per-level pinning; primitive constructor/destructor family;
+  recorded type query, conversion, and restriction-clause prefix.
+- anchor: msort rows; NS1's unchanged Kestrel
+  `<-OF-*-AND-*-SAME-HELPER`, Subgoal 9.18'.
+- books: none yet. CAR/CDR recipe landed. Shared REALPART/IMAGPART
+  recipe and executed restriction queries are in progress: the untouched
+  Subgoal 9.18' subtree kernel-checks under five explicit rule conditions;
+  all four restriction literals check and eight controls reject. Whole-helper
+  replay remains incomplete. The isolated observer
+  retains all prior events modulo its new metadata; see the
+  [NS1 charter](../plans/2026-09-05_bvchop-foundation-charter.md).
 
 ### P8 — strip-branches conjunction split
 - source: `acl2/rewrite.lisp:4318` (`(IF p q 'NIL)` unions the two

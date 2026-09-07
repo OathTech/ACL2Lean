@@ -2,6 +2,16 @@ import ACL2Lean.Logic
 
 namespace ACL2.Logic
 
+/-- The recorded ELIM guard leaf compares a nonnumber with zero.
+ACL2's numeric completion makes that strict comparison false. -/
+theorem lt_zero_nil_of_nonnumber {v : SExpr} (h : acl2Numberp v = .nil) :
+    lt v (.atom (.number (.int 0))) = .nil := by
+  cases v with
+  | nil | cons _ _ => rfl
+  | atom a => cases a with
+    | number _ => simp [acl2Numberp, SExpr.t] at h
+    | _ => rfl
+
 /-- The ACL2 numeric universe consists of rationals and genuine complex
 rationals. This equation relates the primitive recognizers without exposing
 arithmetic operations on their argument. -/

@@ -52,7 +52,7 @@ def dpLiftHeads : List String :=
    "FIX", "LEN", "ENDP", "ATOM", "NUMERATOR", "DENOMINATOR", "REALPART",
    "IMAGPART", "COMPLEX-RATIONALP", "UNARY--", "POSP", "NATP", "EQUAL",
    "<", "LEXORDER", "BINARY-+", "BINARY-*", "COERCE", "CONS", "IMPLIES",
-   "IFF", "IFIX", "EXPT", "UNARY-/"]
+   "IFF", "IFIX", "EXPT", "UNARY-/", "COMPLEX", "REALFIX"]
 
 /-- The DP value lift (G3 Fragment A): opaque application values from `opq`
     (syntactic `==` lookup, checked FIRST — the walker's order), variable

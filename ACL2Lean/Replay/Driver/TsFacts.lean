@@ -168,6 +168,7 @@ def tsRecogTrue : List (String × Int × Lean.Name) :=
     Demand-driven: the trio's `(CONSP (IF …)) ⇒ 'NIL`. -/
 def tsRecogNil : List (String × Int × Lean.Name) :=
   [("ACL2-NUMBERP", 127, ``ACL2.Replay.logic_acl2Numberp_nil_of_ts_disjoint),
+   ("RATIONALP", 63, ``ACL2.Replay.logic_rationalp_nil_of_ts_disjoint),
    ("CONSP", 3072, ``ACL2.Replay.logic_consp_nil_of_ts_disjoint),
    ("ZP", -7, ``ACL2.Replay.logic_zp_nil_of_ts_disjoint)]
 
@@ -188,7 +189,8 @@ def tsBooleanBinaryRangeOf (op : String) : Option Lean.Name :=
 def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
   if op == "BINARY-+" then
     [(23, 23, 23, ``ACL2.Replay.inTs_plus_int), (63, 63, 63, ``ACL2.Replay.inTs_plus_rat),
-     (64, 63, 64, ``ACL2.Replay.inTs_plus_complex_rat)]
+     (64, 63, 64, ``ACL2.Replay.inTs_plus_complex_rat),
+     (63, 64, 64, ``ACL2.Replay.inTs_plus_rat_complex)]
   else if op == "BINARY-*" then
     [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
      (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]

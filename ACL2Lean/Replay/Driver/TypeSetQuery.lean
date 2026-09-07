@@ -35,7 +35,7 @@ private def queryType (cfg : ReplayConfig) (ctx : ReplayCtx)
 /-- Ordinary rule or FC evidence requires its own proof channel. The present
 primitive query fragment consumes only parent facts and ACL2's fake type-set
 runes, preserving a frontier for every other ttree tag or cited rule. -/
-private def primitiveQueryTtree (t : SExpr) : MetaM Unit := do
+def primitiveQueryTtree (t : SExpr) : MetaM Unit := do
   for entry in ← tsQueryRead (TsQueryCapture.asList t) do
     let .cons (.atom (.symbol tag)) items := entry
       | throwError "type-set query: unsupported ttree entry {repr entry}"
@@ -101,6 +101,12 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
   let some (fn, args) := asApp q.term | throwFrontier m!"type-set query: unsupported non-application"
   unless cs.map (fun (c, _) => c.term) == args do
     throwError "type-set query: executed children do not match the primitive arguments"
+  if fn.name == "IMAGPART" then
+    let [(c, p)] := cs | throwError "type-set query: IMAGPART arity"
+    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
+        c.result == 64 && q.result == 62 do
+      throwFrontier m!"type-set query: unsupported IMAGPART masks {c.result} → {q.result}"
+    return ← finish (← mkAppM ``inTs_imagpart_complex #[p])
   if fn.name == "UNARY-/" then
     let [(c, p)] := cs | throwError "type-set query: reciprocal arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&

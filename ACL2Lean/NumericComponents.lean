@@ -1,4 +1,5 @@
 import ACL2Lean.NumericLemmas
+import ACL2Lean.NumericEquality
 
 namespace ACL2.Logic
 
@@ -24,5 +25,27 @@ theorem numberParts_imagpart (v : SExpr) :
       | _ => rfl
     | _ => rfl
   | _ => rfl
+
+/-- ACL2's primitive REALPART-IMAGPART-ELIM axiom, consumed by the
+recorded destructor-elimination processor under its numeric guard. -/
+theorem complex_realpart_imagpart {v : SExpr} (h : acl2Numberp v ≠ .nil) :
+    complex (realpart v) (imagpart v) = v := by
+  have hr : rationalValue (realpart v) = (numberParts v).1 := by
+    cases v with
+    | atom a => cases a with
+      | number n => cases n with
+        | complex r _ _ => exact rationalValue_fromRat r
+        | _ => rfl
+      | _ => rfl
+    | _ => rfl
+  have hi : rationalValue (imagpart v) = (numberParts v).2 := by
+    cases v with
+    | atom a => cases a with
+      | number n => cases n with
+        | complex _ i _ => exact rationalValue_fromRat i
+        | _ => rfl
+      | _ => rfl
+    | _ => rfl
+  rw [complex, hr, hi, mkParts_numberParts, fix_of_number v h]
 
 end ACL2.Logic

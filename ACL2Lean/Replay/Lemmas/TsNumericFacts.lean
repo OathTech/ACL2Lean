@@ -154,6 +154,15 @@ theorem logic_acl2Numberp_nil_of_ts_disjoint {m : Int} {v : SExpr}
     | number _ => exact False.elim (inTs_disjoint_absurd hm hv (inTs_acl2Numberp rfl))
     | _ => rfl
 
+/-- The recorded false RATIONALP query on a complex arithmetic result.
+An emitted mask disjoint from the rational bits refutes the recognizer. -/
+theorem logic_rationalp_nil_of_ts_disjoint {m : Int} {v : SExpr}
+    (hm : tsDisjointM m 63 = true) (hv : InTs m v) :
+    Logic.rationalp v = .nil := by
+  by_contra hn
+  exact inTs_disjoint_absurd hm hv
+    (inTs_rationalp_true ((Logic.toBool_eq_true _).mpr hn))
+
 /-- Primitive rational type cells consumed at INTEGERP-MOD's recorded
 RATIONALP multiplication/reciprocal node (argument mask 40, true mask 63).
 These prove the numeric model's closure; they do not prove the book theorem. -/

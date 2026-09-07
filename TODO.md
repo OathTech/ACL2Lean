@@ -46,9 +46,11 @@ charter or the archive carry the record.
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Consume the combined linear capture's numeric queries and direct zero rows;
-      generalize destructor elimination for the actual REALPART-IMAGPART-ELIM
-      record at strict-helper Subgoal 9.18', preserving its guard child and
-      component restrictions; then
+      close the five explicit rule conditions of strict-helper Subgoal 9.18'
+      (REALPART-+, complex/rational comparison, rational realpart, realpart of
+      a product, COMPLEX-OPENER). Its actual ELIM subtree kernel-checks;
+      the full helper next reaches an emitted addition query with masks
+      14/15 → 14. Preserve the actual guard child and restriction queries; then
       replay ordinary plus /
       times-and-divide dependencies and quoted-constructor match if encountered.
       Integrate the linear equation producer/consumer (BUG-049) after msort's

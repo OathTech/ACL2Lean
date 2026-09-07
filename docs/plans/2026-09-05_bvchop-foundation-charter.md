@@ -2997,3 +2997,155 @@ focused msort replay, and the actual query/linear subtree kernel controls
 above, this supports an **intermediate fast-gate checkpoint only**. No full
 claim-gate or golden re-pin was performed for this increment; the strict
 helper remains at its recorded ELIM frontier and NS1 remains 0/3.
+
+The isolated type-restriction observer is **f04d4adeb7**. Its first image
+build failed the ACL2 raw-code registration check for
+TYPE-RESTRICTION-SEGMENT (`c2-elim-restriction-image-build.log` and the
+preserved `c2-elim-restriction-image-initial-detail.log`). Adding that
+observational program function to the existing registry resolves it:
+`c2-elim-restriction-image-build-rerun.log` and
+`c2-elim-restriction-producer-tags-rerun.log` pass.
+
+An initial full-source times capture records **57/57 QED/defthm** in
+`c2-elim-restriction-capture/` (627535 lines). The scope-matched captures
+in `c2-elim-restriction-prefix-capture/` retain times **38/38** and NIQ
+**14/12**. The exact raw-event comparisons pass: all **498** prior times
+events and **462** prior NIQ events are unchanged after removing only the
+new STEP metadata for comparison (`c2-elim-restriction-{times,niq}-comparison.log`).
+No projected log is replayed or saved as an input. Production provenance
+and the submodule pointer remain unchanged.
+
+The actual strict-helper Subgoal 9.18' records REALPART(X1) as a LOOKUP
+with mask 14, converted to rationality plus positive sign; IMAGPART(X1)
+executes a child lookup of X1 at mask 64 and returns mask 62, converted to
+rationality plus nonzero. The shared primitive elimination recipe and
+COMPLEX value lifting compile (`c2-shared-elim-recipe-build.log`, 3134
+jobs). The restriction consumer is being wired into this actual node;
+that compile receipt alone does not close it. It retains the restriction
+prefix through fresh-variable substitution, transports the child proof
+back to original destructor values, then strips only literals proved
+false from the observed queries. Clause-falsity extraction is shared with
+the existing linear insertion consumer. No hypothesis DP is introduced.
+
+The restriction-consumer build first failed because `prefix` is a Lean
+keyword (`c2-elim-restriction-consumer-build.log`); the corrected build
+passes **3136 jobs** (`c2-elim-restriction-consumer-build-rerun.log`).
+The first control script had a MetaM/TermElabM elaboration mismatch
+(`c2-elim-restriction-controls.log`); the corrected actual-artifact control
+passes (`c2-elim-restriction-controls-rerun.log`): **all four** recorded
+restriction literals kernel-check with accepted axioms, and **eight**
+mutations reject (each of four actual premises, missing REALPART query,
+missing IMAGPART child, changed result, changed converted formula).
+Statics pass in `c2-elim-restriction-static.log`. Whole strict-helper
+composition and the untouched actual ELIM subtree are under validation;
+no whole-helper or mirror completion is claimed.
+
+Both the whole strict helper and its untouched Subgoal 9.18' subtree now
+reach the child's **REALFIX definition** frontier
+(`c2-strict-helper-elim-whole.log`, `c2-strict-helper-elim-subtree.log`).
+The scoped times capture contains REALFIX's actual ground-zero DEFUN,
+`(IF (RATIONALP X) X '0)`, but the quotient consumer world does not.
+REALFIX is predefined in `axioms.lisp:4988`. It is now being added through
+the existing predefined-value / D4 definition-unfolding mechanism, whose
+body is checked against the actual record. This is a core definition,
+not a hand proof of COMPLEX-OPENER or another ordinary book dependency.
+
+Before the semantic change, the new REALFIX differential corpus pins
+**10 unsupported forms and 2 refused arities**, with zero failures
+(`c2-realfix-differential-before.log`). It covers rational preservation,
+canonical zero-imaginary values, genuine complexes, every nonnumber value
+family, and the component expression from the actual child. Those ten
+forms are changed to `match` only with the implementation; the after-check
+and wired consumer build are pending. The ELIM frame's composition is
+still unverified because its actual child has not yet replayed.
+
+REALFIX's wired consumer/interpreter build passes **3163 jobs**
+(`c2-realfix-consumer-build.log`). Its differential after-check, including
+the existing complex-arithmetic corpus, reports **31 match, 2 refuse,
+0 failures** (`c2-realfix-differential-after.log`). The unmodified ordinary
+`complex` and `realpart` books are captured in
+`c2-complex-dependency-capture/`: **1/1** and **10/10** QED/defthm,
+respectively. Their reconstructed trees are retained in
+`c2-complex-dependency-tree.log` and `c2-realpart-dependency-tree.log`.
+They remain proof inputs to replay, not imported results.
+
+With REALFIX, the actual ELIM subtree reaches its recorded ACL2-NUMBERP
+query on `R + (#C(0 1) * S)` with argument mask 64
+(`c2-strict-helper-realfix-subtree.log`). The primitive sum registry had
+only complex-left/rational-right closure; the actual child needs the
+opposite orientation, now shared through core addition commutativity.
+Separately, the actual nonnumber guard verdict at Subgoal 9.18.2 times out
+at the unchanged 15000-heartbeat focused limit
+(`c2-strict-helper-elim-guard-dp.log`). The next DP normalization consumes
+its explicit nonnumber hypothesis to reduce the zero comparison before
+arithmetic constructor splitting. It remains inside the actual emitted
+DP-leaf attempt; no budget or hypothesis-DP route is added.
+
+The first completion/symmetric-sum build passes **3136 jobs**
+(`c2-elim-completion-and-sum-build.log`). All twelve earlier partition
+verdicts still kernel-check (`c2-elim-completion-partition-regression.log`),
+and statics pass (`c2-realfix-completion-static.log`). The guard still
+hit its 15000 limit (`c2-strict-helper-elim-guard-dp-completion.log`).
+Diagnostics show that the reflected `Int.ofNat 0` did not match the
+comparison lemma's literal zero under the restricted simplification set;
+`Int.ofNat_zero` alone also left the goal open. The retained diagnostic
+logs are `c2-elim-guard-{normalization,explicit-completion,zero-normalization}.log`.
+Adding `Int.ofNat_eq_natCast` as well closes the actual normalized goal
+(`c2-elim-guard-cast-normalization-rerun.log`); the initial invocation of
+that diagnostic overlapped an affected module build and failed to load
+its temporary missing olean (`c2-elim-guard-cast-normalization.log`). The
+wired kernel/heartbeat check is still required.
+
+The child passes ACL2-NUMBERP and next reaches its recorded false
+RATIONALP verdict on the same complex sum
+(`c2-strict-helper-completed-sum-subtree.log`). The shared registry now
+has the primitive rational-mask refutation, and recorded TYPESET/TRUETS
+pairs reach that registry uniformly before legacy pin/TP routes, removing
+the previous ACL2-NUMBERP-only entry condition. Its build passes **3136
+jobs** (`c2-elim-rational-verdict-build.log`). Whole ELIM composition is
+still pending; these are internal checks, not new mirrors.
+
+The wired actual Subgoal 9.18.2 guard now kernel-checks in **675 heartbeat
+units**, at the unchanged **15000** focused limit
+(`c2-strict-helper-elim-guard-dp-cast.log`). The complete untouched
+Subgoal 9.18' ELIM subtree also kernel-checks with the accepted axiom set
+under **five explicit rule conditions** (`c2-strict-helper-rational-subtree.log`):
+REALPART-+, <-WHEN-COMPLEX-RATIONALP-AND-RATIONALP,
+REALPART-WHEN-RATIONALP, REALPART-OF-*-WHEN-RATIONALP-ARG2, and
+COMPLEX-OPENER. This checks guard, recorded restrictions, generalized
+child, and substitution composition; it does not close those conditions
+or the original helper. The whole helper next stops at an actual addition
+query with masks **14/15 → 14** (`c2-strict-helper-rational-whole.log`).
+
+The affected regression build passes **6275 jobs**, covering the four
+NS1 test targets and replay CLI (`c2-elim-realfix-regression-build.log`).
+No full gate, golden re-pin, whole-helper completion, or new mirror is
+claimed by these checks.
+
+Four further mutations of the actual ELIM subtree reject at composition:
+deleting its guard child, deleting its generalized child, deleting the
+restriction metadata, and emptying its query list
+(`c2-elim-composition-controls.log`). The whole-helper trace locates the
+next addition query in **Subgoal 9.17**, after all branches through 9.18
+compose (`c2-strict-helper-rational-whole-trace.log`).
+
+The ordinary component dependency probes retain these frontiers
+(`c2-component-dependencies-initial.log`): COMPLEX-OPENER requires the
+primitive COMPLEX-DEFINITION `:USE` schema; the complex/rational comparison
+requires primitive COMPLETION-OF-<; REALPART-WHEN-RATIONALP has effective
+preprocessing/clausification before ELIM in the same node; and the product's
+ARG2 orientation checks conditionally on its actual ARG1 `:USE` dependency.
+REALPART-+ is a bootstrap defthm in `axioms.lisp`, not a primitive defaxiom.
+Its proof route remains to establish: `initialize-acl2` skips boot proofs by
+default, but its source explicitly describes the `nil` argument that runs
+them (`interface-raw.lisp:9658–9683`). No new D5 registration is justified
+here by assuming that bootstrap evidence is inherently uncapturable.
+
+The elimination/REALFIX intermediate checkpoint uses **fast-gate** receipts:
+`c2-elim-realfix-checkpoint-static.log` passes all listed statics; the
+four affected NS1 targets plus replay CLI pass 6275 jobs; and
+`c2-elim-realfix-msort-fast-gate.log` retains **7/7 unconditional** theorem
+rows (434311 ms). Its informational DP bracket still has 7 proved and
+2 assumed probes, unchanged from the earlier checkpoint. The next
+positive/nonnegative query extension is separate WIP. This is not a full
+gate or golden re-pin; the last full receipt remains the earlier one.
