@@ -5134,3 +5134,94 @@ leaves**, after the **6288-job** replay-executable build
 `c2-component-equality-goal-order-equality-replay.log`). These are
 **fast-gate** receipts for an intermediate increment. No whole negation
 theorem, helper, native mirror or fresh full-gate result is claimed.
+
+### C2 negation composition profile and remaining strict dependencies (2026-09-07)
+
+The clause/spine profile locates IMAGPART-OF--'s timeout in `Goal''`,
+literal 3's rewrite chain (**167.37 s**, within **188.64 s** for the
+replay); literal 2's rewrite chain takes **20.76 s**. This is before the
+final linear verdict, whose separate production check is already closed.
+The profile retains the same 3M limit
+(`c2-component-negation-spine-profile.log`, exit 1). It enables Lean's
+profiler as well as the existing clause/spine/compose trace classes;
+the resulting diagnostic is about 56 MB. Node-level timing is next.
+
+A separate probe stages the six ordinary product/cancellation dependencies
+at the quotient world, using the 24 compiled bootstrap/component proofs
+(`c2-strict-arithmetic-staged-dependencies.log`). Four fail: both product
+sign theorems and CANCEL-GEN reach BOOLEANP relief over a comparison, and
+CANCEL reaches a recorded deletion in its linear-substitution continuation.
+The two mixed-argument cancellation corollaries are checked conditional
+proofs with exactly `rule:<-OF-*-AND-*-CANCEL-GEN` and
+`use:<-OF-*-AND-*-CANCEL`, with accepted axioms. The probe rejects its
+overall completion and emits no completed dependency module. The earlier
+unconditional CANCEL receipt is from the older isolated capture; the
+current diagnostic producer emits the selected deletion and it must be
+consumed.
+
+Actual tree inspection (`c2-strict-arithmetic-frontier-trees.log`) shows
+BOOLEANP's known-true recognizer basis has argument/true masks **384/384**,
+false mask **-385**, and its compound-recognizer rune. The same proofs
+also contain BOOLEANP queries over nested IF terms. Preserve their actual
+basis and branch records when extending the consumer; do not infer absent
+branch evidence or substitute a hand proof of an ordinary bootstrap rule.
+
+Node tracing identifies the first hot recognizer as
+`RATIONALP(IMAGPART X)` (`c2-component-negation-node-profile.log`).
+Factoring the existing unconditional primitive cells and trying a
+sufficient cell before constructing context candidates preserves all
+**24 prerequisite replays** and the **three range nodes / fifteen
+mutations** (`c2-component-range-first-component-regression.log`,
+`c2-component-range-first-node-controls.log`). The core build passes
+**3150 jobs** (`c2-primitive-range-first-build.log`).
+
+That first change moves literal 2's chain from **20.76 s to 0.13 s** and
+closes `RATIONALP(IMAGPART X)` in **0.0008 s**. Whole replay still times out
+at 3M: the next hot node is
+`RATIONALP(UNARY--(REALPART(UNARY-- X)))`, inside a recorded REALFIX
+unfold, at **189.99 s** (`c2-component-negation-range-first-profile.log`).
+This profile retains node/clause/spine/compose timing with the Lean
+profiler threshold at 10000 ms; its output is about 24 KB. The next
+increment composes the already registered unary cells from primitive
+ranges before trying clause aliases. It leaves context fallback and the
+addressed IF-leaf route intact; no new type or mask is selected.
+
+The unary-cell composition passes its corrected core build (**3150 jobs**;
+`c2-primitive-unary-range-first-build-rerun.log`). Its first compile failed
+on a missing `do` in the local proof helper; the corrected build is the
+receipt. **Six actual nested-negation recognizer nodes** kernel-check with
+accepted axioms, and **thirty mutations** reject
+(`c2-component-nested-negation-range-controls.log`).
+
+Whole IMAGPART-OF-- now produces a checked conditional declaration in
+**2850 ms / 32077 heartbeat units**, with exactly
+`rule:RATIONALP-OF--` and `rule:EQUAL-OF---WHEN-VARIABLE`. Whole
+REALPART-OF-- checks in **2792 ms / 31269 units**, retaining those two plus
+`rule:*-OF---ARG2`, `use:COMPLEX-SPLIT` and `use:COMPLEX-EQUAL`; the
+conditional imaginary declaration is excluded from its registry, so it
+still needs that dependency closed first. Both carry only the accepted
+axiom trio (`c2-component-negation-range-first-timed.log`, exit 0).
+The measured outer replay calls include construction, checks and registration;
+these are not isolated kernel timings. The formerly hot nested real-component
+query takes **0.00164 s** in the node trace
+(`c2-component-negation-unary-range-first-whole.log`). That earlier command
+requires unconditional stages and therefore exits 1 on the two remaining
+rules; it does not produce `Negations.olean`. No unconditional negation
+theorem or new native mirror is claimed.
+
+Both missing shared rules are ordinary theorems in unchanged
+`arithmetic-light/minus.lisp`, SHA-256
+`cc663bfc959e8ab4b97920c3580d195113451d44b1c44be986e1d327e66dc099`.
+Capture and replay their trees before staging the two component-negation
+results. The range optimization changes which already checked primitive
+proof is constructed first; emitted mask checks, explicit IF branch records
+and context fallback remain in place.
+
+The final unary-range implementation also preserves all **24 unconditional
+bootstrap/component replays**, passes affected builds (**3167 jobs**),
+statics (**276 sources**), and focused equality (**3/3 unconditional plus
+two checked verdicts**, replay-executable build **6288 jobs**)
+(`c2-primitive-ranges-component-regression.log`,
+`c2-primitive-ranges-affected-build.log`, `c2-primitive-ranges-static.log`,
+`c2-primitive-ranges-equality-replay.log`). This is an intermediate
+**fast-gate** increment; no new full gate or native mirror is claimed.

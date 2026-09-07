@@ -1422,10 +1422,15 @@ partial def replayRewritesWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : Repla
    Public names as in the pre-WP2 mutual; `replayNode` additionally
    returns the node's `RPayload` (G1 lane — `none` on every node whose
    recorded step is an equality, which is all but the R classes). -/
+initialize registerTraceClass `ACL2.replayNode
+
 mutual
 
 partial def replayNode (cfg : ReplayConfig) (ctx : ReplayCtx) (n : ProofNode)
     : MetaM (Expr × Option RPayload) :=
+  withTraceNode `ACL2.replayNode (fun _ => do
+    let rune := runeOf n
+    return m!"{rune.ty}:{rune.name}/{nodeOrigin n} {(nodeLhsRhs n).1}") do
   replayNodeR ⟨fun c x n' => replayNode c x n',
                fun c x s ns => replayRewrites c x s ns⟩ cfg ctx n
 

@@ -47,11 +47,11 @@ charter or the archive carry the record.
       (BUG-054), and the recorded comparison-bound query before proceeding.
       Integrate the selected Satriani/subsumption reductions (BUG-058). Close
       the ordinary negation, product-sign, and cancellation dependencies of
-      7'/6'. Decompose IMAGPART-OF-- after its current 3M-heartbeat
-      timeout in isDefEq; its three verdict leaves now check, as do the
-      five REALPART-OF-- verdicts. Preserve the existing limits.
-      Decompose the whole helper's
-      replay after its current heartbeat timeout; preserve the existing limit.
+      7'/6': replay minus.lisp's RATIONALP-OF-- and
+      EQUAL-OF---WHEN-VARIABLE, then stage IMAGPART-OF-- before REALPART-OF--.
+      Consume the BOOLEANP comparison/IF queries and the recorded deletion
+      in cancellation's linear-substitution continuation. Decompose the whole
+      helper's replay after its earlier heartbeat timeout; preserve its limit.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer
       (BUG-056) with its verified source route. Integrate the scoped six-theorem

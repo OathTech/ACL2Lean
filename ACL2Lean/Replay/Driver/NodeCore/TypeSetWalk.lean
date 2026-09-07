@@ -625,15 +625,12 @@ def tsSubsumedProofM (m m' : Int) : MetaM Expr := do
   mkDecideProof (← mkEq (← mkAppM ``ACL2.Replay.tsSubsumedM
     #[Lean.toExpr m, Lean.toExpr m']) (mkConst ``Bool.true))
 
-mutual
-
-/-- The `InTs` candidates for `t` the walk can see: `(mask, proof)`
-    pairs. `local` carries the caller's own `Logic.toBool <test value> =
-    <sign>` hypotheses (the `IF` split); `citedCr` the compound-recognizer
-    RUNE NAMES the step cites. -/
-partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
-    (t : SExpr) (tv : Expr) (citedTp : List String := []) : MetaM (List (Int × Expr)) := do
+/-- Registered primitive ranges with no operand-type premises. These
+proofs need no clause-context or alias traversal. Keep them separate so a
+sufficient range closes a recorded query before constructing unused cells
+(IMAGPART-OF--, Goal'' literal 3's RATIONALP(IMAGPART X) query). -/
+def inTsPrimitiveRanges (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (t : SExpr) (tv : Expr) : MetaM (List (Int × Expr)) := do
   let inTsTy (m : Int) : MetaM Expr :=
     mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
   let mut out : List (Int × Expr) := []
@@ -648,6 +645,50 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
       let h ← mkAppM range #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b]
       out := out ++ [(384, ← mkExpectedTypeHint
         (← mkAppM ``inTs_of_boolean_range #[h]) (← inTsTy 384))]
+  if let some (f, [a]) := asApp t then
+    for (inputMask, m, law) in tsUnaryOf f.name do
+      if inputMask.isNone then
+        let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
+        let h ← mkAppM law #[← ctxValExpr cfg ctxA a]
+        out := out ++ [(m, ← mkExpectedTypeHint h (← inTsTy m))]
+  return out
+
+/-- Compose existing unary primitive cells using only primitive ranges.
+A failed input cell does not traverse clause aliases: the caller retains
+that complete context route as its fallback. The nested negation/component
+query in IMAGPART-OF-- needs the rational cell, not the unrelated integer
+and nonnumber context derivations. -/
+partial def inTsFromPrimitiveRanges (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (t : SExpr) (tv : Expr) (target : Int) : MetaM (Option Expr) := do
+  let weaken (m : Int) (h : Expr) : MetaM Expr := do
+    mkAppM ``ACL2.Replay.inTs_weaken #[← tsSubsumedProofM m target, h]
+  for (m, h) in ← inTsPrimitiveRanges cfg ctx t tv do
+    if tsSubsumedM m target then return some (← weaken m h)
+  if let some (f, [a]) := asApp t then
+    for (inputMask, outputMask, law) in tsUnaryOf f.name do
+      let some inputMask := inputMask | continue
+      unless tsSubsumedM outputMask target do continue
+      let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
+      let va ← ctxValExpr cfg ctxA a
+      if let some ha ← inTsFromPrimitiveRanges cfg ctxA a va inputMask then
+        let h ← mkAppM law #[ha]
+        let h ← mkExpectedTypeHint h
+          (← mkAppM ``ACL2.Replay.InTs #[Lean.toExpr outputMask, tv])
+        return some (← weaken outputMask h)
+  return none
+
+mutual
+
+/-- The `InTs` candidates for `t` the walk can see: `(mask, proof)`
+    pairs. `local` carries the caller's own `Logic.toBool <test value> =
+    <sign>` hypotheses (the `IF` split); `citedCr` the compound-recognizer
+    RUNE NAMES the step cites. -/
+partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (localFacts : List (SExpr × Bool × Expr)) (citedCr : List String)
+    (t : SExpr) (tv : Expr) (citedTp : List String := []) : MetaM (List (Int × Expr)) := do
+  let inTsTy (m : Int) : MetaM Expr :=
+    mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
+  let mut out ← inTsPrimitiveRanges cfg ctx t tv
   -- (1) the caller's LOCAL branch hypotheses
   for (f, pos, hb) in localFacts do
     if f == t then
@@ -697,14 +738,12 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   -- Unary primitive cells consume the same context-derived argument mask.
   if let .cons (.atom (.symbol op)) (.cons a .nil) := t then
     for (inMask, outMask, nm) in tsUnaryOf op.name do
+      let some m := inMask | continue -- unconditional ranges were handled above
       let ctxA ← pinTermOpaques cfg cfg.envExpr ctx a
       let va ← ctxValExpr cfg ctxA a
-      let h? ← match inMask with
-        | none => pure (some (← mkAppM nm #[va]))
-        | some m => do
-          match ← inTsFromCtx cfg ctxA localFacts citedCr a va m citedTp with
-          | none => pure none
-          | some ha => pure (some (← mkAppM nm #[ha]))
+      let h? ← match ← inTsFromCtx cfg ctxA localFacts citedCr a va m citedTp with
+        | none => pure none
+        | some ha => pure (some (← mkAppM nm #[ha]))
       if let some h := h? then
         out := out ++ [(outMask, ← mkExpectedTypeHint h (← inTsTy outMask))]
   -- (4) ARITHMETIC PRIMITIVES: ACL2's `type-set-binary-+` cell — both
@@ -792,6 +831,9 @@ partial def inTsFromCtx (cfg : ReplayConfig) (ctx : ReplayCtx)
         (← mkAppM ``ACL2.Replay.tsMember
           #[Lean.toExpr target, ← mkAppM ``ACL2.Replay.tsIndex #[tv]])
         (mkConst ``Bool.true))) ty)
+  -- The emitted target may already follow from primitive ranges and
+  -- their unary closure cells. Leave context substitutions for fallback.
+  if let some h ← inTsFromPrimitiveRanges cfg ctx t tv target then return some h
   let cands ← inTsCandidates cfg ctx localFacts citedCr t tv citedTp
   for (m, h) in cands do
     if ACL2.Replay.tsSubsumedM m target then
@@ -931,6 +973,31 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
   | none => return none
   let ctxA ← pinTermOpaques cfg cfg.envExpr ctx arg
   let va ← ctxValExpr cfg ctxA arg
+  let accept (m : Int) (hv : Expr) : MetaM (Option Expr) := do
+    -- ACL2's own verdict for the argument must be INSIDE what we derived
+    let acl2Ok := match stepTs with
+      | some ts => ACL2.Replay.tsSubsumedM ts m
+      | none => false
+    unless acl2Ok do return none
+    if verdict == SExpr.t then
+      if ACL2.Replay.tsSubsumedM m regTrueTs then
+        return some (← mkAppM lem #[← tsSubsumedProofM m regTrueTs, hv])
+    else if ACL2.Replay.tsDisjointM m regTrueTs then
+      let hd ← mkDecideProof (← mkEq
+        (← mkAppM ``ACL2.Replay.tsDisjointM
+          #[Lean.toExpr m, Lean.toExpr regTrueTs])
+        (mkConst ``Bool.true))
+      return some (← mkAppM lem #[hd, hv])
+    return none
+  -- Preserve the addressed IF walk when one was emitted. Otherwise try
+  -- only the premise-free primitive ranges before building context cells;
+  -- the same emitted-mask and recognizer checks govern both passes.
+  if argLeaves.isEmpty then
+    for (m, hv) in ← inTsPrimitiveRanges cfg ctxA arg va do
+      if let some fact ← accept m hv then return some fact
+    if let some ts := stepTs then
+      if let some hv ← inTsFromPrimitiveRanges cfg ctxA arg va ts then
+        if let some fact ← accept ts hv then return some fact
   -- the candidate masks: the `:ARG-LEAVES` walk (IF-valued argument) or
   -- the ordinary context probes
   let cands : List (Int × Expr) ←
@@ -943,20 +1010,7 @@ def recogVerdictFromTs (cfg : ReplayConfig) (ctx : ReplayCtx)
         | none => pure []
     else inTsCandidates cfg ctxA [] citedCr arg va citedTp
   for (m, hv) in cands do
-    -- ACL2's own verdict for the argument must be INSIDE what we derived
-    let acl2Ok := match stepTs with
-      | some ts => ACL2.Replay.tsSubsumedM ts m
-      | none => false
-    unless acl2Ok do continue
-    if verdict == SExpr.t then
-      if ACL2.Replay.tsSubsumedM m regTrueTs then
-        return some (← mkAppM lem #[← tsSubsumedProofM m regTrueTs, hv])
-    else if ACL2.Replay.tsDisjointM m regTrueTs then
-      let hd ← mkDecideProof (← mkEq
-        (← mkAppM ``ACL2.Replay.tsDisjointM
-          #[Lean.toExpr m, Lean.toExpr regTrueTs])
-        (mkConst ``Bool.true))
-      return some (← mkAppM lem #[hd, hv])
+    if let some fact ← accept m hv then return some fact
   -- A verdict may need the intersection of several already checked
   -- context facts. Reuse the mask-directed consumer: the helper's
   -- non-rational and non-complex tests jointly establish mask -128.
