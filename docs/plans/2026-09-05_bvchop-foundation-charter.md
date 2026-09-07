@@ -2320,6 +2320,70 @@ trailing unknown-constant error is the unavailable whole-proof axiom query.
 Ordinary FC-rule dependency proofs, remaining quotient/FLOOR dependencies,
 the shared operation/decode kit, and all three native products remain open.
 
+### C2 regression recovery — P6 hypothesis folds (2026-09-07)
+
+The full run `.gate-runs/0f323b3-20260906T235104Z.log` finished with
+**`TRUE_EXIT=1`**, with `Tests.PatternPins` its only failed target. P6 had
+advanced past the old missing-hypothesis message: its captured
+`NOT(ACL2-NUMBERP NIL)` instance contains two ground folds, which now replay.
+The row remains **0/1**, conditional on `rule:DEFAULT-<-1` and
+`ASSUMED:dp-fact`. Its remaining conditions are not completed proofs.
+
+The revised test checks those two row-condition classes as well as the
+original count and integrity checks. It excludes the separate informational
+DP brackets and removes the duplicate replay of P6 from the earlier loop.
+`Tests.Ns1Substitution` now consumes P6's five actual two-fold markers as well
+as NIQ's sixteen nonempty markers. All 21 pass explicit kernel and axiom
+checks; deleted folds, changed results/positions, missing primitive guards,
+and malformed payloads are refused (`c2-p6-substitution-controls.log`).
+The first focused build found a reserved-word syntax error in the test's
+new local name `prefix`; it was renamed `rowPrefix` before the rerun.
+The corrected focused build passes **3121 jobs**
+(`c2-p6-frontier-build-rerun.log`); PatternPins takes 569 seconds, versus
+1,029 seconds in the earlier full run that replayed P6 twice. The runs
+had different competing build loads, so this is an observed improvement,
+not an isolated benchmark. The static recipes also pass
+(`c2-p6-frontier-static.log`).
+
+The full rerun records **`TRUE_EXIT=0`** in
+`.gate-runs/0f323b3-20260907T003817Z.log`: **116/116 unconditional baseline
+theorem rows**, an unchanged matching golden, and **21 existing mirror
+products** with their seam and axiom checks. This closes the selected
+BUG-039/050 repairs. The earlier red gate remains part of the record.
+C2 and all three new BVCHOP mirrors remain open.
+
+### C2 diagnostic capture — selected FC hypotheses (2026-09-07)
+
+The isolated fork at `5b70a91cab` observes the actual accepted FC pairs,
+their original derivations before expunging, and the stored rule attached
+to each created derivation. The context-contradiction record retains the
+accumulator, tail, returned FC literals, selected sources, parent filter
+and returned ttree. Its NIQ capture preserves all **462 parsed original
+events** modulo the added source fields (`c2-selected-fc-event-comparison.log`);
+the existing parser does not yet retain the new clause-context field.
+
+The next isolated fork, **5e1f29dd05**, records executed hypothesis paths
+across suspension and free-variable alternatives. The actual recursive
+`type-set-rec` calls retain their returned masks, children, selected lookup
+and NOT routes, comparison table and recognizer tuple. This observes calls
+already executed by ACL2; it does not rerun the type query. Its image and
+tag checks pass (`c2-fc-reliefs-image-build.log`, `c2-fc-reliefs-tags.log`).
+Both unchanged source prefixes capture at that clean fork: NIQ **14/12**
+QED/DEFTHM events and `times` through `<=-OF-*-AND-*-SAME-FORWARD-2`
+**38/38**, under `.tmp/ns1/c2-fc-reliefs-capture/`. The new NIQ capture also
+preserves the 462 parsed original events modulo added FC source fields
+(`c2-fc-reliefs-event-comparison.log`). These projections are comparisons
+only and never enter replay.
+
+The reconstructed Subgoal *1/3' sources show an initial `'T` query, the
+actual free-variable match for `NOT(< X2 X1)`, then the nonnegative
+reciprocal and RATIONALP hypotheses. Their recorded call trees use
+`J : 7`, `UNARY-/(J) : 11`, and the comparison table `(11,1) → 128`,
+followed by NOT's `128 → 256`. Receipt:
+`c2-fc-reliefs-tree-inspection.log`. These are new evidence records, not
+proof receipts. Production remains `fd27e59021`; the FC producer, consumer
+and ordinary FC-rule dependency proofs are not integrated or complete.
+
 - Approved docs are committed on `main` at `b452b70`; implementation lives
   in `/home/dev/projects/ACL2Lean/.claude/worktrees/ns1-bvchop`, branch
   `mdd/ns1-bvchop`. C0 is committed at `31d8e42`; C1 is `276f4b8` and carries

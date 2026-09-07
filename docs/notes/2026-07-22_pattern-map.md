@@ -878,11 +878,12 @@ Authored to VALIDATE the arc's new capability decorrelated from qsort
   changes the test shapes; the collapse fires 8x in the record). En
   route it demanded `<`'s provable two-valuedness in the boolean-source
   registry (if1/boolean, boolDisj?, the type-alist truthy pin — landed).
-  LANDS ON a new EMISSION gap: a `fake-rune-for-linear`-proved leaf
-  INSIDE simplify-clause (*1/3.14') with no emitted discharge node — the
-  linear-arithmetic discharge sites instrumented so far are
-  tau-clausep/built-in-clausep, not rewrite-clause's linear close.
-  PatternPins-gated as a truthful tripwire.
+  The linear-in-simplify emission and the later DEFAULT-<-1 hypothesis-fold
+  gaps have since been repaired. **2026-09-07 frontier:** 0/1, an ASSUMED
+  row with `rule:DEFAULT-<-1` and `ASSUMED:dp-fact` conditions. The actual
+  two-step `NOT(ACL2-NUMBERP NIL)` folds are consumed (BUG-050).
+  PatternPins checks these debt classes and rejects an earlier failure;
+  no completed P6 theorem is claimed.
 
 - `p7-cong-collapse` (perm-lane arc, 2026-07-30) — G2 rung 2's
   DECORRELATED validation book. Wild anchor: ORDEREDP-QSORT's

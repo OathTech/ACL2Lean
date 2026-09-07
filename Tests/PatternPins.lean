@@ -60,35 +60,31 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- constant-test path, and the or survives clausify INTACT as one
   -- literal (zero IF-FINISH/COMBINED records). Validates the iff
   -- preprocess lane, NOT the or-collapse bridge.
-  -- p6-or-collapse-arith 0/1: the or-collapse bridge's second instance
-  -- (the collapse fires 8x in the record and REPLAYS); a truthful
-  -- tripwire at the linear-in-simplify EMISSION gap (*1/3.14', a
-  -- fake-rune-for-linear leaf with no discharge node — flips when that
-  -- emission lands).
+  -- P6 is checked once below, including its count and current debt classes.
   for (nm, content, expR, expT) in
       [("p3-recorded-termination", recordedTermLog, 2, 2),
        ("p3-conj-mid-literal", conjMidLog, 1, 1),
-       ("p5-or-shape-flipped", orShapeFlippedLog, 1, 1),
-       ("p6-or-collapse-arith", orCollapseArithLog, 0, 1)] do
+       ("p5-or-shape-flipped", orShapeFlippedLog, 1, 1)] do
     let (res, _) ← ACL2.Replay.Runner.runBook nm content none
     unless res.replayed == expR && res.total == expT &&
         res.integrityFails.isEmpty do
       throwError "pattern pin {nm}: replayed {res.replayed}/{res.total} \
         (expected {expR}/{expT}); integrity: {res.integrityFails.toList}"
-  -- p6 pin TIGHTENED (pre-merge audit, 2026-07-30): the 0/1 count alone
-  -- would stay green if the or-collapse bridge regressed to an EARLIER
-  -- failure; pin the frontier MESSAGE — reaching *1/3.14''s
-  -- ran-out-of-items means everything before it (including the 7 bridge
-  -- replays) composed.
+  -- The 0/1 count alone would permit an earlier replay failure. The actual
+  -- substitution folds now close DEFAULT-<-1's recorded ground hypothesis
+  -- (BUG-050, 2026-09-07); its rule proof and DP facts remain conditions.
+  -- Pin those two debt classes, excluding the separate informational DP
+  -- brackets. Do not pin the number of identical DP conditions: this is a
+  -- frontier tripwire, not a proof of P6. Ns1Substitution checks its folds
+  -- with the kernel. Reuse this result for both checks instead of replaying
+  -- the same book twice.
   let (resP6, _) ← ACL2.Replay.Runner.runBook "p6-or-collapse-arith" orCollapseArithLog none
-  unless resP6.lines.any (fun l =>
-      -- RE-PINNED (2b, linear-verdicts): the previous pin (*1/3.14' "ran
-      -- out of items with no closer") WAS the linear-in-simplify emission
-      -- gap — closed by emit/simplify-clause/linear-contradiction (the
-      -- row's DP leaves now prove ✓); the walk advances to the
-      -- DEFAULT-<-1 hypothesis-relief emission gap.
-      l.startsWith "    ORDN-INSN-MID → FAIL: rule DEFAULT-<-1: hyp \
-(NOT (ACL2-NUMBERP 'NIL)) has NO emitted relief record") do
+  let rowPrefix := "    ORDN-INSN-MID → ASSUMED ◌ cond["
+  unless resP6.replayed == 0 && resP6.total == 1 && resP6.integrityFails.isEmpty &&
+      resP6.lines.any (fun l =>
+        l.startsWith rowPrefix &&
+        (((l.drop rowPrefix.length).toString.takeWhile (· != ']')).toString.splitOn ", ").eraseDups ==
+          ["rule:DEFAULT-<-1", "ASSUMED:dp-fact"]) do
     throwError "pattern pin p6-or-collapse-arith: the pinned frontier message \
       moved — got:\n{"\n".intercalate resP6.lines.toList}\nre-pin truthfully \
       (an EARLIER failure means the or-collapse bridge regressed)"

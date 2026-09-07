@@ -55,7 +55,7 @@ assume the FC conclusions. Receipt:
 statement or native BVCHOP product is claimed.
 
 ## BUG-050 — hypothesis instantiation folds are absent from relief records
-Status: open
+Status: fixed
 Pinned-by: none (proof-capture evidence, not interpreter values)
 
 NONNEGATIVE-INTEGER-QUOTIENT-UPPER-BOUND-LINEAR applies
@@ -85,6 +85,13 @@ Permanent malformed-field controls also pass
 (`c2-substitution-permanent-tests-build.log`, 3134 jobs). Whole NIQ replay
 crosses the original fold and now stops at the separate < '0 J type-set
 basis below (BUG-039). Full regression for this increment remains pending.
+
+Validated 2026-09-07: `.gate-runs/0f323b3-20260907T003817Z.log` records
+`TRUE_EXIT=0`, with 116 unconditional baseline theorem rows, the unchanged
+golden and 21 existing mirrors. P6's five actual two-fold instances also
+pass the permanent kernel/axiom and mutation controls. Its stale missing-hyp
+pin was corrected to the remaining DEFAULT-<-1/DP conditions; P6 remains
+0/1. Production captures now carry the descendant fork `fd27e59021`.
 
 ## BUG-049 — linear equation insertion is absent before trivial substitution
 Status: open
@@ -767,7 +774,7 @@ rows and coverage golden are preserved, and the 21 existing mirrors pass.
 This is a capture/consumer repair; the NS1 native mirrors remain open.
 
 ## BUG-039 — silent hypothesis relief omits its type-set basis
-Status: open
+Status: fixed
 Pinned-by: none (proof-capture/replay provenance; no interpreter-value divergence)
 MOD-BOUND-LINEAR-ARG2 exposes two distinct missing records. The known-true
 marker for PREFER-POSITIVE-ADDENDS-<'s ACL2-NUMBERP arithmetic-result hypothesis
@@ -838,6 +845,12 @@ captures carry that stamp. Focused regression builds pass, including
 positive/context and tamper controls (`c2-known-comparison-production-regression-build-rerun.log`).
 Full regression for this increment remains pending. Constant-bound routes
 in unselected `basic` events are retained but not implemented by this consumer.
+
+Validated 2026-09-07: `.gate-runs/0f323b3-20260907T003817Z.log` records
+`TRUE_EXIT=0`; all 116 unconditional baseline theorem rows and 21 existing
+mirrors are preserved. This closes the selected comparison-table repair.
+The unselected constant-bound consumer frontier remains as described above;
+the quotient still requires BUG-051 and its ordinary book dependencies.
 
 
 ## BUG-038 — linear DP premises ignore the recorded clause rune set
