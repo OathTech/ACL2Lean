@@ -39,4 +39,9 @@ theorem plus_zero_fix (v : SExpr) :
   change mkParts (0 + (numberParts v).1) (0 + (numberParts v).2) = _
   rw [Rat.zero_add, Rat.zero_add, mkParts_numberParts]
 
+/-- The same primitive zero-completion equation in the commuted position. -/
+theorem plus_zero_right_fix (v : SExpr) :
+    plus v (.atom (.number (.int 0))) = fix v := by
+  rw [plus_comm, plus_zero_fix]
+
 end ACL2.Logic

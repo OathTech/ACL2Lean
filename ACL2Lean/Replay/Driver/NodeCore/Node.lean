@@ -298,6 +298,8 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   | "rewrite", "INVERSE-OF-*" => replayPrimitiveInverse rec cfg ctx n
   | "rewrite", "DEFAULT-UNARY-/" => replayPrimitiveReciprocalDefault rec cfg ctx n
   | "rewrite", "REALPART-IMAGPART-ELIM" => replayPrimitiveComponentReconstruction rec cfg ctx n
+  | "rewrite", "REALPART-COMPLEX" | "rewrite", "IMAGPART-COMPLEX" =>
+    replayPrimitiveComponentProjection rec cfg ctx n
   | "rewrite", "COMMUTATIVITY-OF-+" | "rewrite", "COMMUTATIVITY-OF-*" =>
     let (fn, law) := if rname == "COMMUTATIVITY-OF-+" then
       ("BINARY-+", ``Logic.plus_comm) else ("BINARY-*", ``Logic.times_comm)

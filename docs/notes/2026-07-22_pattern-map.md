@@ -809,8 +809,11 @@ No pattern books exist yet — authoring them is the arc's work.
   Whole addition now replays unconditionally with accepted axioms after
   replaying its three bootstrap dependencies through primitive USE schemas
   (six actual premises, 24 rejected mutations) and the existing cross-book
-  registry/tree channels. REALPART-+ still hits a looping primitive-expansion
-  warning and recursion failure.
+  registry/tree channels. Its two primitive projection rewrites now consume
+  both HYP records (four actual nodes, 32 rejected mutations). REALPART-+
+  Subgoals 2' and 1.2 replay unconditionally; the parent's separate literal
+  verdict still loops, and its retained-equality FERTILIZE/HIDE path remains
+  open.
   Whole-helper replay remains incomplete. Prior times/quotient captures
   compare modulo the new ELIM metadata; the newer less-than capture also
   has an earlier producer's TYPESET addition, so its ELIM-only comparison

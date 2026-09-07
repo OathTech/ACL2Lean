@@ -4446,3 +4446,54 @@ both DP leaves checked, after the **6284-job** executable build
 (`c2-bootstrap-primitive-use-equality-replay.log`). This is an intermediate
 **fast-gate** checkpoint; the last full-gate receipt remains the earlier
 116-theorem/21-product baseline checkpoint.
+
+
+### C2 component projection rewrites and zero-completion leaf (2026-09-07)
+
+REALPART-+'s actual Subgoal 2' linear verdict now replays unconditionally.
+Its two-variable value statement constructs in 1 ms and its production
+proof in **62 ms**, then kernel-checks with accepted axioms
+(`c2-bootstrap-component-zero-production-rerun.log`). The component-zero
+normalizer uses primitive zero-completion and checks FIX's numeric guard
+from component rationality. Trying the older additive normalizer first
+reaches the recursion limit on this same obligation; trying completion
+first constructs its isolated proof in **8 ms** inside the existing direct
+leaf budget (`c2-bootstrap-zero-normalizer-order.log`,
+`c2-bootstrap-zero-normalizer-first.log`). No resource limit changes.
+
+The actual REALPART-COMPLEX and IMAGPART-COMPLEX rewrite nodes now consume
+both recorded rational HYP blocks and the RHS through the shared primitive
+conditional/equation walkers. They use the model axiom laws already required
+by USE. Four actual nodes (two in each component-addition theorem)
+kernel-check with accepted axioms; **32** invalid mutations reject
+(`c2-bootstrap-projection-controls-rerun.log`). Independent HYP marker
+permutations also check: the existing hypothesis walker selects each marker
+by its exact term. The first probe incorrectly expected that permutation to
+fail; the corrected control checks the resulting proof. Missing either HYP
+record is rejected.
+
+Whole ADD-DEF-COMPLEX stays unconditional. REALPART-+ Subgoal 1.2 now also
+replays unconditionally, but the **whole component-addition theorem remains
+open** (`c2-bootstrap-projection-subtrees.log`). The remaining looping
+`Logic.plus.eq_1` warning/recursion failure is localized to Subgoal 2's
+literal 3, a separate recorded positive type-set verdict
+(`c2-bootstrap-projection-parent-trace.log`). Subgoal 1 reaches the existing
+FERTILIZE frontier with DELETE-LIT-FLG NIL at Subgoal 1.1': the equality is
+retained inside HIDE. An isolated 1.1'' probe additionally encounters HIDE
+outside its DP-lift primitive set; this is not evidence that HIDE should
+become a primitive. The recorded substitution and definition route remains
+to implement. No whole REALPART-+/IMAGPART-+ or new mirror claim is made.
+
+The final core build passes **3148 jobs**, affected targets pass **3165**,
+and statics pass (274 reachable sources):
+`c2-bootstrap-component-projections-build-rerun.log`,
+`c2-bootstrap-component-projections-affected-build-rerun.log`,
+`c2-bootstrap-component-projections-static-rerun.log`. The earlier affected
+build was stopped before its final target because the normalization order
+was changing; its exit 143 is not a passed gate. This increment remains an
+intermediate fast-gate checkpoint, with production provenance, C2 and all
+three new mirrors still open.
+
+Focused equality-reasoning replay passes **3/3 unconditionally**, both
+DP leaves checked, after the **6284-job** executable build
+(`c2-bootstrap-component-projections-equality-replay.log`).

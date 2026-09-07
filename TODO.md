@@ -57,7 +57,8 @@ charter or the archive carry the record.
       strict helper's remaining component rules: Subgoal 9.12 now also
       checks under the same two conditions as 9.18'. Promote the recorded
       literal-retention route (BUG-055). Integrate the now-unconditional bootstrap addition/dependency declarations
-      into the component-addition consumers. Repair REALPART-+'s measured looping primitive expansion.
+      into the component-addition consumers. Repair REALPART-+'s literal-level nonnumber verdict in Subgoal 2 and
+      replay its retained-equality FERTILIZE/HIDE route (DELETE-LIT-FLG NIL).
       Subgoals 2.1 and 2.2 are unconditional; all seven zero-row insertions
       check relative to their continuations. Preserve the
       actual guard children and restriction queries; then

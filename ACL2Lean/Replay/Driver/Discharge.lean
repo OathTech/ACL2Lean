@@ -784,8 +784,10 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
   -- nonnumeric verdict leaf otherwise expands products that already vanish.
   let normalizeTac ← if withComplexConstructor then do
     let additiveTac ← dpPrimitiveAdditiveTactic
+    let zeroTac ← dpComponentZeroTactic
     `(tactic|
       first
+      | (solve | $zeroTac:tactic)
       | (solve | $additiveTac:tactic)
       | (try simp_all only [Logic.realpart_nonnumber, Logic.imagpart_nonnumber]) <;>
         (try simp_all only [Logic.acl2Numberp_complex, SExpr.t, reduceCtorEq]) <;>

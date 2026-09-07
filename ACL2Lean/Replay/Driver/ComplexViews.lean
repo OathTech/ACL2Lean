@@ -11,6 +11,17 @@ def dpPrimitiveAdditiveTactic : MetaM (TSyntax `tactic) :=
   `(tactic| simp_all only [logic_not_equal_nil_iff, Logic.equal_ne_nil_iff,
     Logic.plus_assoc, Logic.plus_comm, Logic.plus_left_comm])
 
+/-- Complete components at an emitted verdict leaf before expanding numeric
+constructors. The zero equation leaves FIX, whose numeric guard is checked
+from the component recognizer law. -/
+def dpComponentZeroTactic : MetaM (TSyntax `tactic) :=
+  `(tactic| simp_all only [Logic.realpart_nonnumber,
+    Logic.imagpart_nonnumber, Logic.equal_ne_nil_iff] <;>
+    simp (disch := simp only [ne_eq, Logic.acl2Numberp_nil_iff,
+      Logic.rationalp_realpart, Logic.rationalp_imagpart, SExpr.t,
+      reduceCtorEq, false_and, not_false_eq_true]) only
+      [Logic.plus_zero_right_fix, Logic.plus_zero_fix, Logic.fix_of_number])
+
 /-- Boolean normalization plus the primitive POSITIVE laws inside a recorded
 verdict leaf. Numeric subterms stay abstract; the leaf itself must supply all
 rationality and sign premises. This avoids constructor enumeration for the
