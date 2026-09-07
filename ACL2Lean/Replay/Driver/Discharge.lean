@@ -779,6 +779,10 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
     (try simp_all only [logic_not_equal_nil_iff, ACL2.lexorder_refl,
       Logic.rationalp_realpart, Logic.rationalp_imagpart,
       SExpr.t, reduceCtorEq]) <;> subst_vars)
+  let normalizeTac ← if withNegation then do
+    let negationTac ← dpPrimitiveNegationTactic
+    `(tactic| first | (solve | $negationTac:tactic) | $normalizeTac:tactic)
+    else pure normalizeTac
   -- Complete complex constructors before an equality premise can replace
   -- them with a larger arithmetic term. This closes the recorded opener's
   -- tau leaf from its nonrational argument, before field-view expansion.

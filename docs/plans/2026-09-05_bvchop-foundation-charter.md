@@ -2,12 +2,24 @@
 
 Dated 2026-09-05. First goal of the
 [post-sorting master plan](2026-09-05_master-plan.md).
-**Status: C0 and C1 checked; C2 first-mirror work in progress. NS1 incomplete.**
-The long run is paused for the 2026-09-07 check-in. The next planned execution
-slice is [NS1-R — reusable type-query and clause-edit replay](2026-09-07_ns1-replay-mechanisms-plan.md),
+**Status: C0 and C1 checked; C2 incomplete. NS1-R is active at R0/R1.**
+After the 2026-09-07 check-in, the user activated the focused execution
+slice [NS1-R — reusable type-query and clause-edit replay](2026-09-07_ns1-replay-mechanisms-plan.md),
 with focused probes, a frozen mechanism scope and complete dependency/reuse
 acceptance. It builds on this worktree; the native result contract below is
-unchanged. Writing that plan does not resume implementation.
+unchanged. The broader mirror campaign stays deferred during this slice.
+
+NS1-R's inherited negation checkpoint has fresh fast-gate receipts under
+`.tmp/ns1-r/`: `r0-static.log` passes the static recipes;
+`r0-affected-build.log` passes 3167 jobs; `r0-equality-replay.log` checks
+3/3 unconditional rows and two emitted DP leaves; `r0-components.log` and
+`r0-negations.log` replay 24 + 7 prerequisites unconditionally with accepted
+axioms. The numeric component laws and verdict-leaf negation normalization
+are preserved as their own intermediate implementation checkpoint. Input,
+producer and image identities are in the
+[R0 manifest](../notes/2026-09-07_ns1-r-baseline.json). These receipts do not
+constitute a new full gate or a completed NS1-R fragment.
+
 The strategic direction and preflight choices are agreed. On 2026-09-05 the
 user explicitly authorized ownership of the complex migration and the
 subagents proposed below. Those authorizations persist throughout this goal;

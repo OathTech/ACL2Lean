@@ -3,6 +3,29 @@ import ACL2Lean.NumericEquality
 
 namespace ACL2.Logic
 
+/-- The canonical component constructor is rational exactly when its
+imaginary component is zero. This is a representation equation, including
+the constructor's normalization from complex components to a rational. -/
+theorem rationalp_mkParts (r i : Rat) :
+    rationalp (mkParts r i) = (if i.num = 0 then SExpr.t else SExpr.nil) := by
+  unfold mkParts Number.fromParts
+  split
+  · unfold Number.fromRat
+    by_cases hd : r.den = 1
+    · rw [dif_pos hd]; rfl
+    · rw [dif_neg hd]; rfl
+  · rfl
+
+/-- Read the rational recognizer through a numeric value's components.
+The numeric premise prevents nonnumbers' zero completion from being
+mistaken for rationality. Used inside the recorded minus-book tau leaves. -/
+theorem rationalp_numberParts (v : SExpr) (h : acl2Numberp v ≠ SExpr.nil) :
+    rationalp v = (if (numberParts v).2.num = 0 then SExpr.t else SExpr.nil) := by
+  calc
+    rationalp v = rationalp (mkParts (numberParts v).1 (numberParts v).2) :=
+      congrArg rationalp ((mkParts_numberParts v).trans (fix_of_number v h)).symm
+    _ = _ := rationalp_mkParts _ _
+
 /-- The completed primitive constructor always returns an ACL2 number. -/
 theorem acl2Numberp_complex (a b : SExpr) : acl2Numberp (complex a b) = .t := by
   rfl

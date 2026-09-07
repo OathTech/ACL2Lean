@@ -1,0 +1,123 @@
+{
+  "captured_at": "2026-09-07T19:55:02.502300+00:00",
+  "head": "7598d0a7b78b9f17fc9c43b24ef7080d42b9105e",
+  "branch": "mdd/ns1-bvchop",
+  "production_acl2": "fd27e59021cf7d0103a526dbda41553ad709eae3",
+  "diagnostic_acl2": "df7a28e38c5122d987fc0bc3c19a0db3895105b6",
+  "diagnostic_status": "",
+  "toolchain": "leanprover/lean4:v4.33.0",
+  "bootstrap_source_hashes_verified": 55,
+  "files": {
+    ".tmp/ns1/NS1Probe/Components.lean": {
+      "sha256": "d17ed96647120f690286f8a9de5e28d79d7103cc958eedec5e64c0a26a69f8dd",
+      "bytes": 4618,
+      "mtime_ns": 1788802845567022753
+    },
+    ".tmp/ns1/NS1Probe/Negations.lean": {
+      "sha256": "271bd5f7023dcf7f9a3537117d2ad920d74398d57662677fde41bdc69dac0cb9",
+      "bytes": 5593,
+      "mtime_ns": 1788807079898041861
+    },
+    ".tmp/ns1/acl2-ta-singleton/saved_acl2": {
+      "sha256": "0a474cfc7a18c3628c243ed679445bb6011a79306cdfba1551c39e15745300bb",
+      "bytes": 384,
+      "mtime_ns": 1788798245798393655
+    },
+    ".tmp/ns1/acl2-ta-singleton/saved_acl2.core": {
+      "sha256": "5c28de5c83d5b42d4f225cf698fd17f13df7dfbe502678c4ca5b64841a168f2f",
+      "bytes": 241948208,
+      "mtime_ns": 1788798248935508303
+    },
+    ".tmp/ns1/c2-bootstrap-complex-equal-capture/bootstrap.proof-log.tmp": {
+      "sha256": "ff372afc5c813783c9303e72e4a2d5629edcde511f016438642a03884ad1bf54",
+      "bytes": 93194,
+      "mtime_ns": 1788787161371218901
+    },
+    ".tmp/ns1/c2-bootstrap-minus-default-capture/bootstrap.proof-log.tmp": {
+      "sha256": "1b7e83e7a486b27a2741ef7e11c3d503cb6ce0338ee6d15c0e5a4672b92e7a3b",
+      "bytes": 5096,
+      "mtime_ns": 1788807016524625588
+    },
+    ".tmp/ns1/c2-bootstrap-plus-defaults-capture/bootstrap.proof-log.tmp": {
+      "sha256": "a3d0c294464f9b34a343dddafb4e8a229afe2e7e33591049a4f16d52001b9fb2",
+      "bytes": 44426,
+      "mtime_ns": 1788787328249829761
+    },
+    ".tmp/ns1/c2-bootstrap-retention-capture/bootstrap.proof-log.tmp": {
+      "sha256": "12588cdb9c40804e28b7336fddc1871c4263690039abdd39c2bb9e89203a1b6d",
+      "bytes": 743588,
+      "mtime_ns": 1788783614794477058
+    },
+    ".tmp/ns1/c2-clausify-reductions-times-capture/times.proof-log": {
+      "sha256": "80e288543bce4a9bf42da0e5b0edcdb02ec8bdc5514f811bd431ab8a7547c045",
+      "bytes": 6647656,
+      "mtime_ns": 1788798314487103400
+    },
+    ".tmp/ns1/c2-clausify-reductions-times-capture/times.proof-log.meta": {
+      "sha256": "66755080685603b100bd9eb9dc4a7873a7170a06f71d973984025d5f5df28a4e",
+      "bytes": 1953,
+      "mtime_ns": 1788798314739099151
+    },
+    ".tmp/ns1/c2-complex-dependency-capture/complex.proof-log": {
+      "sha256": "a8dd5d3a828470acf4f012f70e27053cd19ac7b8f65703cb9dff3a80e82c206c",
+      "bytes": 81506,
+      "mtime_ns": 1788759696938576016
+    },
+    ".tmp/ns1/c2-complex-dependency-capture/realpart.proof-log": {
+      "sha256": "cd3d5c9476222643964f525270b704ff3cc6a23a267816a02d8ea154506104c3",
+      "bytes": 244848,
+      "mtime_ns": 1788759708550377842
+    },
+    ".tmp/ns1/c2-elim-restriction-prefix-capture/nonnegative-integer-quotient.proof-log": {
+      "sha256": "80a5cae5732d2447e61ea10abff378bdeb93f6bdd96c2e2d15ba1c3ec8a8b6f7",
+      "bytes": 8114715,
+      "mtime_ns": 1788758332127968721
+    },
+    ".tmp/ns1/c2-equal-nil-capture/less-than.proof-log": {
+      "sha256": "1f092d4451df080ad3f90ed3626620a4d67381e7ce9c45c9aadae9e56147998c",
+      "bytes": 1017580,
+      "mtime_ns": 1788781407868293011
+    },
+    ".tmp/ns1/c2-minus-dependency-capture/minus.proof-log": {
+      "sha256": "149eedd2dc2b8efd8361a567c09d43ce409b7478e9393f847d4e703aae5f03ff",
+      "bytes": 78404,
+      "mtime_ns": 1788806022823366276
+    },
+    ".tmp/ns1/c2-unhide-selection-capture/imagpart.proof-log": {
+      "sha256": "5aec16563f723b240195a7f07d400f228e5c1640c925146dbb987f86bcfa49ab",
+      "bytes": 229947,
+      "mtime_ns": 1788793652660825608
+    },
+    ".tmp/ns1/probe-strict-arithmetic-dependencies.lean": {
+      "sha256": "bfc4ece1ba4eb695a7439d73995fde0c17a3803dd37924a117e0d4f7015fd1fc",
+      "bytes": 5903,
+      "mtime_ns": 1788803601303886901
+    },
+    ".tmp/ns1/probe-strict-with-negation-stages.lean": {
+      "sha256": "86f53839c9d037d0ddc5a2ce4442b8f46b329f200d8443a80bbdc775c01ee581",
+      "bytes": 5643,
+      "mtime_ns": 1788803393274665357
+    },
+    "ACL2Lean/NumericComponents.lean": {
+      "sha256": "90589f88666744d47626e4d1bd07520f763393422433f93b39af534cc1c97be4",
+      "bytes": 4281,
+      "mtime_ns": 1788807969925764628
+    },
+    "ACL2Lean/Replay/Driver/ComplexViews.lean": {
+      "sha256": "64f8a23b57ddbd79ad8f004326cb39684cc2542b3a0a20f5c01a41f994f07b56",
+      "bytes": 10319,
+      "mtime_ns": 1788807893048052761
+    },
+    "ACL2Lean/Replay/Driver/Discharge.lean": {
+      "sha256": "860242abdcac87984003877172836892456c34ea369e94b475a4dbf1ed7c9ac5",
+      "bytes": 59676,
+      "mtime_ns": 1788807893049052745
+    },
+    "acl2_samples/ns1/basic-arithmetic.proof-log": {
+      "sha256": "cdb7373df1da3fa65aa00e5911079610e9f7956c932e80460af9635940aa0817",
+      "bytes": 475356,
+      "mtime_ns": 1788737879014502293
+    }
+  },
+  "inherited_patch_sha256": "a17ef824e15654edb1d4397af572bee95850a1cdf2bcf834152448874f86e0bc"
+}

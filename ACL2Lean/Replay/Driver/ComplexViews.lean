@@ -14,10 +14,40 @@ private theorem guardedNumberEquality (a b : SExpr) (ha : Logic.acl2Numberp a �
   · rintro ⟨hb, h⟩
     exact (Logic.number_eq_iff a b ha hb).mpr h
 
-private theorem plusNumber (a b : SExpr) : Logic.acl2Numberp (Logic.plus a b) ≠ .nil := by
-  rw [Logic.plus_parts]
+private theorem partsNumber (r i : Rat) : Logic.acl2Numberp (Logic.mkParts r i) ≠ .nil := by
   change SExpr.t ≠ SExpr.nil
   decide
+
+private theorem plusNumber (a b : SExpr) : Logic.acl2Numberp (Logic.plus a b) ≠ .nil := by
+  rw [Logic.plus_parts]
+  exact partsNumber _ _
+
+/-- Normalize primitive negation in an emitted verdict leaf. Substitute
+explicit equalities once, then use canonical components and the leaf's
+numeric guards. Ordinary book theorems are not registered as model laws.
+The driving obligations are DEFAULT-UNARY-MINUS and minus.lisp's tau leaves. -/
+def dpPrimitiveNegationTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    simp only [Bool.cond_eq_ite, Logic.implies_ne_nil_iff, ne_eq, not_not,
+      Logic.not_nil_iff, Logic.toBool_eq_true, Logic.toBool_eq_false,
+      logic_not_equal_nil_iff, Logic.equal_ne_nil_iff, Logic.equal_nil_iff] at * <;>
+    intros <;> (try subst_vars) <;>
+    simp (disch := assumption) only [Logic.neg_parts, Logic.numberParts_mkParts,
+      Logic.numberParts_nonnumber, Logic.mkParts_numberParts, Logic.fix_of_number,
+      Logic.fix_nonnumber, Prod.fst, Prod.snd, Rat.neg_zero, Rat.neg_neg] at * <;>
+    (try simp (disch := assumption) only
+      [Logic.rationalp_mkParts, Logic.rationalp_numberParts] at *) <;>
+    (try simp only [Rat.neg_num, Int.neg_eq_zero] at *) <;>
+    first
+    | rfl
+    | (change SExpr.t ≠ SExpr.nil; decide)
+    | ((try simp (disch := first | assumption | exact partsNumber _ _ | decide) only
+        [ne_eq, Logic.number_eq_iff] at *) <;>
+      (try simp only [Logic.numberParts_mkParts,
+        show Logic.numberParts (.atom (.number (.int (Int.ofNat 0)))) =
+          ((0 : Rat), (0 : Rat)) from rfl,
+        Prod.ext_iff, Prod.fst, Prod.snd, Rat.neg_zero, Rat.neg_neg] at *) <;>
+      grind -matchEqs -splitMatch [Rat.neg_neg]))
 
 /-- Expose component and negation signs in an emitted verdict while keeping
 products abstract. The strict helper's 7' verdict contains opposite positive
