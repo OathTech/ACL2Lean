@@ -132,7 +132,9 @@ partial def replayRuleHypotheses (rec : NodeRec) (cfg : ReplayConfig)
           | .cons (.atom (.symbol q)) (.cons value .nil) =>
             if q.name == "QUOTE" then some value else none
           | _ => none
-        if let some value := quoted? then do
+        if let some p ← replayKnownTrueQuery? cfg ctx hσ reliefMarkers then
+          pure p
+        else if let some value := quoted? then do
           -- Check the recorded final truth value after substitution folding.
           let ne ← proveByDecide
             (← mkAppM ``Ne #[reflectSExpr value, mkConst ``SExpr.nil]) "quoted hypothesis is nonnil"

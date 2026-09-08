@@ -89,8 +89,9 @@ def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
     if r.name == "ACL2-NUMBERP" then
       if pos then some (a, 127, ``ACL2.Replay.inTs_acl2Numberp_true)
       else some (a, -128, ``ACL2.Replay.inTs_acl2Numberp_false)
-    else if r.name == "INTEGERP" && pos then
-      some (a, 23, ``ACL2.Replay.inTs_integerp_true)
+    else if r.name == "INTEGERP" then
+      if pos then some (a, 23, ``ACL2.Replay.inTs_integerp_true)
+      else some (a, -24, ``ACL2.Replay.inTs_integerp_false)
     else if r.name == "RATIONALP" then
       if pos then some (a, 63, ``ACL2.Replay.inTs_rationalp_true)
       else some (a, -64, ``ACL2.Replay.inTs_rationalp_false)

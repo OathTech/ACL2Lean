@@ -61,4 +61,61 @@ def query (s : SExpr) : Except String Query := do
     children := ← asList (← required fs "CHILDREN"), ttree := ← required fs "TTREE",
     inputTtree := ← required fs "INPUT-TTREE", dwp := ← required fs "DWP" }
 
+/-- The source's recognizer-tuple used for double-whammy lookup selection.
+NUME is an enabled-rule number, distinct from the cited rune's index. It
+selects no Lean theorem: the semantic fields and source proof do that. -/
+structure RecognizerDwp where
+  fn : Symbol
+  trueTs : Int
+  falseTs : Int
+  strong : Bool
+  rune : Rune
+
+def recognizerDwp (raw : SExpr) : Except String RecognizerDwp := do
+  let .cons (.atom (.symbol fn)) (.cons (.cons nume tm) (.cons (.cons fm strong) rune)) := raw
+    | throw "type-set query: malformed or unsupported double-whammy tuple"
+  unless nume == .nil do
+    unless (← asInt nume) ≥ 0 do throw "type-set query: negative enabled-rule number"
+  unless strong == .nil || strong == SExpr.t do throw "type-set query: malformed tuple strength"
+  let some rune := ProofLog.parseRune? rune | throw "type-set query: malformed tuple rune"
+  return { fn, trueTs := ← asInt tm, falseTs := ← asInt fm, strong := strong == SExpr.t, rune }
+
+structure IfRoute where
+  mustTrue : Bool
+  mustFalse : Bool
+  decisionCount : Nat
+  decisionTtree : SExpr
+  trueContext : List (SExpr × Int × SExpr)
+  falseContext : List (SExpr × Int × SExpr)
+
+def ifRoute (raw : SExpr) : Except String IfRoute := do
+  let .cons (.atom (.keyword "IF")) body := raw | throw "IF query: missing executed route"
+  let fs ← fields body ["MUST-BE-TRUE", "MUST-BE-FALSE", "DECISION-QUERY-COUNT",
+    "DECISION-TTREE", "TRUE-TYPE-ALIST", "FALSE-TYPE-ALIST"]
+  let flag (key : String) := do
+    let v ← required fs key
+    unless v == .nil || v == SExpr.t do throw "IF query: malformed decision flag"
+    pure (v == SExpr.t)
+  let n ← asInt (← required fs "DECISION-QUERY-COUNT")
+  unless n ≥ 0 do throw "IF query: negative decision query count"
+  return {
+    mustTrue := ← flag "MUST-BE-TRUE", mustFalse := ← flag "MUST-BE-FALSE",
+    decisionCount := n.toNat, decisionTtree := ← required fs "DECISION-TTREE",
+    trueContext := ← typeAlist (← required fs "TRUE-TYPE-ALIST"),
+    falseContext := ← typeAlist (← required fs "FALSE-TYPE-ALIST") }
+
+/-- The executed decision prefix and ordered selected arms. Check the
+complete shape before traversing a child in its context. -/
+def splitIfQueries (q : Query) (route : IfRoute) : Except String (List SExpr × List SExpr) := do
+  let some [.atom (.symbol fn), _, yes, no] := q.term.toList?
+    | throw "IF query: malformed application"
+  unless fn.name == "IF" do throw "IF query: route on a non-IF application"
+  unless route.decisionCount ≤ q.children.length do throw "IF query: missing decision queries"
+  let expected := (if route.mustFalse then [] else [yes]) ++ (if route.mustTrue then [] else [no])
+  let branches := q.children.drop route.decisionCount
+  unless branches.length == expected.length do throw "IF query: executed branch count mismatch"
+  unless (← branches.mapM (fun raw => return (← query raw).term)) == expected do
+    throw "IF query: executed branch term/order mismatch"
+  return (q.children.take route.decisionCount, branches)
+
 end ACL2.Replay.Driver.TsQueryCapture

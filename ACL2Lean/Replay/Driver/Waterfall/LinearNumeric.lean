@@ -16,12 +16,20 @@ private partial def queryParents (raw : SExpr) : MetaM (List Nat) := do
             parents := parents ++ [n.toNat]
   return (parents ++ (← q.children.mapM queryParents).flatten).eraseDups
 
+/-- Checked operand facts and the exact clause parents used by their
+recorded queries. The row consumer uses these references to distinguish
+query-supported type evidence from its direct comparison parent. -/
+structure LinearNumericProof where
+  left : Expr
+  right : Expr
+  parents : List Nat
+
 /-- Replay the actual ADD-LINEAR-ASSUMPTION queries. Only their recorded
 PTs are installed from the input-clause falsity proof. No numeric flag or
 type-alist snapshot becomes a Lean assumption. -/
 def replayLinearNumericBasis (cfg : ReplayConfig) (ctx : ReplayCtx)
     (info : LinearEquationInsertion) (a b : SExpr)
-    (parentFalse : Nat → MetaM (SExpr × Expr)) : MetaM (Option (Expr × Expr)) := do
+    (parentFalse : Nat → MetaM (SExpr × Expr)) : MetaM (Option LinearNumericProof) := do
   let some raw := info.numericBasis | return none
   let fs ← tsQueryRead (TsQueryCapture.fields raw ["OPERANDS", "TYPE-ALIST", "QUERIES"])
   unless (← tsQueryRead (TsQueryCapture.asList (← tsQueryRead (TsQueryCapture.required fs "OPERANDS")))) == [a, b] do
@@ -47,6 +55,9 @@ def replayLinearNumericBasis (cfg : ReplayConfig) (ctx : ReplayCtx)
     let h ← mkExpectedTypeHint h (← mkEq number (mkConst ``SExpr.t))
     let hn ← mkDecideProof (← mkAppM ``Ne #[mkConst ``SExpr.t, mkConst ``SExpr.nil])
     mkAppM ``ne_of_eq_of_ne #[h, hn]
-  return some (← proveNumber a qa, ← proveNumber b qb)
+  return some {
+    left := ← proveNumber a qa
+    right := ← proveNumber b qb
+    parents := ((← queryParents qa) ++ (← queryParents qb)).eraseDups }
 
 end ACL2.Replay.Driver

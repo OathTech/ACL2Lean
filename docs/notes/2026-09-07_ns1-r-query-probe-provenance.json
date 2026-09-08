@@ -1,0 +1,102 @@
+{
+  "status": "diagnostic captures; maintained production promotion still required",
+  "producer_manifest": {
+    "path": "docs/notes/2026-09-07_ns1-r-construction-provenance.json",
+    "sha256": "4a8fef2a9e124668f114b023c7068043c9bf1994339c9c59ad3a63ae65c94d33",
+    "bytes": 7001
+  },
+  "captures": [
+    {
+      "family": "ordinary-recognizer",
+      "source": {
+        "path": ".tmp/ns1-r/query-recognizer-probes.lisp",
+        "sha256": "4889c22245aad047a408fa4ed079cc63d795f59ed81f05f5614ccb76256f50ab",
+        "bytes": 731
+      },
+      "capture": {
+        "path": ".tmp/ns1-r/r3-recognizer-probe-capture/query-recognizer-probes.proof-log",
+        "sha256": "b1312f78b9e32a61db4ba812065e166cd002214bb0db1487964f81e81e19fe16",
+        "bytes": 10411
+      },
+      "sidecar": {
+        "path": ".tmp/ns1-r/r3-recognizer-probe-capture/query-recognizer-probes.proof-log.meta",
+        "sha256": "0200ef2083e0b958013d23a905c909e7cccd3ddaaeaa020f3c7a991dd1e1bc48",
+        "bytes": 399
+      }
+    },
+    {
+      "family": "conditional",
+      "source": {
+        "path": ".tmp/ns1-r/query-conditional-probes.lisp",
+        "sha256": "4621a274a00ca5ce8b6186f7d0dae1e75f30349f1344aeaf3e7867a4c05bfd15",
+        "bytes": 1580
+      },
+      "capture": {
+        "path": ".tmp/ns1-r/r3-conditional-probe-capture/query-conditional-probes.proof-log",
+        "sha256": "7ba65e379775923c64d8b85a131bda3869ba9a58c283e117d26a0f2012cf880d",
+        "bytes": 23088
+      },
+      "sidecar": {
+        "path": ".tmp/ns1-r/r3-conditional-probe-capture/query-conditional-probes.proof-log.meta",
+        "sha256": "91d02f624e1d0b391b5fccaad19e01df89dc28cffabb9861c443aa8412c17966",
+        "bytes": 400
+      }
+    },
+    {
+      "family": "reserved-query-reuse",
+      "source": {
+        "path": "acl2/books/arithmetic-3/pass1/basic-arithmetic-helper.lisp",
+        "sha256": "b67129e830122d139245713e50a2091202625a15bed23f4e4d902ccc907d7f0c",
+        "bytes": 3407
+      },
+      "capture": {
+        "path": ".tmp/ns1-r/r3-query-reuse-capture/basic-arithmetic-helper.proof-log",
+        "sha256": "c4beec2ad41577c9df3fa87282c399e056a9b913682f0c88dd193ace3f685c28",
+        "bytes": 598930
+      },
+      "sidecar": {
+        "path": ".tmp/ns1-r/r3-query-reuse-capture/basic-arithmetic-helper.proof-log.meta",
+        "sha256": "4a28ff008a920be0eee63b3c9ae5728ea917c561136a1903b15b16643ddc0b5a",
+        "bytes": 477
+      },
+      "projection_receipt": {
+        "path": ".tmp/ns1-r/r3-query-reuse-projections.log",
+        "sha256": "a4fe59ac6f78ac5b85d9c3bc2fd4380c6fdb9c0f05e5bf210a5218c936d1aa7e",
+        "bytes": 127
+      },
+      "replay_status": "failed: argument-driven IF pruning lacks its selected decision basis"
+    },
+    {
+      "family": "ordinary-times-completion-dependencies",
+      "selected_events": [
+        "DEFAULT-*-1",
+        "DEFAULT-*-2"
+      ],
+      "source": {
+        "path": ".tmp/ns1/acl2-ta-singleton/axioms.lisp",
+        "sha256": "cdda2eff86345d62420f641da90fb884ec53b38df0672cd216196007f9d2cb6b",
+        "bytes": 1195444
+      },
+      "capture": {
+        "path": ".tmp/ns1-r/bootstrap-times-defaults-capture/bootstrap.proof-log.tmp",
+        "sha256": "efe0b4db1c7aa549d175cf64e88ee2e8128b04149c0ca6815977f6020dbd4e6b",
+        "bytes": 5925
+      },
+      "diagnostic_manifest": {
+        "path": ".tmp/ns1-r/bootstrap-times-defaults-capture/diagnostic.json",
+        "sha256": "eb4929fa91b7255aacb121fb7aeba10d0f2d5b08f6bb90ea6d0ecec894c07187",
+        "bytes": 6945
+      },
+      "driver": {
+        "path": ".tmp/ns1-r/run-bootstrap-times-defaults-proofs.lisp",
+        "sha256": "c5d1112c989c00c82afdde7a3101acf499f1d621ac2315733ec18fdf27939e37",
+        "bytes": 4836
+      },
+      "capture_script": {
+        "path": ".tmp/ns1-r/capture-bootstrap-times-defaults.py",
+        "sha256": "240d2cee99d0464c614779779964a3dd3ba17c6461a8794b274ff7e1dd7f5e00",
+        "bytes": 4562
+      }
+    }
+  ]
+}

@@ -689,8 +689,19 @@ partial def inTsCandidates (cfg : ReplayConfig) (ctx : ReplayCtx)
   let inTsTy (m : Int) : MetaM Expr :=
     mkAppM ``ACL2.Replay.InTs #[Lean.toExpr m, tv]
   let mut out ← inTsPrimitiveRanges cfg ctx t tv
+  -- A checked branch test directly types its own value as non-NIL or NIL.
+  -- The predicate-shape probes below describe its arguments, and do not
+  -- cover a bare test variable. Normalize both sources to the same local
+  -- Boolean-premise interface; the expected value type still binds the fact
+  -- to this environment's interpretation of the selected query term.
+  let mut directFacts := localFacts
+  for (f, value, sense, h) in ctx.branchFacts do
+    if f == t then
+      let hb ← if sense then mkAppM ``toBool_true_of_ne_nil #[h]
+        else mkAppM ``Iff.mpr #[← mkAppM ``Logic.toBool_eq_false #[value], h]
+      directFacts := directFacts ++ [(f, sense, hb)]
   -- (1) the caller's LOCAL branch hypotheses
-  for (f, pos, hb) in localFacts do
+  for (f, pos, hb) in directFacts do
     if f == t then
       let m := if pos then -129 else 128
       let nm := if pos then ``ACL2.Replay.inTs_toBool_true else ``ACL2.Replay.inTs_toBool_false

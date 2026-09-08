@@ -168,18 +168,22 @@ def replayLinearEquation (cfg : ReplayConfig) (ctx : ReplayCtx)
         (x y : SExpr) : MetaM (Expr × Expr × Expr) := do
       if basis != .nil then
         unless quotedInt? b == some 0 do throwError "linear type row: only zero-cell bounds are supported"
-        let some (ha, hb) := numeric | throwError "linear type row: numeric query basis required"
+        let some numbers := numeric | throwError "linear type row: numeric query basis required"
         let h ← replayTypeZeroRow cfg ctx info row basis a positive parentFalse
-        return (h, ha, hb)
+        return (h, numbers.left, numbers.right)
       let [parent] := row.parents | throwError "linear equation: row is not from one direct parent"
       let (lit, hLit) ← parentFalse parent
       let some (ltS, [lhs, rhs]) := asApp lit
         | throwError "linear equation: direct parent is not a comparison"
       unless ltS.name == "<" do throwError "linear equation: unsupported direct parent"
-      let mut ha : Option Expr := numeric.map (·.1)
-      let mut hb : Option Expr := numeric.map (·.2)
+      let mut ha : Option Expr := numeric.map (·.left)
+      let mut hb : Option Expr := numeric.map (·.right)
       for tip in row.tips do
         if tip == parent then continue
+        if let some numbers := numeric then
+          unless numbers.parents.contains tip do
+            throwError "linear equation: row PT is absent from checked numeric queries"
+          continue
         let (typeLit, hType) ← parentFalse tip
         let some (n, [ratTerm]) := asApp typeLit
           | throwError "linear equation: PT is not a negated rationality fact"

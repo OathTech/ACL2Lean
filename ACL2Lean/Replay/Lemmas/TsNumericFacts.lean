@@ -385,6 +385,29 @@ theorem inTs_neg_int {a : SExpr} (ha : InTs 23 a) : InTs 23 (Logic.neg a) := by
   apply inTs_integerp_true
   simp [Logic.neg, Logic.toRat, Logic.mkNumber, Logic.integerp, Logic.toBool]
 
+/-- The negative half of the primitive integer partition. The denominator
+reuse query combines this checked premise with rational membership. -/
+theorem inTs_integerp_false {v : SExpr}
+    (h : Logic.toBool (Logic.integerp v) = false) : InTs (-24) v := by
+  cases v with
+  | nil => change tsMember (-24) 7 = true; decide
+  | cons a d =>
+    simp only [InTs, tsIndex_cons]
+    split_ifs <;> decide
+  | atom a => cases a with
+    | number n => cases n with
+      | int _ => exact Bool.noConfusion h
+      | rational n d hc =>
+        simp only [InTs, tsIndex_rat]
+        split_ifs <;> decide
+      | complex _ _ _ => change tsMember (-24) 6 = true; decide
+    | symbol s =>
+      simp only [InTs, tsIndex_symbol]
+      split_ifs <;> decide
+    | keyword _ => change tsMember (-24) 9 = true; decide
+    | string _ => change tsMember (-24) 12 = true; decide
+    | char _ => change tsMember (-24) 13 = true; decide
+
 /-- NUMERATOR returns an integer also at ACL2's non-rational completion. -/
 theorem inTs_numerator (a : SExpr) : InTs 23 (Logic.numerator a) := by
   apply inTs_integerp_true

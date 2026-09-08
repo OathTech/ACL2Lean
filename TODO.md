@@ -38,8 +38,8 @@ charter or the archive carry the record.
 - [ ] **NS1-R — reusable type-query and clause-edit replay (active, shared consumer integration).**
       With the [scope frozen](docs/notes/2026-09-07_ns1-r-supported-scope.md),
       complete shared query consumers and consolidate the remaining legacy
-      edit orchestration; validate the captured recursive construction routes. Close the other five required dependencies,
-      integrate the checked CANCEL proof and pass the reserved reuse proofs;
+      edit orchestration. Integrate the checked whole dependency proofs;
+      capture and consume the selected IF decision for reserved EQUAL-/ reuse;
       preserve the 31 staged prerequisites,
       integrate production captures and measure the downstream helper.
       Broader C2 work stays deferred. Plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
@@ -55,13 +55,10 @@ charter or the archive carry the record.
       helpers after their CASES/conjunction and numeric-context repairs; validate
       closed-branch discharge inventory (BUG-053), numeric solidification
       (BUG-054), and the recorded comparison-bound query before proceeding.
-      Integrate the selected Satriani/subsumption reductions (BUG-058). Close
-      the ordinary negation, product-sign, and cancellation dependencies of
-      7'/6': integrate empty clausify call records (BUG-059); close the
-      recorded verdicts in DEFAULT-UNARY-MINUS, RATIONALP-OF-- and
-      EQUAL-OF---WHEN-VARIABLE, then stage IMAGPART-OF-- before REALPART-OF--.
-      Consume the BOOLEANP comparison/IF queries and the recorded deletion
-      in cancellation's linear-substitution continuation. Decompose the whole
+      Integrate the selected Satriani/subsumption reductions (BUG-058) and
+      the checked ordinary negation, product-sign and cancellation
+      dependencies of 7'/6', including their bootstrap source proofs and
+      empty clausify call records (BUG-059). Decompose the whole
       helper's replay after its earlier heartbeat timeout; preserve its limit.
       Preserve its now-unconditional 9.12, 9.18' and 9.17 subtrees.
       Promote the captured exact-term clausify-assumption observer/consumer

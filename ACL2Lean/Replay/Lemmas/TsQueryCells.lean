@@ -7,6 +7,13 @@ import ACL2Lean.NumericComplexView
 namespace ACL2.Replay
 open ACL2
 
+/-- TYPE-SET-REC's unbound-variable return, over the complete basic partition. -/
+theorem inTs_unknown (v : SExpr) : InTs (-1) v := by
+  unfold InTs
+  have hi := tsIndex_lt v
+  generalize tsIndex v = i at *
+  interval_cases i <;> decide
+
 theorem equal_zero_t_of_inTs {v : SExpr} (h : InTs 1 v) :
     Logic.equal v (.atom (.number (.int 0))) = .t := by
   rw [zero_of_inTs1 h]

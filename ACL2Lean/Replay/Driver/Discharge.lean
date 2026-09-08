@@ -19,6 +19,8 @@ namespace ACL2.Replay.Driver
 
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+initialize registerTraceClass `ACL2.replayDpFact
+
 /-! ## Decision-procedure discharge leaves (c1 + c2) — the ratified carve-out
 
 A clause ACL2 closed by a verdict-only decision procedure (tau / type-set
@@ -862,6 +864,23 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
       (try
         let mv ← mkFreshExprMVar stmt
         let (_, g) ← mv.mvarId!.intros
+        -- Complete a primitive conclusion before premise normalization.
+        -- The zero-product verdict already has a constant conclusion;
+        -- expanding unrelated nested premises can consume the direct budget.
+        let primitiveClosed ← g.withContext do
+          let simple ← mkFreshExprMVar (← g.getType)
+          let result ← try
+            let completionTac ← dpPrimitiveCompletionTactic withImplication
+            let remaining ← runDpTactic simple.mvarId! completionTac
+            for rest in remaining do
+              trace[ACL2.replayDpFact] "primitive completion residual: {← rest.getType}"
+            pure remaining.isEmpty
+          catch e =>
+            trace[ACL2.replayDpFact] "primitive completion did not close {← g.getType}: {e.toMessageData}"
+            pure false
+          if result then g.assign (← instantiateMVars simple)
+          return result
+        if primitiveClosed then return some (← instantiateMVars mv)
         if (stmt.find? (·.isConstOf ``Logic.complexRationalp)).isSome &&
             (stmt.find? (·.isConstOf ``Logic.acl2Numberp)).isSome then
           let goals ← runDpTactic g (← dpRecognizerViewTactic)
@@ -875,9 +894,11 @@ where proveDpFactCore (stmt : Expr) (total : Nat) (coneIdxs : List Nat) : MetaM 
           normalizeDpIntegerViews g (fun g => runDpTactic g intTac)
         let remaining ← goals.flatMapM fun g => do
           if withComparison && !withReciprocal then
+            let premiseTac ← dpRationalPremisesTactic
             let rationalTac ← dpRationalViewTactic
             let closed ← try
-              closeDpRationalValues g (fun g => runDpTactic g rationalTac)
+              closeDpRationalValues g (fun g => runDpTactic g premiseTac)
+                (fun g => runDpTactic g rationalTac)
             catch _ => pure false
             if closed then return []
           runDpTactic g directTac

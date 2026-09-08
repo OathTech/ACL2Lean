@@ -10,6 +10,21 @@ private def basisCitations (prov : StepProvenance) : List String × List String 
    prov.taRunes.filterMap (fun r =>
     if r.ty == "type-prescription" then some r.name else none))
 
+/-- New known-true captures carry the original recursive query. Consume it
+before legacy relief adapters; failure after selecting this record is final. -/
+def replayKnownTrueQuery? (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (hyp : SExpr) (markers : List ProofNode) : MetaM (Option Expr) := do
+  let some (.node _ _ _ _ prov) := markers.find? (fun n => (nodeLhsRhs n).1 == hyp)
+    | return none
+  let some raw := prov.hypTypeSetBasis | return none
+  unless prov.origin == "relieve-hyp/known-true" do
+    throwError "known query: record on unsupported relief origin"
+  let (mask, p) ← replayOperandTsQuery cfg ctx hyp raw
+  unless !tsMember mask 7 do throwError "known query: result does not establish truth"
+  let hn ← mkAppM ``ne_nil_of_inTs #[← mkDecideProof
+    (← mkEq (← mkAppM ``tsMember #[toExpr mask, toExpr (7 : Nat)]) (toExpr false)), p]
+  return some (← mkAppM ``evtrue_of_conv_ne_nil #[← ctxValProof cfg ctx hyp, hn])
+
 /-- Consume the selected primitive table route for a zero/positive-rational
 comparison. Both masks and the numeric projection come from the actual query;
 the existing type-set walk proves membership before the primitive law applies.

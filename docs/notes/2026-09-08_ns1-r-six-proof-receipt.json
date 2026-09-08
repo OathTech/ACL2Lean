@@ -1,0 +1,90 @@
+{
+  "status": "diagnostic whole proofs checked; production integration and full claim gate outstanding",
+  "consumer_world_capture": ".tmp/ns1/c2-elim-restriction-prefix-capture/nonnegative-integer-quotient.proof-log",
+  "script": ".tmp/ns1-r/probe-query-family-with-defaults.lean",
+  "script_sha256": "40594a86881f5a8f2e89eb36b936303bc10ed147a9544b53f09f9b6cc7e2a885",
+  "receipt": ".tmp/ns1-r/r3-query-family-with-defaults-4.log",
+  "receipt_sha256": "06b4efa91e7b37a806628764669a6fc0bf74652f8df6fa3b750cdcb2a1196b88",
+  "accepted_axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "rows": [
+    {
+      "theorem": "BOOLEANP-COMPOUND-RECOGNIZER",
+      "conditions": [],
+      "replay_ms": 296
+    },
+    {
+      "theorem": "EQUAL-OF-BOOLEANS-CHEAP",
+      "conditions": [],
+      "replay_ms": 1799
+    },
+    {
+      "theorem": "EQUAL-OF-BOOLEANS",
+      "conditions": [],
+      "replay_ms": 485
+    },
+    {
+      "theorem": "*-BOTH-SIDES",
+      "conditions": [],
+      "replay_ms": 328
+    },
+    {
+      "theorem": "*-OF-/-SAME-ARG2",
+      "conditions": [],
+      "replay_ms": 2859
+    },
+    {
+      "theorem": "DEFAULT-*-1",
+      "conditions": [],
+      "replay_ms": 1305
+    },
+    {
+      "theorem": "DEFAULT-*-2",
+      "conditions": [],
+      "replay_ms": 883
+    },
+    {
+      "theorem": "EQUAL-OF-*-AND-*-CANCEL",
+      "conditions": [],
+      "replay_ms": 5383
+    },
+    {
+      "theorem": "EQUAL-OF-*-AND-*-CANCEL-ARG2-ARG2",
+      "conditions": [],
+      "replay_ms": 2841
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL",
+      "conditions": [],
+      "replay_ms": 27666
+    },
+    {
+      "theorem": "<-OF-*-AND-0",
+      "conditions": [],
+      "replay_ms": 4966
+    },
+    {
+      "theorem": "<-OF-0-AND-*",
+      "conditions": [],
+      "replay_ms": 3434
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-GEN",
+      "conditions": [],
+      "replay_ms": 29499
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2",
+      "conditions": [],
+      "replay_ms": 4680
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-ARG2-AND-ARG1",
+      "conditions": [],
+      "replay_ms": 5230
+    }
+  ]
+}

@@ -410,9 +410,12 @@ partial def replayNodeWith (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
     -- sprint P3b); `:ARG-LEAVES` and `:TRUETS` come off the same record
     let citedCr := prov.runes.filterMap fun r =>
       if r.ty == "compound-recognizer" then some r.name else none
-    let fact ← replayRecognizer cfg ctx lhs verdictV prov.typeSet
-      (citedTpThms := citedTpThms) (argLeaves := prov.argLeaves)
-      (citedCr := citedCr) (stepTrueTs := prov.trueTs)
+    let fact ← if let some raw := prov.operandTypeBasis then
+        replayRecognizerOperandQuery cfg ctx lhs verdictV raw prov
+      else
+        replayRecognizer cfg ctx lhs verdictV prov.typeSet
+          (citedTpThms := citedTpThms) (argLeaves := prov.argLeaves)
+          (citedCr := citedCr) (stepTrueTs := prov.trueTs)
     let hq ← mkAppM ``re_val_quote #[cfg.worldExpr, cfg.envExpr, reflectSExpr verdictV]
     mkAppM ``fuel_eq_of_conv #[fact, hq, ← mkEqRefl (reflectSExpr verdictV)]
   | "if-simplification", _ =>

@@ -854,6 +854,7 @@ def replayDischargeNode (cfg : ReplayConfig) (ctx : ReplayCtx) (clauseTerm : SEx
         (tpData.map (·.2.1) ++ linData.map (·.1)))
   let concArgs ← vars.mapM (dpConcVar cfg.envExpr)
   let hypFallback (e : Lean.Exception) : MetaM Expr := do
+    trace[ACL2.replayDpFact] "unclosed emitted leaf {clauseTerm}\nobligation: {stmt}\n{e.toMessageData}"
     match ctx.dpFactHyps.find? (fun (t, _) => t == clauseTerm) with
     | some (_, hyp) => do
       let pinned0 := pinned.filter (fun (op, _, _) => opaques0.contains op)

@@ -548,3 +548,386 @@ affected build and owning/negative receipts above, this is an intermediate
 package is ordinary recognizer hypothesis/operand queries and scoped nested
 IF queries; the remaining five target proofs and reserved EQUAL-/ reuse
 still depend on that package and the bounded I1/I2 integration work.
+
+
+### Ordinary recognizer hypothesis queries (WIP after 8a12414)
+
+Checkpoint `8a12414` records the preceding construction/query increment
+under the fast gate. The next source probe,
+`.tmp/ns1-r/query-recognizer-probes.lisp`, isolates BOOLEANP of a comparison
+in an ordinary rule hypothesis. Its carrier prevents rewriting from erasing
+the query. The unchanged diagnostic producer captures 2/2 QEDs in
+`r3-recognizer-probe-capture.log`; complete reconstructed trees are in
+`r3-recognizer-probe-trees.jsonl`. The initial owning replay fails at the
+known-true relief of `(BOOLEANP (< X '0))`, while its bootstrap recognizer
+and ordinary rule already replay (`r3-ordinary-recognizer-replay.log`).
+
+The known-true consumer now selects the recorded recursive query before
+legacy adapters. The same ordinary equivalence channel supplies the
+recognizer's truth from checked argument membership. A parsed DWP tuple
+separates the enabled-rule number from rune indexing, checks its semantic
+fields against the selected parent recognizer and verifies propagation into
+primitive arguments. Source TYPE-SET-PRIMITIVE propagates it through the
+comparison as well as arithmetic. TYPE-SET-REC's variable-unknown return
+uses a proof over the complete fourteen-cell partition; no variable type is
+assumed from a snapshot.
+
+`r3-recognizer-query-build.log` passes 3156 jobs.
+`r3-ordinary-recognizer-replay-2.log` replays bootstrap, the ordinary rule,
+and its complete consumer unconditionally in 240/276/303 ms with accepted
+axioms. `r3-ordinary-recognizer-controls.log` verifies actual use of the
+bootstrap proof and rejects seven mutations at consumption: absent source,
+missing child, changed tuple, missing ordinary citation, changed child term,
+changed result, and missing propagated tuple. Both Boolean-book proofs remain
+unconditional in `r3-recognizer-booleans-regression.log`.
+
+The conditional consumer separates the decision-query prefix from executed
+branch calls, validates branch-local lookup snapshots, and composes the
+recorded mask union under local checked test premises. A pruned arm requires
+its checked decision query; contradictory or unsupported composite pruning
+remains a named frontier. The first two builds exposed a missing `do` and a
+callback whose partial application had supplied the default DWP argument.
+`r3-conditional-query-build-3.log` passes after those corrections.
+
+The historical R2 carrier has four arguments, so its first ordinary rule
+hits the existing definition-unfolding arity frontier before the query.
+`r3-conditional-queries-replay.log` records that failure. Its source and
+capture remain unchanged. The new authored
+`.tmp/ns1-r/query-conditional-probes.lisp` uses a three-argument carrier
+with the same three source-grounded query compositions. Real capture gives
+6/6 QEDs; complete reconstructed trees are in
+`r3-conditional-probe-trees.jsonl`. The three ordinary rule proofs pass;
+the first consumer run passes both-branch composition and fails true-only
+pruning at the branch-local non-NIL lookup for P
+(`r3-conditional-queries-replay-2.log`).
+
+The shared context adapter now converts a checked branch premise for the
+queried term to its singleton/nonnull membership. The snapshot still
+introduces no facts. `r3-conditional-queries-replay-3.log` passes all three
+whole consumers unconditionally (300/291/294 ms), with accepted axioms.
+After extracting strict decision/branch splitting into the capture view,
+`r3-conditional-queries-replay-4.log` rechecks them in 304/296/296 ms.
+`r3-conditional-query-controls-2.log` checks the actual bootstrap proof
+dependency and rejects missing decision prefix, changed decision count,
+wrong branch scope, wrong union, reordered branches and pruning without a
+decision query. The first control receipt stopped at an earlier validation
+boundary; it remains a failed test-harness receipt. The third control run
+passes after preserving constant-bound child proofs as well.
+
+### Real query consumers and remaining arithmetic obligations (WIP)
+
+The actual negative-product query first requires narrowing the existing
+binary primitive law's inputs (48/63 and 63/49 into the existing 63/63
+rational closure), not new computed table cells. That input weakening is
+checked. Its selected reverse constant bound then appears in the opposite
+orientation: query `(< '0 X)` returns NIL from the recorded `(< X '0):256`
+entry. The shared adapter checks the exact reversed operands and selected
+context entry, derives its truth from checked context, and preserves both
+executed operand-query proofs. No extra comparison TABLE cases were found
+in the complete seven-tree inventory.
+
+`r3-query-positive-replay.log` checks `<-OF-0-AND-*` unconditionally in
+4304 ms with accepted axioms. Along with strict CANCEL's earlier receipt,
+this establishes two of the six required whole proofs on the fresh capture
+at those source revisions. They must be rerun after the explicit-operand
+migration below. The negative-product proof instead reaches two emitted
+`preprocess/type-set-fc` leaves, at Subgoals 2 and 1; the full owning failure
+is `r3-query-signs-replay-3.log` (49001 ms, two ASSUMED DP conditions).
+
+Their rational premises occur inside an implication. The existing rational
+representation adapter selected only top-level `(NOT (RATIONALP x)) = NIL`
+premises. It now performs propositional implication normalization and
+consumes explicit conjunction projections and truthy recognizer premises
+before applying the existing rational view and solver. This is context
+normalization within the existing verdict-leaf allowance, with no new
+arithmetic rule, solver or resource increase. The next whole replay reports
+one remaining ASSUMED DP condition in 8127 ms
+(`r3-query-signs-replay-4.log`). Both named leaves close in isolation under
+the unchanged direct budget (`r3-sign-verdict-context-3.log`); that does not
+close the whole proof. A trace of the actual failing assembled obligation
+is the next diagnostic step.
+
+`r3-query-general-replay.log` reaches CANCEL-GEN's recorded UNARY-- query
+49 → 15. `TsNegation.lean` implements ACL2 TYPE-SET-UNARY--'s atomic image
+over the basic partition and a finite inclusion certificate for arbitrary
+emitted input/output masks. The semantic lemma checks under default limits
+(`r3-negation-transfer-lemma-2.log`); the first receipt records reduction
+errors, not success. Its owning integration is still being built. Explicit
+primitive recognizer rewrites now select their captured operand queries
+through the same interface and partition adapter used by recursive queries,
+with strict mask/tuple checks and no fallback after a rejected record.
+No new fast-gate checkpoint or production-integration claim is made yet.
+
+The additional authored query sources, raw captures and sidecars have a
+[separate hash manifest](2026-09-07_ns1-r-query-probe-provenance.json),
+referencing the unchanged clean construction producer and saved-image record.
+These remain diagnostic inputs pending production promotion.
+
+The explicit-operand/atomic-negation build passes in
+`r3-query-negation-operand-build-2.log` (3159 jobs); the first build has a
+named-argument indentation error in Node. Strict CANCEL and inverse-product
+remain unconditional through the newly strict operand consumer in
+31663/2918 ms (`r3-query-family-arithmetic.log`).
+`r3-recognizer-operand-controls.log` repeats the whole proofs and rejects
+missing operand query, changed argument mask, changed true partition and
+absent strength. The conditional probes remain unconditional in
+`r3-query-family-conditional.log`.
+
+The assembled negative-product trace identifies the remaining leaf at
+Subgoal 4', under opposite bounds on X. After ordered antisymmetry has
+substituted zero, only constant Boolean arms remain. The old rational
+normalizer split them and subsequently reached a recursion limit while
+unfolding value matches in already contradictory/reflexive branches.
+`r3-sign-zero-verdict-phases-2.log` records the intermediate goals. Complete
+Boolean cleanup before splitting removes that work. The fresh whole
+`r3-query-signs-replay-6.log` checks `<-OF-*-AND-0` in 5287 ms and
+`<-OF-0-AND-*` in 3678 ms, both unconditional with accepted axioms.
+Three of the six required targets now have whole receipts.
+
+The general target gets past atomic negation and reaches a linear insertion
+with no postpass: Subgoal 9.2 inserts the recorded product equation and
+immediately pushes its exact output as Subgoal 9.2'. The insertion wrapper
+now uses the existing exact-child handoff for this empty edit sequence.
+The full dependency-chain probe still stops earlier at frozen integration
+obligation I2, EQUAL-OF-*-AND-*-CANCEL's zero-product verdict
+(`r3-query-family-replay.log`, 36293 ms). Its five preceding whole proofs
+check, including `*-BOTH-SIDES`. A goal-only primitive completion pass is
+being built for that already emitted obligation; no equality cancellation
+theorem is being supplied as a model law.
+
+Fresh reserved query reuse capture preserves the maintained prefix through
+FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT: 11/11 QEDs, 7573 lines
+(`r3-query-reuse-capture.log`). EQUAL-/ currently fails in 345 ms at
+`IF query: pruning of a composite test needs its scoped decision derivation`
+(`r3-query-reuse-replay.log`). The complete tree inventory is
+`r3-query-reuse-trees.jsonl`. The actual root query is
+`(IF (NOT (ACL2-NUMBERP X)) (NOT (ACL2-NUMBERP X)) (EQUAL X '0))`;
+its true-only decision runs a single query of X with result -128, then
+queries the selected branch. Source ASSUME-TRUE-FALSE-REC strips NOT,
+selects the recognizer partition, queries the argument and exchanges its
+verdict polarity. The existing query children are real but the IF decision
+record omits that selected tuple and normalization. This is a missing
+decision record within Q3; do not derive it from the test's printed shape
+or substitute another reuse theorem. Add an observer of the executed
+decision before the corresponding consumer.
+
+The affected six-test build passes all 3176 jobs, with Ns1Mod in 252 seconds
+(`r3-query-family-affected-build.log`), before the pending I2 change.
+Static recipes pass in `r3-query-family-static.log`; the focused CLI equality
+regression passes 3/3 unconditional rows and both DP leaves in 2066 ms
+(`r3-query-family-equality-replay.log`). All 24 component stages replay
+unconditionally in `r3-query-family-components.log`; the seven negation
+stages and affected checks must be refreshed after the pending I2 change.
+No new fast-gate commit or full-gate claim has yet been made.
+
+All seven negation stages then replay unconditionally with accepted axioms
+in `r3-query-family-negations.log`. The ordinary and conditional query
+controls also pass in `r3-query-family-ordinary-controls.log` and
+`r3-query-family-conditional-controls.log`. The first I2 integration still
+fails in the whole chain (`r3-query-family-replay-2.log`): putting primitive
+completion at the end of the direct route leaves the earlier context
+normalization in front of it. The current build moves this goal-only pass
+before that preparation, on a fresh goal and within the existing direct
+budget. `r3-primitive-completion-leaves.log` is an isolated diagnostic of
+unmodified tree leaves, not a receipt for the context-substituted I2
+obligation assembled by the driver.
+
+#### Next observer contract for reserved query reuse
+
+The missing Q3 evidence is the **selected root decision**, not another
+type-set query. Extend the IF route with an optional decision basis obtained
+while its actual ASSUME-TRUE-FALSE-REC call runs. A dynamically scoped
+collector belongs to that root call; nested assumption calls must not
+overwrite it. The existing executed-query list already supplies the
+argument proof and its order. At the recognizer argument-query return,
+record the normalized term, NOT/IF-NIL-T normalization flag, selected
+argument, argument mask and query index, true/false partition, strength,
+ordinary rune(s), and any strengthening mask. Do not call the recognizer
+selector or type-set function a second time.
+
+The consumer must check the normalized term against the recorded test,
+check the indexed executed query's term/mask, apply the shared recognizer
+partition judgment to that checked membership, and transport the resulting
+Boolean polarity through the recorded normalization. Ordinary rules still
+need their replayed source; unsupported strengthening, recursive composite
+decisions and contradictory contexts remain explicit frontiers. Adequate
+older direct-test records can keep their strict adapter. A missing basis
+for this argument-driven pruning route must continue to fail.
+
+Capture the unchanged reserved source again and compare statements,
+definitions, recursive tree projections and source metadata. Recheck the
+existing three conditional probes and real target captures against the new
+producer. Mutations should remove/change the selected decision, tuple,
+query index and normalization at the consuming boundary. This work stays
+inside Q3 and reuses the query judgment; it does not authorize an independent
+Lean inference of the test's truth or an expansion of the frozen slice.
+
+#### Strict operand reuse and linear query composition (2026-09-08)
+
+The strict operand path first exposed X's recorded mask 40 in the denominator
+proof. A generic primitive INTEGERP complement law supplies mask -24 from
+the checked negative recognizer premise; the existing intersection with the
+rational premise yields 40. The next actual query, at Subgoal 2', simplify
+item 1/node 0/node 0, is NUMERATOR X with result 23 and an executed unknown-X
+child. The shared unary range adapter now uses the already checked NUMERATOR
+range and retains that child. Source TYPE-SET-NUMERATOR returns its unconditional
+integer range in this case (`type-set-b.lisp:2825`).
+
+`r3-query-family-denominator-3.log` replays the complete reserved
+EQUAL-DENOMINATOR-1 unconditionally in 4229 ms with accepted axioms. The two
+preceding receipts record the INTEGERP-complement and NUMERATOR frontiers;
+they are not successful reuse receipts. The affected runner build is
+`r3-unary-range-build.log` (3159 jobs).
+
+The empty linear-edit handoff now passes in CANCEL-GEN, exposing an overlapping
+legacy check at Subgoal 9.2's selected linear pair
+(`r3-query-general-replay-3.log`). Its numeric basis contains both executed
+ACL2-NUMBERP queries over the product operands, with parent references
+3/4/0/5/6. Those shared queries already check, but the direct-row adapter
+then insists each extra parent is a RATIONALP literal on the whole product.
+The pending consolidation carries checked numeric proofs together with their
+query parent references; the row must account for each additional tip through
+those references. Adequate legacy direct-rationality captures retain their
+existing strict adapter. No type-alist snapshot becomes an assumption.
+
+`r3-query-general-replay-4.log` then replays all of CANCEL-GEN's own nodes
+in 26165 ms, conditional only on the ordinary
+EQUAL-OF-*-AND-*-CANCEL-ARG2-ARG2 dependency. This is a condition-bearing
+intermediate result, not a fourth unconditional target. The reserved
+denominator proof remains unconditional in `r3-query-family-denominator-4.log`
+(4217 ms).
+
+I2's trace (`r3-query-family-trace-2.log`) reduces the actual zero-product
+conclusion to T ≠ NIL. Adding propositional completion after the existing
+primitive reductions closes that obligation. The whole equality cancellation
+proof now replays in 5155 ms with precisely DEFAULT-*-1/DEFAULT-*-2 conditions
+(`r3-query-family-replay-4.log`), replacing the previous failed 36-second
+constructor enumeration. No arithmetic cancellation theorem or resource
+increase was added. The successful runner build is
+`r3-query-row-completion-build-3.log`; its first two attempts record a
+structure-literal layout error in LinearNumeric.
+
+DEFAULT-*-1 and DEFAULT-*-2 are ordinary bootstrap defthms immediately after
+COMPLETION-OF-* (`axioms.lisp:25460/25464`). The unchanged diagnostic producer
+executed their original initialization proofs through a selected contiguous
+observation window. Capture `bootstrap-times-defaults-capture/` retains raw
+gzip, transcoded gzip and diagnostic identities; source tree unchanged,
+initialization true, exit 0, 5925 raw bytes, 93.2 seconds
+(`r3-bootstrap-times-defaults-capture.log`). This records execution, pending
+tree inspection and checked replay. The source forms/hints and proof flags
+are not edited by the diagnostic driver.
+
+The fresh equality-window inventory is `r3-equality-window-tree.jsonl`.
+Its Goal', simplify item 1/node 0/node 0 is the actual FIX X expansion in an
+RHS window, followed by item 1/node 0/node 1's combined IF in that same
+window. `r3-query-equality-window.log` reproduces the I1 endpoint mismatch in
+99 ms. The pending shared test-prefix selector checks the owner window's
+kind, term, enclosing path, flags and entry frame before re-rooting its
+test-position prefix. Other windows remain excluded. Both constant-copy
+and combined-copy consumers use this selector and retain their checked
+chain endpoints.
+
+The fresh bootstrap trees each contain one actual preprocess/type-set-fc
+verdict (`r3-bootstrap-times-defaults-trees.jsonl`). Their first whole replay
+failed after numeric preparation unfolded the nonnumber recognizer. A
+focused probe on the actual emitted DEFAULT-*-1 leaf closes by implication
+normalization and the existing multiplication-completion law
+(`r3-times-default-completion-leaves.log`). Moving completion earlier first
+regressed inverse-product (`r3-query-family-with-defaults-2.log`); the trace
+records its exact leaf and unrelated product-equality premise. Completing
+only the conclusion, using explicit premises to discharge primitive guards,
+removes that context-wide rewrite. The existing reciprocal-completion
+attempt was initially consolidated into this early nonnumber completion;
+the subsequent regression check below rejects that consolidation. No new
+solver or numerical semantics are added.
+
+`r3-if-prefix-controls-4.log` checks both bootstrap facts and both complete
+equality-cancellation dependencies unconditionally, with accepted axioms.
+EQUAL-OF-*-AND-*-CANCEL takes 5503 ms; its ARG2-ARG2 consumer takes 2769 ms.
+Deleting the actual copy prefix, changing its window term and changing its
+enclosing path each fail at IF composition. Earlier control receipts record
+test-script syntax/type elaboration errors and the inverse-product regression;
+the fourth receipt is the successful control run. The reserved denominator
+proof remains unconditional in `r3-query-family-denominator-5.log` (4443 ms).
+
+#### Six required targets replay unconditionally (2026-09-08)
+
+`r3-query-family-with-defaults-3.log` exits 0. Its checked registry supplies
+the preserved 31 staged declarations and then registers fifteen additional
+whole proofs in dependency order, each with an empty condition inventory and
+axioms contained in `{propext, Classical.choice, Quot.sound}`. The six mandatory
+targets have these measured construction/replay times:
+
+| Actual target | Milliseconds |
+| --- | ---: |
+| `<-OF-*-AND-0` | 4948 |
+| `<-OF-0-AND-*` | 3398 |
+| `<-OF-*-AND-*-CANCEL` | 29943 |
+| `<-OF-*-AND-*-CANCEL-GEN` | 29228 |
+| `<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2` | 4638 |
+| `<-OF-*-AND-*-CANCEL-ARG2-AND-ARG1` | 4062 |
+
+These are diagnostic whole-proof receipts at the quotient consumer world,
+not production integration or NS1-R exit. The runner build is
+`r3-nonnumber-goal-completion-build.log` (3159 jobs). The full 31-prerequisite
+preservation checks, affected regression build and fast-gate are being refreshed.
+Reserved query reuse still requires Q3's selected decision record;
+production capture/staging promotion, remaining duplicate orchestration,
+the explicit FC/ELIM reuse witness, downstream measurement and a fresh
+full claim gate remain outstanding. No new native mirror is claimed.
+
+The first regression refresh passes all 24 component and seven negation
+stages (`r3-query-integration-components.log`,
+`r3-query-integration-negations.log`) and the focused equality book (3/3,
+2154 ms, `r3-query-integration-equality-replay.log`). Static checks pass in
+`r3-query-integration-static-2.log`. The affected build is **red**, however:
+the maintained EQUAL-/ replay loses three existing reciprocal-completion
+leaves (`r3-query-integration-affected-build.log`). There is no fast-gate
+checkpoint at this point.
+
+`r3-query-reuse-legacy-trace.log` identifies the distinction. Those leaves
+need the primitive reciprocal completion to rewrite a **premise**, deriving
+a contradiction or identifying Y with zero. The new product leaves close
+their **conclusion** directly; rewriting arbitrary product-equality premises
+there caused the earlier loop. The current repair restores the existing
+reciprocal context preparation at its original position and keeps the early
+pass limited to zero/Boolean completion plus product completion under an
+emitted implication. Its build is
+`r3-completion-preserve-reciprocal-build.log`; both owning families and the
+affected checks must pass again before checkpointing.
+
+The repair passes the complete maintained EQUAL-/ proof in 4415 ms after
+its four ordinary predecessors, all unconditional with accepted axioms
+(`r3-query-reuse-legacy-chain.log`). This preserves the older adequate
+consumer; it does **not** satisfy the reserved fresh-query reuse test, whose
+new decision record remains missing. The new six-proof chain passes again
+in `r3-query-family-with-defaults-4.log`, including its nine additional
+ordinary dependencies. The
+[machine-readable receipt](2026-09-08_ns1-r-six-proof-receipt.json) records
+all fifteen rows, command/script identity and timings. The three window
+mutation controls also pass again (`r3-if-prefix-controls-5.log`).
+
+The second prerequisite refresh passes all 24 component stages and seven
+negation stages (`r3-query-integration-components-2.log`,
+`r3-query-integration-negations-2.log`). The affected six-test build now
+passes all 3176 jobs, including Ns1Arithmetic in 94 seconds, Ns1Contexts
+in 22 seconds and Ns1Mod in 256 seconds
+(`r3-query-integration-affected-build-2.log`). Static/provenance recipes
+pass in `r3-query-integration-static-3.log`; the ordinary-recognizer and
+conditional mutation controls pass in their
+`r3-query-integration-{ordinary,conditional}-controls.log` receipts.
+Focused CLI replay and the final explicit-operand/denominator checks are
+being refreshed before the intermediate fast-gate checkpoint.
+
+The focused refresh passes: the CLI equality book is 3/3 unconditional,
+with both DP leaves checked in 2506 ms
+(`r3-query-integration-equality-replay-2.log`); fresh reserved
+EQUAL-DENOMINATOR-1 replays unconditionally in 5224 ms
+(`r3-query-family-denominator-6.log`). The explicit-operand controls pass
+their actual CANCEL and inverse-product proofs and all four refusal checks
+(`r3-query-integration-operand-controls.log`). Together with the affected
+build, static checks, and 31-prerequisite preservation above, these form
+the intermediate **fast-gate** checkpoint. The last full claim gate remains
+the earlier baseline; NS1-R is still active and incomplete. Next work is the
+selected IF-decision observer for the reserved fresh EQUAL-/ query, followed
+by its shared consumer and production integration.

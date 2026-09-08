@@ -58,6 +58,8 @@ def replayLinearInsertion (rec : ClauseRec) (cfg : ReplayConfig) (ctx : ReplayCt
     (rest : List ClauseItem) (children : List ClauseNode)
     (continueAt : List SExpr → MetaM Expr) : MetaM Expr :=
   replayLinearEquation cfg ctx clause info fun output => do
+    if rest.isEmpty then
+      return ← replayLinearSubstitutions rec cfg ctx idStr output [] children
     if let .step (.node rune _ _ _ prov) :: _ := rest then
       if rune.ty == "branch-substitution" && prov.branchSubstitutionBasis.isSome then
         return ← replayLinearSubstitutions rec cfg ctx idStr output rest children

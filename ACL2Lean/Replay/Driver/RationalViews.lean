@@ -37,18 +37,30 @@ private theorem fromRatNeZero (q : Rat) :
     SExpr.atom (.number (Number.fromRat q)) ≠ .atom (.number (.int (Int.ofNat 0))) ↔ q ≠ 0 :=
   not_congr (fromRatZero q)
 
+private partial def rationalPremise? (proof : Expr) : MetaM (Option Expr) := do
+  let ty ← inferType proof
+  if ty.isAppOfArity ``And 2 then
+    if let some h ← rationalPremise? (← mkAppM ``And.left #[proof]) then return some h
+    return ← rationalPremise? (← mkAppM ``And.right #[proof])
+  if let some (_, lhs, rhs) := ty.eq? then
+    if rhs.isConstOf ``SExpr.nil && lhs.isAppOfArity ``Logic.not 1 then
+      let p := lhs.appArg!
+      if p.isAppOfArity ``Logic.rationalp 1 && p.appArg!.isFVar then
+        return some (← mkAppM ``rationalView #[p.appArg!, ← mkAppM ``logic_not_nil_ne #[p, proof]])
+  if ty.isAppOfArity ``Not 1 then
+    if let some (_, lhs, rhs) := ty.appArg!.eq? then
+      if rhs.isConstOf ``SExpr.nil && lhs.isAppOfArity ``Logic.rationalp 1 && lhs.appArg!.isFVar then
+        return some (← mkAppM ``rationalView #[lhs.appArg!, proof])
+  return none
+
 /-- Extract rational witnesses only from actual recognizer premises in the
-DP obligation. Each step removes one SExpr binder; no type is inferred. -/
+DP obligation, including conjunctions introduced by an implication. Each
+step removes one SExpr binder; no type is inferred. -/
 partial def introDpRationalValues (g : MVarId) : MetaM (MVarId × Bool) := do
   let prf? ← g.withContext do
     for d in ← getLCtx do
       if d.isImplementationDetail then continue
-      let some (_, lhs, rhs) := d.type.eq? | continue
-      unless rhs.isConstOf ``SExpr.nil && lhs.isAppOfArity ``Logic.not 1 do continue
-      let p := lhs.appArg!
-      unless p.isAppOfArity ``Logic.rationalp 1 && p.appArg!.isFVar do continue
-      let hn ← mkAppM ``logic_not_nil_ne #[p, mkFVar d.fvarId]
-      return some (← mkAppM ``rationalView #[p.appArg!, hn])
+      if let some h ← rationalPremise? (mkFVar d.fvarId) then return some h
     return none
   let some prf := prf? | return (g, false)
   let g ← g.assert `hRationalAtom (← g.withContext (inferType prf)) prf
@@ -106,25 +118,39 @@ def dpRationalViewTactic : MetaM (TSyntax `tactic) :=
       ite_eq_left_iff, ite_eq_right_iff, SExpr.t, reduceCtorEq,
       imp_false, not_false_eq_true, not_true_eq_false, not_not]) <;>
     subst_dp_rational_bounds <;>
+    -- Substitution can make whole Boolean arms constant. Finish those
+    -- before splitting, so the fallback never unfolds value matches in
+    -- already contradictory or reflexive branches of the emitted leaf.
     (try simp_all only [Rat.mul_zero, Rat.zero_mul, Rat.add_zero, Rat.zero_add,
-      Rat.lt_irrefl, and_false, or_false, not_false_eq_true]) <;>
+      Rat.lt_irrefl, and_false, false_and, true_and, and_true,
+      or_false, not_false_eq_true, ite_true, ite_false, ite_self]) <;>
     (try split_ifs at *) <;>
     (try simp_all only [Logic.toBool, Logic.not, SExpr.t, reduceCtorEq,
       ite_true, ite_false, not_false_eq_true, fromRatNeZero]) <;>
     first | nlinarith | grind -matchEqs -splitMatch [Rat.mul_neg_iff_of_pos_left,
       Rat.mul_neg_iff_of_pos_right, Rat.mul_nonneg, Rat.mul_pos])
 
+/-- Expose an emitted implication's premises before selecting rational
+views. This is propositional normalization inside the existing DP leaf,
+not an additional arithmetic rule or a rewrite-chain fallback. -/
+def dpRationalPremisesTactic : MetaM (TSyntax `tactic) :=
+  `(tactic|
+    (try simp only [Logic.implies_ne_nil_iff, Bool.cond_eq_ite, Logic.not_nil_iff,
+      Logic.toBool_eq_true, Logic.toBool_eq_false, ite_ne_left_iff,
+      ite_ne_right_iff, ne_eq, not_not] at *) <;> intros)
+
 /-- Try the rational representation on a fresh goal, assigning the original
 only after all resulting obligations close. Failed normalization leaves the
 ordinary DP route its original context. The caller owns the existing budget. -/
 def closeDpRationalValues (g : MVarId)
+    (normalize : MVarId → MetaM (List MVarId))
     (close : MVarId → MetaM (List MVarId)) : MetaM Bool := g.withContext do
   let mv ← mkFreshExprMVar (← g.getType)
-  let (view, changed) ← introDpRationalValues mv.mvarId!
-  unless changed || ((← g.getType).find? (fun e =>
-      e.isConstOf ``Logic.realpart || e.isConstOf ``Logic.imagpart)).isSome do return false
-  let remaining ← close view
-  unless remaining.isEmpty do return false
+  for normalized in ← normalize mv.mvarId! do
+    let (view, changed) ← introDpRationalValues normalized
+    unless changed || ((← g.getType).find? (fun e =>
+        e.isConstOf ``Logic.realpart || e.isConstOf ``Logic.imagpart)).isSome do return false
+    unless (← close view).isEmpty do return false
   g.assign (← instantiateMVars mv)
   return true
 

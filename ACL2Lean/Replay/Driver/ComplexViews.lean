@@ -22,6 +22,35 @@ private theorem plusNumber (a b : SExpr) : Logic.acl2Numberp (Logic.plus a b) ‚â
   rw [Logic.plus_parts]
   exact partsNumber _ _
 
+private theorem timesZeroLeft (a : SExpr) :
+    Logic.times (.atom (.number (.int (Int.ofNat 0)))) a =
+      .atom (.number (.int (Int.ofNat 0))) := by
+  rw [Logic.times_comm]
+  exact Logic.times_zero_right a
+
+private theorem timesNonnumberLeft (a b : SExpr) (ha : Logic.acl2Numberp a = .nil) :
+    Logic.times a b = .atom (.number (.int (Int.ofNat 0))) :=
+  (Logic.times_comm a b).trans (Logic.times_nonnumber_right b a ha)
+
+/-- Complete primitive zero products and their Boolean result at the goal
+before expanding a verdict's unrelated context. An emitted implication can
+supply a nonnumber premise for the same product completion. No cancellation
+theorem is supplied, and unrelated arithmetic premises are not rewritten. -/
+def dpPrimitiveCompletionTactic (withImplication : Bool := false) : MetaM (TSyntax `tactic) := do
+  let constant ‚Üê `(tactic|
+    simp only [timesZeroLeft, Logic.times_zero_right, Logic.equal_self,
+      show Logic.toBool SExpr.t = true from rfl, Logic.toBool_nil,
+      Bool.cond_true, Bool.cond_false, SExpr.t, ne_eq, reduceCtorEq,
+      not_false_eq_true])
+  unless withImplication do return constant
+  `(tactic|
+    (try $constant:tactic) <;>
+    (try simp only [Logic.implies_ne_nil_iff, Logic.equal_ne_nil_iff, ne_eq,
+      Logic.not_nil_iff, Logic.toBool_eq_true, not_not] at *) <;> intros <;>
+    simp (disch := assumption) only [Logic.equal_ne_nil_iff,
+      timesNonnumberLeft, Logic.times_nonnumber_right,
+      timesZeroLeft, Logic.times_zero_right])
+
 /-- Normalize primitive negation in an emitted verdict leaf. Substitute
 explicit equalities once, then use canonical components and the leaf's
 numeric guards. Ordinary book theorems are not registered as model laws.

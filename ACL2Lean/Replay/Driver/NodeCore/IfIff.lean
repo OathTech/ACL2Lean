@@ -3,6 +3,28 @@ import ACL2Lean.Replay.Driver.NodeCore.Congruence
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
+/-- Select the recorded test prefix in the owning IF's coordinate space.
+An RHS window is eligible only when its complete identity and entry frame
+match the owner. Other window-local paths never become literal positions.
+The caller replays this selection and checks the recorded final test. -/
+def ifTestPrefix (owner : StepProvenance) (priorNodes : List ProofNode) : List ProofNode :=
+  let rel := relativizeFrames owner.path
+  priorNodes.filterMap fun pn =>
+    let .node _ _ _ _ p := pn
+    let sameWindow := if owner.innerKind == "" then p.innerKind == "" else
+      owner.innerKind == "rhs" && p.innerKind == owner.innerKind &&
+      owner.innerTerm.isSome && p.innerTerm == owner.innerTerm &&
+      p.innerPath == owner.innerPath && p.innerSwapped == owner.innerSwapped &&
+      p.innerIfTest == owner.innerIfTest && p.path.take 1 == owner.path.take 1
+    if !sameWindow then none else
+    let pr := relativizeFrames p.path
+    if pr.take rel.length != rel then none else
+    match pr.drop rel.length with
+    | .arg 1 _ :: _ =>
+      let node := if owner.innerKind == "" then pn else clearWindowTag pn
+      some (retargetAtIf node (rel.length + 1))
+    | _ => none
+
 /-- ACL2's constant-test OR optimization reuses the rewritten test for its
 then-copy. The recorded test chain supplies that copy's value; only its
 truthiness is preserved by the emitted result 'T. -/
@@ -29,17 +51,7 @@ private def constantPayload (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCt
   let .cons (.atom (.symbol qs)) (.cons c .nil) := test | throwError "constant test"
   unless qs.name == "QUOTE" do throwError "quote name"
   if c == .nil then throwError "false test"
-  let rel := relativizeFrames prov.path
-  -- Reuse only the recorded test-position chain at this exact IF path.
-  -- Window-local coordinates belong to another root. The re-rooted walk
-  -- checks every selected node and must reach this recorded quoted test.
-  let testNodes : List ProofNode := priorNodes.filterMap fun pn =>
-    if innerKindOf pn != "" then none else
-    let pr := relativizeFrames (nodePath pn)
-    if pr.take rel.length != rel then none else
-    match pr.drop rel.length with
-    | .arg 1 _ :: _ => some (retargetAtIf pn (rel.length + 1))
-    | _ => none
+  let testNodes := ifTestPrefix prov priorNodes
   let (chain, final) ← rec.rewrites cfg ctx a testNodes
   unless final == test do throwError "test-copy chain endpoint differs"
   let some chain ← chainReqEq chain | throwError "missing recorded test-copy chain"

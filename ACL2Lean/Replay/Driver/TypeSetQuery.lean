@@ -1,43 +1,11 @@
 import ACL2Lean.Replay.Driver.TypeSetQuery.Basis
-import ACL2Lean.Replay.Driver.TypeSetQuery.Rules
+import ACL2Lean.Replay.Driver.TypeSetQuery.Conditional
 import ACL2Lean.Replay.Driver.NodeCore.TypeSetWalk
 import ACL2Lean.Replay.Lemmas.TsQueryCells
+import ACL2Lean.Replay.Lemmas.TsNegation
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
-
-def tsQueryRead (x : Except String α) : MetaM α :=
-  match x with
-  | .ok a => pure a
-  | .error e => throwError e
-
-/-- For the supported lookup route, the returned pair must be
-the actual first association in the recorded hypothesis context. The
-query replay separately proves this mask from checked branch facts. -/
-partial def checkTsQueryLookups (ta : List (SExpr × Int × SExpr)) (raw : SExpr) : MetaM Unit := do
-  let q ← tsQueryRead (TsQueryCapture.query raw)
-  if q.route == .atom (.keyword "LOOKUP") then
-    let some (_, mask, tt) := ta.find? (fun (t, _, _) => t == q.term)
-      | throwError "type-set query: lookup term absent from recorded type-alist"
-    unless q.lookup == SExpr.ofList [.atom (.number (.int mask)), tt] do
-      throwError "type-set query: lookup differs from recorded type-alist entry"
-  if let some [.atom (.keyword "CONSTANT-BOUND"), .atom (.keyword "RESULT"), _,
-      .atom (.keyword "ENTRY"), entry, .atom (.keyword "DERIVATION"), _] := q.comparison.toList? then
-    let [selected] ← tsQueryRead (TsQueryCapture.typeAlist (SExpr.ofList [entry]))
-      | throwError "type-set query: malformed selected bound entry"
-    unless ta.contains selected do
-      throwError "type-set query: selected bound entry absent from recorded type-alist"
-  for child in q.children do checkTsQueryLookups ta child
-
-private def queryType (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (q : TsQueryCapture.Query) : MetaM Expr := do
-  mkAppM ``InTs #[toExpr q.result, ← ctxValExpr cfg ctx q.term]
-
-/-- Retain an executed query even when the primitive cell needs only its
-sibling premise or has an unconditional range. -/
-private def retainQueryChild (child result : Expr) : MetaM Expr := do
-  withLetDecl `hQueryArgument (← inferType child) child fun h =>
-    mkLetFVars #[h] result (usedLetOnly := false)
 
 private def primitiveQueryEntry (tag : String) (entry : SExpr) : MetaM Unit := do
   if tag == "PT" then
@@ -65,9 +33,31 @@ private def primitiveQueryEvidence (q : TsQueryCapture.Query) : MetaM Unit := do
   let childEvidence ← q.children.flatMapM fun raw => do
     let child ← tsQueryRead (TsQueryCapture.query raw)
     tsQueryRead (queryTtreeEntries child.ttree)
+  let ordinary ← if q.recognizer == .nil then pure [] else do
+    let some basis ← tsQueryRead (ACL2.parseHypRecognizerBasis ProofLog.parseRune? (some q.recognizer))
+      | throwError "type-set query: malformed recognizer evidence"
+    pure (if basis.rune.ty == "compound-recognizer" then [basis.rune] else [])
   for (tag, entry) in actual do
     unless incoming.contains (tag, entry) || childEvidence.contains (tag, entry) do
-      primitiveQueryEntry tag entry
+      unless tag == "LEMMA" && (ProofLog.parseRune? entry).any ordinary.contains do
+        primitiveQueryEntry tag entry
+
+/-- Apply a primitive recognizer's recorded partition to checked argument
+membership. Both a recursive query and an explicit rewrite use this boundary.
+Ordinary compound recognizers use their replayed source theorem instead. -/
+private def primitiveRecognizerQueryVerdict (term verdict : SExpr)
+    (argTs trueTs falseTs : Int) (strong : Bool) (argument : Expr) : MetaM Expr := do
+  let some (fn, [_]) := asApp term | throwError "recognizer query: unary application required"
+  unless ["ACL2-NUMBERP", "INTEGERP", "RATIONALP", "COMPLEX-RATIONALP", "CONSP"].contains fn.name do
+    throwFrontier m!"recognizer query: ordinary predicate requires its replayed source"
+  let entries := if verdict == .t then tsRecogTrue else if verdict == .nil then tsRecogNil else []
+  let some (_, mask, rule) := entries.find? (fun (name, _, _) => name == fn.name)
+    | throwFrontier m!"recognizer query: unsupported primitive verdict"
+  unless trueTs == mask && falseTs == -mask - 1 && strong do
+    throwError "recognizer query: primitive partition differs from recorded tuple"
+  let inclusion ← if verdict == .t then tsSubsumedProofM argTs mask else
+    mkDecideProof (← mkEq (← mkAppM ``tsDisjointM #[toExpr argTs, toExpr mask]) (toExpr true))
+  mkAppM rule #[inclusion, argument]
 
 /-- Consume a recorded recursive type-set call. Children are checked in
 their execution order; a mask alone never proves a fact. No hypothesis DP. -/
@@ -75,12 +65,10 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     (expectedDwp : SExpr := .nil) : MetaM Expr := do
   let q ← tsQueryRead (TsQueryCapture.query raw)
   let isQuoted := (asApp q.term).any (fun (fn, args) => fn.name == "QUOTE" && args.length == 1)
-  let propagatesDwp := (asApp q.term).any fun (fn, args) =>
-    ((fn.name == "REALPART" || fn.name == "IMAGPART") && args.length == 1) ||
-      ((fn.name == "BINARY-*" || fn.name == "COMPLEX") && args.length == 2)
-  unless q.dwp == expectedDwp && (q.dwp == .nil ||
-      q.route == .atom (.keyword "LOOKUP") || ((propagatesDwp || isQuoted) && q.route == .nil)) do
-    throwFrontier m!"type-set query: unsupported double-whammy computation or parent tuple"
+  let propagatesDwp := q.recognizer == .nil && q.route == .nil &&
+    (asApp q.term).any (fun (fn, _) => fn.name != "IF" && fn.name != "NOT")
+  unless q.dwp == expectedDwp do throwError "type-set query: double-whammy parent tuple mismatch"
+  if q.dwp != .nil then let _ ← tsQueryRead (TsQueryCapture.recognizerDwp q.dwp)
   -- Incoming tags belong to earlier recorded work. A lookup may add only
   -- its selected entry's evidence; its ordinary recognizer is proved below.
   if q.route == .atom (.keyword "LOOKUP") then
@@ -94,6 +82,8 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       throwError "type-set query: lookup ttree is not the recorded evidence union"
   else
     primitiveQueryEvidence q
+  if let .cons (.atom (.keyword "IF")) _ := q.route then
+    return ← replayConditionalQuery (fun ctx raw dwp => replayTsQuery cfg ctx raw dwp) cfg ctx q
   let cs ← q.children.mapM fun raw => do
     let c ← tsQueryRead (TsQueryCapture.query raw)
     let mut childDwp := SExpr.nil
@@ -103,21 +93,20 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       childDwp := q.dwp
     else if c.dwp != .nil then
       let some (fn, [_]) := asApp q.term | throwError "type-set query: DWP child lacks a recognizer parent"
-      let some [_, tm, fm, strong, rune] := q.recognizer.toList?
+      let some basis ← tsQueryRead (ACL2.parseHypRecognizerBasis ProofLog.parseRune? (some q.recognizer))
         | throwError "type-set query: DWP child lacks its parent tuple"
-      childDwp := .cons (.atom (.symbol fn)) (.cons (.cons .nil tm) (.cons (.cons fm strong) rune))
-      unless tsDisjointM c.result (← tsQueryRead (TsQueryCapture.asInt tm)) ||
-          tsDisjointM c.result (← tsQueryRead (TsQueryCapture.asInt fm)) do
-        throwFrontier m!"type-set query: DWP lookup does not decide the recorded recognizer"
+      let tuple ← tsQueryRead (TsQueryCapture.recognizerDwp c.dwp)
+      unless tuple.fn == fn && tuple.trueTs == basis.trueTs && tuple.falseTs == basis.falseTs &&
+          tuple.strong == basis.strongp && tuple.rune == basis.rune do
+        throwError "type-set query: child DWP differs from the selected recognizer tuple"
+      childDwp := c.dwp
     pure (c, ← replayTsQuery cfg ctx raw childDwp)
-  let finish (p : Expr) := do mkExpectedTypeHint p (← queryType cfg ctx q)
+  let finish (p : Expr) := do mkExpectedTypeHint p (← tsQueryType cfg ctx q)
   if q.route == .atom (.keyword "LOOKUP") then
     unless cs.isEmpty && q.recognizer == .nil do throwError "type-set query: lookup has computation children"
     if q.dwp != .nil then
-      let .cons (.atom (.symbol _)) (.cons (.cons .nil tm) (.cons (.cons fm _) _)) := q.dwp
-        | throwError "type-set query: malformed propagated recognizer tuple"
-      unless tsDisjointM q.result (← tsQueryRead (TsQueryCapture.asInt tm)) ||
-          tsDisjointM q.result (← tsQueryRead (TsQueryCapture.asInt fm)) do
+      let tuple ← tsQueryRead (TsQueryCapture.recognizerDwp q.dwp)
+      unless tsDisjointM q.result tuple.trueTs || tsDisjointM q.result tuple.falseTs do
         throwFrontier m!"type-set query: propagated DWP lookup does not decide its recognizer"
     let [m, tt] ← tsQueryRead (TsQueryCapture.asList q.lookup) | throwError "type-set query: malformed lookup pair"
     unless (← tsQueryRead (TsQueryCapture.asInt m)) == q.result do throwError "type-set query: lookup mask mismatch"
@@ -151,14 +140,44 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
   if isQuoted then
     unless cs.isEmpty && q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
       throwError "type-set query: quoted query has an unexpected route"
-    return ← finish (← mkDecideProof (← withTransparency .all <| whnf (← queryType cfg ctx q)))
+    return ← finish (← mkDecideProof (← withTransparency .all <| whnf (← tsQueryType cfg ctx q)))
+  if let .atom (.symbol name) := q.term then
+    unless name.name != "T" && cs.isEmpty && q.route == .nil && q.comparison == .nil &&
+        q.recognizer == .nil && q.result == -1 do
+      throwFrontier m!"type-set query: unsupported variable computation"
+    return ← finish (← mkAppM ``inTs_unknown #[← ctxValExpr cfg ctx q.term])
   let some (fn, args) := asApp q.term | throwFrontier m!"type-set query: unsupported non-application"
   unless cs.map (fun (c, _) => c.term) == args do
     throwError "type-set query: executed children do not match the primitive arguments"
-  if fn.name == "REALPART" || fn.name == "IMAGPART" || fn.name == "UNARY--" then
-    let [(c, p)] := cs | throwError "type-set query: component projection arity"
+  if q.recognizer != .nil then
+    let some basis ← tsQueryRead (ACL2.parseHypRecognizerBasis ProofLog.parseRune? (some q.recognizer))
+      | throwError "type-set query: malformed recognizer tuple"
+    if basis.rune.ty == "compound-recognizer" then
+      let [(c, p)] := cs | throwError "type-set query: ordinary recognizer arity"
+      unless q.route == .nil && q.comparison == .nil && q.result == 256 &&
+          basis.argTs == c.result && basis.trueTs == 384 && basis.falseTs == -385 && basis.strongp do
+        throwFrontier m!"type-set query: unsupported ordinary recognizer partition"
+      unless (← tsQueryRead (queryTtreeCrRunes q.ttree)).contains basis.rune do
+        throwError "type-set query: selected recognizer lacks its citation"
+      let (predicate, heq, ctx) ← queryBooleanRecognizerEquivalence cfg ctx basis.rune c.term
+      unless predicate == q.term do throwError "type-set query: source predicate differs from queried recognizer"
+      let hb ← mkAppM ``inTs_weaken #[← tsSubsumedProofM c.result 384, p]
+      let fact ← mkAppM ``recognizer_equivalence_of_inTs #[heq, hb]
+      let result ← mkAppM ``inTs_of_eq_t #[fact]
+      return ← mkExpectedTypeHint result (← tsQueryType cfg ctx q)
+  if fn.name == "UNARY--" then
+    let [(c, p)] := cs | throwError "type-set query: negation arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
-      throwError "type-set query: component projection has an unexpected route"
+      throwError "type-set query: negation has an unexpected route"
+    unless tsNegTransfer c.result q.result do
+      throwFrontier m!"type-set query: invalid negation transfer {c.result} → {q.result}"
+    let transfer ← mkDecideProof (← mkEq
+      (← mkAppM ``tsNegTransfer #[toExpr c.result, toExpr q.result]) (toExpr true))
+    return ← finish (← mkAppM ``inTs_neg_transfer #[transfer, p])
+  if ["REALPART", "IMAGPART", "NUMERATOR", "DENOMINATOR"].contains fn.name then
+    let [(c, p)] := cs | throwError "type-set query: unary primitive arity"
+    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
+      throwError "type-set query: unary primitive has an unexpected route"
     let some (input, _, ruleName) := (tsUnaryOf fn.name).find? fun (input, out, _) =>
         out == q.result && (input.isNone || input == some c.result)
       | throwFrontier m!"type-set query: unsupported {fn.name} masks {c.result} → {q.result}"
@@ -166,7 +185,7 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     | some _ => return ← finish (← mkAppM ruleName #[p])
     | none =>
       let result ← finish (← mkAppM ruleName #[← ctxValExpr cfg ctx c.term])
-      -- The projection's unconditional range does not need a child premise,
+      -- The primitive's unconditional range does not need a child premise,
       -- but the actual executed query still carries that checked child.
       return ← retainQueryChild p result
   if fn.name == "UNARY-/" then
@@ -189,10 +208,12 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       let result ← finish (← mkAppM ``inTs_times_singleton_zero_right
         #[← ctxValExpr cfg ctx l.term, pr])
       return ← retainQueryChild pl result
-    let some (_, _, _, ruleName) := (tsBinaryOf fn.name).find? fun (lm, rm, out, _) =>
-        lm == l.result && rm == r.result && out == q.result
+    let some (lm, rm, _, ruleName) := (tsBinaryOf fn.name).find? fun (lm, rm, out, _) =>
+        tsSubsumedM l.result lm && tsSubsumedM r.result rm && out == q.result
       | throwFrontier m!"type-set query: unsupported {fn.name} masks {l.result}/{r.result} → {q.result}"
-    return ← finish (← mkAppM ruleName #[pl, pr])
+    let hl ← mkAppM ``inTs_weaken #[← tsSubsumedProofM l.result lm, pl]
+    let hr ← mkAppM ``inTs_weaken #[← tsSubsumedProofM r.result rm, pr]
+    return ← finish (← mkAppM ruleName #[hl, hr])
   if fn.name == "<" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: comparison arity"
     -- The unconditional range return has no successful table/bound record.
@@ -210,8 +231,10 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       let [(term, mask, tt)] ← tsQueryRead (TsQueryCapture.typeAlist (SExpr.ofList [entry]))
         | throwError "type-set query: malformed bound entry"
       let some (boundFn, [a, b]) := asApp term | throwError "type-set query: non-comparison bound"
+      let rationalQuote (term : SExpr) := (asApp term).any fun (fn, args) =>
+        fn.name == "QUOTE" && args.length == 1 && args.any (fun v => Logic.rationalp v == .t)
       unless boundFn.name == "<" && a == r.term && b == l.term &&
-          quotedInt? a == some 0 && mask == 256 do
+          (rationalQuote a || rationalQuote b) && mask == 256 do
         throwFrontier m!"type-set query: unsupported selected constant bound"
       primitiveQueryTtree tt
       let some hn ← typeSetWalk cfg ctx (.isTruthy term)
@@ -219,7 +242,8 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       let h ← mkAppM ``Or.resolve_right #[← mkAppM ``logic_lt_range
         #[← ctxValExpr cfg ctx a, ← ctxValExpr cfg ctx b], hn]
       let fact ← mkAppM ``logic_lt_nil_of_reverse_t #[h]
-      return ← finish (← mkAppM ``inTs_of_eq_nil #[fact])
+      let result ← finish (← mkAppM ``inTs_of_eq_nil #[fact])
+      return ← retainQueryChild pl (← retainQueryChild pr result)
     let some [.atom (.keyword "TABLE"), .atom (.keyword "LEFT-TS"), lm,
         .atom (.keyword "RIGHT-TS"), rm, .atom (.keyword "NUMERIC-LEFT-TS"), nl,
         .atom (.keyword "NUMERIC-RIGHT-TS"), nr, .atom (.keyword "RESULT"), result] := q.comparison.toList?
@@ -248,7 +272,7 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     let [(c, p)] := cs | throwError "type-set query: recognizer arity"
     let some basis ← tsQueryRead (ACL2.parseHypRecognizerBasis ProofLog.parseRune? (some q.recognizer))
       | throwError "type-set query: recognizer lacks its tuple"
-    let some (_, mask, lemmaName) := tsRecogTrue.find? (fun (name, _, _) => name == fn.name)
+    let some (_, mask, _) := tsRecogTrue.find? (fun (name, _, _) => name == fn.name)
       | throwFrontier m!"type-set query: primitive recognizer has no checked mask contract"
     let resultMask : Int := (if tsDisjointM c.result mask then 0 else 256) +
       (if tsDisjointM c.result (-mask - 1) then 0 else 128)
@@ -263,7 +287,8 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       return ← retainQueryChild p (← finish (← mkAppM ``inTs_of_boolean_range #[hr]))
     unless q.result == 256 do
       throwFrontier m!"type-set query: unsupported primitive recognizer verdict {q.result}"
-    let fact ← mkAppM lemmaName #[← tsSubsumedProofM c.result mask, p]
+    let fact ← primitiveRecognizerQueryVerdict q.term .t c.result
+      basis.trueTs basis.falseTs basis.strongp p
     return ← finish (← mkAppM ``inTs_of_eq_t #[fact])
   throwFrontier m!"type-set query: unsupported primitive {fn.name}"
 
@@ -287,6 +312,23 @@ def replayOperandTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx)
   unless q.term == term do throwError "operand query: root differs from recorded operand"
   checkTsQueryLookups ta rawQuery
   return (q.result, ← replayTsQuery cfg ctx rawQuery)
+
+/-- The explicit recognizer rewrite consumes the same argument-query
+judgment as hypothesis relief. A present record is mandatory evidence;
+rejection cannot select the legacy recognizer walk. -/
+def replayRecognizerOperandQuery (cfg : ReplayConfig) (ctx : ReplayCtx)
+    (term verdict raw : SExpr) (prov : StepProvenance) : MetaM Expr := do
+  let some (_, [arg]) := asApp term | throwError "recognizer query: malformed rewrite term"
+  let some argTs := prov.typeSet | throwError "recognizer query: absent argument mask"
+  let some trueTs := prov.trueTs | throwError "recognizer query: absent true partition"
+  let some falseTs := prov.falseTs | throwError "recognizer query: absent false partition"
+  let some strong := prov.strongp | throwError "recognizer query: absent strength"
+  let ctx ← pinTermOpaques cfg cfg.envExpr ctx term
+  let (mask, p) ← replayOperandTsQuery cfg ctx arg raw
+  unless mask == argTs do throwError "recognizer query: operand mask differs from rewrite tuple"
+  let h ← primitiveRecognizerQueryVerdict term verdict mask trueTs falseTs strong p
+  mkAppM ``re_val_cast #[cfg.worldExpr, cfg.envExpr, reflectSExpr term,
+    ← ctxValExpr cfg ctx term, reflectSExpr verdict, ← ctxValProof cfg ctx term, h]
 
 /-- Consume an IF marker's actual assume-true-false query. The snapshot
 selects lookup evidence; only checked context facts prove its entries.
