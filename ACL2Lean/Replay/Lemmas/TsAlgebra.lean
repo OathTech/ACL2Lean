@@ -507,6 +507,36 @@ theorem inTs_consp_true {v : SExpr}
       show tsMember 3072 (tsIndex (.cons a d)) = true
       simp only [tsIndex_cons]; split_ifs <;> decide
 
+/-- The false CONSP branch inhabits the complement of both cons cells. -/
+theorem inTs_consp_false {v : SExpr}
+    (h : Logic.toBool (Logic.consp v) = false) : InTs (-3073) v := by
+  match v with
+  | .cons _ _ => simp [Logic.consp, Logic.toBool] at h
+  | .nil => unfold InTs; decide
+  | .atom (.number (.int n)) =>
+      simp only [InTs, tsIndex_int]; split_ifs <;> decide
+  | .atom (.number (.rational n d hc)) =>
+      simp only [InTs, tsIndex_rat]; split_ifs <;> decide
+  | .atom (.number (.complex _ _ _)) => simp only [InTs, tsIndex_complex]; decide
+  | .atom (.symbol s) =>
+      simp only [InTs, tsIndex_symbol]; split_ifs <;> decide
+  | .atom (.keyword _) => simp only [InTs, tsIndex_keyword]; decide
+  | .atom (.string _) => simp only [InTs, tsIndex_string]; decide
+  | .atom (.char _) => simp only [InTs, tsIndex_char]; decide
+
+/-- Membership in the cons cells proves the recorded true CONSP verdict. -/
+theorem logic_consp_t_of_inTs {m : Int} {v : SExpr}
+    (h : tsSubsumedM m 3072 = true) (hv : InTs m v) :
+    Logic.consp v = SExpr.t := by
+  have hc : Logic.consp v ≠ .nil := by
+    intro hn
+    exact inTs_disjoint_absurd (show tsDisjointM 3072 (-3073) = true by decide)
+      (inTs_weaken h hv) (inTs_consp_false ((Logic.toBool_eq_false _).mpr hn))
+  cases v with
+  | nil => exact (hc rfl).elim
+  | atom _ => exact (hc rfl).elim
+  | cons _ _ => rfl
+
 /-- A value in a type-set DISJOINT from `*ts-cons*` is not a cons —
     ACL2's `recognizer/false` verdict for `CONSP`, at the value level.
     The driver supplies `3072` from the step's OWN emitted `:TRUETS`. -/

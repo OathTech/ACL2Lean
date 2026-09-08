@@ -35,12 +35,14 @@ charter or the archive carry the record.
 
 ## In flight
 
-- [ ] **NS1-R — reusable type-query and clause-edit replay (active, shared consumer integration).**
+- [ ] **NS1-R — reusable type-query and clause-edit replay (production boundary identified).**
       With the [scope frozen](docs/notes/2026-09-07_ns1-r-supported-scope.md),
-      integrate the checked shared consumers, whole dependency and reserved
-      reuse proofs, preserving the 31 staged prerequisites.
-      Promote the production captures/consumers, measure the downstream helper,
-      and finish with a fresh full claim gate.
+      resolve the scope of fresh sorting/msort's ordinary type-prescription
+      query applications before promoting the observer. The six targets and
+      reserved reuse proofs have diagnostic receipts; fresh bootstrap staging
+      stops at ADD-DEF-COMPLEX's primitive product range 64/63 → 65.
+      Complete capture/staging integration, preserving all 31 prerequisites,
+      record the whole-helper measurement, and run the final production gate.
       Broader C2 work stays deferred. Plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
       Evidence: [execution record](docs/notes/2026-09-07_ns1-r-execution.md).
 

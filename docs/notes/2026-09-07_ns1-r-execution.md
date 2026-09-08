@@ -1135,3 +1135,103 @@ the refreshed corpus and whole helper. An initial maintained bootstrap-driver
 rehearsal captures both DEFAULT-*-1/2 from full `initialize-acl2 NIL`, with
 source loading and original event arguments. The capture/provenance command
 is still uncommitted WIP and has not yet been promoted or claimed complete.
+
+
+#### Production regression boundary (2026-09-08, under investigation)
+
+The shared primitive range increment is checkpointed as `a37293b`
+(**fast-gate**). Production remains at `fd27e59021cf`; the candidate observer
+is still `30503a673a7c`. A fresh sorting/msort preflight uses the unchanged
+coverage harness and golden, with only the capture paths and scratch output
+paths changed. All seven theorem rows regress first at recorded CONSP
+lookups (`r6-fresh-msort.log`). The inventory identifies the first actual
+query in ACL2-COUNT-EVENS-STRONG, Subgoal *1/2', simplify item 2/1/1/0,
+node 0/0, operand query 0: X : 3072, selected lookup (3072 NIL), with
+(NOT (CONSP X)) false in the input clause. The shared context registry was
+missing CONSP's two primitive polarity conversions. Those conversions and
+the true recognizer verdict now build, using the existing fourteen-cell
+partition and checked branch premises. A second full preflight exposes the
+missing true verdict before its registry addition; both failed receipts are
+retained. These changes are uncommitted and are not claimed as a completed
+sorting repair.
+
+The focused whole first theorem now advances to an ordinary type-prescription
+query and refuses it in 464 ms (`r6-msort-first-cons-verdict.log`):
+`type-set query: ordinary evidence needs replay: (type-prescription, EVENS)`.
+At the adjacent actual address, node 1/0, operand query 0/query 0,
+`(EVENS (CDR (CDR X))) : 1152` has no executed child query, NIL route,
+and adds (:TYPE-PRESCRIPTION EVENS) to the incoming definition citation.
+Its parent CONS query returns 1024 and executes only the tail query.
+The same whole tree also records ACL2-COUNT return-type queries with result 7.
+Source locations are TYPE-SET-WITH-RULE at type-set-b.lisp:9153,
+TYPE-SET-WITH-RULE1 at 9259, and TYPE-SET-WITH-RULES at 9296. These select
+and instantiate ordinary type-prescription rules, relieve their hypotheses,
+union argument-valued types, and intersect rule/primitive results. The query
+observer currently records recursive calls and resulting citations, without
+an explicit selected-rule application route for this mechanism.
+
+Existing admission TP replay recognizes true-list and nonnegative-integer
+corollaries. The legacy query corollary adapter in NodeCore/TypeSetTp.lean
+only extracts Boolean/integer membership and is not a recorded application
+consumer for TYPE-SET-WITH-RULES. Supporting the fresh EVENS/CONS chain would
+therefore require more than the missing primitive CONSP context conversion:
+a bounded rule-application query contract and its constructor composition
+must be assessed against the frozen Q1–Q5 source-case scope before work is
+allowed to continue there. No type-prescription re-query, inferred rule
+selection, or fallback around the new records has been added. Production
+promotion and a fresh full-gate claim remain unavailable at this checkpoint.
+
+The maintained bootstrap capture candidate now succeeds for all six original
+source windows after serializing initialization per producer checkout.
+An earlier concurrent attempt failed on acl2-status.txt despite disjoint
+outputs; it is retained as a failed receipt. The source-loading driver still
+executes complete initialize-acl2 NIL with original event arguments and proof
+flags. Its generated sidecar/receipt binds all 55 root Lisp sources, driver
+and script hashes, the actual selected event sequence, QEDs and initialization
+completion. The candidate completeness gate treats this as an explicit
+source window, retaining the ordinary log/source identity and completion
+checks. These commands and the shared maintained staging runner are WIP;
+they have not been registered in the default capture/build path. Fresh
+whole staging and downstream measurement are running before a scope decision.
+
+
+The bootstrap-window gate passes all six genuine serialized captures in an
+isolated verification root pointing at the candidate producer. Unchanged
+checker/driver bytes are used; source/log artifacts are not edited. Missing
+window metadata, a changed window start and a missing receipt each fail
+(`r6-bootstrap-gate-cases/`). The real current-production static and existing
+provenance negative checks also pass (`r6-cons-static.log`).
+
+The fresh maintained staging attempt passes the first six ordinary bootstrap
+declarations, then fails ADD-DEF-COMPLEX at Subgoal 2'', simplify item
+2/1/1/1/0, node 1/0/0/0, operand query 0:
+`(BINARY-* '#C(0 1) (IMAGPART X)) : 65`, with executed masks 64 and 63.
+This is a missing primitive product range inside Q1, not the new ordinary
+TP-query mechanism. The failed attempt takes 105.86 seconds, peak RSS
+4,828,148 KiB (`r6-fresh-maintained-stages-and-helper.log`). Later commands
+fail on the absent predecessor; they are not independent replay failures.
+The existing 31-declaration chain remains available, but fresh production
+preservation is not established. The four maintained staging files remain
+uncommitted, unregistered WIP; their shared support module builds, but the
+owning chain has not passed and must not be presented as integrated support.
+
+Using the previously checked 31 stages, all fifteen family proofs, including
+the six mandatory targets, still replay unconditionally with accepted axioms
+(`r6-preserved-stages-helper.log`). The subsequent whole strict helper stops
+in 1791 ms at `type-set query: unsupported BINARY-+ masks -1/127 → 127`.
+That is another in-scope primitive range omission, not a closed helper or
+an out-of-scope helper success condition. The complete process takes 184.16
+seconds and peaks at 5,037,656 KiB; these figures include staging and are not
+isolated helper/kernel times. The measurement uses the recorded mixed
+provenance staging inputs, not a fully promoted production chain.
+
+The affected six-test build passes all 3178 jobs, with Ns1Mod in 293 seconds
+(`r6-cons-affected-build.log`). Focused equality CLI replay is 3/3
+unconditional with both DP leaves checked, in 2240 ms
+(`r6-cons-equality-replay.log`). The CONSP context/verdict increment has a
+verified intermediate fast-gate, while sorting's complete owning proof
+still refuses at the ordinary TP query. Production capture promotion,
+fresh prerequisite preservation, the two primitive range omissions and
+final integration remain unfinished. A full gate against the current
+production corpus is now being run solely as a baseline-preservation check;
+it cannot establish candidate-producer integration.

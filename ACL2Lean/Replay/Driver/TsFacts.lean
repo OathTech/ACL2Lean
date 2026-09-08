@@ -98,6 +98,9 @@ def tsFactOf (f : SExpr) (pos : Bool) : Option (SExpr × Int × Lean.Name) :=
     else if r.name == "COMPLEX-RATIONALP" then
       if pos then some (a, 64, ``ACL2.Replay.inTs_complexRationalp_true)
       else some (a, -65, ``ACL2.Replay.inTs_complexRationalp_false)
+    else if r.name == "CONSP" then
+      if pos then some (a, 3072, ``ACL2.Replay.inTs_consp_true)
+      else some (a, -3073, ``ACL2.Replay.inTs_consp_false)
     else none
   | .cons (.atom (.symbol r)) (.cons a (.cons b .nil)) =>
     if r.name == "<" && b == tsQuotedZero then
@@ -122,6 +125,7 @@ def tsCtxProbes (t : SExpr) : List SExpr :=
   let app2 (f : String) (a b : SExpr) : SExpr :=
     .cons (.atom (.symbol { name := f })) (.cons a (.cons b .nil))
   [app1 "ACL2-NUMBERP" t, app1 "INTEGERP" t, app1 "RATIONALP" t, app1 "COMPLEX-RATIONALP" t,
+   app1 "CONSP" t,
    app2 "<" t tsQuotedZero, app2 "<" tsQuotedZero t,
    app2 "EQUAL" t tsQuotedZero]
 
@@ -162,6 +166,7 @@ def tsRecogTrue : List (String × Int × Lean.Name) :=
    ("INTEGERP", 23, ``ACL2.Replay.logic_integerp_t_of_inTs),
    ("RATIONALP", 63, ``ACL2.Replay.logic_rationalp_t_of_inTs),
    ("COMPLEX-RATIONALP", 64, ``ACL2.Replay.logic_complexRationalp_t_of_inTs),
+   ("CONSP", 3072, ``ACL2.Replay.logic_consp_t_of_inTs),
    ("NATP", 7, ``ACL2.Replay.logic_natp_t_of_inTs),
    ("ZP", -7, ``ACL2.Replay.logic_zp_t_of_inTs)]
 
