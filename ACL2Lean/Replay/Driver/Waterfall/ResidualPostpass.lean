@@ -1,6 +1,7 @@
 import ACL2Lean.Replay.Driver.Waterfall
 import ACL2Lean.Replay.Driver.Waterfall.ClauseReplacement
 import ACL2Lean.Replay.Driver.Waterfall.ClauseConstruction
+import ACL2Lean.Replay.Driver.Waterfall.ClauseFolds
 
 namespace ACL2.Replay.Driver
 
@@ -52,7 +53,7 @@ def replayResidualPostpass (rec : ClauseRec) (cfg : ReplayConfig)
       continue
     ctx ← pinTermOpaques cfg cfg.envExpr ctx lhs
     ctx ← pinTermOpaques cfg cfg.envExpr ctx rhs
-    let (stepEq, next) ←
+    let (next, lifted) ←
       if rune.ty == "branch-substitution" then do
         unless prov.equivTerm == some (.atom (.symbol { name := "EQUAL" })) &&
             childNodes.isEmpty do
@@ -73,33 +74,22 @@ def replayResidualPostpass (rec : ClauseRec) (cfg : ReplayConfig)
             if (a == lhs && b == rhs) || (a == rhs && b == lhs) then L
             else replaceTermOcc lhs rhs L
           | none => replaceTermOcc lhs rhs L
-        pure (stepEq, next)
+        pure (next, ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs stepEq
+          (disjoinTerm current) (disjoinTerm next))
       else if rune.ty == "executable-counterpart" then do
-        let (stepEq, relation) ← replayNode cfg ctx n
-        unless relation.isNone do
-          throwError "residual postpass: executable step is not equality at {idStr}"
-        let next := current.map (replaceTermOcc lhs rhs)
-        unless next != current do
-          throwError "residual postpass: executable step changes no literal at {idStr}"
-        pure (stepEq, next)
+        replayClauseExecutableFold cfg ctx current n
       else
         throwError "residual postpass: unsupported {rune.ty}/{nodeOrigin n} at {idStr}"
-    if let some lifted ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs stepEq
-        (disjoinTerm current) (disjoinTerm next) then
+    if let some lifted := lifted then
       chain := some (← chainAfter chain lifted)
     current := next
     ctx ← pinTermOpaques cfg cfg.envExpr ctx (disjoinTerm current)
   -- subst-equiv-and-maybe-delete-lit rebuilds through add-literal-and-pt,
   -- which removes quoted NIL after the recorded constant folds.
-  let (ctx', lits, drops) ← dropFoldedNilLiterals cfg ctx idStr
-    (current.zipIdx.map fun (l, i) => (i + 1, l))
-  ctx := ctx'
-  current := lits.map (·.2)
-  for drop in drops do
-    chain := some (← chainAfter chain drop)
-  let [child] := children.filter (·.inputClause == current)
-    | throwError "residual postpass: no unique pushed child matches {repr current} at {idStr}"
-  let p ← rec.clause cfg { ctx with litFacts := [], dedupDrops := [] } child
-  evtrueWith chain p
+  let (finalCtx, finalClause, finalChain) ← cleanupClauseFoldNils cfg ctx idStr current chain
+  let [child] := children.filter (·.inputClause == finalClause)
+    | throwError "residual postpass: no unique pushed child matches {repr finalClause} at {idStr}"
+  let p ← rec.clause cfg { finalCtx with litFacts := [], dedupDrops := [] } child
+  evtrueWith finalChain p
 
 end ACL2.Replay.Driver

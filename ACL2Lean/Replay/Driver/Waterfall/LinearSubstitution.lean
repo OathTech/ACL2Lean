@@ -2,6 +2,7 @@ import ACL2Lean.Replay.Driver.Waterfall.LinearEquation
 import ACL2Lean.Replay.Driver.Waterfall.ClauseConstruction
 import ACL2Lean.Replay.Driver.Waterfall.SubstitutionDuplicates
 import ACL2Lean.Replay.Driver.Waterfall.ClauseEdits
+import ACL2Lean.Replay.Driver.Waterfall.ClauseFolds
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -36,17 +37,9 @@ partial def replayLinearSubstitutions (rec : ClauseRec) (cfg : ReplayConfig)
         { ctx with litFacts := [], dedupDrops := [] } idStr next rest children
       return mkApp edit p
     if rune.ty == "executable-counterpart" && prov.origin == "scons-term/exec" then
-      let (stepEq, relation) ← replayNode cfg ctx n
-      unless relation.isNone do throwError "linear substitution: non-equality executable fold"
-      let next := clause.map (replaceTermOcc lhs rhs)
-      unless next != clause do throwError "linear substitution: fold changes no literal"
-      let chain ← diffCollapse cfg.worldExpr cfg.envExpr lhs rhs stepEq
-        (disjoinTerm clause) (disjoinTerm next)
-      let (ctx, reduced, drops) ← dropFoldedNilLiterals cfg ctx idStr
-        (next.zipIdx.map fun (lit, i) => (i + 1, lit))
-      let mut chain := chain
-      for drop in drops do chain := some (← chainAfter chain drop)
-      let p ← replayLinearSubstitutions rec cfg ctx idStr (reduced.map (·.2)) rest children
+      let (next, chain) ← replayClauseExecutableFold cfg ctx clause n
+      let (ctx, reduced, chain) ← cleanupClauseFoldNils cfg ctx idStr next chain
+      let p ← replayLinearSubstitutions rec cfg ctx idStr reduced rest children
       return ← evtrueWith chain p
     throwFrontier m!"linear substitution: unsupported {rune.ty}/{prov.origin}"
   | _ => throwFrontier m!"linear substitution: unsupported continuation item"

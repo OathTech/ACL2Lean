@@ -37,10 +37,10 @@ charter or the archive carry the record.
 
 - [ ] **NS1-R — reusable type-query and clause-edit replay (active, shared consumer integration).**
       With the [scope frozen](docs/notes/2026-09-07_ns1-r-supported-scope.md),
-      complete shared query consumers and consolidate the remaining legacy
-      edit orchestration. Integrate the checked whole dependency and reserved
-      reuse proofs, preserving the 31 staged prerequisites and the existing
-      adequate predecessor captures; record the fresh reciprocal-mask frontier.
+      integrate the checked shared consumers, whole dependency and reserved
+      reuse proofs, preserving the 31 staged prerequisites. Connect the fresh
+      predecessor's recorded reciprocal range before production recapture;
+      the older adequate capture is only an intermediate staging input.
       Promote the production captures/consumers, measure the downstream helper,
       and finish with a fresh full claim gate.
       Broader C2 work stays deferred. Plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
