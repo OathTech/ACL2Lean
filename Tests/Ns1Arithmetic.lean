@@ -1,3 +1,4 @@
+import Tests.Ns1Bootstrap
 import ACL2Lean.Imported.Waypoints.Macro
 import ACL2Lean.DevLoad
 
@@ -45,6 +46,12 @@ replayed_theorem denominatorOneReplayed :=
 replayed_theorem productMinusOneReplayed :=
   driver_replayed% bindBasicDev bindBasicWorld "(* -1 x)"
 
+-- A checked source proof at this consumer world supplies the ordinary
+-- reciprocal rule. Omitting this stage must leave its rule condition visible.
+replayed_theorem reciprocalDefault :=
+  driver_replayed% helperDev helperWorld "DEFAULT-UNARY-/"
+    from ACL2.Tests.Ns1Bootstrap.reciprocalDev inline_deps
+
 replayed_theorem additiveInverseReplayed :=
   driver_replayed% helperDev helperWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
 replayed_theorem multiplicationCongruenceReplayed :=
@@ -55,8 +62,10 @@ replayed_theorem multiplicativeInverseUniqueReplayed :=
   driver_replayed% helperDev helperWorld "UNIQUENESS-OF-*-INVERSES-LEMMA"
 replayed_theorem reciprocalEqualityReplayed :=
   driver_replayed% helperDev helperWorld "EQUAL-/"
+    inline_deps deps [ACL2.Tests.Ns1Bootstrap.reciprocalDev]
 replayed_theorem reciprocalZeroReplayed :=
-  driver_replayed% pass1Dev pass1World "EQUAL-/-0" deps [helperDev]
+  driver_replayed% pass1Dev pass1World "EQUAL-/-0"
+    deps [ACL2.Tests.Ns1Bootstrap.reciprocalDev, helperDev]
 replayed_theorem productNegationReplayed :=
   driver_replayed% helperDev helperWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
 

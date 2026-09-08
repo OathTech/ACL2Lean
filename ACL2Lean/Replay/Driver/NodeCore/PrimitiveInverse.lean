@@ -31,21 +31,4 @@ def replayPrimitiveInverse (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx
   let law ← mkAppM ``Logic.times_reciprocal #[va, hn, hz]
   replayPrimitiveEquation rec cfg ctx lhs one rhs law rhsNodes
 
-/-- The primitive reciprocal completion rule consumes its recorded OR
-hypothesis and the actual RHS continuation, as the inverse rule does. -/
-def replayPrimitiveReciprocalDefault (rec : NodeRec) (cfg : ReplayConfig) (ctx : ReplayCtx)
-    (n : ProofNode) : MetaM Expr := do
-  let .node _ lhs rhs kids prov := n
-  let some (op, [a]) := asApp lhs | throwError "reciprocal default: expected unary application"
-  unless op.name == "UNARY-/" && prov.subst == [(.atom (.symbol { name := "X" }), a)] do
-    throwError "reciprocal default: application/substitution mismatch"
-  let app := fun name args => SExpr.ofList (.atom (.symbol { name }) :: args)
-  let zero := app "QUOTE" [.atom (.number (.int 0))]
-  let nn := app "NOT" [app "ACL2-NUMBERP" [a]]
-  let hyp := app "IF" [nn, nn, app "EQUAL" [a, zero]]
-  let (prems, rhsNodes) ← replayPrimitivePremises rec cfg ctx "DEFAULT-UNARY-/" [hyp] kids prov.runes
-  let h ← mkAppM ``ne_nil_of_evtrue_conv #[prems[0]!, ← ctxValProof cfg ctx hyp]
-  let law ← mkAppM ``Logic.reciprocal_default #[← ctxValExpr cfg ctx a, h]
-  replayPrimitiveEquation rec cfg ctx lhs zero rhs law rhsNodes
-
 end ACL2.Replay.Driver

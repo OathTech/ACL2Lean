@@ -40,8 +40,8 @@ charter or the archive carry the record.
       preserve the checked query adapters and document fresh sorting/msort's
       ordinary linear-lemma row-construction boundary before promotion. The six
       targets and reserved reuse proofs have diagnostic receipts; fresh staging
-      reaches 25 prerequisites, then exposes the bootstrap-window rule chronology
-      defect (BUG-060) at RATIONALP-UNARY--.
+      reaches 25 prerequisites, then stops at RATIONALP-UNARY--'s unproved
+      verdict. The audit repair corrects bootstrap rule chronology (BUG-060).
       Complete capture/staging integration, preserving all 31 prerequisites,
       after separately scoping the ordinary linear-row construction module.
       Correct quoted known-true relief with an explicitly empty query basis

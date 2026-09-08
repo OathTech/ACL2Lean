@@ -30,8 +30,32 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-061 — ordinary bootstrap theorems bypassed as primitive rewrite laws
+Status: fixed
+Pinned-by: none (proof fidelity and source attribution, not interpreter values)
+
+The NS1 branch added direct handlers for DEFAULT-UNARY-/ and
+DISTRIBUTIVITY-OF-MINUS-OVER-+. Both are ordinary `defthm`s in ACL2's
+`axioms.lisp`; the adjacent reciprocal completion axiom is a separate
+`defaxiom`. The handlers supplied handwritten semantic laws without replaying
+these ordinary source proofs. Maintained EQUAL-/ and INTEGERP-MOD proofs used
+the shortcuts while passing their axiom checks. The laws are mathematically
+valid, so this is a replay-fidelity defect rather than evidence of a false
+Lean proposition.
+
+The [2026-09-08 adversarial audit](audits/2026-09-08_ns1-merge-adversarial.md)
+records exact source and reconstructed-tree evidence. The fix removes both
+handlers and their unused handwritten laws, captures the original bootstrap
+proofs, and supplies them through the ordinary source-stage registry. The
+existing verdict-leaf normalizers handle those proofs' actual emitted leaves.
+`Tests/Ns1Bootstrap.lean` pins their scope, statements and axioms;
+`Tests/Ns1Mod.lean` checks missing dependencies and consumer proof references.
+Both source proofs and all maintained consumers, including missing-dependency
+and source-reference controls, pass in the audit fix round. The audit record
+carries the final full-gate receipt.
+
 ## BUG-060 — bootstrap-window snapshots offer a local theorem before its proof
-Status: open
+Status: fixed
 Pinned-by: none (diagnostic bootstrap capture chronology, not interpreter values)
 
 The candidate full-initialization window driver emits ground-zero snapshots
@@ -57,6 +81,17 @@ Correct the bootstrap-window snapshot boundary and verify local-rule ordering
 before promoting these captures. Do not replace the ordinary theorem with a
 handwritten proof or silently count the conditional result as preserved.
 Current production captures have not been replaced by this candidate route.
+
+**2026-09-08 audit repair:** the bootstrap observer now retains the world
+before the first selected proof, and scopes the snapshot's `w` accessor to
+that historical value. The installed current-world/property-cache pair stays
+unchanged, so ACL2's property reader uses its historical-alist path. Rebinding
+only the state global was tested and rejected because it selected the final
+cache. Original initialization and later passes still run unchanged.
+`Tests/Ns1Bootstrap.lean` rejects self-rules in both maintained windows and
+requires their post-proof stored rules. A fresh RATIONALP-UNARY-- control
+also has no initial self-rule; its verdict still needs proof support and
+remains `ASSUMED:dp-fact`, a separate incomplete replay frontier.
 
 ## BUG-059 — empty clausify call records activate legacy assumption folds
 Status: open

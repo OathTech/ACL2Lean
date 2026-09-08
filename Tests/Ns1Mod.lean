@@ -12,6 +12,11 @@ def numDev : Development := load_development% numLog
 private def modLog : String := include_str "../acl2_samples/ns1/floor-mod.proof-log"
 def modDev : Development := load_development% modLog
 derive_world modWorld from modDev
+replayed_theorem reciprocalDefault := driver_replayed% modDev modWorld "DEFAULT-UNARY-/"
+  from ACL2.Tests.Ns1Bootstrap.reciprocalDev inline_deps
+replayed_theorem negationDistributivity :=
+  driver_replayed% modDev modWorld "DISTRIBUTIVITY-OF-MINUS-OVER-+"
+    from ACL2.Tests.Ns1Bootstrap.negationDev inline_deps
 replayed_theorem congruence := driver_replayed% modDev modWorld "EQUIV-1-IMPLIES-EQUIV-*"
   from ACL2.Tests.Ns1Arithmetic.helperDev inline_deps
 replayed_theorem cancel := driver_replayed% modDev modWorld "RIGHT-CANCELLATION-FOR-*"
@@ -20,6 +25,7 @@ replayed_theorem inverseUnique := driver_replayed% modDev modWorld "UNIQUENESS-O
   from ACL2.Tests.Ns1Arithmetic.helperDev inline_deps
 replayed_theorem reciprocalEquality := driver_replayed% modDev modWorld "EQUAL-/"
   from ACL2.Tests.Ns1Arithmetic.helperDev inline_deps
+    deps [ACL2.Tests.Ns1Bootstrap.reciprocalDev]
 replayed_theorem negateUnique := driver_replayed% modDev modWorld "UNIQUENESS-OF-+-INVERSES-LEMMA"
   from ACL2.Tests.Ns1Arithmetic.helperDev inline_deps
 replayed_theorem negateTimes := driver_replayed% modDev modWorld "FUNCTIONAL-COMMUTATIVITY-OF-MINUS-*-RIGHT"
@@ -43,7 +49,8 @@ replayed_theorem productSign := driver_replayed% modDev modWorld "<-*-0"
 replayed_theorem bindProductSign := driver_replayed% modDev modWorld "(< (* x y) 0)"
   from ACL2.Tests.Ns1Arithmetic.bindBasicDev inline_deps deps [ACL2.Tests.Ns1Arithmetic.pass1Dev, ACL2.Tests.Ns1Arithmetic.inequalitiesDev]
 replayed_theorem integerModReplayed := driver_replayed% modDev modWorld "INTEGERP-MOD"
-  inline_deps deps [ACL2.Tests.Ns1Arithmetic.helperDev, ACL2.Tests.Ns1Arithmetic.pass1Dev,
+  inline_deps deps [ACL2.Tests.Ns1Bootstrap.reciprocalDev, ACL2.Tests.Ns1Bootstrap.negationDev,
+    ACL2.Tests.Ns1Arithmetic.helperDev, ACL2.Tests.Ns1Arithmetic.pass1Dev,
     ACL2.Tests.Ns1Arithmetic.bindBasicDev, ACL2.Tests.Ns1Arithmetic.numdenDev,
     ACL2.Tests.Ns1Arithmetic.inequalitiesDev, miniDev, numDev]
 private def sym (s : String) : SExpr := .atom (.symbol {name := s})
@@ -119,5 +126,54 @@ elab "ns1_source_stage_condition_control%" : command => Command.liftTermElabM do
 /-- info: source stage refuses the actual unclosed dependency -/
 #guard_msgs in
 ns1_source_stage_condition_control%
+
+-- BUG-061: replay the untouched consuming trees without any checked source
+-- proofs. A missing ordinary dependency must remain a visible condition,
+-- even though its mathematical law holds in the primitive semantic model.
+open Lean Lean.Meta Lean.Elab ACL2.Replay.Runner in
+elab "ns1_ordinary_dependency_controls%" : command => Command.liftTermElabM do
+  for (dev, name, missing) in [
+      (ACL2.Tests.Ns1Arithmetic.bindBasicDev, "(- (+ x y))",
+        "rule:DISTRIBUTIVITY-OF-MINUS-OVER-+"),
+      (ACL2.Tests.Ns1Arithmetic.helperDev, "EQUAL-/", "rule:DEFAULT-UNARY-/")] do
+    let some cp := findThm dev name | throwError "actual consumer theorem absent: {name}"
+    let w := dev.toWorld
+    let (status, conds) ← tryReplay dev w (← reflectWorld w) cp (rulesBefore dev name)
+      (replayedName? := some (Name.str `ACL2.Tests.Ns1Mod.MissingDependency name))
+    let some conds := conds | throwError "consumer failed before dependency check: {status}"
+    unless conds.contains missing do
+      throwError "missing ordinary dependency was bypassed: {name}; {status}"
+  logInfo "both actual consumers retain their missing ordinary source dependency"
+
+/-- info: both actual consumers retain their missing ordinary source dependency -/
+#guard_msgs in
+ns1_ordinary_dependency_controls%
+
+-- Check that the maintained consumer proofs actually reference the named,
+-- separately replayed source stages, in addition to their axiom receipts.
+open Lean Lean.Meta Lean.Elab in
+elab "ns1_ordinary_dependency_seams%" : command => Command.liftTermElabM do
+  let env ← Lean.getEnv
+  for (root, required) in [
+      (``ACL2.Tests.Ns1Arithmetic.reciprocalEqualityReplayed,
+        [``ACL2.Tests.Ns1Arithmetic.reciprocalDefault]),
+      (``integerModReplayed, [``reciprocalDefault, ``negationDistributivity])] do
+    let mut pending := [root]
+    let mut seen : Lean.NameSet := {}
+    while !pending.isEmpty do
+      let name := pending.head!
+      pending := pending.tail!
+      unless seen.contains name do
+        seen := seen.insert name
+        if let some ci := env.find? name then
+          if let some value := ci.value? (allowOpaque := true) then
+            pending := value.getUsedConstants.toList ++ pending
+    unless required.all seen.contains do
+      throwError "ordinary source replay is missing from consumer proof: {root}"
+  logInfo "maintained consumers use both ordinary source replay stages"
+
+/-- info: maintained consumers use both ordinary source replay stages -/
+#guard_msgs in
+ns1_ordinary_dependency_seams%
 
 end ACL2.Tests.Ns1Mod

@@ -186,7 +186,7 @@ certify-ns1:
 
 # Selected NS1 dependency prefixes; ACL2 stops after the named source event.
 # The sidecar records that scope and still hashes the entire unchanged source.
-capture-ns1-logs: certify-ns1
+capture-ns1-logs: certify-ns1 capture-ns1-bootstrap
     mkdir -p acl2_samples/ns1/pass1 acl2_samples/ns1/bind-free
     CAPTURE_THROUGH='<-OF-*-AND-*-CANCEL' OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/times.lisp
     CAPTURE_THROUGH=FLOOR-OF-0-ARG1 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/floor.lisp
@@ -201,6 +201,14 @@ capture-ns1-logs: certify-ns1
     CAPTURE_THROUGH=NUMERATOR-NEGATIVE OUTDIR=acl2_samples/ns1/bind-free ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/bind-free/numerator-and-denominator.lisp
     CAPTURE_THROUGH=INTEGERP-MOD OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/arithmetic-3/floor-mod/floor-mod.lisp
     CAPTURE_THROUGH=NONNEGATIVE-INTEGER-QUOTIENT-LOWER-BOUND-LINEAR2 OUTDIR=acl2_samples/ns1 ./scripts/capture-proof-log.sh acl2/books/kestrel/arithmetic-light/nonnegative-integer-quotient.lisp
+
+# Ordinary source dependencies for the maintained reciprocal and MOD proofs.
+# Full ACL2 initialization runs unchanged; only these original proof windows
+# and their pre-window rule snapshots are captured.
+capture-ns1-bootstrap:
+    mkdir -p acl2_samples/ns1/bootstrap
+    python3 scripts/capture-bootstrap-window.py --output acl2_samples/ns1/bootstrap/reciprocal-default.proof-log --first DEFAULT-UNARY-/ --last DEFAULT-UNARY-/
+    python3 scripts/capture-bootstrap-window.py --output acl2_samples/ns1/bootstrap/negation-distributivity.proof-log --first DISTRIBUTIVITY-OF-MINUS-OVER-+ --last DISTRIBUTIVITY-OF-MINUS-OVER-+
 
 # Recapture the WHOLE log surface after an instrumentation change; a partial
 # recapture leaves stale logs that check-log-provenance rejects.

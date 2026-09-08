@@ -47,6 +47,8 @@ while IFS= read -r log; do
   # FAIL-CLOSED (fresh-verify N5): a log with NO banner commit can't be
   # cross-checked — reject it rather than skip (every healthy capture
   # starts with the ACL2 banner; its absence means a truncated/foreign log).
+  # Bootstrap initialization loads source directly in SBCL and prints ACL2's
+  # source snapshot identity; its separate execution receipt is checked below.
   banner="$(sed -n 's/.*(Git commit hash: \([0-9a-f]\{40\}\)).*/\1/p' "$log" | head -1)"
   if [ -z "$banner" ]; then
     echo "NO-BANNER log: $log — no '(Git commit hash: …)' banner line; truncated or non-capture file (recapture: just recapture-all)" >&2
@@ -109,7 +111,17 @@ sidecar; recapture, or run scripts/backfill-log-provenance.sh)" >&2
   # fatally, recomputed in ci so a truncated log cannot survive however
   # it arrived.
   through="$(sed -n 's/^capture-through: //p' "$meta")"
-  if ! msg="$(check_capture_complete "$ROOT/$spath" "$log" "$through")"; then
+  first="$(sed -n 's/^capture-from: //p' "$meta")"
+  mode="$(sed -n 's/^capture-mode: //p' "$meta")"
+  if [ -n "$first" ] || [ -n "$mode" ]; then
+    if [ "$mode" != bootstrap-initialization ] || [ -z "$first" ] ||
+       ! python3 "$ROOT/scripts/capture-bootstrap-window.py" --verify "$log"; then
+      echo "BOOTSTRAP-PROVENANCE log: $log — invalid source initialization window or receipt" >&2
+      fail=1
+      continue
+    fi
+  fi
+  if ! msg="$(check_capture_complete "$ROOT/$spath" "$log" "$through" "$first")"; then
     echo "TRUNCATED log: $log — $msg" >&2
     fail=1
   fi

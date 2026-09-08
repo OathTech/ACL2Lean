@@ -29,25 +29,6 @@ theorem reciprocal_nonnumber (v : SExpr) (h : acl2Numberp v = .nil) :
     | number n => cases n <;> simp [acl2Numberp, SExpr.t] at h
     | symbol _ | keyword _ | string _ | char _ => rfl
 
-/-- The ground-zero reciprocal default rule is the two default arms of the
-primitive completion axiom, with its original translated OR hypothesis. -/
-theorem reciprocal_default (v : SExpr)
-    (h : (bif toBool (not (acl2Numberp v)) then not (acl2Numberp v)
-      else equal v (.atom (.number (.int 0)))) ≠ .nil) :
-    reciprocal v = .atom (.number (.int 0)) := by
-  by_cases hn : acl2Numberp v = .nil
-  · exact reciprocal_nonnumber v hn
-  · by_cases hv : v = .atom (.number (.int 0))
-    · subst v; rfl
-    · have hnn : not (acl2Numberp v) = .nil := by
-        cases hnum : acl2Numberp v with
-        | nil => exact False.elim (hn hnum)
-        | atom _ | cons _ _ => rfl
-      rw [hnn] at h
-      change equal v (.atom (.number (.int 0))) ≠ .nil at h
-      exact False.elim (h (by simp [equal, beq_iff_eq, hv]))
-
-
 /-- Primitive reciprocal on the real component. The actual reciprocal-sign
 tau clauses in arithmetic-3/pass1/inequalities require this representation
 normalization; the recorded IFF rewrite and clause splits remain replayed. -/

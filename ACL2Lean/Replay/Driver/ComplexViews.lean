@@ -61,8 +61,8 @@ def dpPrimitiveNegationTactic : MetaM (TSyntax `tactic) :=
       Logic.not_nil_iff, Logic.toBool_eq_true, Logic.toBool_eq_false,
       logic_not_equal_nil_iff, Logic.equal_ne_nil_iff, Logic.equal_nil_iff] at * <;>
     intros <;> (try subst_vars) <;>
-    simp (disch := assumption) only [Logic.neg_parts, Logic.numberParts_mkParts,
-      Logic.numberParts_nonnumber, Logic.mkParts_numberParts, Logic.fix_of_number,
+    simp (disch := assumption) only [Logic.neg_parts, Logic.plus_parts,
+      Logic.numberParts_mkParts, Rat.neg_add, Logic.numberParts_nonnumber, Logic.mkParts_numberParts, Logic.fix_of_number,
       Logic.fix_nonnumber, Prod.fst, Prod.snd, Rat.neg_zero, Rat.neg_neg] at * <;>
     (try simp (disch := assumption) only
       [Logic.rationalp_mkParts, Logic.rationalp_numberParts] at *) <;>
@@ -181,12 +181,20 @@ private theorem equalNumberNonnumber (a b : SExpr)
   intro h
   exact ha (h.symm ▸ hb)
 
-/-- Completion normalization for recorded tau leaves with nonnumeric
-inputs. The NUMBERP premise remains a hypothesis of that exact leaf. -/
+/-- Complete reciprocal in an emitted verdict, preserving its implication
+and conditional premises before simplifying nonnumber and zero branches.
+The reciprocal default's original bootstrap proof is one such verdict leaf; its
+ordinary rewrite applications still require that separately replayed proof. -/
 def dpReciprocalCompletionTactic : MetaM (TSyntax `tactic) :=
-  `(tactic| simp_all only [Logic.not_nil_iff, Logic.toBool_eq_true,
-    Logic.equal_ne_nil_iff, Logic.equal_nil_iff, Logic.reciprocal_nonnumber] <;>
-    first | assumption | contradiction | (symm; assumption))
+  `(tactic|
+    simp only [Bool.cond_eq_ite, Logic.implies_ne_nil_iff, Logic.not_nil_iff,
+      Logic.toBool_eq_true, Logic.toBool_eq_false, Logic.equal_ne_nil_iff,
+      Logic.equal_nil_iff] at * <;> intros <;>
+    (try split_ifs at *) <;>
+    (try simp_all only [ne_eq, Logic.not_nil_iff, not_not,
+      Logic.equal_ne_nil_iff, Logic.toBool_eq_true, Logic.reciprocal_nonnumber]) <;>
+    (try subst_vars) <;>
+    first | rfl | assumption | contradiction | (symm; assumption))
 
 private theorem equalNonnumberNumber (a b : SExpr)
     (ha : Logic.acl2Numberp a = .nil) (hb : Logic.acl2Numberp b ≠ .nil) :

@@ -1651,6 +1651,12 @@ unconditional with its helper-book dependency
 (`c2-reciprocal-zero-focused-replay.log`, 72983 ms for the focused prefix;
 4/14 rows replayed, including one unrelated conditional row).
 
+> **Audit correction, 2026-09-08 (BUG-061):** the rule described below is
+> DEFAULT-UNARY-/, an ordinary bootstrap theorem. The original implementation
+> replayed its application but bypassed its source proof. Its then-clean
+> axiom receipt did not establish fidelity. See the
+> [merge audit and repair](../audits/2026-09-08_ns1-merge-adversarial.md).
+
 The proof follows the actual primitive reciprocal completion rule and its
 OR hypothesis, the scoped IF windows (including empty swapped windows and
 nested boundaries), Boolean equality normalization, and literal type-set

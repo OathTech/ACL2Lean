@@ -57,6 +57,10 @@ acceptance plan from the 2026-09-07 check-in. It builds on the existing NS1
 worktree and has its own bounded completion condition; it does not close NS1
 or change the three native targets.
 
+The [2026-09-08 merge audit](audits/2026-09-08_ns1-merge-adversarial.md)
+reviews the full NS1 branch and records a required ordinary-theorem fidelity
+repair. Its parent resolution records the revised candidate's checks.
+
 Its [frozen supported scope](notes/2026-09-07_ns1-r-supported-scope.md) and
 [execution record](notes/2026-09-07_ns1-r-execution.md) separate implemented
 cases, whole-proof receipts and remaining acceptance work. The execution

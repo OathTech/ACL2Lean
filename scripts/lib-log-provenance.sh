@@ -121,7 +121,7 @@ count_log_qeds() {
 # legitimately EXCEED the source count (defequiv/defcong generate
 # theorems) — only a SHORTFALL fails.
 check_capture_complete() {
-  local src="$1" log="$2" through="${3:-}" want got qed
+  local src="$1" log="$2" through="${3:-}" first="${4:-}" want got qed
   # N1 (audit 2026-08-07): fail CLOSED on a missing source/log — an
   # empty count string previously produced a shell comparison error
   # and EXIT=0.
@@ -130,7 +130,13 @@ check_capture_complete() {
     return 1
   fi
   if [ -n "$through" ]; then
-    want="$(count_source_defthms_through "$src" "$through")" || return 1
+    if [ -n "$first" ]; then
+      validate_capture_through "$first" || return 1
+      validate_capture_through "$through" || return 1
+      want="$(python3 "$ROOT/scripts/acl2-theorem-census.py" "$src" --from "$first" --through "$through")" || return 1
+    else
+      want="$(count_source_defthms_through "$src" "$through")" || return 1
+    fi
     local stop
     stop="$(awk 'BEGIN{RS="\n\\(:"}
       /^DEFTHM/ { if ($0 ~ /:SOURCE :LOCAL([^-A-Z]|$)/) { last=$2; qed=0 } }
@@ -141,6 +147,10 @@ check_capture_complete() {
       return 1
     fi
   else
+    if [ -n "$first" ]; then
+      echo "INCOMPLETE: capture-from requires capture-through"
+      return 1
+    fi
     want="$(count_source_defthms "$src")"
   fi
   got="$(count_log_local_defthms "$log")"
@@ -189,6 +199,7 @@ check_capture_complete() {
     # final-prefix-name, EVENT-FAILED and CAPTURE-END checks remain below.
     local census_args=("$src" --covered-by "$log")
     if [ -n "$through" ]; then census_args+=(--through "$through"); fi
+    if [ -n "$first" ]; then census_args+=(--from "$first"); fi
     if ! python3 "$ROOT/scripts/acl2-theorem-census.py" "${census_args[@]}"; then
       echo "INCOMPLETE: $(basename "$log") — logged $got of $want source defthm proof(s): source declarations are missing ($qed :QED)"
       return 1

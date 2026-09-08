@@ -268,6 +268,20 @@ QED; omitting the scope makes the full-source check fail. This is a prefix
 capture, not a claim that later book events were loaded or replayed. The
 `capture-ns1-logs` recipe records the current NS1 selections.
 
+Ordinary bootstrap `defthm`s also require replay. `just capture-ns1-bootstrap`
+(called by `capture-ns1-logs`) runs ACL2's original full initialization in SBCL
+and records the first actual proof window for each selected source theorem.
+It preserves the original forms, hints and proof flags; later initialization
+passes still execute. Ground-zero snapshots read the world immediately before
+the selected window, while local rules remain ordered after their proofs.
+The sidecar and execution receipt bind the log to the initialization sources,
+capture scripts, selected events and successful full initialization. These
+captures supply the ordinary reciprocal-default and negation-distributivity
+proofs used by the maintained NS1 imports. Their original proofs end in
+emitted decision-procedure verdicts, handled by the existing leaf allowance.
+No ordinary theorem gets a primitive-rule exemption because it is in
+`axioms.lisp`.
+
 The one genuinely smaller cone is the FOCUSED replay CLI: `lake build
 acl2lean-replay` (what `just replay` runs) imports only
 `ACL2Lean.Replay.Runner`, whose sole compile-time log is

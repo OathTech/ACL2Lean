@@ -102,6 +102,21 @@ sed -i 's/^capture-through: .*/capture-through: FLOOR-BOUND-HACK-ERIC/' \
   "$FIX/scope-wrong/floor.proof-log.meta"
 expect_fail scope-wrong "capture-through"
 
+# Bootstrap captures must retain their source-initialization receipt. Both
+# fixtures derive from a genuine original proof; only the negative sidecar
+# is changed. This catches an ordinary copy/partial-capture mistake.
+bootstrap_log="$ROOT/acl2_samples/ns1/bootstrap/reciprocal-default.proof-log"
+for name in bootstrap-control bootstrap-no-receipt; do
+  mkdir -p "$FIX/$name"
+  cp "$bootstrap_log" "$bootstrap_log.meta" "$FIX/$name/"
+done
+if ! SCAN_ROOT="$FIX/bootstrap-control" bash "$CHECK"; then
+  echo "NEGATIVE-TEST FAIL: genuine bootstrap capture must pass" >&2
+  fails=1
+fi
+sed -i '/^bootstrap-receipt: /d' "$FIX/bootstrap-no-receipt/reciprocal-default.proof-log.meta"
+expect_fail bootstrap-no-receipt "BOOTSTRAP-PROVENANCE"
+
 # NS1 capture-data regression: a real emitted quoted diagnostic/NUL must
 # pass completeness, while an injected actual diagnostic line must fail.
 # Only the negative artifact is mutated; positive input is a real capture.

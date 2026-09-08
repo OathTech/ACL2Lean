@@ -96,9 +96,14 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('source')
     p.add_argument('--through')
+    p.add_argument('--from', dest='first')
     p.add_argument('--covered-by')
     a = p.parse_args()
     names = declarations(a.source)
+    if a.first:
+        if not a.through or names.count(a.first) != 1:
+            raise ValueError('capture-from requires a through endpoint and one unique source theorem')
+        names = names[names.index(a.first):]
     if a.through:
         if names.count(a.through) != 1:
             raise ValueError('capture-through target must name exactly one source DEFTHM/DEFTHMD')

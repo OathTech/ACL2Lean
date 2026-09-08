@@ -199,33 +199,7 @@ for INPUT in "$@"; do
   echo "$(basename "$INPUT") ($scope): $(wc -l < "$OUTPUT") lines, $(count_log_qeds "$OUTPUT")/$(count_log_local_defthms "$OUTPUT") qed/defthm (source: $(count_source_defthms "$INPUT_ABS")) → $OUTPUT"
 done
 
-# include_str does NOT register a Lake file dependency, and Lake hashes module
-# CONTENT (touch does not invalidate), so a recaptured log silently leaves the
-# STALE embedded copy inside the consumer's .olean (verified empirically
-# 2026-06-10: modifying an embedded log triggers ZERO rebuilds). Force the
-# consumers to recompile by deleting their build artifacts.
-#
-# The consumer list is DERIVED from the source (every .lean that include_str's a
-# .proof-log), not hardcoded — a hardcoded list is one more thing to desync (the
-# same bug class as the CI capture list). We resolve the repo root and the module
-# path (repo-relative, no extension) for each match.
-# Workers skip the invalidation — the parent runs it ONCE after the fan-out.
+# Workers skip embedded-log invalidation; the parent runs it once after
+# the fan-out. Bootstrap capture uses the same derived consumer list.
 if [ -n "${CAPTURE_WORKER:-}" ]; then exit 0; fi
-ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# (Coverage invalidation now runs BEFORE capture — audit A1; see
-# scripts/invalidate-coverage.sh, the single source of the rm set.)
-echo "forcing rebuild of include_str consumers (Lake does not track embedded logs):"
-consumers="$(cd "$ROOT" && git grep -l 'include_str "[^"]*proof-log"' -- '*.lean' | sort -u)"
-if [ -z "$consumers" ]; then
-  echo "  WARNING: found NO include_str proof-log consumers — has the embed pattern changed?" >&2
-fi
-while IFS= read -r src; do
-  [ -n "$src" ] || continue
-  m="${src%.lean}"
-  rm -f "$ROOT/.lake/build/lib/lean/$m.olean" \
-        "$ROOT/.lake/build/lib/lean/$m.ilean" \
-        "$ROOT/.lake/build/lib/lean/$m.trace"
-  echo "  will rebuild: $m"
-done <<EOF
-$consumers
-EOF
+bash "$SCRIPT_DIR/invalidate-log-consumers.sh"
