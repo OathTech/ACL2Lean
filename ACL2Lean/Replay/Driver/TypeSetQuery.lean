@@ -157,26 +157,22 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     let transfer ← mkDecideProof (← mkEq
       (← mkAppM ``tsNegTransfer #[toExpr c.result, toExpr q.result]) (toExpr true))
     return ← finish (← mkAppM ``inTs_neg_transfer #[transfer, p])
-  if ["REALPART", "IMAGPART", "NUMERATOR", "DENOMINATOR"].contains fn.name then
+  if ["REALPART", "IMAGPART", "NUMERATOR", "DENOMINATOR", "UNARY-/"].contains fn.name then
     let [(c, p)] := cs | throwError "type-set query: unary primitive arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
       throwError "type-set query: unary primitive has an unexpected route"
     let some (input, _, ruleName) := (tsUnaryOf fn.name).find? fun (input, out, _) =>
-        out == q.result && (input.isNone || input == some c.result)
+        out == q.result && (input.isNone || input.any (tsSubsumedM c.result))
       | throwFrontier m!"type-set query: unsupported {fn.name} masks {c.result} → {q.result}"
     match input with
-    | some _ => return ← finish (← mkAppM ruleName #[p])
+    | some input =>
+      let hp ← mkAppM ``inTs_weaken #[← tsSubsumedProofM c.result input, p]
+      return ← finish (← mkAppM ruleName #[hp])
     | none =>
       let result ← finish (← mkAppM ruleName #[← ctxValExpr cfg ctx c.term])
       -- The primitive's unconditional range does not need a child premise,
       -- but the actual executed query still carries that checked child.
       return ← retainQueryChild p result
-  if fn.name == "UNARY-/" then
-    let [(c, p)] := cs | throwError "type-set query: reciprocal arity"
-    unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil &&
-        c.result == 7 && q.result == 11 do
-      throwFrontier m!"type-set query: unsupported reciprocal masks {c.result} → {q.result}"
-    return ← finish (← mkAppM ``inTs_reciprocal_nonneg_int #[p])
   if fn.name == "BINARY-+" || fn.name == "BINARY-*" || fn.name == "COMPLEX" then
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: binary arithmetic arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
@@ -197,14 +193,17 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     let hl ← mkAppM ``inTs_weaken #[← tsSubsumedProofM l.result lm, pl]
     let hr ← mkAppM ``inTs_weaken #[← tsSubsumedProofM r.result rm, pr]
     return ← finish (← mkAppM ruleName #[hl, hr])
-  if fn.name == "<" then
-    let [(l, pl), (r, pr)] := cs | throwError "type-set query: comparison arity"
-    -- The unconditional range return has no successful table/bound record.
-    -- TYPE-SET-< discards the argument ttrees here, but their calls occurred.
+  if let some rangeLemma := tsBooleanBinaryRangeOf fn.name then
+    -- A recorded Boolean range has no successful table/bound record.
+    -- Primitive range returns may discard argument ttrees; retain both
+    -- executed queries in the checked proof even though the law is total.
     if q.route == .nil && q.recognizer == .nil && q.comparison == .nil && q.result == 384 then
-      let result ← finish (← mkAppM ``inTs_of_boolean_range #[← mkAppM ``logic_lt_range
+      let [(l, pl), (r, pr)] := cs | throwError "type-set query: Boolean binary arity"
+      let result ← finish (← mkAppM ``inTs_of_boolean_range #[← mkAppM rangeLemma
         #[← ctxValExpr cfg ctx l.term, ← ctxValExpr cfg ctx r.term]])
       return ← retainQueryChild pl (← retainQueryChild pr result)
+  if fn.name == "<" then
+    let [(l, pl), (r, pr)] := cs | throwError "type-set query: comparison arity"
     if let some [.atom (.keyword "CONSTANT-BOUND"), .atom (.keyword "RESULT"), result,
         .atom (.keyword "ENTRY"), entry, .atom (.keyword "DERIVATION"), derivation] := q.comparison.toList? then
       unless q.route == .nil && q.recognizer == .nil && q.result == 128 &&

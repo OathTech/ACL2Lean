@@ -4,6 +4,7 @@ import ACL2Lean.NumericMultiplication
 import ACL2Lean.NumericOrder
 import ACL2Lean.NumericComponents
 import ACL2Lean.NumericNegation
+import ACL2Lean.NumericInverse
 
 namespace ACL2.Replay
 open ACL2
@@ -416,5 +417,26 @@ theorem inTs_numerator (a : SExpr) : InTs 23 (Logic.numerator a) := by
   | atom a => cases a with
     | number n => cases n <;> rfl
     | _ => rfl
+
+/-- The reciprocal type-set primitive preserves the nonzero numeric cells. The
+fresh inverse-uniqueness operand query records exactly this range. Use the
+existing primitive inverse and completion laws, including complex inputs. -/
+theorem inTs_reciprocal_nonzero_number {v : SExpr} (h : InTs 126 v) :
+    InTs 126 (Logic.reciprocal v) := by
+  have hn := logic_acl2Numberp_t_of_inTs (show tsSubsumedM 126 127 = true by decide) h
+  have hz : v ≠ .atom (.number (.int 0)) := by
+    intro hv
+    rw [hv] at h
+    exact (show ¬ InTs 126 (.atom (.number (.int 0))) by unfold InTs; decide) h
+  have inverse := Logic.times_reciprocal v (ne_of_eq_of_ne hn (by decide)) hz
+  have hr : Logic.reciprocal v ≠ .atom (.number (.int 0)) := by
+    intro he
+    rw [he] at inverse
+    have impossible := (Logic.times_zero_right v).symm.trans inverse
+    cases impossible
+  have he : Logic.equal (Logic.reciprocal v) (.atom (.number (.int 0))) = .nil := by
+    simp [Logic.equal, beq_iff_eq, hr]
+  exact inTs_inter2 (show tsInter2Subsumed 127 (-2) 126 = true by decide)
+    (inTs_reciprocal_number v) (inTs_not_zero ((Logic.toBool_eq_false _).mpr he))
 
 end ACL2.Replay

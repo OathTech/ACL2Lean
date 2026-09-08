@@ -1089,3 +1089,49 @@ to the shared unary adapter using existing primitive numeric laws, then
 recheck the whole fresh predecessor and reserved reuse proof. It remains
 inside Q1's primitive range mechanism; no new arithmetic solver, resource
 increase, or theorem-specific dependency proof is authorized.
+
+
+#### Shared primitive ranges and fresh predecessor closure (2026-09-08)
+
+The clause-fold increment is checkpointed as `695ff5a` (**fast-gate**).
+The fresh reciprocal query at inverse uniqueness now uses the common unary
+range adapter. Its nonzero numeric membership is proved from the existing
+primitive inverse/completion laws, including complex inputs; the adapter
+checks the recorded child and output mask. The former separate reciprocal
+7 → 11 path is retired into the same registry. No new numeric semantics or
+arithmetic solver is introduced.
+
+The complete fresh five-proof chain through reserved EQUAL-/ is unconditional
+with accepted axioms (`r6-fresh-query-reuse-chain.log`). Removing the actual
+reciprocal child or changing its result is refused at consumption
+(`r6-boolean-range-reciprocal-controls.log`). This supersedes the older
+predecessor limitation in the R4 receipt; a production capture no longer
+needs that older prefix.
+
+The fresh maintained arithmetic test first exposes EQUAL-/-0's actual query
+`(EQUAL (IF (ACL2-NUMBERP X) X '0) '0) : 384`, at Goal/simplify item 1,
+node 0/2/3, operand query 0. Source TYPE-SET-EQUAL returns Boolean membership
+for its intersecting argument masks 127 and 1. The shared Boolean binary
+range registry now supplies EQUAL and less-than through the same adapter,
+retaining both checked executed argument queries. The previous less-than-only
+range block is retired. The exact fresh test module then passes, including
+all source-statement and axiom pins (`r6-boolean-range-fresh-arithmetic.log`).
+Its informational cross-book probes still report the existing commutativity
+and reciprocal distributivity endpoints and the unsupported nonzero product
+range; these are not required rows and are not pursued in this slice.
+
+Runner and macro builds pass. All fifteen staged family proofs remain
+unconditional with accepted axioms (`r6-range-family.log`). The six affected
+test targets pass all 3178 jobs, including Ns1Mod in 259 seconds
+(`r6-range-affected-build.log`). Static/provenance checks pass against the
+unchanged production corpus (`r6-range-static.log`); focused CLI equality
+replay remains 3/3 unconditional with both DP leaves checked in 2192 ms
+(`r6-range-equality-replay.log`). These are intermediate fast-gate receipts,
+not a fresh full-gate or production integration claim.
+
+Production capture work is next: maintain the ordinary bootstrap proof
+windows and component staging, promote the checked observer, then validate
+the refreshed corpus and whole helper. An initial maintained bootstrap-driver
+rehearsal captures both DEFAULT-*-1/2 from full `initialize-acl2 NIL`, with
+source loading and original event arguments. The capture/provenance command
+is still uncommitted WIP and has not yet been promoted or claimed complete.

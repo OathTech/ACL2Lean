@@ -216,7 +216,9 @@ def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
 reciprocal on the rational arguments of INTEGERP-MOD's multiplication node. -/
 def tsUnaryOf (op : String) : List (Option Int × Int × Lean.Name) :=
   if op == "UNARY-/" then
-    [(some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat),
+    [(some 7, 11, ``ACL2.Replay.inTs_reciprocal_nonneg_int),
+     (some 126, 126, ``ACL2.Replay.inTs_reciprocal_nonzero_number),
+     (some 63, 63, ``ACL2.Replay.inTs_reciprocal_rat),
      (none, 127, ``ACL2.Replay.inTs_reciprocal_number)]
   else if op == "UNARY--" then
     [(some 23, 23, ``ACL2.Replay.inTs_neg_int),
