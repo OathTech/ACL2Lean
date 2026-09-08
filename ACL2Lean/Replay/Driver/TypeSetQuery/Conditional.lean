@@ -1,5 +1,4 @@
-import ACL2Lean.Replay.Driver.TypeSetQuery.Common
-import ACL2Lean.Replay.Lemmas.TsQueryCells
+import ACL2Lean.Replay.Driver.TypeSetQuery.Decision
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
@@ -32,23 +31,7 @@ def replayConditionalQuery (replay : ReplayCtx → SExpr → SExpr → MetaM Exp
   let ctx ← pinTermOpaques cfg cfg.envExpr ctx q.term
   let value ← ctxValExpr cfg ctx test
   let boolean ← mkAppM ``Logic.toBool #[value]
-  let decision ← if route.mustTrue || route.mustFalse then do
-      let (d, p) :: _ := decisionProofs | throwError "IF query: pruning lacks its decision query"
-      unless d.term == test do
-        throwFrontier m!"IF query: pruning of a composite test needs its scoped decision derivation"
-      if route.mustTrue then
-        unless !tsMember d.result 7 do throwError "IF query: selected decision does not prove truth"
-        let hn ← mkAppM ``ne_nil_of_inTs #[← mkDecideProof
-          (← mkEq (← mkAppM ``tsMember #[toExpr d.result, toExpr (7 : Nat)]) (toExpr false)), p]
-        pure (some (← mkAppM ``toBool_true_of_ne_nil #[hn]))
-      else
-        unless tsSubsumedM d.result 128 do throwError "IF query: selected decision does not prove falsity"
-        let hn ← mkAppM ``nil_of_inTs128 #[← mkAppM ``inTs_weaken
-          #[← tsSubsumedProofM d.result 128, p]]
-        pure (some (← mkAppM ``Iff.mpr #[← mkAppM ``Logic.toBool_eq_false #[value], hn]))
-    else do
-      unless route.decisionTtree == .nil do throwError "IF query: both-branch decision carries a verdict"
-      pure none
+  let decision ← replayIfQueryDecision cfg ctx test route decisionProofs
   let branch (sense : Bool) (term : SExpr) (raw : Option SExpr) : MetaM Expr := do
     withLocalDeclD `hQueryBranch (← mkEq boolean (toExpr sense)) fun hb => do
       let result ← if let some raw := raw then do

@@ -42,23 +42,6 @@ private def primitiveQueryEvidence (q : TsQueryCapture.Query) : MetaM Unit := do
       unless tag == "LEMMA" && (ProofLog.parseRune? entry).any ordinary.contains do
         primitiveQueryEntry tag entry
 
-/-- Apply a primitive recognizer's recorded partition to checked argument
-membership. Both a recursive query and an explicit rewrite use this boundary.
-Ordinary compound recognizers use their replayed source theorem instead. -/
-private def primitiveRecognizerQueryVerdict (term verdict : SExpr)
-    (argTs trueTs falseTs : Int) (strong : Bool) (argument : Expr) : MetaM Expr := do
-  let some (fn, [_]) := asApp term | throwError "recognizer query: unary application required"
-  unless ["ACL2-NUMBERP", "INTEGERP", "RATIONALP", "COMPLEX-RATIONALP", "CONSP"].contains fn.name do
-    throwFrontier m!"recognizer query: ordinary predicate requires its replayed source"
-  let entries := if verdict == .t then tsRecogTrue else if verdict == .nil then tsRecogNil else []
-  let some (_, mask, rule) := entries.find? (fun (name, _, _) => name == fn.name)
-    | throwFrontier m!"recognizer query: unsupported primitive verdict"
-  unless trueTs == mask && falseTs == -mask - 1 && strong do
-    throwError "recognizer query: primitive partition differs from recorded tuple"
-  let inclusion ← if verdict == .t then tsSubsumedProofM argTs mask else
-    mkDecideProof (← mkEq (← mkAppM ``tsDisjointM #[toExpr argTs, toExpr mask]) (toExpr true))
-  mkAppM rule #[inclusion, argument]
-
 /-- Consume a recorded recursive type-set call. Children are checked in
 their execution order; a mask alone never proves a fact. No hypothesis DP. -/
 partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
@@ -285,11 +268,11 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       let some hr ← boolDisj? cfg ctx q.term
         | throwFrontier m!"type-set query: primitive recognizer lacks its Boolean range law"
       return ← retainQueryChild p (← finish (← mkAppM ``inTs_of_boolean_range #[hr]))
-    unless q.result == 256 do
+    unless q.result == 256 || q.result == 128 do
       throwFrontier m!"type-set query: unsupported primitive recognizer verdict {q.result}"
-    let fact ← primitiveRecognizerQueryVerdict q.term .t c.result
+    let fact ← primitiveRecognizerQueryVerdict q.term (if q.result == 256 then .t else .nil) c.result
       basis.trueTs basis.falseTs basis.strongp p
-    return ← finish (← mkAppM ``inTs_of_eq_t #[fact])
+    return ← finish (← mkAppM (if q.result == 256 then ``inTs_of_eq_t else ``inTs_of_eq_nil) #[fact])
   throwFrontier m!"type-set query: unsupported primitive {fn.name}"
 
 def replayTsQueryTrue (cfg : ReplayConfig) (ctx : ReplayCtx) (term raw : SExpr) : MetaM Expr := do

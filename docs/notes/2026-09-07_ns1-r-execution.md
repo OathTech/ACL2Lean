@@ -931,3 +931,114 @@ the intermediate **fast-gate** checkpoint. The last full claim gate remains
 the earlier baseline; NS1-R is still active and incomplete. Next work is the
 selected IF-decision observer for the reserved fresh EQUAL-/ query, followed
 by its shared consumer and production integration.
+
+
+#### Selected IF decision and reserved reuse (2026-09-08)
+
+The preceding integration increment is checkpointed as `7154fb5`
+(**fast-gate**, not a full claim-gate exit). The next diagnostic producer,
+`30503a673a7cf8c6fd6fae6547743f0e9541bb7e`, observes the actual root
+ASSUME-TRUE-FALSE-REC recognizer arm. A cell scoped by the owning IF records
+the selected tuple, normalized term, NOT flag, argument mask and executed
+query index. Recursive assumption calls cannot overwrite that root cell;
+nested IF type queries create their own. Logical return values, theorem
+forms and hints are unchanged. No second query or rule selection was added.
+
+The first image build omitted the repository's `--no-sysinit` flag and
+failed at the existing `/etc/sbclrc` sandbox boundary. The corrected build
+and the subsequent clean-commit rebuild both succeed
+(`r4-selected-decision-{image-build-2,clean-image-build}.log`). The diagnostic
+tag checker is the existing script with only its checkout path changed.
+An initial observational capture has 11/11 QEDs, unchanged three definitions
+and eleven theorem/root/class projections. Its EQUAL-/ recursive inventory
+has 258 unchanged rows after omitting raw provenance and the newly added
+DECISION-BASIS field. This is a structural projection comparison, not full
+raw-metadata equality.
+
+Fresh captures from the clean producer are under
+`r4-decision-{reuse,conditional,times,denominator,booleans}-capture/`.
+They have 11/11, 6/6, 38/38, 7/7 and 2/2 QEDs respectively. The unchanged
+source prefixes and image identities, all 55 producer source hashes,
+capture script, sources, logs and sidecars are recorded in
+`.tmp/ns1-r/r4-selected-decision-provenance.json`. These remain diagnostic
+captures pending production promotion.
+
+EQUAL-/ at Goal', simplify item 6/item 0/node 0/node 0, hypothesis query 0,
+now records precisely this decision: normalize `(NOT (ACL2-NUMBERP X))`,
+select the strong primitive partition 127/-128, and use executed argument
+query 0 (`X : -128`) to select the true IF branch. The shared query consumer
+checks that selection, applies the existing primitive recognizer law to the
+checked child membership, and transports the verdict through the recorded
+normalization. The same primitive-verdict boundary now serves recursive
+recognizer queries, explicit operand queries and IF decisions. The selected
+branch's ACL2-NUMBERP result 128 uses the existing negative recognizer law.
+Strengthening, recursive composite decisions and contradiction routes remain
+explicit frontiers. The first consumer build reports a missing `ToExpr SExpr`
+instance; using the existing `reflectSExpr` constructor fixes that routine
+elaboration error. The second runner build passes all 3160 jobs.
+
+The fresh reserved EQUAL-/ whole proof is unconditional in 4879 ms, with
+axioms `{propext, Classical.choice, Quot.sound}`
+(`r4-selected-decision-staged-controls.log`). Its four ordinary predecessors
+are replayed unconditionally from the existing maintained
+basic-arithmetic-helper capture at the same consumer world. The selected
+EQUAL-/ tree itself is from the new capture. Removing its decision basis,
+changing the selected query index, argument mask, primitive partition or
+NOT normalization, and adding unsupported strengthening each fail at the
+corresponding consuming check. The fresh conditional TRUE probe and its six
+existing refusal controls pass as well.
+
+Replaying **all four predecessors from the fresh capture** is a separate,
+failed diagnostic (`r4-selected-decision-reuse.log`): the fourth,
+UNIQUENESS-OF-*-INVERSES-LEMMA, exposes a recursive reciprocal query with masks
+126 → 126, beyond the current reciprocal query cells. The existing maintained
+capture supplies an adequate, complete replay of that same dependency;
+no assumption or substituted reserved target is used. This fresh predecessor
+frontier must remain visible in production capture/staging decisions. The
+receipt above does not claim unconditional replay of every fresh prefix row.
+
+Fresh reserved EQUAL-DENOMINATOR-1 also passes unconditionally in 5252 ms
+(`r4-selected-decision-denominator.log`). The prerequisite refresh preserves
+all 24 component stages and seven negation stages
+(`r4-selected-decision-{components,negations}.log`). The six-target chain,
+complete ELIM consumer witness, all conditional cases, affected tests and
+remaining fast-gate checks are being refreshed. No new full-gate result or
+NS1-R completion is claimed.
+
+
+The refreshed six-target chain passes all fifteen whole proofs with empty
+conditions and accepted axioms (`r4-selected-decision-family.log`). The six
+required replay times are 4881/3355 ms for the sign pair, 39749 ms for CANCEL,
+22118 ms for CANCEL-GEN, and 4097/4604 ms for the mixed cancellations. These
+are replay/construction timers during concurrent checks, not isolated kernel
+benchmarks. The complete three-case conditional probe chain also passes
+(`r4-selected-decision-conditional-all.log`). Structural comparisons preserve
+all 2279 recursive rows for the six targets, 258 for EQUAL-/, and 55 for the
+three conditional query owners; definitions and theorem/root/class
+projections agree for all five fresh captures. The
+[decision provenance and proof receipt](2026-09-08_ns1-r-decision-provenance.json)
+records the exact inputs, scripts, checks and the predecessor limitation.
+
+**Q5 now has a complete ELIM witness:**
+`<-WHEN-COMPLEX-RATIONALP-AND-RATIONALP`, Subgoal 7', processor 1,
+`eliminate-destructors-clause`. Its first restriction consumes the actual
+`REALPART Y : 63` query and its executed `Y : 63` lookup through
+`replayElimRestriction → replayTsQuery`. The complete owning proof replays
+unconditionally in 33624 ms at the quotient consumer world, using the 22
+earlier component declarations and accepted axioms. Removing the selected
+query's child or changing its result fails at consumption
+(`r4-selected-decision-elim-whole-controls-2.log`). The initial control script
+reported a termination elaboration error in its metadata mutation walker;
+it is retained as a failed receipt, and the corrected ordinary partial
+walker passes the complete script. No synthetic positive tree is used.
+
+The six affected test targets pass all 3177 jobs, including Ns1Mod in 266
+seconds (`r4-selected-decision-affected-build.log`). Static/provenance checks
+pass (`r4-selected-decision-static.log`), and focused equality CLI replay is
+3/3 unconditional with both DP leaves checked in 2218 ms
+(`r4-selected-decision-equality-replay.log`). Together with the refreshed
+31 stages and fresh whole-proof/refusal checks, this verifies another
+intermediate **fast-gate** increment. The full claim-gate baseline remains
+unchanged. Remaining acceptance is duplicate orchestration retirement,
+production capture/staging integration, whole-helper and exact downstream
+measurement, and the final full claim gate.

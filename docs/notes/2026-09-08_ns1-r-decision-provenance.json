@@ -1,0 +1,369 @@
+{
+  "producer": "30503a673a7cf8c6fd6fae6547743f0e9541bb7e",
+  "producer_status": "clean",
+  "recorded_at": "2026-09-08T01:11:17.534830+00:00",
+  "source_hashes": {
+    "acl2-check.lisp": "545f6536a3788fdf5f652518d9e04fbfea5ae72ad05edf98661a54d8482940f4",
+    "acl2-fns.lisp": "b82e755ec61a3e50be989aa7c993eb868774c85fa43700d3287838ee796d1cd7",
+    "acl2-init.lisp": "5deb3772c233ee204d0987dca2465ade99f7c9bf09aec556931de475eefee441",
+    "acl2.lisp": "d3bc8c3899a67f247bb73a004481dc4562850e89ce78c764aa0c8af9d338b3b6",
+    "akcl-acl2-trace.lisp": "7fa5798752a1c6108280c896ffb5aa50e43516cb4ea20dc89160ca8fa8d35b37",
+    "allegro-acl2-trace.lisp": "9ed5651452e31d250c012e16282da4336376f148e17e09cfda4f3081efd00805",
+    "apply-constraints.lisp": "fed9386ab7b6d2ac9f49032c541c5f1fa9c09d84ac6521f15fadf4e7fdbadf5e",
+    "apply-prim.lisp": "224e8deb742183003b09588d289966b13913b6df8b2d121772788af30acf8188",
+    "apply-raw.lisp": "ff64defa208f24c8bf2f209e29f625119097e51119425a9dc45fe6493d9638b8",
+    "apply.lisp": "d8f28e242609e60680fd7ff25280797e3c9ffa4aece8694a1e1415904c706915",
+    "axioms.lisp": "cdda2eff86345d62420f641da90fb884ec53b38df0672cd216196007f9d2cb6b",
+    "basis-a.lisp": "b5af3fa369048b4136a25c03b5e5b5e08ab35938a37b96841f25ab3abe134c2f",
+    "basis-b.lisp": "13ecd005deecba9830f7dfcb3ec2ce8d629b1da67cd1ef7db1623a01e109cff2",
+    "bdd.lisp": "11ebb6b9713c969cf9494a23c1c5eebf4dc9e23a03ef74472f48cd49b733313a",
+    "boot-strap-pass-2-a.lisp": "ba53584bedaf1b0d26f74f9cbe0626a9938fff8b74e856d0af48498ed5c14971",
+    "boot-strap-pass-2-b.lisp": "7d57f15ea4a9bcc5706e2a7fe9c361d936e592c0530a67102835e44a1b1fd672",
+    "defpkgs.lisp": "0a4e454b1c561613332f607fa64df29481c281acbb45f9d2f6e11f014de6d7c1",
+    "defthm.lisp": "1b2fce5a32df10bb97eb3988e457cdea15615a410bef7bd0f814f648262ec5fc",
+    "defuns.lisp": "ee68d37ad7b0c866af96dfbfc37eb6294ebea0b4604cffee71890f61845be4e8",
+    "doc.lisp": "911c580b742685adfc219d2d641777c6b78bfcd9f1c2a9b40e58558bdffe252c",
+    "float-a.lisp": "e1a8cb2d8dd167c80e2b1524060afe9feb832e101145fb938ecbc8dcf4d8f626",
+    "float-b.lisp": "ee5d9646f31ec681321df3116a2db5fccbc804355efd997b5ee20a965c2cf9ed",
+    "float-raw.lisp": "69e03a371e1a24940834cdd295e13fcf0cf3c7a55819ff2a21570c40fc440ca3",
+    "futures-raw.lisp": "ed03be18ef444571f8b6b943321a8e840268ef68834f388a39c914a37780787d",
+    "history-management.lisp": "b9180b849f7e45a474ee67d3472e7a79c7bb42e1b6d0a331d7b9ca2c3d7c56fd",
+    "hons-raw.lisp": "a984c7c5920b816c774ec4eb8c07ea9684ae03d14ebe8965aa9d997a0a23f402",
+    "hons.lisp": "76fbeb12fc9f6c8f2be495616fbf147d521e3d0c62437b14f0bc1ada44d301b5",
+    "induct.lisp": "9bb9e897dc0f8370ae5a295f60e70dd52aeb16944aa05059e3102b07c2fce80c",
+    "init.lisp": "1e975f91442d35b5e25ed2b97c44eb24703cdfd9fc84f14a6622af3e90adfb6f",
+    "interface-raw.lisp": "4e5786279f0916a99604472c649800ae1c7bd499ca1d5259dd8243f29b528060",
+    "ld.lisp": "00b3667b73ff7c2d42e2f7c8a55eefb5304219edc93c7052bfb75aa877f1faac",
+    "linear-a.lisp": "4120ae4d12d451b01a18107249085ea3cc3a178a2d64e9eb667b8333b1cf3556",
+    "linear-b.lisp": "add4f557c81ed78127c090a9aa4f296221c7f3a634fb5aa33902d245cfc80844",
+    "mcl-acl2-startup.lisp": "83d4eee79682262acc74963c789e9ed39e6ad6ad4fdb6a31d01160b73cb357db",
+    "memoize-raw.lisp": "30618961c05a1a8cefa9022e2455f1b741db1f360e63c00e81b3f09389dd3022",
+    "memoize.lisp": "7edf030dc1412ca5e9761d0fb25fe1acb0a1914b89f43a063013c0d16e5a95b6",
+    "multi-threading-raw.lisp": "abc209b7502ec3f6962551fdf08b21b0ab91a5bbac47bb77d3be98f4ce9295f1",
+    "non-linear.lisp": "c733f869e6bc3291c2e27c39c2e940cf051db1356dcc29be0fdd1f78397583fd",
+    "openmcl-acl2-trace.lisp": "e63876d975d906fb847828086e4b5ba3ea4a6dc4dfeee1674b24f4b855e1c696",
+    "other-events.lisp": "e3a2980f119d92853a2463eac5e2f1d2748a0d736f444fdb2c132e7b5944d29b",
+    "other-processes.lisp": "47b1296aaada80627b3445ad8c7cefd435c565caf5bc07c74a50a8d4228644ee",
+    "parallel-raw.lisp": "34da7b683989a2de412047f1fe4504db4fd16f47fb160c10fa63bd95e70a3323",
+    "parallel.lisp": "6f036269471df0ab397273ef6126a2eb8064bdd571bd901a2b2ace64ced9b4b5",
+    "proof-builder-a.lisp": "99b4785a99c8eee70460a2709108a892a7db969249ed7a89ecb33fcdb4043cdb",
+    "proof-builder-b.lisp": "1ff437feb30df7257818ed3068b4d525746ab181c8914150b1e86858831ba8fe",
+    "proof-builder-pkg.lisp": "580ce830bff62022dec18c34db7db13832b63f9ef9e47019bbc80fdcb43ff7b5",
+    "prove.lisp": "38143db2dcabef38d26bdb86b7c1ff66dcefbd88aa89e447c42e801361ff8d09",
+    "rewrite.lisp": "7777a39575d3227fcba9c9ead6b698749445f69a9c92bbcf9f15a4e9e0aee470",
+    "serialize-raw.lisp": "86f7efcb6d595833dbc3f11e11f49610a40dbc02f907651daa161c1abb51c402",
+    "serialize.lisp": "da90b3cc3da31e4fdf985568a2638043e54f343e21dff90e86824d3cc9d06ac8",
+    "simplify.lisp": "abc188a9f3d4dbf2d5409be75d4de9f697353b2f4f1acf4be3a14f8229ad538c",
+    "tau.lisp": "30dd1d152d04271bcc4d2b009df73abb8da9dbe19682fb2aeb80b07ade9dc2eb",
+    "translate.lisp": "4c4cd1c157e549454429373fec1eb7e6e26e151ce5bd1103007f6160fd581d84",
+    "type-set-a.lisp": "91affac2af6800f6ed84d1f737e2c53f65a30e134a9c7dd53147f3797bd61195",
+    "type-set-b.lisp": "6207ecdcb1714358a480e2ce935af484f7877e5c36c10c846a11521ce3e14fe3"
+  },
+  "images": [
+    {
+      "path": ".tmp/ns1/acl2-ta-singleton/saved_acl2",
+      "sha256": "25040f2cc774f6c08c2552214b9c9ce601286c33fb8f5521d2dcbc318e9a12cd",
+      "bytes": 384
+    },
+    {
+      "path": ".tmp/ns1/acl2-ta-singleton/saved_acl2.core",
+      "sha256": "5bc63716977d7d374f26c949758644464cdce1d0a011b193cb9a996dd3343bc6",
+      "bytes": 241980984
+    }
+  ],
+  "capture_script": {
+    "path": "scripts/capture-proof-log.sh",
+    "sha256": "5e4d642dbbe9b3b84704c8e63d3731dbbc113e70494c3475b8a614769c6e143f",
+    "bytes": 11062
+  },
+  "build_command": "make LISP='sbcl --no-sysinit' large",
+  "build_receipt": {
+    "path": ".tmp/ns1-r/r4-selected-decision-clean-image-build.log",
+    "sha256": "783d805d2ec1e6911672d0e96aa073ab90a2a145c0697067a76a0d660c3d22c6",
+    "bytes": 310
+  },
+  "captures": {
+    "reuse": {
+      "source": {
+        "path": "acl2/books/arithmetic-3/pass1/basic-arithmetic-helper.lisp",
+        "sha256": "b67129e830122d139245713e50a2091202625a15bed23f4e4d902ccc907d7f0c",
+        "bytes": 3407
+      },
+      "log": {
+        "path": ".tmp/ns1-r/r4-decision-reuse-capture/basic-arithmetic-helper.proof-log",
+        "sha256": "1acef6ae6a3338a0e4bea2c0a9ce24bd3f58dc1203ecdf98d4a0db494ee33806",
+        "bytes": 601472
+      },
+      "meta": {
+        "path": ".tmp/ns1-r/r4-decision-reuse-capture/basic-arithmetic-helper.proof-log.meta",
+        "sha256": "09fa17eeb79a8464a6e65e07a8b1217f4277ca79cb2d355bc203de1dfa125a81",
+        "bytes": 477
+      }
+    },
+    "conditional": {
+      "source": {
+        "path": ".tmp/ns1-r/query-conditional-probes.lisp",
+        "sha256": "4621a274a00ca5ce8b6186f7d0dae1e75f30349f1344aeaf3e7867a4c05bfd15",
+        "bytes": 1580
+      },
+      "log": {
+        "path": ".tmp/ns1-r/r4-decision-conditional-capture/query-conditional-probes.proof-log",
+        "sha256": "bc1fb17eda0f4d1c8440259b2047e149164fcb6c1e094faeecc836b59ed161f4",
+        "bytes": 23188
+      },
+      "meta": {
+        "path": ".tmp/ns1-r/r4-decision-conditional-capture/query-conditional-probes.proof-log.meta",
+        "sha256": "c8a6997532de0b5cd04dea3ca482a28339f4218aa49195f188e7d98c3721112e",
+        "bytes": 400
+      }
+    },
+    "times": {
+      "source": {
+        "path": "acl2/books/kestrel/arithmetic-light/times.lisp",
+        "sha256": "e7249fa1f3a5b1e13c8e666746818f2f64dba2ea2b91775ebb623b6b16a2cab2",
+        "bytes": 22417
+      },
+      "log": {
+        "path": ".tmp/ns1-r/r4-decision-times-capture/times.proof-log",
+        "sha256": "1a780e67c64ba6338aa6115df36c8f5786623b453a4b4e89c1e417d2f64ccf78",
+        "bytes": 12285924
+      },
+      "meta": {
+        "path": ".tmp/ns1-r/r4-decision-times-capture/times.proof-log.meta",
+        "sha256": "0507065d96f6cc323f947b6d1367c4011f8439ad02df37b0a9a467d054ba69a2",
+        "bytes": 1953
+      }
+    },
+    "denominator": {
+      "source": {
+        "path": "acl2/books/arithmetic-3/pass1/numerator-and-denominator.lisp",
+        "sha256": "3e24d50d9fb9ad725dbb9129e60170495c316c09667e5d5af4af0f288d104c44",
+        "bytes": 2917
+      },
+      "log": {
+        "path": ".tmp/ns1-r/r4-decision-denominator-capture/numerator-and-denominator.proof-log",
+        "sha256": "4f732ed381640f4fa81a796f07e27adb1aa31411340bdac807b3f16072182399",
+        "bytes": 1000412
+      },
+      "meta": {
+        "path": ".tmp/ns1-r/r4-decision-denominator-capture/numerator-and-denominator.proof-log.meta",
+        "sha256": "1da6ee2ac2606ff826a3ce6b6db5abfd6a058acc764b0fcccf43e14397ed69db",
+        "bytes": 1445
+      }
+    },
+    "booleans": {
+      "source": {
+        "path": "acl2/books/kestrel/utilities/equal-of-booleans.lisp",
+        "sha256": "9f5ef7d689e8ce47e51e3a064b6dc7d6d37dea9e693838a6a2f997b394657235",
+        "bytes": 1158
+      },
+      "log": {
+        "path": ".tmp/ns1-r/r4-decision-booleans-capture/equal-of-booleans.proof-log",
+        "sha256": "d19369ff4ad627a41b325d6c204c9f7f7991bb7e4a3e11bcad051d92feac884c",
+        "bytes": 103686
+      },
+      "meta": {
+        "path": ".tmp/ns1-r/r4-decision-booleans-capture/equal-of-booleans.proof-log.meta",
+        "sha256": "946955779a4703945c434170ee00a7497a5de2c90d060e3c183a008a76849f33",
+        "bytes": 411
+      }
+    }
+  },
+  "status": "Diagnostic captures and unconditional whole-proof checks; production integration and full claim gate remain outstanding.",
+  "proof_receipts": [
+    {
+      "script": {
+        "path": ".tmp/ns1-r/probe-selected-decision-family.lean",
+        "sha256": "2f0bec0d725f5044f47b7eb86d9c8e47886a10890c2481146f69aee0e20276b5",
+        "bytes": 7972
+      },
+      "receipt": {
+        "path": ".tmp/ns1-r/r4-selected-decision-family.log",
+        "sha256": "f51de8081885152ba1734d4089227bf6042000e6ef4626b0bb42ddf87c3a74ac",
+        "bytes": 2976
+      }
+    },
+    {
+      "script": {
+        "path": ".tmp/ns1-r/probe-selected-decision-staged-controls.lean",
+        "sha256": "cee2974b3d99ca63c6bb8f3633ace1041808a3dfb6741429c0a1b415179ba1c2",
+        "bytes": 5581
+      },
+      "receipt": {
+        "path": ".tmp/ns1-r/r4-selected-decision-staged-controls.log",
+        "sha256": "9343dee67ca34e4384fb60b8d6bd3fa7e948cafde498580130882a1afa5584ff",
+        "bytes": 1052
+      }
+    },
+    {
+      "script": {
+        "path": ".tmp/ns1-r/probe-selected-decision-denominator.lean",
+        "sha256": "9a5283e6ee2db42e7bca3780d91d1c44c4dfe76ec3312ebc49667b70802c61b6",
+        "bytes": 1916
+      },
+      "receipt": {
+        "path": ".tmp/ns1-r/r4-selected-decision-denominator.log",
+        "sha256": "0af4b75118fb7ad3ed08199eae0d4a3b1faab7fd1f69cbeb2c19ac1b3177755b",
+        "bytes": 196
+      }
+    },
+    {
+      "script": {
+        "path": ".tmp/ns1-r/probe-selected-decision-conditional-all.lean",
+        "sha256": "8d0c9fd8c1ad02a11be3c72133c8a2610061bc6f2c1fd00d875710e3f4017914",
+        "bytes": 2281
+      },
+      "receipt": {
+        "path": ".tmp/ns1-r/r4-selected-decision-conditional-all.log",
+        "sha256": "a99eeed1cff3951cefe3ae648069f4b7c4246bc634d70324a712a2cad2b6c1c4",
+        "bytes": 1077
+      }
+    },
+    {
+      "script": {
+        "path": ".tmp/ns1-r/probe-selected-decision-elim-whole-controls.lean",
+        "sha256": "e116569abbcb6a907d9afbe6c677308615bdac23088d53e9f9dbdfa38de4dcc6",
+        "bytes": 8779
+      },
+      "receipt": {
+        "path": ".tmp/ns1-r/r4-selected-decision-elim-whole-controls-2.log",
+        "sha256": "eeeecb431b815c6124341bc03e4e557320e316951648897329e14efcb178f21a",
+        "bytes": 443
+      }
+    }
+  ],
+  "query_reuse_predecessors": {
+    "capture": {
+      "path": "acl2_samples/ns1/basic-arithmetic-helper.proof-log",
+      "sha256": "d8601ec880db2760d95e9120b33e5fb3a418987c54e59d8af9f0b641fc5e2bde",
+      "bytes": 308521
+    },
+    "note": "The four ordinary predecessors replay from this adequate existing capture. Fresh inverse uniqueness currently refuses a reciprocal query with masks 126 -> 126; the reserved EQUAL-/ tree is always the fresh capture."
+  },
+  "structural_comparison": {
+    "projection": "Recursive inventory; omits log path, raw provenance, and only the new IF DECISION-BASIS field. Old files may include extra explicitly nonselected theorems. No full raw-metadata equality claim.",
+    "comparisons": [
+      {
+        "old": "r3-query-reuse-trees.jsonl",
+        "new": "r4-decision-reuse-trees.jsonl",
+        "theorems": [
+          "EQUAL-/"
+        ],
+        "rows": 258,
+        "equal": true
+      },
+      {
+        "old": "r3-construction-times-trees-complete.jsonl",
+        "new": "r4-times-trees.jsonl",
+        "theorems": [
+          "<-OF-*-AND-*-CANCEL",
+          "<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2",
+          "<-OF-*-AND-*-CANCEL-ARG2-AND-ARG1",
+          "<-OF-*-AND-*-CANCEL-GEN",
+          "<-OF-*-AND-0",
+          "<-OF-0-AND-*"
+        ],
+        "rows": 2279,
+        "equal": true
+      },
+      {
+        "old": "r3-conditional-probe-trees.jsonl",
+        "new": "r4-conditional-trees.jsonl",
+        "theorems": [
+          "NS1-R-QUERY-BOTH",
+          "NS1-R-QUERY-FALSE",
+          "NS1-R-QUERY-TRUE"
+        ],
+        "rows": 55,
+        "equal": true
+      }
+    ]
+  },
+  "definition_statement_comparison": {
+    "path": ".tmp/ns1-r/r4-selected-decision-all-projections.log",
+    "sha256": "690bc2979601c1be51b9632ca8c5d1fc55759b0ab0b56fc219145b8d1a00c625",
+    "bytes": 643
+  },
+  "accepted_axioms": [
+    "propext",
+    "Classical.choice",
+    "Quot.sound"
+  ],
+  "required_dependency_rows": [
+    {
+      "theorem": "BOOLEANP-COMPOUND-RECOGNIZER",
+      "conditions": [],
+      "replay_ms": 365
+    },
+    {
+      "theorem": "EQUAL-OF-BOOLEANS-CHEAP",
+      "conditions": [],
+      "replay_ms": 2216
+    },
+    {
+      "theorem": "EQUAL-OF-BOOLEANS",
+      "conditions": [],
+      "replay_ms": 553
+    },
+    {
+      "theorem": "*-BOTH-SIDES",
+      "conditions": [],
+      "replay_ms": 392
+    },
+    {
+      "theorem": "*-OF-/-SAME-ARG2",
+      "conditions": [],
+      "replay_ms": 3437
+    },
+    {
+      "theorem": "DEFAULT-*-1",
+      "conditions": [],
+      "replay_ms": 1632
+    },
+    {
+      "theorem": "DEFAULT-*-2",
+      "conditions": [],
+      "replay_ms": 1066
+    },
+    {
+      "theorem": "EQUAL-OF-*-AND-*-CANCEL",
+      "conditions": [],
+      "replay_ms": 6570
+    },
+    {
+      "theorem": "EQUAL-OF-*-AND-*-CANCEL-ARG2-ARG2",
+      "conditions": [],
+      "replay_ms": 3515
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL",
+      "conditions": [],
+      "replay_ms": 39749
+    },
+    {
+      "theorem": "<-OF-*-AND-0",
+      "conditions": [],
+      "replay_ms": 4881
+    },
+    {
+      "theorem": "<-OF-0-AND-*",
+      "conditions": [],
+      "replay_ms": 3355
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-GEN",
+      "conditions": [],
+      "replay_ms": 22118
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2",
+      "conditions": [],
+      "replay_ms": 4097
+    },
+    {
+      "theorem": "<-OF-*-AND-*-CANCEL-ARG2-AND-ARG1",
+      "conditions": [],
+      "replay_ms": 4604
+    }
+  ]
+}

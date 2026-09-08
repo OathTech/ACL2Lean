@@ -85,13 +85,14 @@ structure IfRoute where
   mustFalse : Bool
   decisionCount : Nat
   decisionTtree : SExpr
+  decisionBasis : SExpr
   trueContext : List (SExpr × Int × SExpr)
   falseContext : List (SExpr × Int × SExpr)
 
 def ifRoute (raw : SExpr) : Except String IfRoute := do
   let .cons (.atom (.keyword "IF")) body := raw | throw "IF query: missing executed route"
   let fs ← fields body ["MUST-BE-TRUE", "MUST-BE-FALSE", "DECISION-QUERY-COUNT",
-    "DECISION-TTREE", "TRUE-TYPE-ALIST", "FALSE-TYPE-ALIST"]
+    "DECISION-TTREE", "DECISION-BASIS", "TRUE-TYPE-ALIST", "FALSE-TYPE-ALIST"]
   let flag (key : String) := do
     let v ← required fs key
     unless v == .nil || v == SExpr.t do throw "IF query: malformed decision flag"
@@ -101,8 +102,41 @@ def ifRoute (raw : SExpr) : Except String IfRoute := do
   return {
     mustTrue := ← flag "MUST-BE-TRUE", mustFalse := ← flag "MUST-BE-FALSE",
     decisionCount := n.toNat, decisionTtree := ← required fs "DECISION-TTREE",
+    decisionBasis := (fs.lookup "DECISION-BASIS").getD .nil,
     trueContext := ← typeAlist (← required fs "TRUE-TYPE-ALIST"),
     falseContext := ← typeAlist (← required fs "FALSE-TYPE-ALIST") }
+
+/-- The selected root ASSUME-TRUE-FALSE-REC recognizer arm. Its query
+index refers to the IF's executed decision prefix, before branch calls. -/
+structure IfRecognizerDecision where
+  term : SExpr
+  notFlag : Bool
+  argument : SExpr
+  argumentTs : Int
+  queryIndex : Nat
+  trueTs : Int
+  falseTs : Int
+  strong : Bool
+  runes : SExpr
+  strengthening : SExpr
+
+def ifRecognizerDecision (raw : SExpr) : Except String IfRecognizerDecision := do
+  let fs ← fields raw ["KIND", "TERM", "NOT-FLG", "ARGUMENT", "ARGUMENT-TS",
+    "QUERY-INDEX", "TRUE-TS", "FALSE-TS", "STRONGP", "RUNES", "STRENGTHENING-TS"]
+  unless (← required fs "KIND") == .atom (.keyword "RECOGNIZER") do
+    throw "IF decision: unsupported selected arm"
+  let flag (key : String) := do
+    let v ← required fs key
+    unless v == .nil || v == .t do throw "IF decision: malformed Boolean field"
+    pure (v == .t)
+  let i ← asInt (← required fs "QUERY-INDEX")
+  unless i ≥ 0 do throw "IF decision: negative executed query index"
+  return {
+    term := ← required fs "TERM", notFlag := ← flag "NOT-FLG",
+    argument := ← required fs "ARGUMENT", argumentTs := ← asInt (← required fs "ARGUMENT-TS"),
+    queryIndex := i.toNat, trueTs := ← asInt (← required fs "TRUE-TS"),
+    falseTs := ← asInt (← required fs "FALSE-TS"), strong := ← flag "STRONGP",
+    runes := ← required fs "RUNES", strengthening := ← required fs "STRENGTHENING-TS" }
 
 /-- The executed decision prefix and ordered selected arms. Check the
 complete shape before traversing a child in its context. -/

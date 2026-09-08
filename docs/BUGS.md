@@ -268,11 +268,14 @@ book theorems replay unconditionally and consume the replayed bootstrap
 recognizer. The shared consumer now checks original known-true and explicit
 primitive recognizer queries, including both-branch and singly pruned IF
 queries from the authored probes. Both product-sign theorems replay
-unconditionally. Reserved EQUAL-/ reuse exposes a further decision-record
-gap: ASSUME-TRUE-FALSE-REC prunes `(NOT (ACL2-NUMBERP X))` by querying X,
-but the current IF record omits the selected recognizer decision tuple and
-negation normalization. That route is refused; recording and consuming it,
-the remaining target proofs and production integration remain open. See the
+unconditionally. Reserved EQUAL-/ reuse exposed a further decision-record
+gap: ASSUME-TRUE-FALSE-REC prunes `(NOT (ACL2-NUMBERP X))` by querying X.
+Diagnostic producer `30503a673a` now records the selected recognizer tuple,
+query index and negation normalization. Its shared consumer checks the fresh
+whole EQUAL-/ proof unconditionally and rejects missing or inconsistent
+decision records. Both reserved reuse proofs and all six product/cancellation
+targets have diagnostic unconditional receipts; production capture/staging
+integration and the full claim gate remain open. See the
 [NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
 
 The strict multiplication helper also exercises `:CONSTANT-BOUND`, whose
