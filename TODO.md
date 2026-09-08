@@ -35,14 +35,18 @@ charter or the archive carry the record.
 
 ## In flight
 
-- [ ] **NS1-R — reusable type-query and clause-edit replay (production boundary identified).**
+- [ ] **NS1-R — reusable type-query and clause-edit replay (production integration).**
       With the [scope frozen](docs/notes/2026-09-07_ns1-r-supported-scope.md),
-      resolve the scope of fresh sorting/msort's ordinary type-prescription
-      query applications before promoting the observer. The six targets and
-      reserved reuse proofs have diagnostic receipts; fresh bootstrap staging
-      stops at ADD-DEF-COMPLEX's primitive product range 64/63 → 65.
+      preserve the checked query adapters and document fresh sorting/msort's
+      ordinary linear-lemma row-construction boundary before promotion. The six
+      targets and reserved reuse proofs have diagnostic receipts; fresh staging
+      reaches 25 prerequisites, then exposes the bootstrap-window rule chronology
+      defect (BUG-060) at RATIONALP-UNARY--.
       Complete capture/staging integration, preserving all 31 prerequisites,
-      record the whole-helper measurement, and run the final production gate.
+      after separately scoping the ordinary linear-row construction module.
+      Correct quoted known-true relief with an explicitly empty query basis
+      before the next whole-helper measurement. Gate the promoted producer;
+      the unchanged-production baseline gate passes (116 unconditional, 21 mirrors).
       Broader C2 work stays deferred. Plan: [NS1-R](docs/plans/2026-09-07_ns1-replay-mechanisms-plan.md).
       Evidence: [execution record](docs/notes/2026-09-07_ns1-r-execution.md).
 

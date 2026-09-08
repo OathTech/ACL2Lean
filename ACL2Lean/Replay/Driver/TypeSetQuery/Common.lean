@@ -45,10 +45,13 @@ def retainQueryChild (child result : Expr) : MetaM Expr := do
 /-- Apply a primitive recognizer's recorded partition to checked argument
 membership. Both a recursive query and an explicit rewrite use this boundary.
 Ordinary compound recognizers use their replayed source theorem instead. -/
+def primitiveQueryRecognizer (name : String) : Bool :=
+  ["ACL2-NUMBERP", "INTEGERP", "RATIONALP", "COMPLEX-RATIONALP", "CONSP"].contains name
+
 def primitiveRecognizerQueryVerdict (term verdict : SExpr)
     (argTs trueTs falseTs : Int) (strong : Bool) (argument : Expr) : MetaM Expr := do
   let some (fn, [_]) := asApp term | throwError "recognizer query: unary application required"
-  unless ["ACL2-NUMBERP", "INTEGERP", "RATIONALP", "COMPLEX-RATIONALP", "CONSP"].contains fn.name do
+  unless primitiveQueryRecognizer fn.name do
     throwFrontier m!"recognizer query: ordinary predicate requires its replayed source"
   let entries := if verdict == .t then tsRecogTrue else if verdict == .nil then tsRecogNil else []
   let some (_, mask, rule) := entries.find? (fun (name, _, _) => name == fn.name)

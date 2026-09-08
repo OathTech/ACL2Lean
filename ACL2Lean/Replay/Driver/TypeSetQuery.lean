@@ -1,5 +1,6 @@
 import ACL2Lean.Replay.Driver.TypeSetQuery.Basis
 import ACL2Lean.Replay.Driver.TypeSetQuery.Conditional
+import ACL2Lean.Replay.Driver.TypeSetQuery.TypePrescription
 import ACL2Lean.Replay.Driver.NodeCore.TypeSetWalk
 import ACL2Lean.Replay.Lemmas.TsQueryCells
 import ACL2Lean.Replay.Lemmas.TsNegation
@@ -25,7 +26,8 @@ def primitiveQueryTtree (t : SExpr) : MetaM Unit := do
 the queried term. Preserve incoming citations as provenance, and check only
 new evidence as this computation's own inference. Child outputs may be
 discarded by a primitive's unconditional range; every child still replays. -/
-private def primitiveQueryEvidence (q : TsQueryCapture.Query) : MetaM Unit := do
+private def primitiveQueryEvidence (q : TsQueryCapture.Query)
+    (checkedTp : Option Rune := none) : MetaM Unit := do
   let incoming ← tsQueryRead (queryTtreeEntries q.inputTtree)
   let actual ← tsQueryRead (queryTtreeEntries q.ttree)
   unless incoming.all actual.contains do
@@ -39,7 +41,8 @@ private def primitiveQueryEvidence (q : TsQueryCapture.Query) : MetaM Unit := do
     pure (if basis.rune.ty == "compound-recognizer" then [basis.rune] else [])
   for (tag, entry) in actual do
     unless incoming.contains (tag, entry) || childEvidence.contains (tag, entry) do
-      unless tag == "LEMMA" && (ProofLog.parseRune? entry).any ordinary.contains do
+      unless tag == "LEMMA" && (ProofLog.parseRune? entry).any
+          (fun rune => ordinary.contains rune || checkedTp == some rune) do
         primitiveQueryEntry tag entry
 
 /-- Consume a recorded recursive type-set call. Children are checked in
@@ -52,6 +55,7 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     (asApp q.term).any (fun (fn, _) => fn.name != "IF" && fn.name != "NOT")
   unless q.dwp == expectedDwp do throwError "type-set query: double-whammy parent tuple mismatch"
   if q.dwp != .nil then let _ ← tsQueryRead (TsQueryCapture.recognizerDwp q.dwp)
+  let directTp ← replayDefinitionalTpQuery? cfg ctx q
   -- Incoming tags belong to earlier recorded work. A lookup may add only
   -- its selected entry's evidence; its ordinary recognizer is proved below.
   if q.route == .atom (.keyword "LOOKUP") then
@@ -64,7 +68,8 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
         (incoming ++ selected).all actual.contains do
       throwError "type-set query: lookup ttree is not the recorded evidence union"
   else
-    primitiveQueryEvidence q
+    primitiveQueryEvidence q (directTp.map (·.1))
+  if let some (_, proof) := directTp then return proof
   if let .cons (.atom (.keyword "IF")) _ := q.route then
     return ← replayConditionalQuery (fun ctx raw dwp => replayTsQuery cfg ctx raw dwp) cfg ctx q
   let cs ← q.children.mapM fun raw => do
@@ -130,6 +135,18 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       throwFrontier m!"type-set query: unsupported variable computation"
     return ← finish (← mkAppM ``inTs_unknown #[← ctxValExpr cfg ctx q.term])
   let some (fn, args) := asApp q.term | throwFrontier m!"type-set query: unsupported non-application"
+  if fn.name == "CONS" then
+    let [head, tail] := args | throwError "type-set query: CONS arity"
+    let [(child, proof)] := cs | throwError "type-set query: CONS must execute exactly its tail query"
+    unless child.term == tail && q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
+      throwError "type-set query: CONS tail or route mismatch"
+    if q.result == 1024 && tsSubsumedM child.result 1152 then
+      let tailProof ← mkAppM ``inTs_weaken #[← tsSubsumedProofM child.result 1152, proof]
+      return ← finish (← mkAppM ``inTs_cons_proper #[← ctxValExpr cfg ctx head, tailProof])
+    if q.result == 3072 && !tsDisjointM child.result 1152 && !tsDisjointM child.result (-1153) then
+      let result ← finish (← mkAppM ``inTs_cons_range #[← ctxValExpr cfg ctx head, ← ctxValExpr cfg ctx tail])
+      return ← retainQueryChild proof result
+    throwFrontier m!"type-set query: unsupported CONS tail/result masks {child.result}/{q.result}"
   unless cs.map (fun (c, _) => c.term) == args do
     throwError "type-set query: executed children do not match the primitive arguments"
   if q.recognizer != .nil then
@@ -177,6 +194,10 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
     let [(l, pl), (r, pr)] := cs | throwError "type-set query: binary arithmetic arity"
     unless q.route == .nil && q.comparison == .nil && q.recognizer == .nil do
       throwError "type-set query: binary arithmetic has an unexpected route"
+    if let some (mask, rangeLemma) := tsNumericBinaryRangeOf fn.name then
+      if q.result == mask then
+        let result ← finish (← mkAppM rangeLemma #[← ctxValExpr cfg ctx l.term, ← ctxValExpr cfg ctx r.term])
+        return ← retainQueryChild pl (← retainQueryChild pr result)
     if fn.name == "BINARY-*" && l.result == -128 && q.result == 1 then
       let result ← finish (← mkAppM ``inTs_times_nonnumber_left
         #[← ctxValExpr cfg ctx r.term, pl])
@@ -250,7 +271,7 @@ partial def replayTsQuery (cfg : ReplayConfig) (ctx : ReplayCtx) (raw : SExpr)
       throwFrontier m!"type-set query: unsupported NOT masks"
     let fact ← mkAppM ``logic_not_t_of_nil #[← mkAppM ``nil_of_inTs128 #[p]]
     return ← finish (← mkAppM ``inTs_of_eq_t #[fact])
-  if ["INTEGERP", "RATIONALP", "ACL2-NUMBERP"].contains fn.name then
+  if primitiveQueryRecognizer fn.name then
     let [(c, p)] := cs | throwError "type-set query: recognizer arity"
     let some basis ← tsQueryRead (ACL2.parseHypRecognizerBasis ProofLog.parseRune? (some q.recognizer))
       | throwError "type-set query: recognizer lacks its tuple"

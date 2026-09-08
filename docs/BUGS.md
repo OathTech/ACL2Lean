@@ -30,6 +30,34 @@ Pinned-by: differential | none (<reason>)
 
 ---
 
+## BUG-060 — bootstrap-window snapshots offer a local theorem before its proof
+Status: open
+Pinned-by: none (diagnostic bootstrap capture chronology, not interpreter values)
+
+The candidate full-initialization window driver emits ground-zero snapshots
+after initialization completes. Its selected ordinary bootstrap theorems are
+then marked predefined by ACL2, so the ordinary book-end collector can emit
+their newly created rules as ground-zero rules as well as ordered local RULES
+events. The development reader seeds every theorem's rule environment with
+the ground-zero entries, making a local rule available before its creation.
+
+The actual RATIONALP-UNARY-- capture has one preprocess/type-set-fc verdict,
+with no cited ordinary rules, followed by its stored rewrite rule and a
+duplicate ground-zero copy. Replaying that unchanged tree with the normal
+offers returns `cond[rule:RATIONALP-UNARY--]`; the legacy verdict-premise
+adapter offers matching Form-1 rules from that environment. This is a visible
+conditional result, not an unconditional self-proof or a kernel soundness
+failure. The capture does not faithfully describe the initial rule scope.
+
+Evidence: `.tmp/ns1-r/r6-rationalp-minus-trees.jsonl`,
+`r6-rationalp-minus-tree.log`, and `r6-fresh-rationalp-minus-replay.log`.
+The candidate driver is `scripts/capture-bootstrap-window.lisp`; the reader
+is `Replay/Driver/DevQuery.lean:developmentTheoremsWithRules`.
+Correct the bootstrap-window snapshot boundary and verify local-rule ordering
+before promoting these captures. Do not replace the ordinary theorem with a
+handwritten proof or silently count the conditional result as preserved.
+Current production captures have not been replaced by this candidate route.
+
 ## BUG-059 — empty clausify call records activate legacy assumption folds
 Status: open
 Pinned-by: none (actual minus-book replay mismatch)
@@ -394,6 +422,16 @@ Subgoal 2'/3' subtrees check. The strict helper's multiplication query and
 selected zero-row insertion also check; its continuation exposes BUG-055.
 The baseline msort row classes remain open. The production pointer is unchanged,
 so BUG-049 remains open (NS1 charter).
+
+NS1-R now has diagnostic unconditional receipts for the six selected
+sign/cancellation proofs and a checked adapter for msort's ordinary TP
+queries. Fresh msort still needs nonnegative TP-derived rows and the selected
+ordinary `ACL2-COUNT-CAR-CDR-LINEAR` rows. The latter have final coefficients,
+constants and citations but no attached application/relief/conclusion-rewrite
+derivation (`POLY-TYPE-BASIS` is NIL for both rows). Extending verdict-leaf
+premise synthesis to this intermediate insertion would not replay that
+construction. Exact addresses and the frozen-scope obstruction are in the
+[NS1-R execution record](notes/2026-09-07_ns1-r-execution.md).
 
 The isolated producer now records the insertion and the original clause
 whose literal indices label the polynomial parents (aaaaaea5c4, following

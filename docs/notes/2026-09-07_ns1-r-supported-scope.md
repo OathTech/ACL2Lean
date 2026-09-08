@@ -175,3 +175,20 @@ time, replay construction/checking time where available, artifact sizes and
 default-budget failures separately. The final owning tests must fail on any
 conditional or failed selected row; the observational R1 scripts are not
 acceptance gates.
+
+## 2026-09-08 production finding
+
+The freeze above remains unchanged. The six targets and reserved reuse proofs
+now have unconditional diagnostic receipts, but fresh producer promotion
+exposes ordinary linear-lemma row construction in msort's first theorem.
+The selected insertion rows cite ACL2-COUNT-CAR-CDR-LINEAR and have no
+POLY-TYPE-BASIS or recorded rule-application/relief/conclusion-rewrite
+derivation. Existing verdict-leaf premise instantiation does not replay this
+intermediate construction. This is an outside-scope production obstruction
+under the plan's incomplete-stop condition, not an extension of Q5.
+
+The exact rows, source locations, current earlier runtime failure, remaining
+bootstrap-window chronology defect, and bounded helper/reuse measurements
+are in the final R6 sections of the execution record. Required production
+capture/staging integration remains incomplete. No later quotient or native
+mirror proof campaign follows automatically from these diagnostic successes.

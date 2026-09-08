@@ -97,7 +97,7 @@ elab "sorting_arc_pattern_pins% " : term => do
   -- rung 2 — the book's original target class, now actually reachable).
   let (res, _) ← ACL2.Replay.Runner.runBook "p4-iff-or-shape" iffOrShapeLog none
   unless res.integrityFails.isEmpty && res.lines.any (fun l =>
-      l.startsWith "    HAS-E-SNOC → FAIL: replayRewrites: or-shape iff \
+      l.startsWith "    HAS-E-SNOC → FAIL: replayRewrites: IFF IF \
 chain still IFF at the literal root") do
     throwError "pattern pin p4-iff-or-shape: the pinned frontier moved — \
       integrity {res.integrityFails.toList}, got:\n\

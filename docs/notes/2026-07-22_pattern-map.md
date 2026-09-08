@@ -756,8 +756,12 @@ No pattern books exist yet — authoring them is the arc's work.
   reuse proof unconditionally from fresh diagnostic captures. All six selected
   sign/cancellation proofs now replay unconditionally, and the duplicated
   legacy fold/cleanup transport has been extracted. Production promotion
-  remains open: fresh sorting/msort reaches ordinary type-prescription queries
-  beyond the frozen primitive/lookup contract. See the [execution receipt](2026-09-07_ns1-r-execution.md).
+  remains open: the strict unconditional TP adapter now has complete
+  source-backed query probes, and fresh sorting/msort advances to linear
+  insertion. Later selected rows cite ACL2-COUNT-CAR-CDR-LINEAR without a
+  recorded application/rewrite derivation; that row-construction route is
+  beyond the frozen query/edit contract.
+  See the [execution receipt](2026-09-07_ns1-r-execution.md).
 
 ### P6 — induction clean-up (trivial-clause drops)
 - source: `acl2/induct.lisp:7047` → `trivial-clause-p`

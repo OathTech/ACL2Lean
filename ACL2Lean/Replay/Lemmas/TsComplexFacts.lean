@@ -126,23 +126,29 @@ theorem inTs_plus_rat_complex {a b : SExpr} (ha : InTs 63 a) (hb : InTs 64 b) :
   rw [Logic.plus_comm]
   exact inTs_plus_complex_rat hb ha
 
-/-- The actual COMPLEX-RATIONALP(* X1 Y) query uses a complex factor and
-a nonzero rational factor. Imaginary-part multiplication preserves the
-complex bit. This is a primitive type cell, not an order theorem. -/
-theorem inTs_times_complex_rat {a b : SExpr} (ha : InTs 64 a) (hb : InTs 62 b) :
-    InTs 64 (Logic.times a b) := by
+/-- Nonzero rational membership, shared by the recorded product and
+COMPLEX constructor cells. -/
+private theorem rationalValue_ne_zero_of_nonzero_rat {b : SExpr} (hb : InTs 62 b) :
+    Logic.rationalValue b ≠ 0 := by
   have hb63 : InTs 63 b := inTs_weaken (by decide) hb
   have hbNum := logic_acl2Numberp_t_of_inTs (by decide : tsSubsumedM 62 127 = true) hb
   have hbNe : Logic.acl2Numberp b ≠ .nil := by rw [hbNum]; decide
   have hbReal := not_complex_of_inTs_rational hb63
   have hrep := Logic.mkParts_numberParts b
   rw [Logic.numberParts_of_not_complex b hbReal, Logic.fix_of_number b hbNe] at hrep
-  have hq : Logic.rationalValue b ≠ 0 := by
-    intro hz
-    rw [hz] at hrep
-    have hzero : b = .atom (.number (.int 0)) := hrep.symm
-    have impossible : InTs 62 (.atom (.number (.int 0))) := hzero ▸ hb
-    exact (by unfold InTs; decide : ¬ InTs 62 (.atom (.number (.int 0)))) impossible
+  intro hz
+  rw [hz] at hrep
+  have hzero : b = .atom (.number (.int 0)) := hrep.symm
+  have impossible : InTs 62 (.atom (.number (.int 0))) := hzero ▸ hb
+  exact (by unfold InTs; decide : ¬ InTs 62 (.atom (.number (.int 0)))) impossible
+
+/-- The actual COMPLEX-RATIONALP(* X1 Y) query uses a complex factor and
+a nonzero rational factor. Imaginary-part multiplication preserves the
+complex bit. This is a primitive type cell, not an order theorem. -/
+theorem inTs_times_complex_rat {a b : SExpr} (ha : InTs 64 a) (hb : InTs 62 b) :
+    InTs 64 (Logic.times a b) := by
+  have hbReal := not_complex_of_inTs_rational (inTs_weaken (by decide : tsSubsumedM 62 63 = true) hb)
+  have hq := rationalValue_ne_zero_of_nonzero_rat hb
   have hi := imag_num_ne_zero_of_inTs_complex ha
   have hin : (Logic.numberParts a).2 ≠ 0 := fun h => hi (congrArg Rat.num h)
   have hp : ((Logic.numberParts a).2 * Logic.rationalValue b).num ≠ 0 := fun h =>
@@ -150,5 +156,25 @@ theorem inTs_times_complex_rat {a b : SExpr} (ha : InTs 64 a) (hb : InTs 62 b) :
   rw [Logic.times_parts, Logic.numberParts_of_not_complex b hbReal]
   simp only [Rat.mul_zero, Rat.zero_add]
   exact inTs_mkParts_complex _ _ hp
+
+/-- The executed ADD-DEF-COMPLEX product query allows a zero rational factor.
+The nonzero branch reuses the existing complex/rational primitive cell. -/
+theorem inTs_times_complex_rat_or_zero {a b : SExpr} (ha : InTs 64 a) (hb : InTs 63 b) :
+    InTs 65 (Logic.times a b) := by
+  by_cases hz : b = .atom (.number (.int 0))
+  · rw [hz]
+    exact (congrArg (InTs 65) (Logic.times_zero_right a)).mpr (by unfold InTs; decide)
+  · have hb62 : InTs 62 b := inTs_inter2 (by decide : tsInter2Subsumed 63 (-2) 62 = true)
+      hb (inTs_not_zero ((Logic.toBool_eq_false _).mpr ((Logic.equal_nil_iff _ _).mpr hz)))
+    exact inTs_weaken (by decide) (inTs_times_complex_rat ha hb62)
+
+/-- TYPE-SET-COMPLEX preserves the nonzero rational imaginary cell.
+The first argument is completed independently; its executed query is still
+an explicit argument of this primitive transfer. -/
+theorem inTs_complex_nonzero_rat {a b : SExpr} (_ha : InTs (-1) a) (hb : InTs 62 b) :
+    InTs 64 (Logic.complex a b) := by
+  apply inTs_mkParts_complex
+  intro hzero
+  exact rationalValue_ne_zero_of_nonzero_rat hb (Rat.num_eq_zero.mp hzero)
 
 end ACL2.Replay

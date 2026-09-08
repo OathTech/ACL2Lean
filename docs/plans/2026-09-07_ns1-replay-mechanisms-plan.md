@@ -3,6 +3,11 @@
 Dated 2026-09-07. **Execution activated; R0 checkpointed, R1 scope frozen; query capture and edit implementation in progress.**
 Evidence and current next actions are in the
 [execution record](../notes/2026-09-07_ns1-r-execution.md).
+**2026-09-08 execution update:** the six targets and reserved reuse proofs
+have unconditional diagnostic receipts. Production promotion requires an
+ordinary linear-row construction mechanism outside the frozen scope;
+fresh bootstrap staging also remains incomplete. This is an incomplete-stop
+finding under the condition below, not completion of this plan or NS1.
 This is the next bounded slice within NS1, following the project check-in.
 It changes the immediate execution sequence, while preserving the three
 native propositions and completion requirements of the

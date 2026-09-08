@@ -211,10 +211,12 @@ def tsBinaryOf (op : String) : List (Int × Int × Int × Lean.Name) :=
      (14, 15, 14, ``ACL2.Replay.inTs_plus_positive_nonneg_rat)]
   else if op == "BINARY-*" then
     [(23, 23, 23, ``ACL2.Replay.inTs_times_int), (63, 63, 63, ``ACL2.Replay.inTs_times_rat),
-     (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat)]
+     (64, 62, 64, ``ACL2.Replay.inTs_times_complex_rat),
+     (64, 63, 65, ``ACL2.Replay.inTs_times_complex_rat_or_zero)]
   else if op == "COMPLEX" then
     [(127, 1, 63, ``ACL2.Replay.inTs_complex_number_zero),
-     (1, 1, 1, ``ACL2.Replay.inTs_complex_zero_zero)]
+     (1, 1, 1, ``ACL2.Replay.inTs_complex_zero_zero),
+     (-1, 62, 64, ``ACL2.Replay.inTs_complex_nonzero_rat)]
   else []
 
 /-- Unary primitive closure at a recorded type-set query. The first cell is

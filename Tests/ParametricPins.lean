@@ -99,6 +99,9 @@ private def checkPin (declName : Name) (binderNames : List String)
 -- Their exact types, the source conclusion/constraints, both canonical
 -- kept inventories and all four axiom receipts were checked in
 -- c2-component-parametric-registry-review.log.
+-- NS1-R (2026-09-08): HIDE adds its registered no-shadow premise.
+-- The exact lookup type, source/constraint/canonical pins and four axiom
+-- receipts pass in r6-parametric-hide-review-2.log; no ordinary premise moves.
 run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
         ["env", "w",
          "hnoshadow_CONS", "hnoshadow_CAR", "hnoshadow_CDR", "hnoshadow_CONSP",
@@ -110,7 +113,7 @@ run_cmd (checkPin ``ACL2.Imported.Waypoints.weakSortfn1IsSortfn2Parametric
          "hnoshadow_FIX", "hnoshadow_NFIX", "hnoshadow_IFIX", "hnoshadow_REALFIX", "hnoshadow_IMPLIES", "hnoshadow_IFF",
          "hnoshadow_TRUE-LISTP", "hnoshadow_LEN", "hnoshadow_LEXORDER", "hnoshadow_EXPT",
          "hnoshadow_NUMERATOR", "hnoshadow_DENOMINATOR", "hnoshadow_REALPART",
-         "hnoshadow_IMAGPART", "hnoshadow_COMPLEX-RATIONALP", "hnoshadow_COMPLEX", "hnoshadow_COERCE",
+         "hnoshadow_IMAGPART", "hnoshadow_COMPLEX-RATIONALP", "hnoshadow_COMPLEX", "hnoshadow_COERCE", "hnoshadow_HIDE",
          "htotal_PERM", "htotal_ORDEREDP", "htotal_HOW-MANY",
          "htotal_PERM-COUNTER-EXAMPLE", "htotal_SORTFN1", "htotal_SORTFN2",
          "htp_HOW-MANY",

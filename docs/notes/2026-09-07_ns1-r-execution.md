@@ -2,11 +2,16 @@
 
 Dated 2026-09-07. Implements the
 [focused plan](../plans/2026-09-07_ns1-replay-mechanisms-plan.md).
-**In progress: R1 scope frozen; query captures and selected clause edits underway.**
+**2026-09-08: diagnostic six-target/reuse replays pass; production promotion
+is obstructed by ordinary linear-row construction outside the frozen scope.**
 The [supported scope](2026-09-07_ns1-r-supported-scope.md) records the cases,
 module contracts, integration bounds and subsequently selected reuse witnesses.
-The selected clause-edit fragment closes the first required CANCEL proof.
-Shared query consumption and residual clause construction remain incomplete.
+Shared query and clause-edit consumers are implemented and exercised below.
+Fresh prerequisite/capture integration remains incomplete. The final baseline
+gate passes against the unchanged production producer (116 unconditional rows,
+21 mirrors); it does not establish promotion of the diagnostic producer.
+NS1-R stops incomplete under its frozen-scope escape condition. See the final
+R6 observations and gate receipt below.
 
 ## Baseline and preservation
 
@@ -1235,3 +1240,237 @@ fresh prerequisite preservation, the two primitive range omissions and
 final integration remain unfinished. A full gate against the current
 production corpus is now being run solely as a baseline-preservation check;
 it cannot establish candidate-producer integration.
+
+The provisional scope assessment above is not an incomplete-stop finding.
+The frozen judgment contract explicitly permits ordinary recognizer/TP rules
+through the existing checked registry, with source/world pairing and
+instantiation. EVENS's recorded rule is unconditional, has constant basic
+mask 1152, and executes no argument queries. A strict adapter for that
+already checked corollary may cover the observed query without a new
+backchaining or forcing mechanism. Assess that adapter and the primitive
+CONS tail composition before claiming an out-of-scope obstruction. The two
+primitive numeric range omissions also remain in-scope work.
+
+The current-production full gate has reported a parametric binder pin
+mismatch: `hnoshadow_HIDE` is now present; the other binders agree. The
+existing msort and qsort coverage rows pass 7/7 and 13/13 respectively.
+The gate is still running, so this is neither a full-gate pass nor a final
+regression inventory. The HIDE binder's source will be checked before a pin
+change; no baseline assumption will be silently removed.
+
+That baseline run was terminated after its two pin failures were reviewed,
+before the two sorts-equivalent modules finished. Session exit is 143; there
+is no `TRUE_EXIT=0` receipt. Core changes were held until the run stopped.
+The HIDE review now passes: its exact new premise is
+`w.defs.get? HIDE = none`, all source/constraint/canonical pins still pass,
+and all four parametric/canonical declarations carry only the accepted
+axioms (`r6-parametric-hide-review-2.log`). The pattern failure is the same
+unclosed IFF literal-root relation, now reported by the shared `replayIfIff`
+consumer with the text “IFF IF chain” instead of “or-shape iff chain”. Its
+reconstruction integrity remains empty. Both pin updates are uncommitted;
+they still require the later full gate.
+
+The strict TP adapter under test requires the function's sole stored rule,
+its exact definitional pattern and corollary, a matching checked world TP
+proof, an unconditional value-only class and exact basic result mask. It
+rejects executed children, nontrivial lookup, conditional or argument-valued
+classes and multiple stored rules. The citation can already be present in
+the accumulator: 15 of the first msort theorem's 33 ACL2-COUNT queries have
+unchanged input/output ttrees. That is not permission to assume the rule;
+the adapter instantiates the existing checked proof on each application.
+The actual EVENS and ACL2-COUNT source rule inventory is in
+`r6-tp-source-inventory.log`. The existing corollary classifier was moved
+unchanged from TsConsumer into TpCorollary for both consumers to share.
+
+The first core build with this adapter, CONS tail composition and the two
+primitive numeric range repairs passes 3164 jobs
+(`r6-tp-range-core-build.log`). Owning proofs are being rerun; this build
+alone does not close their acceptance obligations.
+
+The fresh component run now closes all 24 component declarations and
+DEFAULT-UNARY-MINUS unconditionally, with accepted axioms
+(`r6-fresh-stages-complex-constructor.log`). ADD-DEF-COMPLEX takes 10073 ms;
+the two less-than component proofs take 18709/33769 ms. The whole process
+then stops at RATIONALP-OF-- with the ordinary `rule:RATIONALP-UNARY--`
+condition, rather than an unsupported query. Its later commands cannot find
+the absent predecessor; they are not separate proof failures. Wall time is
+291.40 seconds, peak RSS 5,090,704 KiB. The original RATIONALP-UNARY-- is a
+`defthm` at candidate axioms.lisp:22313, not a primitive axiom. Its original full
+initialization proof has now been captured with the same maintained driver
+(`r6-bootstrap-rationalp-minus-capture.log`) and is being offered through
+the ordinary dependency channel. No handwritten proof replaces it.
+
+The fresh less-than proof's next cell was `(COMPLEX I S) : 64` with child
+masks 63/48, at Subgoal 4.1, simplify item 3/1/1/1/1/0, node 1,
+operand query 0 (`r6-fresh-less-trees.jsonl`). The shared constructor cell
+uses nonzero rational imaginary membership (mask 62, covering 48); its real
+argument completes independently. The nonzero rational conversion is shared
+with the existing multiplication cell. This closes the actual whole
+less-than proof and adds no numeric semantics. Recursive recognizer queries
+now use the same primitive recognizer registry as explicit verdicts; the
+helper inventory records COMPLEX-RATIONALP queries previously omitted by
+the recursive whitelist. Core build: 3164 jobs in
+`r6-shared-recognizer-registry-build.log`.
+
+Two focused real ACL2 source proofs exercise the strict TP adapter:
+`r6-tp-query-book/query-classes.lisp` classifies a CONS with a recursively
+copied true-list tail, and classifies a recursively computed list size.
+The first records CONS : 1024 with exactly the tail query : 1152; the
+second records the defined size function : 7 with no executed child.
+Both whole proofs are unconditional with accepted axioms. Changed masks,
+missing citations and a removed CONS tail query are refused at their
+consuming boundaries (`r6-tp-query-controls-3.log`). Two earlier simpler
+source probes closed by verdict-only preprocessing/FC and did not exercise
+recursive query replay; they are not query-adapter receipts. The successful
+probe keeps the recognizer inside a rewritten body, matching the wild
+msort occurrence. Its explicit no-preprocess hint belongs only to this
+authored probe; no target book or hint was changed.
+
+#### Remaining production obstruction: ordinary linear-row construction
+
+The focused first msort theorem advances through its EVENS/CONS query and
+now first fails at `linear equation: insertion cites an unsupported
+derivation`, in 611 ms (`r6-msort-first-checked-tp.log`). That first insertion,
+Subgoal *1/2.3', simplify item 3, includes an ACL2-COUNT type-set row with
+mask 7. The current row consumer supports only the zero-cell construction.
+Connecting a checked nonnegative-integer query to this row is distinct from
+the later ordinary linear-lemma construction below.
+
+The same complete tree contains a mandatory later insertion at
+Subgoal *1/2.3''', simplify processor 1/item 9. It inserts
+`(NOT (EQUAL (ACL2-COUNT (CAR X)) (BINARY-+ '-1 (ACL2-COUNT X))))`.
+Both selected rows cite `(:LINEAR ACL2-COUNT-CAR-CDR-LINEAR)` with parents
+1/0, coefficients on COUNT(CAR X)/COUNT(X), and constants 1/-1. Both
+`POLY-TYPE-BASIS` slots are NIL. There is no rewrite node replaying or citing
+that linear rune anywhere in the first theorem's reconstructed tree.
+The same row class recurs at Subgoal *1/2.1.1''', processor 1/item 9.
+
+Source `rewrite.lisp:22286` (`add-linear-lemma`) matches the stored max-term,
+relieves hypotheses and rewrites the instantiated conclusion before
+linearization. The present insertion emitter at simplify.lisp:8673 records
+the selected final rows, references and numeric queries; its type-origin
+table records only POLYS-FROM-TYPE-SET constructions. It does not retain the
+linear rule's selected application, hypothesis relief and conclusion rewrite
+as a construction derivation for these rows. `LinearPremises.lean` transports
+stored rule instances at verdict-only leaves; it does not replay this
+intermediate row construction. A rune set is not a proof of the inserted
+equation, and the leaf DP allowance does not authorize an insertion solver.
+
+This is a new row-construction mechanism beyond frozen Q1–Q5/E1–E3, and a
+production-promotion obstruction under the plan's incomplete-stop condition.
+It supersedes the earlier provisional TP-query scope concern. The smallest
+follow-on scope is to record and replay the selected ordinary linear-rule
+application/relief/rewrite/linearization chain behind a checked polynomial
+row judgment, including its connection to the existing insertion consumer.
+Independent bounded prerequisite, helper and regression work is still being
+finished; NS1-R is not complete and production remains unpromoted.
+
+#### Final bounded measurements (2026-09-08)
+
+The 24 fresh component declarations also compile as a reusable diagnostic
+module: `r6-fresh-components-compiled.log`, 161.45 seconds, peak RSS
+5,206,952 KiB, every declaration unconditional with accepted axioms.
+The separate negation stage closes DEFAULT-UNARY-MINUS, then retains
+`rule:RATIONALP-UNARY--` on RATIONALP-OF--
+(`r6-fresh-negations-compiled.log`, 42.71 seconds). Thus the fresh chain
+currently preserves 25 of the named 31 prerequisites, not all 31.
+
+The direct original-bootstrap proof has the same self condition
+(`r6-fresh-rationalp-minus-replay.log`). Inspection exposes BUG-060: the
+full-initialization window's trailing ground-zero snapshot duplicates its
+local rule, so `rulesBefore` offers it before its own theorem. The actual
+tree is one preprocess/type-set-fc verdict with no ordinary citations;
+`r6-rationalp-minus-trees.jsonl` records it completely. A diagnostic exclusion
+control replays that unchanged tree with no ordinary rule offers and returns
+`ASSUMED:dp-fact` (`r6-rationalp-minus-no-rule-offers.log`). Removing the bad
+offer alone therefore does not close the prerequisite. Neither run is an
+unconditional proof. Correct chronology and close the emitted primitive
+verdict before integrating this dependency; no handwritten ordinary theorem
+has been registered.
+
+The final helper measurement deliberately reuses the preserved checked
+31-prerequisite diagnostic chain, whose source paths and declarations are
+explicit in `probe-r6-preserved-stages-helper.lean`. It replays all 15 family
+declarations again, including the six mandatory targets, unconditionally
+with accepted axioms. This validates the current consumer against that
+preserved chain, not fresh production staging. Receipt:
+`r6-final-preserved-stages-helper.log`.
+
+| Required target | Replay milliseconds |
+| --- | ---: |
+| `<-OF-*-AND-*-CANCEL` | 53145 |
+| `<-OF-*-AND-0` | 5072 |
+| `<-OF-0-AND-*` | 3609 |
+| `<-OF-*-AND-*-CANCEL-GEN` | 30563 |
+| `<-OF-*-AND-*-CANCEL-ARG1-AND-ARG2` | 5109 |
+| `<-OF-*-AND-*-CANCEL-ARG2-AND-ARG1` | 5279 |
+
+Whole `<-OF-*-AND-*-SAME-HELPER` then stops at
+`FC basis: missing TYPE-ALIST`, in 2887 ms. Total process wall time is
+179.81 seconds and peak RSS is 5,187,924 KiB. The command exits 0 because
+the helper is an observational measurement; the six-target assertions pass,
+but the helper is **not** proved.
+
+The matching source case is quoted known-true relief after a recorded
+substitution fold. The complete helper inventory contains 77
+`relieve-hyp/known-true` nodes with lhs `'T` and `hypTypeSetBasis = some NIL`.
+The first is in Subgoal 9', simplify processor 0, item path
+`2/1/1/1/1/1/1/1/1/1/1/1/1/0`, node path `1/1`; its recorded fold is
+`(RATIONALP '0) → 'T`. In candidate type-set-b.lisp:12903,
+`known-whether-nil`'s quote branch returns directly and explicitly clears
+the query basis to NIL. `replayKnownTrueQuery?` treats the present NIL as a
+query plist, whose TYPE-ALIST field is absent. The “FC basis” prefix belongs
+to the shared plist parser; it does not establish a missing forward-chain
+inference. This is a bounded adapter omission at the helper measurement
+boundary. The static address identifies the first matching tree occurrence;
+the whole-run error itself does not print a tree address. Later helper and
+quotient frontiers have not been exhaustively measured.
+
+Both reserved complete reuse proofs pass again through the current consumer:
+EQUAL-/ (4109 ms, with its five prerequisites and the missing-child/wrong-mask
+refusals) in `r6-tp-range-query-reuse.log`; EQUAL-DENOMINATOR-1 (4296 ms) in
+`r6-tp-range-edit-reuse.log`. Accepted axiom receipts are retained. The affected
+six-test build passes 3181 jobs (`r6-tp-range-affected-build.log`), static
+checks pass (`r6-tp-range-static.log`), and focused equality replay passes
+3/3 unconditional with 2 DP leaves (`r6-tp-range-equality.log`).
+
+The remaining acceptance gap is concrete: the diagnostic producer cannot be
+promoted while preserving fresh msort without the ordinary linear-rule row
+construction described above. Candidate bootstrap capture/staging also needs
+BUG-060 and the emitted negation verdict resolved. The candidate
+`Tests/Ns1Mechanisms` modules are not root-imported or production consumers,
+and no `.tmp` import has been promoted into the maintained test graph.
+The baseline gate recorded in `r6-final-current-production-claim-gate.log`
+uses production `fd27e59021cf7d0103a526dbda41553ad709eae3` with the current
+replay changes. It is a baseline preservation check only. NS1-R remains
+incomplete; the larger NS1 mirror campaign has not resumed.
+
+#### Baseline gate and incomplete stop
+
+The fresh full worktree gate passes:
+`.gate-runs/c72e4a9-20260908T050003Z.log`, **TRUE_EXIT=0**.
+The build passes 3301 jobs, followed by the test build and a freshly assembled
+coverage report: **116/116 replayed, 116 unconditional, 0 conditional**, across
+29 baseline books. The golden matches the live assembly. The mirror seam gate
+checks **21 existing mirror products**, each consuming a replayed statement;
+their axiom/purity/name checks pass. Both reviewed pin updates pass. The
+largest correspondence module, SortsEquivalent, takes 1293 seconds; no resource
+limit was raised.
+
+This receipt covers the worktree at c72e4a9 plus the recorded changes, with
+the unchanged production ACL2 revision. Candidate capture/provenance scripts
+were present during the gate and remain separate uncommitted WIP, along with
+the unintegrated owning-test modules. Their recovery snapshot is
+`.tmp/ns1-r/r6-incomplete-handoff/`; its manifest identifies the checkpoint,
+patch hash and untracked source hashes. Captures, images and diagnostic proof
+artifacts remain at their recorded workspace paths. Main is clean and untouched.
+
+**NS1-R stops incomplete.** The shared fragment work and diagnostic successes
+do not satisfy the mandatory production-integration requirement. Fresh msort
+needs a selected ordinary linear-rule construction derivation that the current
+capture does not contain and the frozen scope does not implement. Resolving
+that requires a separately scoped row-construction module and source observer,
+not an insertion solver under the verdict-leaf allowance. The bootstrap
+chronology/negation and quoted-known-true adapter gaps above also remain open.
+No producer promotion, merge, push, native specification change or new mirror
+is part of this checkpoint. No later quotient frontier has been chased.

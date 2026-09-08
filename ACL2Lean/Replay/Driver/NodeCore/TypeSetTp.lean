@@ -1,12 +1,15 @@
 import ACL2Lean.Replay.Driver.NodeCore.Compose
 import ACL2Lean.Replay.Driver.TsFacts
+import ACL2Lean.Replay.Driver.TpCorollary
+import ACL2Lean.Replay.Lemmas.TsListFacts
 
 namespace ACL2.Replay.Driver
 open ACL2 ACL2.Replay Lean Lean.Meta
 
-/-- Consume a cited defun TP's integer or Boolean corollary. INTEGERP-MOD
+/-- Consume a cited defun TP's value-only corollary. INTEGERP-MOD
 cites the quotient TP in its argument leaves; sorting's Boolean equality
-step cites PERM. The corollary proof remains an ordinary replay obligation. -/
+step cites PERM. Recorded sorting queries also consume true-list and
+nonnegative-integer classes. The corollary proof remains an ordinary replay obligation. -/
 def inTsFromCitedTp (cfg : ReplayConfig) (ctx : ReplayCtx)
     (cited : List String) (t : SExpr) (tv : Expr) : MetaM (Option (Int × Expr)) := do
   let .cons (.atom (.symbol fn)) argsSpine := t | return none
@@ -20,6 +23,17 @@ def inTsFromCitedTp (cfg : ReplayConfig) (ctx : ReplayCtx)
   let conv ← ctxValProof cfg ctx t
   let fact := mkAppN tpHyp ((#[cfg.envExpr] : Array Expr)
     ++ (args.map reflectSExpr).toArray ++ #[tv, conv])
+  -- Share the TP prover's exact corollary classification. These constant
+  -- classes retain the whole checked corollary rather than extracting only
+  -- its INTEGERP conjunct (which would lose ACL2-COUNT's nonnegative mask).
+  let cls := tpCorClass? t inst
+  let membership := match cls with
+    | some .nonNegInt => some (7, ``inTs_of_nonNegIntCor)
+    | some .trueListp => some (1152, ``inTs_of_trueListp_t)
+    | _ => none
+  if let some (mask, lemmaName) := membership then
+    return some (mask, ← mkExpectedTypeHint (← mkAppM lemmaName #[fact])
+      (← mkAppM ``InTs #[Lean.toExpr (mask : Int), tv]))
   let eqT (x y : SExpr) := SExpr.ofList [.atom (.symbol { name := "EQUAL" }), x, y]
   let booleanCor := SExpr.ofList [.atom (.symbol { name := "IF" }),
     eqT t quoteT, quoteT, eqT t quoteNil]

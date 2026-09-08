@@ -439,4 +439,18 @@ theorem inTs_reciprocal_nonzero_number {v : SExpr} (h : InTs 126 v) :
   exact inTs_inter2 (show tsInter2Subsumed 127 (-2) 126 = true by decide)
     (inTs_reciprocal_number v) (inTs_not_zero ((Logic.toBool_eq_false _).mpr he))
 
+/-- Membership decoded from the existing checked nonnegative-integer TP
+corollary. Consumed by recorded ACL2-COUNT queries in sorting/msort. -/
+theorem inTs_of_nonNegIntCor {v : SExpr}
+    (h : (bif Logic.toBool (Logic.integerp v)
+      then Logic.not (Logic.lt v (.atom (.number (.int 0)))) else SExpr.nil) = SExpr.t) :
+    InTs 7 v := by
+  obtain ⟨n, rfl⟩ := dp_nonneg_int_of_tp h
+  simp only [InTs, tsIndex_int]
+  split_ifs with h0 h1 h2
+  · decide
+  · decide
+  · decide
+  · omega
+
 end ACL2.Replay
